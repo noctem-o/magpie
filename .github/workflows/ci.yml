@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt,clippy
+          rustup default stable
+          rustc --version
+          cargo --version
+
+      - name: Cache Cargo build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Check Rust formatting
+        run: cargo fmt --all --check
+
+      - name: Run Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Run tests
+        run: cargo test --workspace
+
+      - name: Install Python verifier dependencies
+        run: python -m pip install --upgrade pip cryptography
+
+      - name: Verify frozen golden chain
+        # Trust root pinned here on purpose: the chain is self-describing, not
+        # self-authenticating (FORMAT.md §5), so CI must not read the key out
+        # of the chain it is verifying. This hex is the fixture's pinned
+        # verifying key, the same anchor as EXPECTED_HASHES in tests/golden.rs.
+        run: >
+          python tools/verify_chain.py
+          crates/magpie-log/testdata/golden-v1.jsonl
+          ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c
