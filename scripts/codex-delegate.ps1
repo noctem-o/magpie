@@ -77,6 +77,14 @@ Do not access secrets.
 Do not use the network unless explicitly allowed.
 Do not delete unrelated files.
 
+Native Windows execution constraint:
+
+Shell execution may fail on native Windows with 'CreateProcessAsUserW failed: 5'.
+Do not repeatedly retry failed shell commands.
+Continue with patch or file edits only when the requested edits are safe and bounded from the repository contents.
+Report any skipped validation commands in the final summary.
+Do not claim tests passed unless they actually ran and passed.
+
 Return a concise final summary with:
 
 - files changed

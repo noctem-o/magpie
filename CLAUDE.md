@@ -34,6 +34,16 @@ Use Codex through `.\\scripts\\codex-delegate.ps1` for bounded implementation wo
 
 Do not modify `scripts\codex-delegate.ps1` during ordinary delegation runs. The wrapper is part of the delegation boundary. Only edit it when the user explicitly asks to debug or change the harness.
 
+\## Windows Codex sandbox caveat
+
+On native Windows, Codex shell execution in `workspace-write` may intermittently fail with `CreateProcessAsUserW failed: 5`.
+
+For Windows write-mode tickets, prefer file-edit tasks that Codex can complete by patching files. Do not require Codex to run `cargo`, `git`, `tar`, `pwsh`, or other commands as hard preconditions.
+
+Ask Codex to report validation commands for the human to run. The human or parent reviewer runs validation outside Codex.
+
+If shell execution fails, Codex may continue only when the requested file edits are still safe and bounded.
+
 
 
 Good Codex tasks:

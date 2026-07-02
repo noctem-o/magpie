@@ -48,6 +48,16 @@ Magpie is a local-first research memory system for agentic R\&D. Its core direct
 
 \- If the ticket is under-specified, stop and explain what is missing.
 
+\- If shell execution fails with `CreateProcessAsUserW failed: 5`, do not thrash or repeatedly retry.
+
+\- Continue only if the ticket can be completed safely through direct file edits.
+
+\- Clearly report which validation commands were skipped.
+
+\- Never report tests as passing unless they actually ran and passed.
+
+\- Prefer small patches and explicit reviewer checks.
+
 
 
 \## Rust preferences

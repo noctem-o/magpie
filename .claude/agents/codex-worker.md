@@ -50,6 +50,14 @@ A valid ticket must include:
 
 6\. Acceptance criteria
 
+For write-mode tickets on native Windows, include this section:
+
+\## Windows execution constraint
+
+On native Windows, Codex shell execution may fail with `CreateProcessAsUserW failed: 5`.
+
+Do not rely on shell commands to complete this ticket. If shell commands fail, continue only if the requested file edits can be made safely from the repository contents. Report skipped validation commands in the final summary. The human reviewer will run validation outside Codex.
+
 
 
 Do not ask Codex to make architecture decisions.
