@@ -69,12 +69,19 @@ pub(crate) fn core_bytes(core: &EventCore) -> Vec<u8> {
     put_str(&mut out, &core.provenance.agent);
     put_str(&mut out, &core.provenance.source);
     match &core.payload {
-        Payload::Genesis { canonicalization_profile, verifying_key } => {
+        Payload::Genesis {
+            canonicalization_profile,
+            verifying_key,
+        } => {
             put_u8(&mut out, 0);
             put_str(&mut out, canonicalization_profile);
             put_str(&mut out, verifying_key);
         }
-        Payload::ClaimAsserted { claim_id, statement, status } => {
+        Payload::ClaimAsserted {
+            claim_id,
+            statement,
+            status,
+        } => {
             put_u8(&mut out, 1);
             put_str(&mut out, claim_id);
             put_str(&mut out, statement);
@@ -85,7 +92,12 @@ pub(crate) fn core_bytes(core: &EventCore) -> Vec<u8> {
             put_str(&mut out, claim_id);
             put_str(&mut out, summary);
         }
-        Payload::ClaimStatusChanged { claim_id, from, to, reason } => {
+        Payload::ClaimStatusChanged {
+            claim_id,
+            from,
+            to,
+            reason,
+        } => {
             put_u8(&mut out, 3);
             put_str(&mut out, claim_id);
             put_u8(&mut out, status_tag(*from));

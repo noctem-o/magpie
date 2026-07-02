@@ -12,7 +12,10 @@ pub struct Provenance {
 
 impl Provenance {
     pub fn new(agent: impl Into<String>, source: impl Into<String>) -> Self {
-        Self { agent: agent.into(), source: source.into() }
+        Self {
+            agent: agent.into(),
+            source: source.into(),
+        }
     }
 }
 
@@ -34,10 +37,32 @@ pub enum Status {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum Payload {
-    ClaimAsserted { claim_id: String, statement: String, status: Status },
-    EvidenceRecorded { claim_id: String, summary: String },
-    ClaimStatusChanged { claim_id: String, from: Status, to: Status, reason: String },
-    Note { text: String },
+    /// The chain's self-description, always and only at seq 0. Pins the
+    /// canonicalization profile and the (hex) verifying key, so a chain
+    /// carries a record of *how to verify it* — while trust in the key itself
+    /// still comes from outside.
+    Genesis {
+        canonicalization_profile: String,
+        verifying_key: String,
+    },
+    ClaimAsserted {
+        claim_id: String,
+        statement: String,
+        status: Status,
+    },
+    EvidenceRecorded {
+        claim_id: String,
+        summary: String,
+    },
+    ClaimStatusChanged {
+        claim_id: String,
+        from: Status,
+        to: Status,
+        reason: String,
+    },
+    Note {
+        text: String,
+    },
 }
 
 /// Everything that is hashed and signed: position, time, the chain link, who
@@ -52,17 +77,16 @@ pub struct EventCore {
 }
 
 impl EventCore {
-    /// The single place canonical encoding lives.
+    /// The single seam for canonical encoding.
     ///
-    /// NOTE — first thing to harden: JSON is not a canonical-bytes format by
-    /// spec. `serde_json` field order is stable in practice (struct fields in
-    /// declaration order; no `HashMap`s or floats in this type), which is enough
-    /// for a single-codebase chain. Before trusting the chain across machines or
-    /// crate versions, swap this for a true canonical codec (RFC 8785 JCS, or a
-    /// fixed length-prefixed binary format). The invariant — "hash over the
-    /// canonical bytes of the core" — stays; only this function changes.
+    /// Encodes under the `magpie-core-v1` profile (see `canonical.rs` and
+    /// `docs/FORMAT.md`): fixed field order, big-endian integers,
+    /// length-prefixed UTF-8, tagged enums, magic-prefixed. Injective by
+    /// construction and reimplementable from the spec alone. The invariant —
+    /// "hash over the canonical bytes of the core" — lives here; changing the
+    /// encoding means a new profile name and a new chain.
     pub fn canonical_bytes(&self) -> Vec<u8> {
-        serde_json::to_vec(self).expect("EventCore is always serializable")
+        crate::canonical::core_bytes(self)
     }
 
     pub fn hash(&self) -> ContentHash {

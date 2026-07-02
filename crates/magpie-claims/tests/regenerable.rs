@@ -6,10 +6,14 @@ const SEED: [u8; 32] = [7u8; 32];
 
 fn writer(store: MemStore) -> LogWriter<MemStore> {
     let mut t = 0u64;
-    LogWriter::open_with_clock(store, SigningKey::from_bytes(&SEED), Box::new(move || {
-        t += 1;
-        t
-    }))
+    LogWriter::open_with_clock(
+        store,
+        SigningKey::from_bytes(&SEED),
+        Box::new(move || {
+            t += 1;
+            t
+        }),
+    )
     .unwrap()
 }
 
@@ -27,7 +31,9 @@ fn projection_is_byte_identical_after_dropping_all_derived_state() {
             Provenance::new("george", "manuscript"),
             Payload::ClaimAsserted {
                 claim_id: "thm2".into(),
-                statement: "Four exponentially small spectral scales share one semiclassical exponent.".into(),
+                statement:
+                    "Four exponentially small spectral scales share one semiclassical exponent."
+                        .into(),
                 status: Status::Conjectured,
             },
         )
@@ -67,7 +73,7 @@ fn projection_is_byte_identical_after_dropping_all_derived_state() {
     // 2. Build projection A.
     let mut view_a = ClaimsView::new();
     let n = reader.replay(&mut view_a).unwrap();
-    assert_eq!(n, 4);
+    assert_eq!(n, 5); // genesis + the four manuscript events
     let bytes_a = view_a.canonical_bytes();
 
     // The fold did the right thing: evidence moved thm2 to Settled; F5 stays Open.
@@ -85,5 +91,8 @@ fn projection_is_byte_identical_after_dropping_all_derived_state() {
     let bytes_b = view_b.canonical_bytes();
 
     // 5. The thesis holds: byte-for-byte identical.
-    assert_eq!(bytes_a, bytes_b, "the projection must be regenerable from the log alone");
+    assert_eq!(
+        bytes_a, bytes_b,
+        "the projection must be regenerable from the log alone"
+    );
 }

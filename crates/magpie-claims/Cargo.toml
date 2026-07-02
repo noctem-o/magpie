@@ -1,0 +1,14 @@
+[package]
+name = "magpie-claims"
+version = "0.0.1"
+edition.workspace = true
+license.workspace = true
+description = "A projection: the epistemic claim store, folded from the log."
+
+[dependencies]
+magpie-log = { path = "../magpie-log" }
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+ed25519-dalek.workspace = true

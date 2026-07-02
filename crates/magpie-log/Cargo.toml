@@ -1,0 +1,18 @@
+[package]
+name = "magpie-log"
+version = "0.0.1"
+edition.workspace = true
+license.workspace = true
+description = "L0 — the signed, hash-chained, append-only event log. The sole source of truth."
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+ed25519-dalek.workspace = true
+thiserror.workspace = true
+hex.workspace = true
+# Transitive pins forced as direct deps solely so cargo 1.75 resolves buildable
+# versions. Harmless; delete both lines on a modern toolchain.
+base64ct.workspace = true
+zeroize.workspace = true

@@ -22,6 +22,8 @@ fn main() {
     let store = MemStore::new();
 
     // ── 1. WRITE ─ the gate (sole holder of the LogWriter) appends events ──
+    // Opening the empty store writes the genesis event (seq 0) automatically:
+    // it pins the canonicalization profile and the verifying key.
     println!("── 1. write ──");
     {
         let mut t = 0u64;
@@ -72,6 +74,7 @@ fn main() {
             ),
         ];
 
+        println!("  seq 0 written on open: genesis (profile + verifying key)");
         for (prov, payload) in events {
             let ev = gate.append(prov, payload).unwrap();
             println!("  appended seq {}  hash {:?}", ev.core.seq, ev.hash);
