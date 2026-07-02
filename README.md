@@ -64,6 +64,18 @@ shared foundation is the log crate, used **asymmetrically**:
 So you don't merge codebases. `magpie-log` becomes the crate both repos depend on; the
 kernel adapts to *its* boundary, never the reverse.
 
+## Development workflow
+
+Magpie uses a maker/checker loop for ordinary agent work:
+
+- Claude decides the bounded change and writes a ticket under `.agent-runs\pending\`;
+- Codex implements that ticket through `scripts\codex-delegate.ps1`, the delegation boundary;
+- Claude reviews the resulting diff and tests;
+- a human holds sole merge authority.
+
+The wrapper is not edited during ordinary work, and Codex output is never committed or
+merged automatically.
+
 ## Honest notes
 
 - **Toolchain pins.** `Cargo.toml` pins `ed25519-dalek = "=2.1.1"`, `base64ct = "=1.6.0"`,
