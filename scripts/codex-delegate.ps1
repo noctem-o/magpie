@@ -131,6 +131,7 @@ if (!(Test-Path -LiteralPath $SummaryPath)) {
 
 if ($Mode -eq "write") {
   git -C $WorkDir status --short | Set-Content -Path $StatusPath -Encoding UTF8
+  git -C $WorkDir add -N . | Out-Null
   git -C $WorkDir diff --binary | Set-Content -Path $DiffPath -Encoding UTF8
 }
 
