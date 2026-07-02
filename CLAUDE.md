@@ -121,7 +121,9 @@ Freeze consequences:
 
 - `crates/magpie-log` — L0: event model, `magpie-core-v1` codec, hashing, signing, chain verification, stores (`FileStore`, `MemStore`)
 - `crates/magpie-claims` — first projection: `ClaimsView`, the epistemic claim store
+- `crates/magpie-episodic` — second projection: `EpisodicView`, SQLite + FTS5 full-text search over events (rusqlite bundled; the only crate that may depend on SQLite)
 - `docs/FORMAT.md` — normative spec; a from-scratch reimplementation must reproduce the golden vectors from this page alone
+- `tools/verify_chain.py` — independent Python verifier, written from FORMAT.md alone; CI runs it against the golden fixture with a pinned trust root
 
 ## Commands
 
@@ -139,9 +141,12 @@ Freeze consequences:
 
 ## Queued work (keep current; update as things land)
 
-1. SQLite + FTS5 episodic projection — same `Projection` trait, built purely by replay, read-only, droppable and rebuildable.
-2. Deadbolt seam: the kernel (separate repo, the trust boundary) holds the `LogWriter`.
+1. Deadbolt seam: the kernel (separate repo, the trust boundary) holds the `LogWriter`.
    Open design question: does the kernel's witness pipeline emit into this log (one
    truth) or coexist beside it (two)? Leaning: one truth. Do not start without the
-   design conversation.
-3. Only after those: typed stores, reranker, evaluator. Earn each from use.
+   design conversation. Survey input: `docs/deadbolt-witness-survey.md` (cited census
+   of deadbolt's witness machinery — active roots are SHA-256 canonical JSON with
+   per-bundle seal points; BLAKE3 is only a reserved marker).
+2. Only after that: typed stores, reranker, evaluator. Earn each from use.
+
+Landed: SQLite + FTS5 episodic projection (`magpie-episodic`, PR #5, 2026-07-02).
