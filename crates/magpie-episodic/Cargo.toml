@@ -1,0 +1,15 @@
+[package]
+name = "magpie-episodic"
+version = "0.0.1"
+edition.workspace = true
+license.workspace = true
+description = "A projection: the time-ordered, full-text-searchable episodic record, folded from the log."
+
+[dependencies]
+magpie-log = { path = "../magpie-log" }
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+ed25519-dalek.workspace = true
