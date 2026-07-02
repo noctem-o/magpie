@@ -76,6 +76,9 @@ Magpie uses a maker/checker loop for ordinary agent work:
 The wrapper is not edited during ordinary work, and Codex output is never committed or
 merged automatically.
 
+On native Windows, validation commands are normally run by the human reviewer if Codex
+shell execution is unavailable.
+
 ## Honest notes
 
 - **Toolchain pins.** `Cargo.toml` pins `ed25519-dalek = "=2.1.1"`, `base64ct = "=1.6.0"`,
