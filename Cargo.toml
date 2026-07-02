@@ -1,0 +1,21 @@
+[workspace]
+resolver = "2"
+members = ["crates/magpie-log", "crates/magpie-claims"]
+
+[workspace.package]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/noctem-o/magpie"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+# The three "=..." pins below exist ONLY because this builds on Ubuntu's cargo 1.75;
+# newer releases of these crates require edition 2024 / rustc >= 1.81.
+# On a current toolchain: drop all three pins (ed25519-dalek = "2", remove base64ct/zeroize).
+ed25519-dalek = "=2.1.1"
+base64ct = "=1.6.0"
+zeroize = "=1.8.1"
+thiserror = "1"
+hex = "0.4"
