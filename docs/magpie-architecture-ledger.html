@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Magpie — Architecture Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --void:#0A0D13; --void-2:#0E121A; --panel:#12171F; --panel-2:#161C27;
+    --line:#222A36; --line-2:#2E3845; --line-3:#3A4555;
+    --ink:#CBD4E1; --ink-bright:#E9EEF5; --muted:#707E92; --muted-2:#4D596A;
+    --gold:#E6B84C; --gold-dim:rgba(230,184,76,.10); --gold-line:rgba(230,184,76,.32);
+    --teal:#5BC8C0; --teal-dim:rgba(91,200,192,.10); --teal-line:rgba(91,200,192,.30);
+    --coral:#E0656F; --coral-dim:rgba(224,101,111,.10); --coral-line:rgba(224,101,111,.30);
+    --mono:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+    --sans:'IBM Plex Sans',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    --rail:256px; --maxw:880px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth; -webkit-text-size-adjust:100%}
+  body{margin:0; background:var(--void); color:var(--ink); font-family:var(--sans); font-size:16.5px; line-height:1.66; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; overflow-x:hidden}
+  a{color:inherit}
+  code{font-family:var(--mono)}
+  ::selection{background:var(--gold);color:var(--void)}
+
+  .rail{position:fixed; top:0; left:0; width:var(--rail); height:100vh; padding:32px 20px 26px 26px; border-right:1px solid var(--line); background:linear-gradient(180deg,var(--void-2),var(--void)); display:flex; flex-direction:column; z-index:40}
+  .rail .brand{font-family:var(--mono); font-size:.78rem; letter-spacing:.13em; color:var(--muted); text-transform:uppercase; margin-bottom:3px}
+  .rail .brand b{color:var(--ink-bright); font-weight:600}
+  .rail .sub{font-family:var(--mono); font-size:.62rem; color:var(--muted-2); letter-spacing:.04em; margin-bottom:26px; line-height:1.5}
+  .chain{position:relative; flex:1; padding-left:18px; overflow-y:auto; scrollbar-width:none}
+  .chain::-webkit-scrollbar{display:none}
+  .chain::before{content:""; position:absolute; left:4px; top:8px; bottom:8px; width:1px; background:var(--line-2)}
+  .chain .fill{position:absolute; left:4px; top:8px; width:1px; height:0; background:linear-gradient(180deg,var(--gold),var(--teal)); transition:height .15s linear}
+  .lnk{position:relative; display:block; padding:8px 0 8px 4px; text-decoration:none; color:var(--muted); transition:color .2s}
+  .lnk::before{content:""; position:absolute; left:-18px; top:14px; width:9px; height:9px; border-radius:2px; background:var(--void-2); border:1px solid var(--line-2); transition:all .25s}
+  .lnk .ix{font-family:var(--mono); font-size:.64rem; color:var(--muted-2); letter-spacing:.04em; display:block}
+  .lnk .nm{font-family:var(--mono); font-size:.8rem; letter-spacing:.01em; font-weight:500}
+  .lnk:hover{color:var(--ink)}
+  .lnk.active{color:var(--ink-bright)}
+  .lnk.active::before{background:var(--gold); border-color:var(--gold); box-shadow:0 0 0 3px var(--gold-dim)}
+  .lnk.active .ix{color:var(--gold)}
+  .rail .foot{font-family:var(--mono); font-size:.58rem; color:var(--muted-2); letter-spacing:.03em; margin-top:16px; line-height:1.6; border-top:1px solid var(--line); padding-top:14px}
+
+  .topbar{display:none}
+  main{margin-left:var(--rail); padding:0 52px 120px}
+  .wrap{max-width:var(--maxw); margin:0 auto}
+
+  .hero{position:relative; padding:100px 0 56px; border-bottom:1px solid var(--line)}
+  .hero::before{content:""; position:absolute; inset:-40px -300px auto -300px; height:540px; z-index:-1; background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px); background-size:34px 34px; opacity:.18; -webkit-mask-image:radial-gradient(ellipse 55% 75% at 28% 0%,#000,transparent 75%); mask-image:radial-gradient(ellipse 55% 75% at 28% 0%,#000,transparent 75%)}
+  .wordmark{font-family:var(--mono); font-weight:600; font-size:.8rem; letter-spacing:.34em; text-transform:uppercase; color:var(--gold); margin-bottom:20px; display:flex; align-items:center; gap:12px}
+  .wordmark .dot{width:6px;height:6px;border-radius:50%;background:var(--gold);box-shadow:0 0 10px var(--gold); flex:0 0 auto}
+  .wordmark .v{color:var(--muted-2); letter-spacing:.1em; font-size:.66rem}
+  h1{font-family:var(--mono); font-weight:600; font-size:clamp(1.95rem,5.4vw,3.1rem); line-height:1.07; letter-spacing:-.015em; margin:0 0 22px; color:var(--ink-bright)}
+  h1 .accent{color:var(--teal)}
+  .lede{font-size:clamp(1.04rem,2.2vw,1.2rem); color:var(--ink); max-width:48ch; line-height:1.62; margin:0 0 18px}
+  .lede b{color:var(--ink-bright); font-weight:600}
+  .metaphor{font-size:.92rem; color:var(--muted); max-width:52ch; margin:0 0 30px; font-style:italic}
+  .tags{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:28px}
+  .tag{font-family:var(--mono); font-size:.69rem; letter-spacing:.03em; padding:5px 11px; border:1px solid var(--line-2); border-radius:5px; color:var(--muted); background:var(--panel)}
+  .tag b{color:var(--ink-bright);font-weight:600}
+  .meta{font-family:var(--mono); font-size:.66rem; color:var(--muted-2); letter-spacing:.04em; border-top:1px dashed var(--line-2); padding-top:18px; display:flex; flex-wrap:wrap; gap:8px 20px}
+  .meta b{color:var(--muted); font-weight:500}
+  .legend{display:flex; flex-wrap:wrap; gap:14px 20px; margin-top:24px}
+  .leg{display:flex; align-items:center; gap:9px; font-family:var(--mono); font-size:.66rem; letter-spacing:.02em; color:var(--muted)}
+  .leg .sw{width:11px;height:11px;border-radius:3px; flex:0 0 auto}
+
+  .block{padding:74px 0 12px; scroll-margin-top:24px}
+  .eyebrow{font-family:var(--mono); font-size:.7rem; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); margin-bottom:14px; display:flex; align-items:center; gap:11px; flex-wrap:wrap}
+  .eyebrow .id{color:var(--gold)}
+  .eyebrow .ch{color:var(--line-3)}
+  .eyebrow .hx{color:var(--muted-2); font-size:.64rem}
+  h2{font-family:var(--mono); font-weight:600; font-size:clamp(1.4rem,3.2vw,1.95rem); line-height:1.14; letter-spacing:-.01em; margin:0 0 16px; color:var(--ink-bright)}
+  .intro{font-size:1.06rem; color:var(--ink); max-width:62ch; margin:0 0 26px}
+  .intro b{color:var(--ink-bright); font-weight:600}
+  h3{font-family:var(--sans); font-weight:600; font-size:1.1rem; color:var(--ink-bright); margin:32px 0 12px; letter-spacing:-.005em}
+  p{margin:0 0 16px; max-width:64ch}
+  .reveal{opacity:0; transform:translateY(13px); transition:opacity .6s ease, transform .6s ease}
+  .reveal.in{opacity:1; transform:none}
+
+  .pill{font-family:var(--mono); font-size:.6rem; font-weight:500; letter-spacing:.09em; text-transform:uppercase; padding:3px 8px; border-radius:4px; vertical-align:middle; white-space:nowrap}
+  .pill.live{color:var(--teal); background:var(--teal-dim); border:1px solid var(--teal-line)}
+  .pill.building{color:var(--gold); background:var(--gold-dim); border:1px solid var(--gold-line)}
+  .pill.design{color:var(--muted); background:transparent; border:1px solid var(--line-3)}
+  .pill.risk{color:var(--coral); background:var(--coral-dim); border:1px solid var(--coral-line)}
+  .pill.metric{color:var(--teal); background:var(--teal-dim); border:1px solid var(--teal-line)}
+  .pill.rust{color:var(--gold); background:transparent; border:1px solid var(--gold-line)}
+
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:20px 22px; margin:16px 0; transition:border-color .25s}
+  .card:hover{border-color:var(--line-2)}
+  .card .ct{font-family:var(--mono); font-size:.72rem; letter-spacing:.05em; color:var(--muted); text-transform:uppercase; margin-bottom:11px; display:flex; align-items:center; justify-content:space-between; gap:10px}
+  .card .ct b{color:var(--ink-bright); font-weight:600; letter-spacing:.01em}
+  .card p:last-child{margin-bottom:0}
+
+  .why{border-left:2px solid var(--gold); background:var(--gold-dim); padding:14px 18px; border-radius:0 6px 6px 0; margin:18px 0; font-size:.97rem}
+  .why .lbl{font-family:var(--mono); font-size:.64rem; letter-spacing:.13em; text-transform:uppercase; color:var(--gold); display:block; margin-bottom:5px}
+  .why p{max-width:none}
+  .why.teal{border-left-color:var(--teal); background:var(--teal-dim)} .why.teal .lbl{color:var(--teal)}
+  .why.coral{border-left-color:var(--coral); background:var(--coral-dim)} .why.coral .lbl{color:var(--coral)}
+
+  .term{background:#070A0F; border:1px solid var(--line-2); border-radius:8px; overflow:hidden; margin:18px 0; font-family:var(--mono); font-size:.82rem}
+  .term .bar{display:flex; align-items:center; gap:7px; padding:9px 14px; border-bottom:1px solid var(--line); background:var(--void-2)}
+  .term .bar i{width:10px;height:10px;border-radius:50%;display:inline-block;background:var(--line-2); flex:0 0 auto}
+  .term .bar .t{margin-left:8px; font-size:.66rem; letter-spacing:.04em; color:var(--muted)}
+  .term pre{margin:0; padding:15px 16px; overflow-x:auto; line-height:1.8; color:var(--ink)}
+  .term .pr{color:var(--teal)} .term .fl{color:var(--gold)} .term .cm{color:var(--muted-2)} .term .st{color:var(--ink-bright)}
+
+  .flags{list-style:none; padding:0; margin:14px 0; display:grid; gap:1px; background:var(--line); border:1px solid var(--line); border-radius:8px; overflow:hidden}
+  .flags li{display:grid; grid-template-columns:200px 1fr; gap:14px; padding:11px 16px; background:var(--panel)}
+  .flags code{font-size:.79rem; color:var(--gold); white-space:nowrap}
+  .flags span{color:var(--ink); font-size:.92rem}
+  .flags .st{color:var(--teal); font-family:var(--mono); font-size:.74rem}
+  .flags .py{color:var(--coral); font-family:var(--mono); font-size:.74rem}
+
+  .ladder{list-style:none; counter-reset:l; padding:0; margin:16px 0}
+  .ladder li{counter-increment:l; position:relative; padding:10px 0 10px 44px; border-bottom:1px dashed var(--line); font-size:.95rem}
+  .ladder li:last-child{border-bottom:none}
+  .ladder li::before{content:counter(l,decimal-leading-zero); position:absolute; left:0; top:10px; font-family:var(--mono); font-size:.7rem; color:var(--coral); border:1px solid var(--coral-line); background:var(--coral-dim); border-radius:4px; padding:2px 6px}
+  .ladder b{color:var(--ink-bright); font-weight:600}
+  .ladder .fix{color:var(--teal)}
+
+  .stack{margin:22px 0; border:1px solid var(--line); border-radius:9px; overflow:hidden}
+  .layer{padding:15px 18px; border-bottom:1px solid var(--line)}
+  .layer:last-child{border-bottom:none}
+  .layer .lh{font-family:var(--mono); font-size:.74rem; letter-spacing:.04em; color:var(--ink-bright); font-weight:600; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap}
+  .layer .ld{font-size:.92rem; color:var(--ink); margin-top:5px}
+  .layer.truth{background:var(--gold-dim); border-left:3px solid var(--gold)}
+  .layer.gate{background:var(--coral-dim); border-left:3px solid var(--coral)}
+  .layer.proj{background:var(--teal-dim); border-left:3px solid var(--teal)}
+  .layer .tagword{font-family:var(--mono); font-size:.6rem; letter-spacing:.1em; text-transform:uppercase}
+  .layer.truth .tagword{color:var(--gold)} .layer.gate .tagword{color:var(--coral)} .layer.proj .tagword{color:var(--teal)}
+  .edges{font-family:var(--mono); font-size:.66rem; color:var(--muted-2); letter-spacing:.04em; margin-top:10px; text-align:center}
+
+  .gexec{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:20px 0; align-items:stretch}
+  .gstep{border:1px solid var(--line-2); border-radius:7px; padding:13px 12px; background:var(--panel); display:flex; flex-direction:column; gap:5px}
+  .gstep .gn{font-family:var(--mono); font-size:.62rem; letter-spacing:.06em; color:var(--gold)}
+  .gstep .gt{font-family:var(--mono); font-size:.82rem; color:var(--ink-bright); font-weight:600}
+  .gstep .gd{font-size:.82rem; color:var(--muted)}
+  .gstep.untrusted{border-color:var(--coral-line)} .gstep.untrusted .gn{color:var(--coral)}
+  .gstep.decide{border-color:var(--gold-line)}
+  .gstep.witness{border-color:var(--teal-line)} .gstep.witness .gn{color:var(--teal)}
+
+  .spectrum{margin:20px 0}
+  .spec-bar{height:8px; border-radius:6px; background:linear-gradient(90deg,var(--coral),var(--gold) 55%,var(--teal)); margin:30px 0 6px; position:relative}
+  .spec-stops{display:flex; justify-content:space-between; font-family:var(--mono); font-size:.66rem; color:var(--ink); letter-spacing:.02em; flex-wrap:wrap; gap:4px}
+  .spec-regions{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:16px}
+  .spec-reg{border:1px solid var(--line-2); border-radius:6px; padding:11px 13px; font-size:.88rem}
+  .spec-reg b{font-family:var(--mono); font-size:.7rem; color:var(--ink-bright)}
+
+  .topo{display:grid; grid-template-columns:1fr auto 1fr; align-items:center; margin:22px 0}
+  .node{background:var(--panel); border:1px solid var(--line-2); border-radius:8px; padding:15px 17px}
+  .node.hub{border-color:var(--gold-line)} .node.fast{border-color:var(--teal-line)}
+  .node .nh{font-family:var(--mono); font-size:.72rem; letter-spacing:.03em; color:var(--ink-bright); font-weight:600; margin-bottom:7px; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap}
+  .node .spec{font-family:var(--mono); font-size:.66rem; color:var(--muted); line-height:1.7}
+  .node .role{font-size:.85rem; color:var(--ink); margin-top:9px; padding-top:9px; border-top:1px solid var(--line)}
+  .bus{display:flex; flex-direction:column; align-items:center; padding:0 8px; min-width:122px}
+  .bus .router{font-family:var(--mono); font-size:.64rem; color:var(--gold); border:1px solid var(--gold-line); background:var(--gold-dim); border-radius:5px; padding:6px 9px; text-align:center; line-height:1.4}
+  .bus .wire{width:100%; height:1px; background:var(--line-2)}
+  .bus .lbl{font-family:var(--mono); font-size:.56rem; color:var(--muted-2); letter-spacing:.04em; margin:7px 0}
+
+  .flow{display:flex; flex-direction:column; margin:22px 0}
+  .frow{display:grid; grid-template-columns:150px 1fr; gap:18px; align-items:start; padding:13px 0; position:relative}
+  .frow:not(:last-child)::after{content:""; position:absolute; left:74px; top:42px; bottom:-13px; width:1px; background:var(--teal-line)}
+  .fstage{font-family:var(--mono); font-size:.68rem; letter-spacing:.03em; color:var(--teal); border:1px solid var(--teal-line); background:var(--teal-dim); border-radius:6px; padding:9px 8px; text-align:center; position:relative; z-index:2}
+  .fbody{font-size:.94rem; color:var(--ink); padding-top:3px}
+  .fbody b{color:var(--ink-bright); font-weight:600}
+
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:16px 0}
+  ul.clean{list-style:none; padding:0; margin:12px 0}
+  ul.clean li{padding:8px 0 8px 22px; position:relative; font-size:.96rem; border-bottom:1px solid var(--line)}
+  ul.clean li:last-child{border-bottom:none}
+  ul.clean li::before{content:"›"; position:absolute; left:2px; top:7px; color:var(--gold)}
+  ul.clean b{color:var(--ink-bright); font-weight:600}
+
+  .deaths{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:16px 0}
+  .death{border:1px solid var(--coral-line); background:var(--coral-dim); border-radius:7px; padding:13px 15px}
+  .death h4{margin:0 0 5px; font-family:var(--mono); font-size:.79rem; color:var(--coral); letter-spacing:.02em}
+  .death p{margin:0; font-size:.89rem; color:var(--ink); max-width:none}
+
+  .chan{border:1px solid var(--line-2); border-radius:8px; padding:17px 19px; margin:14px 0}
+  .chan.pull{border-color:var(--teal-line)} .chan.push{border-color:var(--gold-line)}
+  .chan .chh{font-family:var(--mono); font-size:.74rem; letter-spacing:.03em; margin-bottom:8px; display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+  .chan.pull .chh b{color:var(--teal)} .chan.push .chh b{color:var(--gold)}
+  .chan .chh .k{font-size:.6rem; color:var(--muted); letter-spacing:.09em; text-transform:uppercase; border:1px solid var(--line-2); border-radius:4px; padding:2px 7px}
+  .chan p{margin:0; font-size:.94rem; max-width:none}
+
+  .tierhead{font-family:var(--mono); font-size:.72rem; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-bright); display:flex; align-items:center; gap:10px; margin:26px 0 10px}
+  .tierhead .tn{color:var(--void); background:var(--gold); border-radius:5px; padding:3px 9px; font-weight:600; font-size:.62rem}
+  .tierhead.t2 .tn{background:var(--teal)}
+  .tierhead.t3 .tn{background:transparent; color:var(--muted); border:1px solid var(--line-3)}
+  .rec{border:1px solid var(--line); border-radius:8px; padding:14px 16px; margin:10px 0; background:var(--panel)}
+  .rec h4{margin:0 0 5px; font-family:var(--sans); font-size:.98rem; color:var(--ink-bright); font-weight:600; display:flex; gap:8px; align-items:baseline; flex-wrap:wrap}
+  .rec p{margin:0; font-size:.9rem; color:var(--muted); max-width:none}
+  .rec .rmeta{font-family:var(--mono); font-size:.63rem; color:var(--muted-2); letter-spacing:.03em; margin-top:8px; display:flex; flex-wrap:wrap; gap:5px 14px}
+  .rec .rmeta b{color:var(--muted); font-weight:500}
+
+  hr.soft{border:none; border-top:1px solid var(--line); margin:50px 0 0}
+  .closing{margin-top:30px; padding:34px 30px; border:1px solid var(--gold-line); border-radius:10px; background:linear-gradient(180deg,var(--gold-dim),transparent)}
+  .closing p{font-size:1.03rem; max-width:60ch}
+  .closing p:last-of-type{margin-bottom:0}
+  .closing .seal{font-family:var(--mono); font-size:.64rem; color:var(--muted-2); letter-spacing:.05em; margin-top:24px; padding-top:16px; border-top:1px dashed var(--line-2)}
+
+  @media(max-width:1080px){
+    .rail{display:none}
+    main{margin-left:0; padding:0 20px 80px}
+    .topbar{display:flex; position:sticky; top:0; z-index:50; background:rgba(10,13,19,.92); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border-bottom:1px solid var(--line); padding:11px 14px; flex-direction:column; gap:9px}
+    .topbar .tb-brand{font-family:var(--mono); font-size:.7rem; letter-spacing:.12em; color:var(--ink-bright); text-transform:uppercase}
+    .topbar .tb-brand span{color:var(--gold)}
+    .chips{display:flex; gap:7px; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch}
+    .chips::-webkit-scrollbar{display:none}
+    .chips a{flex:0 0 auto; font-family:var(--mono); font-size:.64rem; letter-spacing:.03em; color:var(--muted); border:1px solid var(--line-2); border-radius:20px; padding:6px 12px; text-decoration:none; white-space:nowrap}
+    .chips a.active{color:var(--void); background:var(--gold); border-color:var(--gold)}
+    .hero{padding:48px 0 40px}
+    .gexec{grid-template-columns:1fr 1fr}
+  }
+  @media(max-width:620px){
+    body{font-size:16px}
+    .block{padding:58px 0 10px}
+    .flags li{grid-template-columns:1fr; gap:3px}
+    .topo{grid-template-columns:1fr; gap:11px}
+    .bus{flex-direction:row; min-width:0; gap:10px; padding:6px 0; justify-content:center}
+    .bus .wire{display:none}
+    .frow{grid-template-columns:1fr; gap:6px}
+    .frow::after{display:none}
+    .grid2,.deaths,.spec-regions{grid-template-columns:1fr}
+    .gexec{grid-template-columns:1fr}
+    .closing{padding:26px 20px}
+  }
+  @media(prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto}
+    .reveal{opacity:1; transform:none; transition:none}
+    .chain .fill{transition:none}
+  }
+  @media print{
+    :root{--ink:#1a1a1a;--ink-bright:#000;--muted:#555;--void:#fff;--void-2:#fff;--panel:#fff;--line:#ccc;--line-2:#bbb;--line-3:#999}
+    body{background:#fff;color:#111}
+    .rail,.topbar{display:none}
+    main{margin:0;padding:0 12mm}
+    .reveal{opacity:1;transform:none}
+    .card,.term,.node,.chan,.stack,.gexec,.rec{break-inside:avoid}
+    .term{background:#f6f6f6}.term pre{color:#111}
+  }
+</style>
+<noscript><style>.reveal{opacity:1 !important; transform:none !important}</style></noscript>
+</head>
+<body>
+
+<nav class="rail" aria-label="Section index">
+  <div class="brand"><b>Magpie</b> · Ledger</div>
+  <div class="sub">append-only · v3 · research-hardened</div>
+  <div class="chain">
+    <div class="fill" id="fill"></div>
+    <a class="lnk" href="#thesis"><span class="ix">00 · THESIS</span><span class="nm">The Spine</span></a>
+    <a class="lnk" href="#log"><span class="ix">01 · LOG (L0)</span><span class="nm">The Hoard</span></a>
+    <a class="lnk" href="#gate"><span class="ix">02 · GATE (L1)</span><span class="nm">Deadbolt</span></a>
+    <a class="lnk" href="#memory"><span class="ix">03 · MEMORY (L2)</span><span class="nm">Typed Stores</span></a>
+    <a class="lnk" href="#fabric"><span class="ix">04 · FABRIC</span><span class="nm">Compute + Serving</span></a>
+    <a class="lnk" href="#loops"><span class="ix">05 · LOOPS</span><span class="nm">Engineering</span></a>
+    <a class="lnk" href="#oversight"><span class="ix">06 · OVERSIGHT</span><span class="nm">Judge + Improve</span></a>
+    <a class="lnk" href="#order"><span class="ix">07 · ORDER</span><span class="nm">Build Sequence</span></a>
+  </div>
+  <div class="foot">compiled from session + design docs + deep-research pass · 2026 · noctem-o</div>
+</nav>
+
+<div class="topbar">
+  <div class="tb-brand"><span>⛓</span> MAGPIE · LEDGER · v3</div>
+  <div class="chips">
+    <a href="#thesis">00 Thesis</a>
+    <a href="#log">01 Log</a>
+    <a href="#gate">02 Gate</a>
+    <a href="#memory">03 Memory</a>
+    <a href="#fabric">04 Fabric</a>
+    <a href="#loops">05 Loops</a>
+    <a href="#oversight">06 Oversight</a>
+    <a href="#order">07 Order</a>
+  </div>
+</div>
+
+<main>
+<div class="wrap">
+
+  <header class="hero" id="top">
+    <div class="wordmark"><span class="dot"></span>MAGPIE <span class="v">· provenance-first research memory</span></div>
+    <h1>One signed log.<br>One verified gate.<br><span class="accent">Everything else is derived.</span></h1>
+    <p class="lede">A local-first research mind: the corpus is the only irreplaceable asset, provenance is cryptographic, and frontier models are invited only where being wrong is expensive. <b>Models, harnesses, even the robot are pluggable edges.</b></p>
+    <p class="metaphor">Named for the bird that hoards what shines, builds an intricate nest from it, and is one of the few animals to recognise itself in a mirror — collection with discernment, and a system that knows what it believes.</p>
+    <div class="tags">
+      <span class="tag"><b>NixOS</b> / Hyprland</span>
+      <span class="tag">RTX <b>4090</b> + Ryzen Hub</span>
+      <span class="tag">Ed25519 log · <b>deadbolt</b></span>
+      <span class="tag">SQLite · FTS5 · sqlite-vec · DBSP</span>
+      <span class="tag"><b>Rust</b>-buildable</span>
+    </div>
+    <div class="meta"><span><b>ethos:</b> local-first · provenance · longevity · honest over hype</span></div>
+    <div class="legend">
+      <span class="leg"><span class="sw" style="background:var(--gold)"></span>provenance / truth / decisions</span>
+      <span class="leg"><span class="sw" style="background:var(--teal)"></span>derived views &amp; measured wins</span>
+      <span class="leg"><span class="sw" style="background:var(--coral)"></span>authority &amp; failure modes</span>
+    </div>
+  </header>
+
+  <!-- 00 THESIS -->
+  <section class="block" id="thesis">
+    <div class="eyebrow"><span class="id">00 · THESIS</span><span class="ch">⛓</span><span class="hx">0x00 · a1c4</span></div>
+    <h2>The whole system in one sentence</h2>
+    <p class="intro">You don't need a new design — everything points at one architecture, now sharpened by a deep-research pass against the current state of the art. The spine: <b>one signed append-only log is the sole source of truth; one small verified gate is the only thing that may write to it or act from it; everything else is a derived, regenerable projection.</b></p>
+    <div class="stack reveal">
+      <div class="layer proj"><div class="lh">L2+ · Projections <span class="tagword">derived · regenerable</span></div><div class="ld">Typed memory · retrieval pipeline · the wiki · dashboards · fine-tuning corpora · the robot's cognition. All rebuildable from the log — none of it precious.</div></div>
+      <div class="layer gate"><div class="lh">L1 · The gate (deadbolt) <span class="tagword">the only writer</span></div><div class="ld">Sole authorizer of privileged events and actions. No ambient authority — capability in, witness out. Now also the memory-admission firewall.</div></div>
+      <div class="layer truth"><div class="lh">L0 · The log (the hoard) <span class="tagword">irreplaceable</span></div><div class="ld">Ed25519-signed, hash-chained, append-only. The one thing you can't refactor away, and the only thing worth backing up.</div></div>
+    </div>
+    <div class="edges">↑ pluggable edges: models · harnesses · free-tier APIs · robot — swappable without touching the spine ↑</div>
+    <div class="why">
+      <span class="lbl">Why this shape — and what the research changed</span>
+      <p>A physicist's instinct (conserve the true quantity, derive the rest) and a systems-builder's (event sourcing, capabilities, deterministic replay) land on the identical structure: <b>the log is the conserved quantity; the gate is the conservation law; everything else is dynamics.</b> The research pass didn't change the spine — it confirmed you're already at or ahead of SOTA on the architecture, and pointed the effort at two specific, measured wins (a reranker and a binary-question evaluator) instead of the things that feel impressive but aren't worth it (a full knowledge graph).</p>
+    </div>
+  </section>
+
+  <!-- 01 LOG -->
+  <section class="block" id="log">
+    <div class="eyebrow"><span class="id">01 · LOG (L0)</span><span class="ch">⛓</span><span class="hx">0x01 · 7f3e</span></div>
+    <h2>The hoard — the only irreplaceable asset <span class="pill building">skeleton</span></h2>
+    <p class="intro">Ed25519-signed, hash-chained, append-only. Every observation, decision, action, consolidation, and sensor summary is an event. Doubles as audit and observability for free — and its durable home on the NAS is the backup of the only precious thing.</p>
+    <ul class="clean reveal">
+      <li><b>Append-only, never mutate.</b> A correction is a new event that supersedes, not an edit. The history of what was believed and when it changed is kept.</li>
+      <li><b>Signed + chained.</b> Tamper-evidence is structural — each event chains to the last, so the log can prove it hasn't been altered.</li>
+      <li><b>Boring and bulletproof first.</b> The one layer you can't redo later. Get it dull, correct, and replayable before anything sits on top.</li>
+    </ul>
+    <div class="why">
+      <span class="lbl">The governing invariant</span>
+      <p>Keep the irreplaceable set small. The log plus its provenance is the entire backup surface; every other store — the wiki, the vector index, the graph edges — can be deleted and rebuilt by replaying events. Longevity by reconstruction, not by hoarding the derived artifacts.</p>
+    </div>
+  </section>
+
+  <!-- 02 GATE -->
+  <section class="block" id="gate">
+    <div class="eyebrow"><span class="id">02 · GATE (L1)</span><span class="ch">⛓</span><span class="hx">0x02 · b71f</span></div>
+    <h2>deadbolt — the kernel that decides <span class="pill building">~200k LOC, in progress</span></h2>
+    <p class="intro">The sole writer of privileged events and the only authorizer of privileged actions. An object-capability model: authority is an unforgeable reference, never ambient — linear logic in practice, which Rust's ownership already gives you. The governed loop is four moves:</p>
+    <div class="gexec reveal">
+      <div class="gstep untrusted"><span class="gn">01 · UNTRUSTED</span><span class="gt">Suggest</span><span class="gd">Agent proposes an action as code.</span></div>
+      <div class="gstep"><span class="gn">02 · NORMALIZE</span><span class="gt">Compile</span><span class="gd">Harness reduces it to a checkable form.</span></div>
+      <div class="gstep decide"><span class="gn">03 · AUTHORITY</span><span class="gt">Decide</span><span class="gd">deadbolt checks capabilities + policy, then executes.</span></div>
+      <div class="gstep witness"><span class="gn">04 · PROOF</span><span class="gt">Witness</span><span class="gd">A witness event is written to the log.</span></div>
+    </div>
+    <div class="why coral">
+      <span class="lbl">New job — the memory firewall (FragFuse defense)</span>
+      <p>Research surfaced a concrete threat for any agent memory: <b>FragFuse</b> fragments a forbidden request across benign-looking writes and reconstructs intent at retrieval time — ~86% bypass of naive access control, and prompt-injection and perplexity filters don't catch it. Because deadbolt sits outside the harness and every write is a signed event, it's the natural place to enforce the three-layer defense the paper calls for: <b>admission control at write, capability checks at retrieval keyed to provenance, and a re-check of the assembled context packet at execution.</b> This is a spot where Magpie can be <i>ahead</i> of the literature. (Defense is a recommended direction, not yet a benchmarked mitigation — treat as risk-reduction of unknown magnitude.)</p>
+    </div>
+    <div class="why">
+      <span class="lbl">Verify the small core, not the world</span>
+      <p>The gate is small on purpose so it can be <b>formally verified with Verus</b> (every privileged write has a witness; no escalation; the decision is pure) and made replayable with deterministic simulation testing. You verify the one component that holds authority — not the model, not the harness.</p>
+    </div>
+  </section>
+
+  <!-- 03 MEMORY -->
+  <section class="block" id="memory">
+    <div class="eyebrow"><span class="id">03 · MEMORY (L2)</span><span class="ch">⛓</span><span class="hx">0x03 · 5d92</span></div>
+    <h2>Typed cognitive memory — the research differentiator <span class="pill design">designed</span></h2>
+    <p class="intro">Everything here is a regenerable projection of the log. The research verdict: your hybrid substrate is the correct SOTA backbone — the highest-signal addition is a <b>reranker</b>, and the highest-signal <i>non</i>-action is skipping a full knowledge graph.</p>
+
+    <div class="flow reveal">
+      <div class="frow"><div class="fstage">SUBSTRATE</div><div class="fbody"><b>One SQLite file</b> — FTS5 (keyword) + sqlite-vec (vector) + entities/edges (graph) + provenance + temporal. Maintained by <b>DBSP / differential dataflow</b>: incremental views, not nightly re-index. Beats dedicated vector DBs well past any single corpus. <span class="pill rust">Rust-native · formally verified</span></div></div>
+      <div class="frow"><div class="fstage">TYPED STORES</div><div class="fbody"><b>Episodic</b> (the log, query-shaped) · <b>Semantic claim graph</b> · <b>Procedural runbooks</b> · <b>Hypotheses &amp; beliefs</b> · <b>Prospective</b>. The last three are what most designs miss.</div></div>
+      <div class="frow"><div class="fstage">COMPILER</div><div class="fbody">The <b>context packet compiler</b> assembles bounded, provenance-filtered context for the next action — and runs the FragFuse "does this fused context exceed the current grant?" check. Retrieval is its job, not the agent's.</div></div>
+      <div class="frow"><div class="fstage">PROJECTION</div><div class="fbody">A <b>Karpathy-style markdown wiki</b> with provenance + claim-status frontmatter, plus Obsidian/git for human review. A projection fed by the substrate — never an intermediate truth the graph is built from.</div></div>
+    </div>
+
+    <h3>The retrieval pipeline — where the measured win lives</h3>
+    <p>The single best evidence-to-effort change in the whole report. Keep the hybrid backbone; add a cross-encoder reranker as the final stage over the fused candidates:</p>
+    <div class="gexec reveal">
+      <div class="gstep"><span class="gn">PARALLEL</span><span class="gt">FTS5 ∥ vec</span><span class="gd">Lexical + dense candidates, run together.</span></div>
+      <div class="gstep"><span class="gn">FUSE</span><span class="gt">RRF</span><span class="gd">Reciprocal Rank Fusion — robust, near-zero tuning.</span></div>
+      <div class="gstep witness"><span class="gn">RERANK ★</span><span class="gt">Cross-encoder</span><span class="gd">Re-score top ~50–100. The biggest lever.</span></div>
+      <div class="gstep decide"><span class="gn">EMIT</span><span class="gt">Context packet</span><span class="gd">Top-k, provenance-checked, to the agent.</span></div>
+    </div>
+    <div class="why teal">
+      <span class="lbl">Why the reranker is Tier-1</span>
+      <p>Adding a cross-encoder rerank to hybrid retrieval measured <b>+17.2pp MRR@3 and +12.1pp Recall@5</b> in a 2026 benchmark — repeatedly the single most impactful RAG component, typically +5–15 nDCG@10. Rust-buildable today via <code style="color:var(--gold)">fastembed-rs</code> (<code style="color:var(--gold)">TextRerank</code>, ONNX). Honest threshold: if on <i>your</i> eval it adds &lt;3pp Recall@5, drop it — that means your fused pool already contains the answer. <span class="pill metric">measured</span></p>
+    </div>
+
+    <h3>The epistemic spectrum + bi-temporal supersession</h3>
+    <p>The axis that makes this a research memory, not a notes app. Every item carries a <code style="color:var(--gold)">status</code>; evidence <i>moves</i> it, each transition logged as an event. Contradiction handling is the same move the SOTA temporal-KGs use — <b>invalidate with a validity interval, never delete:</b></p>
+    <div class="spectrum reveal">
+      <div class="spec-bar"></div>
+      <div class="spec-stops"><span>open</span><span>conjectured</span><span>supported</span><span>settled / proven</span><span>refuted</span></div>
+      <div class="spec-regions">
+        <div class="spec-reg"><b>Hypotheses &amp; beliefs</b><br>the live, conjectural end — working theories held distinctly from settled fact.</div>
+        <div class="spec-reg"><b>Semantic claim graph</b><br>the settled end — entities and relations treated as known.</div>
+      </div>
+    </div>
+    <div class="why teal">
+      <span class="lbl">You already generalize the one KG idea worth keeping</span>
+      <p>Bi-temporal validity (Zep/Graphiti) — tracking when a fact was true and superseding rather than deleting — drove up to <b>18.5% accuracy gains</b> on long-memory benchmarks. Your epistemic spectrum + append-only supersession is a strict generalization of it. Wire <code style="color:var(--gold)">supported → refuted</code> to emit an invalidation event with a validity interval. <span class="pill metric">measured (vendor)</span></p>
+    </div>
+    <div class="why">
+      <span class="lbl">The high-value non-action: skip the full knowledge graph</span>
+      <p>GraphRAG's gains are real but confined to <i>global-summary / aggregation</i> queries — a controlled benchmark showed the "graph win" collapsing from 73.5% to 23.1% (near vector-RAG) once query-time aggregation was removed, i.e. the win was the aggregation, not the graph. For the entity-lookup and multi-session recall a research mind actually does, a heavy typed-edge graph isn't worth the build-and-maintain cost. If you ever need "what are the themes across all my memory?", add LazyGraphRAG-style community detection <i>at query time</i> over your existing edges — don't pre-build a graph to maintain.</p>
+    </div>
+    <div class="why teal">
+      <span class="lbl">The dream cycle is validated "sleep-time compute"</span>
+      <p>Your decay → contradiction/supersession → merge → synthesis pass (writing new events, never mutating) is exactly the offline-consolidation pattern that measured <b>+13–18% reasoning accuracy</b> and <b>~2.5× lower per-query cost</b> by precomputing context during idle time. The agent gets sharper while it sleeps. Static-embedding models (<code style="color:var(--gold)">model2vec-rs</code>, ~92% of MiniLM quality at ~500× CPU speed) make the high-volume passes cheap. <span class="pill metric">measured</span></p>
+    </div>
+  </section>
+
+  <!-- 04 FABRIC -->
+  <section class="block" id="fabric">
+    <div class="eyebrow"><span class="id">04 · FABRIC</span><span class="ch">⛓</span><span class="hx">0x04 · c08a</span></div>
+    <h2>Two nodes, split by bandwidth — and the live serving</h2>
+    <p class="intro">Not capacity — <b>bandwidth</b>. The two machines sit at opposite ends of the memory-bandwidth curve, which is what makes the split principled. LiteLLM is the gateway seam: routing, observability, budget brakes in one place; Tailscale meshes the nodes.</p>
+    <div class="topo reveal">
+      <div class="node fast"><div class="nh">RTX 4090 <span class="pill live">live</span></div><div class="spec">NixOS / Hyprland · CUDA<br>24 GB · ~1000 GB/s</div><div class="role"><b>Fast lane.</b> Latency-sensitive turns, agentic loops, small models, image gen.</div></div>
+      <div class="bus"><div class="router">LiteLLM<br>gateway</div><div class="lbl">fast → 4090</div><div class="wire"></div><div class="lbl">deep → hub</div><div class="router" style="color:var(--teal);border-color:var(--teal-line);background:var(--teal-dim)">Tailscale<br>mesh</div></div>
+      <div class="node hub"><div class="nh">Ryzen AI Max+ <span class="pill design">planned</span></div><div class="spec">Linux · Vulkan/RADV<br>120 GB · ~215 GB/s</div><div class="role"><b>Always-on hub.</b> The private background librarian: big-MoE reasoner + persistent memory services.</div></div>
+    </div>
+    <div class="why teal">
+      <span class="lbl">The binding constraint</span>
+      <p>The hub's ~215 GB/s is shared across everything running — a quarter of the 4090. So: <b>one heavyweight brain resident, plus tiny always-on services, swap the big slot on demand.</b> MoE mandatory. Loadout: GPT-OSS 120B brain, a 30B-A3B fast worker, embedder + reranker, behind <code style="color:var(--gold)">llama-swap</code>. Free-tier APIs (Gemini, Groq, Cerebras, OpenRouter, GitHub Models) are overflow edges. <span class="pill rust">gateway: LiteLLM (Python sidecar) or Helicone (Rust)</span></p>
+    </div>
+    <h3>Live: serving Qwen 3.6 on the fast lane <span class="pill live">running now</span></h3>
+    <div class="term reveal">
+      <div class="bar"><i></i><i></i><i></i><span class="t">~/llm · NixOS · CUDA build</span></div>
+<pre><span class="pr">llama-server</span> <span class="fl">-m</span> Qwen3.6-27B-UD-Q4_K_XL.gguf <span class="cm">\</span>
+  <span class="fl">--jinja</span> <span class="fl">-fa</span> on <span class="fl">-ngl</span> 99 <span class="fl">-c</span> 65536 <span class="cm">\</span>
+  <span class="fl">-ctk</span> q8_0 <span class="fl">-ctv</span> q8_0 <span class="fl">-np</span> 1 <span class="cm">\</span>
+  <span class="fl">--host</span> 127.0.0.1 <span class="fl">--port</span> 8080 <span class="fl">--temp</span> 0.7 <span class="fl">--top-p</span> 0.8 <span class="fl">--top-k</span> 20
+<span class="cm"># green light → device_info lists CUDA0 : RTX 4090   ·   endpoint → :8080/v1</span></pre>
+    </div>
+    <ul class="ladder reveal">
+      <li><b>4090 idle, ~1.8 t/s</b> — CPU-only build. <span class="fix">Install the CUDA variant + cudart.</span></li>
+      <li><b>Context 32K &lt; 64K min</b> — Hermes reads GGUF metadata. <span class="fix">Set context_length via <code style="color:var(--gold)">hermes model</code>.</span></li>
+      <li><b>failed to fit params</b> — 131K ctx overflowed 24 GB. <span class="fix">Drop to 65K + KV-quant; or <code style="color:var(--gold)">-fit off</code>.</span></li>
+      <li><b>GPU 90% but 40°C</b> — layers split to CPU. <span class="fix">Force full offload, fit via KV-quant.</span></li>
+    </ul>
+  </section>
+
+  <!-- 05 LOOPS -->
+  <section class="block" id="loops">
+    <div class="eyebrow"><span class="id">05 · LOOPS</span><span class="ch">⛓</span><span class="hx">0x05 · e2d6</span></div>
+    <h2>Loop engineering — brakes before horsepower <span class="pill design">design</span></h2>
+    <p class="intro">The leverage moved from the prompt to the loop, and from typing to judgment. A working loop is six pieces; a <b>safe</b> one is six pieces plus brakes you install before the engine.</p>
+    <ul class="clean reveal">
+      <li><b>State</b> — the only thing the next run inherits. One file: done / in-progress / next / never-touch.</li>
+      <li><b>Automations</b> — what makes it a loop, not a thing you ran once.</li>
+      <li><b>Worktrees</b> — isolate parallel agents so they don't write the same file.</li>
+      <li><b>Skills</b> — your intent written once, outside, so the agent stops guessing.</li>
+      <li><b>Connectors</b> — let the loop act, not just talk.</li>
+      <li><b>Sub-agents</b> — <b>split the maker from the checker</b>, different model. The highest-value move in any loop.</li>
+    </ul>
+    <div class="why">
+      <span class="lbl">Local inference flips the economics</span>
+      <p>The cautionary tales — a $47k eleven-day runaway, a $1.3M/month fleet — are priced for frontier cloud agents. On the hub your marginal cost is <b>electricity</b> (~$2/month at 6h/day). The five-figure disaster can't happen; the worst case is wasted watt-hours and a wedged worktree.</p>
+    </div>
+    <h3>But three deaths aren't about money <span class="pill risk">brakes still apply</span></h3>
+    <div class="deaths reveal">
+      <div class="death"><h4>Runaway recursion</h4><p>Two agents feed each other forever. Cure: step cap + budget ceiling.</p></div>
+      <div class="death"><h4>Silent death</h4><p>Hits the context wall, keeps "resuming" while looking alive. Cure: heartbeat + fresh context per phase.</p></div>
+      <div class="death"><h4>Random walk</h4><p>No verifiable stop condition, so it drifts. Cure: a fixpoint it can reach — a passing test, not "looks done."</p></div>
+      <div class="death"><h4>Comprehension debt</h4><p>Ships faster than you understand; you become a rubber stamp. Cure: a human-read gate it can't skip.</p></div>
+    </div>
+    <div class="card">
+      <div class="ct"><b>Brakes to bolt on before walking away</b><span style="color:var(--coral)">non-negotiable</span></div>
+      <ul class="clean" style="margin:4px 0">
+        <li>Step cap — <code style="color:var(--gold)">--max-turns 50</code>, hard stop.</li>
+        <li>Budget ceiling — per phase (caps wasted time even on local).</li>
+        <li>Blast radius — one worktree, one branch, read-only outside <code style="color:var(--gold)">src/</code>.</li>
+        <li>Circuit breaker — same tool + same args ×3 = halt.</li>
+        <li>Dead-man heartbeat — write a pulse each run; silence pages you.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 06 OVERSIGHT -->
+  <section class="block" id="oversight">
+    <div class="eyebrow"><span class="id">06 · OVERSIGHT</span><span class="ch">⛓</span><span class="hx">0x06 · 9a40</span></div>
+    <h2>Judge, then improve — never the reverse <span class="pill design">design</span></h2>
+    <p class="intro">The research pass put hard numbers on the instinct you already had: <b>build the evaluator before the self-improver.</b> A weak judge doesn't just slow you down — it actively breeds agents that learn to fool it. Two channels keep SOTA in an otherwise-local loop; under them sits a calibrated evaluator.</p>
+
+    <h3>The evaluator — binary questions, not holistic scores</h3>
+    <div class="why teal">
+      <span class="lbl">BINEVAL → the epistemic spectrum</span>
+      <p>Decomposing evaluation into atomic yes/no questions (BINEVAL) <b>matches or beats holistic judges</b> (G-Eval, UniEval), is better calibrated, and avoids the ceiling effects that make 1–10 judge scores mush. The payoff for Magpie: <b>binary verdicts are the evidence atoms your epistemic spectrum needs</b> — a claim's status becomes a deterministic, logged function of accumulated yes/no answers, each with provenance. That's a debuggable audit trail of <i>why</i> a claim moved, which a holistic score can never give. Build it native in Rust — it's prompt orchestration over your log. <span class="pill metric">measured</span></p>
+    </div>
+
+    <div class="chan pull reveal">
+      <div class="chh"><b>① PR review panel</b><span class="k">event · pull · per-diff</span></div>
+      <p>A frontier model fires only when there's a concrete artifact to judge. Claude (<code style="color:var(--teal)">claude-code-action@v1</code>), Codex, CodeRabbit — across <b>different model families</b> for catch-rate diversity. Gate via an <code style="color:var(--teal)">on: pull_request_review</code> aggregator, feed the maker, re-review — hard cap on rounds, human tie-break. This <i>is</i> RQGM's diverse agent-as-judge panel.</p>
+    </div>
+    <div class="chan push reveal">
+      <div class="chh"><b>② Heartbeat</b><span class="k">time/phase · push · over trajectory</span></div>
+      <p>A periodic frontier check on the loop's <b>direction</b>, not a single artifact — the brake against the deaths a per-diff reviewer is blind to. Feed it <b>state, not logs</b>. Give it <b>teeth</b> (halt / re-plan / escalate). Cadence by cost-of-being-wrong.</p>
+    </div>
+
+    <div class="why coral">
+      <span class="lbl">Gate Champion evolution behind an adversarial judge — the numbers say why</span>
+      <p>The RQGM paper measured the exact failure you intuited: the strongest baseline reviewer <b>over-accepts AI-generated work at 1.91× the human rate</b>, and champion-challenger search against a weak judge evolves judge-foolers. The fix is RQGM's <b>epoch discipline</b> — freeze the judge within an epoch, evolve it (adversarially, cross-family) only at boundaries, log every utility change to L0. Your council's <b>adversary</b> role exists to find judge-foolers before a champion is promoted. <b>Hard gate:</b> no Champion evolution until the panel shows zero over-acceptance gap between known-good and adversarial submissions. Co-evolved graders measured +9% ground-truth accuracy. <span class="pill metric">measured</span></p>
+    </div>
+    <div class="why">
+      <span class="lbl">Prompt optimization — the one Python seam</span>
+      <p>DSPy/GEPA turns the evaluator's question-level feedback into improved prompts — measured <b>+6pp avg (up to +19pp) over GRPO</b> and &gt;10pp over MIPROv2, at ~35× fewer rollouts (task-dependent). It's Python-only, so run it <b>offline during the dream cycle</b> and have it emit optimized prompts as new signed L0 artifacts that deadbolt admits. Don't put it in the hot path. <span class="pill metric">measured</span></p>
+    </div>
+  </section>
+
+  <!-- 07 ORDER -->
+  <section class="block" id="order">
+    <div class="eyebrow"><span class="id">07 · ORDER</span><span class="ch">⛓</span><span class="hx">0x07 · 04b0</span></div>
+    <h2>Build sequence — ranked by signal, not by appeal</h2>
+    <p class="intro">The dependency order is the build order, and the research re-ranked what to add on top. Each item carries its expected gain, the evidence basis, and its Rust path. The bottom of the stack still comes first — nothing above L0 is worth building until L0 is bulletproof.</p>
+
+    <div class="tierhead"><span class="tn">TIER 1</span> build now · highest signal · low effort · fully Rust</div>
+    <div class="rec reveal"><h4>Cross-encoder reranker <span class="pill metric">+17pp MRR@3</span></h4><p>Final stage over the top ~50–100 RRF-fused candidates. The best evidence-to-effort change in the whole stack.</p><div class="rmeta"><b>basis:</b> measured (2026 benchmark) <b>· effort:</b> low <b>· rust:</b> fastembed-rs TextRerank</div></div>
+    <div class="rec reveal"><h4>BINEVAL evaluator → epistemic transitions <span class="pill metric">beats G-Eval</span></h4><p>Atomic yes/no questions; verdicts move claims along open→settled, each logged with provenance. N agreeing verdicts to reach "supported"; adversary-passed for "settled."</p><div class="rmeta"><b>basis:</b> measured <b>· effort:</b> low–med <b>· rust:</b> native orchestration</div></div>
+    <div class="rec reveal"><h4>Formalize supersession (bi-temporal) <span class="pill metric">~18.5%</span></h4><p>Refuted claims emit invalidation events with validity intervals — never deletions. You have the design; make it the only path.</p><div class="rmeta"><b>basis:</b> measured (vendor) <b>· effort:</b> low <b>· rust:</b> SQLite</div></div>
+
+    <div class="tierhead t2"><span class="tn">TIER 2</span> build next · high signal · medium effort</div>
+    <div class="rec reveal"><h4>Harden the judge, then gate Champion evolution <span class="pill metric">corrects 1.91×</span></h4><p>RQGM epoch discipline: freeze within-epoch, evolve cross-family at boundaries, log utility changes. Gate: zero adversarial over-acceptance gap, sustained.</p><div class="rmeta"><b>basis:</b> measured <b>· effort:</b> med <b>· rust:</b> orchestration + multi-model panel</div></div>
+    <div class="rec reveal"><h4>FragFuse three-layer defense in deadbolt <span class="pill risk">targets 86% bypass</span></h4><p>Write-time admission control, retrieval-time capability checks keyed to provenance, execution-time re-check of the fused context packet.</p><div class="rmeta"><b>basis:</b> direction, not yet benchmarked — low confidence on magnitude <b>· effort:</b> med <b>· rust:</b> native (L1)</div></div>
+    <div class="rec reveal"><h4>Operationalize the dream cycle as sleep-time compute <span class="pill metric">+13–18%</span></h4><p>Precompute consolidated context and likely answers during idle time; static embeddings for the high-volume passes.</p><div class="rmeta"><b>basis:</b> measured <b>· effort:</b> med <b>· rust:</b> orchestration over local models</div></div>
+
+    <div class="tierhead t3"><span class="tn">TIER 3</span> selective / defer</div>
+    <div class="rec reveal"><h4>DSPy/GEPA prompt optimization — offline <span class="pill metric">+6pp avg</span></h4><p>Consumes BINEVAL feedback, emits signed prompt artifacts. Only on prompts with ≥50 logged eval instances; abort if a generation doesn't beat the incumbent on held-out data.</p><div class="rmeta"><b>basis:</b> measured (task-dependent) <b>· effort:</b> med <b>· rust:</b> Python only</div></div>
+    <div class="rec reveal"><h4>Do NOT build a full knowledge graph <span class="pill design">non-action</span></h4><p>Gains confined to global/aggregation queries; the graph win is really query-time aggregation. If ever needed, add LazyGraphRAG-style community detection at query time over existing edges.</p><div class="rmeta"><b>basis:</b> controlled benchmark <b>· effort:</b> saved <b>· rust:</b> n/a</div></div>
+    <div class="rec reveal"><h4>Late-interaction (ColBERT) — defer <span class="pill design">later</span></h4><p>Only if reranker latency becomes the bottleneck at scale — and even then as the reranker, not the index (heavy storage).</p><div class="rmeta"><b>basis:</b> ~5% nDCG@10 <b>· effort:</b> low priority <b>· rust:</b> fastembed-rs BGE-M3</div></div>
+
+    <h3>Build surface — the Rust map</h3>
+    <ul class="flags reveal">
+      <li><code>embeddings</code><span>fastembed-rs · Candle · model2vec-rs (static, ~500× CPU) <span class="st">mature</span></span></li>
+      <li><code>reranking</code><span>fastembed-rs TextRerank (ONNX cross-encoder) <span class="st">mature</span></span></li>
+      <li><code>vector search</code><span>sqlite-vec (default) · LanceDB · Qdrant · usearch <span class="st">mature</span></span></li>
+      <li><code>full-text</code><span>SQLite FTS5 (default) · Tantivy (upgrade path) <span class="st">mature</span></span></li>
+      <li><code>graph</code><span>SQLite recursive CTEs · petgraph — no graph DB needed <span class="st">mature</span></span></li>
+      <li><code>incremental views</code><span>DBSP / Feldera · differential-dataflow <span class="st">Rust-native, verified</span></span></li>
+      <li><code>gateway</code><span>LiteLLM (Python sidecar) or Helicone (Rust). TensorZero archived. <span class="st">seam</span></span></li>
+      <li><code>prompt opt</code><span>DSPy / GEPA — offline batch <span class="py">Python only</span></span></li>
+    </ul>
+
+    <div class="closing">
+      <p>Start smaller than feels satisfying. <b>The hardened log, the thin gate, hybrid-plus-reranker memory, and one trustworthy maker/checker loop</b> — that's already a usable research mind, and it's a fraction of the cathedral. Everything above earns its place from there.</p>
+      <p style="margin-top:14px">The spine was already right; the research just aimed the effort. You're not designing a new system — you're making the conserved quantity explicit, adding the two measured wins, skipping the impressive-but-not-worth-it one, and stopping five projects from being treated as five projects.</p>
+      <div class="seal">⛓ ledger sealed · conserve the log · derive the rest · judge before you improve · stay the engineer</div>
+    </div>
+  </section>
+
+  <hr class="soft">
+
+</div>
+</main>
+
+<script>
+(function(){
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var hasIO = 'IntersectionObserver' in window;
+  var reveals = [].slice.call(document.querySelectorAll('.reveal'));
+  if(!reduce && hasIO){
+    var ro = new IntersectionObserver(function(es){
+      es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); ro.unobserve(e.target); } });
+    },{rootMargin:'0px 0px -10% 0px', threshold:0.06});
+    reveals.forEach(function(el){ ro.observe(el); });
+  } else { reveals.forEach(function(el){ el.classList.add('in'); }); }
+
+  var links = [].slice.call(document.querySelectorAll('.lnk'));
+  var chips = [].slice.call(document.querySelectorAll('.chips a'));
+  var sections = [].slice.call(document.querySelectorAll('.block'));
+  function setActive(id){
+    links.forEach(function(l){ l.classList.toggle('active', l.getAttribute('href')==='#'+id); });
+    chips.forEach(function(c){ c.classList.toggle('active', c.getAttribute('href')==='#'+id); });
+    var a = document.querySelector('.chips a.active');
+    if(a && a.parentNode){ a.parentNode.scrollLeft = a.offsetLeft - 56; }
+  }
+  if(hasIO){
+    var so = new IntersectionObserver(function(es){
+      es.forEach(function(e){ if(e.isIntersecting){ setActive(e.target.id); } });
+    },{rootMargin:'-45% 0px -50% 0px', threshold:0});
+    sections.forEach(function(s){ so.observe(s); });
+  }
+  var fill = document.getElementById('fill');
+  function progress(){
+    if(!fill) return;
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    fill.style.height = (max>0 ? Math.min(1, h.scrollTop/max)*100 : 0) + '%';
+  }
+  window.addEventListener('scroll', progress, {passive:true});
+  window.addEventListener('resize', progress);
+  progress();
+})();
+</script>
+</body>
+</html>
