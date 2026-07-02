@@ -127,9 +127,6 @@ Freeze consequences:
 
 - `cargo test` — whole workspace; must stay green (17 tests at format freeze; grow the suite, never shrink it).
 - `cargo run --example tour -p magpie-claims` — 30-second end-to-end demo.
-- Housekeeping (once, on a modern toolchain): drop the three `=` pins in the workspace
-  `Cargo.toml` and the two forced transitive deps in `magpie-log/Cargo.toml` — they
-  exist only for cargo 1.75. Then delete this bullet.
 
 ## Conventions
 

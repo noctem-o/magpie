@@ -12,7 +12,3 @@ sha2.workspace = true
 ed25519-dalek.workspace = true
 thiserror.workspace = true
 hex.workspace = true
-# Transitive pins forced as direct deps solely so cargo 1.75 resolves buildable
-# versions. Harmless; delete both lines on a modern toolchain.
-base64ct.workspace = true
-zeroize.workspace = true
