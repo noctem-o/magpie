@@ -56,6 +56,12 @@ def payload_bytes(payload):
         return b"\x03" + s(p.get("claim_id"), "payload.claim_id") + status(p.get("from"), "payload.from") + status(p.get("to"), "payload.to") + s(p.get("reason"), "payload.reason")
     if kind == "Note":
         return b"\x04" + s(p.get("text"), "payload.text")
+    if kind == "SegmentAnchored":
+        return (b"\x05" + s(p.get("bundle_kind"), "payload.bundle_kind")
+                + s(p.get("witness_root"), "payload.witness_root")
+                + s(p.get("witness_algorithm"), "payload.witness_algorithm")
+                + s(p.get("canonicalization_profile"), "payload.canonicalization_profile")
+                + s(p.get("run_id"), "payload.run_id"))
     raise ValueError("payload.kind must be a known v1 variant")
 def canonical_core(core):
     c = obj(core, "core")

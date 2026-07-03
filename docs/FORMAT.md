@@ -8,6 +8,10 @@ byte. If it can't, one of the two is wrong — and it's probably not this page.
 Any change to anything below is a **format break** and requires a new profile
 name. A chain carries exactly one profile, declared in its genesis event.
 
+Vocabulary history (additive, non-breaking per §3's evolution rule): tags 0-4
+at the v1 freeze; tag 5 (`SegmentAnchored`) added 2026-07-02 by ADR-0001, with
+golden coverage appended at seq 5 — seqs 0-4 hashes unchanged.
+
 ## 1. Primitives
 
 | name     | encoding                                                            |
@@ -42,6 +46,21 @@ payload               u8 tag, then the variant's fields in order (§3)
 | 2   | `EvidenceRecorded`  | `claim_id: str`, `summary: str`                     |
 | 3   | `ClaimStatusChanged`| `claim_id: str`, `from: u8`, `to: u8`, `reason: str`|
 | 4   | `Note`              | `text: str`                                         |
+| 5   | `SegmentAnchored`   | `bundle_kind: str`, `witness_root: str` (64 lowercase hex chars), `witness_algorithm: str`, `canonicalization_profile: str`, `run_id: str` |
+
+### Anchors (tag 5)
+
+`SegmentAnchored` commits an externally sealed evidence segment into the chain
+by its root. The chain guarantees **order, signature, and inclusion**; the
+segment's contents verify separately against `witness_root` using the sealing
+subsystem's own verifier, selected by (`witness_algorithm`,
+`canonicalization_profile`). The `canonicalization_profile` field names the
+**foreign** profile that produced the root (e.g.
+`phase5-interim-jcs-like-v1`); it is not, and must not claim to be,
+`magpie-core-v1`. The variant is deliberately kind-agnostic: new bundle kinds
+are new `bundle_kind` strings, never new Magpie payload variants. Under the
+anchored-hierarchy model (ADR-0001), a segment that is not anchored is not
+part of the record.
 
 New variants may be appended with fresh tags without breaking existing chains
 (old bytes are unaffected); changing an **existing** variant's encoding is a

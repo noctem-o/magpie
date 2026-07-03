@@ -108,6 +108,20 @@ pub(crate) fn core_bytes(core: &EventCore) -> Vec<u8> {
             put_u8(&mut out, 4);
             put_str(&mut out, text);
         }
+        Payload::SegmentAnchored {
+            bundle_kind,
+            witness_root,
+            witness_algorithm,
+            canonicalization_profile,
+            run_id,
+        } => {
+            put_u8(&mut out, 5);
+            put_str(&mut out, bundle_kind);
+            put_str(&mut out, witness_root);
+            put_str(&mut out, witness_algorithm);
+            put_str(&mut out, canonicalization_profile);
+            put_str(&mut out, run_id);
+        }
     }
     out
 }

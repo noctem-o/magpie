@@ -255,6 +255,14 @@ fn payload_parts(payload: &Payload) -> PayloadParts<'_> {
             claim_id: None,
             body: text,
         },
+        // Anchors are timeline rows (ADR-0001): the searchable body is the
+        // root itself, so pasting a root into FTS finds the anchor that
+        // committed it. No claim_id — anchors commit executions, not claims.
+        Payload::SegmentAnchored { witness_root, .. } => PayloadParts {
+            kind: "segment_anchored",
+            claim_id: None,
+            body: witness_root,
+        },
     }
 }
 
