@@ -1,10 +1,39 @@
+use std::path::{Path, PathBuf};
+
 use ed25519_dalek::{SigningKey, VerifyingKey};
 use magpie_episodic::EpisodicView;
 use magpie_log::{
     LogReader, LogWriter, MemStore, Payload, Projection, Provenance, SignedEvent, Status,
 };
+use rusqlite::{params, Connection};
 
 const SEED: [u8; 32] = [7u8; 32];
+
+struct TempDbPath {
+    path: PathBuf,
+}
+
+impl TempDbPath {
+    fn new(test_name: &str) -> Self {
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "magpie-episodic-{test_name}-{}.sqlite",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&path);
+        Self { path }
+    }
+
+    fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Drop for TempDbPath {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.path);
+    }
+}
 
 fn verifying_key() -> VerifyingKey {
     SigningKey::from_bytes(&SEED).verifying_key()
@@ -78,6 +107,54 @@ fn fixture_store() -> MemStore {
     store
 }
 
+fn create_old_schema_file(path: &Path) {
+    let conn = Connection::open(path).unwrap();
+    conn.execute_batch(
+        "
+        CREATE TABLE events (
+            seq             INTEGER PRIMARY KEY,
+            timestamp_nanos INTEGER NOT NULL,
+            agent           TEXT NOT NULL,
+            source          TEXT NOT NULL,
+            kind            TEXT NOT NULL,
+            claim_id        TEXT,
+            body            TEXT NOT NULL
+        );
+        CREATE VIRTUAL TABLE events_fts USING fts5(
+            body, content='events', content_rowid='seq'
+        );
+        ",
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO events (
+             seq, timestamp_nanos, agent, source, kind, claim_id, body
+         ) VALUES (
+             ?1, ?2, ?3, ?4, ?5, ?6, ?7
+         )",
+        params![
+            999_i64,
+            1_i64,
+            "old-agent",
+            "old-source",
+            "claim_asserted",
+            "old-claim",
+            "stale old-format row"
+        ],
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO events_fts(rowid, body) VALUES (?1, ?2)",
+        params![999_i64, "stale old-format row"],
+    )
+    .unwrap();
+
+    let user_version: i32 = conn
+        .query_row("PRAGMA user_version", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(user_version, 0);
+}
+
 #[test]
 fn projection_is_byte_identical_after_live_apply_and_replay() {
     let store = MemStore::new();
@@ -107,6 +184,53 @@ fn projection_is_byte_identical_after_live_apply_and_replay() {
         live_bytes,
         rebuilt.canonical_bytes(),
         "episodic projection must be regenerable from the log alone"
+    );
+}
+
+#[test]
+fn stale_schema_file_is_dropped_and_rebuilt_on_open() {
+    let db = TempDbPath::new("stale_schema_file_is_dropped_and_rebuilt_on_open");
+    create_old_schema_file(db.path());
+
+    let store = fixture_store();
+    let reader = LogReader::open(store.clone(), verifying_key());
+    let mut rebuilt = EpisodicView::at_path(db.path()).unwrap();
+    let n = reader.replay(&mut rebuilt).unwrap();
+
+    let mut fresh = EpisodicView::in_memory().unwrap();
+    let fresh_n = LogReader::open(store, verifying_key())
+        .replay(&mut fresh)
+        .unwrap();
+
+    assert_eq!(n, 5);
+    assert_eq!(fresh_n, n);
+    assert_eq!(rebuilt.len(), 5);
+    assert!(rebuilt.get(999).is_none());
+    assert_eq!(
+        rebuilt.canonical_bytes(),
+        fresh.canonical_bytes(),
+        "stale derived state must be rebuilt byte-identically from the log"
+    );
+}
+
+#[test]
+fn current_schema_file_survives_reopen_without_drop() {
+    let db = TempDbPath::new("current_schema_file_survives_reopen_without_drop");
+    let store = fixture_store();
+
+    let (expected_len, expected_bytes) = {
+        let reader = LogReader::open(store, verifying_key());
+        let mut view = EpisodicView::at_path(db.path()).unwrap();
+        assert_eq!(reader.replay(&mut view).unwrap(), 5);
+        (view.len(), view.canonical_bytes())
+    };
+
+    let reopened = EpisodicView::at_path(db.path()).unwrap();
+    assert_eq!(reopened.len(), expected_len);
+    assert_eq!(
+        reopened.canonical_bytes(),
+        expected_bytes,
+        "current-version derived state must survive reopen without replay"
     );
 }
 

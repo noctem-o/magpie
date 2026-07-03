@@ -16,6 +16,8 @@ use magpie_log::{Payload, Projection, SignedEvent};
 use rusqlite::{params, Connection, OptionalExtension, Row};
 use serde::Serialize;
 
+const SCHEMA_VERSION: i32 = 2;
+
 const CREATE_SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS events (
     seq             INTEGER PRIMARY KEY,
@@ -74,6 +76,13 @@ pub struct EpisodicEvent {
 /// state to limp along with; drop it and rebuild from the log. Changing the
 /// projection trait to return `Result` is a core-trait decision outside this
 /// crate.
+///
+/// File-backed views are stamped with a schema version. A mismatch means the
+/// derived tables are dropped and recreated empty for a from-zero replay rather
+/// than patched in place. The pre-status-column schema did not store the signed
+/// status fields, so `ALTER TABLE` would leave NULLs where a from-scratch
+/// rebuild would have values, breaking the invariant that regenerated derived
+/// state is byte-identical to incrementally built state.
 pub struct EpisodicView {
     conn: Connection,
 }
@@ -93,7 +102,21 @@ impl EpisodicView {
     }
 
     fn from_connection(conn: Connection) -> Result<Self, rusqlite::Error> {
-        conn.execute_batch(CREATE_SCHEMA)?;
+        let user_version: i32 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+        if user_version == SCHEMA_VERSION {
+            conn.execute_batch(CREATE_SCHEMA)?;
+        } else {
+            conn.execute_batch(&format!(
+                "
+                BEGIN IMMEDIATE;
+                DROP TABLE IF EXISTS events_fts;
+                DROP TABLE IF EXISTS events;
+                {CREATE_SCHEMA}
+                PRAGMA user_version = {SCHEMA_VERSION};
+                COMMIT;
+                "
+            ))?;
+        }
         Ok(Self { conn })
     }
 
