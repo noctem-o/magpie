@@ -82,6 +82,28 @@ pub enum Payload {
     },
 }
 
+impl Payload {
+    pub(crate) fn validate(&self) -> Result<(), &'static str> {
+        match self {
+            Payload::SegmentAnchored { witness_root, .. } => {
+                if is_lowercase_hex_64(witness_root) {
+                    Ok(())
+                } else {
+                    Err("payload.witness_root must be 64 lowercase hex chars")
+                }
+            }
+            _ => Ok(()),
+        }
+    }
+}
+
+fn is_lowercase_hex_64(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+}
+
 /// Everything that is hashed and signed: position, time, the chain link, who
 /// produced it, and what it says.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

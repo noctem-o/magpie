@@ -57,8 +57,10 @@ def payload_bytes(payload):
     if kind == "Note":
         return b"\x04" + s(p.get("text"), "payload.text")
     if kind == "SegmentAnchored":
+        witness_root = p.get("witness_root")
+        hx(witness_root, 32, "payload.witness_root")
         return (b"\x05" + s(p.get("bundle_kind"), "payload.bundle_kind")
-                + s(p.get("witness_root"), "payload.witness_root")
+                + s(witness_root, "payload.witness_root")
                 + s(p.get("witness_algorithm"), "payload.witness_algorithm")
                 + s(p.get("canonicalization_profile"), "payload.canonicalization_profile")
                 + s(p.get("run_id"), "payload.run_id"))

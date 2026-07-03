@@ -30,6 +30,16 @@ fn note(text: &str) -> Payload {
     Payload::Note { text: text.into() }
 }
 
+fn anchor(witness_root: &str) -> Payload {
+    Payload::SegmentAnchored {
+        bundle_kind: "kernel-decision-witness".into(),
+        witness_root: witness_root.into(),
+        witness_algorithm: "sha256".into(),
+        canonicalization_profile: "phase5-interim-jcs-like-v1".into(),
+        run_id: "run-0001".into(),
+    }
+}
+
 fn prov() -> Provenance {
     Provenance::new("test", "chain.rs")
 }
@@ -329,5 +339,68 @@ fn chain_missing_genesis_is_rejected() {
             assert!(detail.contains("genesis"), "unexpected detail: {detail}")
         }
         other => panic!("expected ChainBroken at seq 0, got: {other:?}"),
+    }
+}
+
+#[test]
+fn writer_rejects_invalid_anchor_witness_root_before_signing() {
+    let store = MemStore::new();
+    let mut w = writer(store.clone());
+
+    let err = w.append(prov(), anchor("ABC")).unwrap_err();
+    match err {
+        LogError::ChainBroken { seq, detail } => {
+            assert_eq!(seq, 1);
+            assert!(
+                detail.contains("witness_root"),
+                "unexpected detail: {detail}"
+            );
+        }
+        other => panic!("expected ChainBroken for invalid witness_root, got: {other:?}"),
+    }
+
+    let reader = LogReader::open(store, key().verifying_key());
+    assert_eq!(
+        reader.verify_chain().unwrap(),
+        1,
+        "invalid anchor must not be appended after genesis"
+    );
+}
+
+#[test]
+fn verifier_rejects_signed_anchor_with_invalid_witness_root() {
+    let genesis = hand_signed_record(
+        genesis_core(
+            CANONICALIZATION_PROFILE,
+            &hex::encode(key().verifying_key().as_bytes()),
+        ),
+        &key(),
+    );
+    let genesis_event: SignedEvent = serde_json::from_slice(&genesis).unwrap();
+    let anchor_record = hand_signed_record(
+        EventCore {
+            seq: 1,
+            timestamp_nanos: 2,
+            prev_hash: genesis_event.hash,
+            provenance: prov(),
+            payload: anchor("851D2A8F265E21192C4B1F1FF3BEE2A8DC6305A848160412C74B66B74A909141"),
+        },
+        &key(),
+    );
+
+    let reader = LogReader::open(
+        MemStore::from_records(vec![genesis, anchor_record]),
+        key().verifying_key(),
+    );
+    let err = reader.verify_chain().unwrap_err();
+    match err {
+        LogError::ChainBroken { seq, detail } => {
+            assert_eq!(seq, 1);
+            assert!(
+                detail.contains("witness_root"),
+                "unexpected detail: {detail}"
+            );
+        }
+        other => panic!("expected ChainBroken for invalid witness_root, got: {other:?}"),
     }
 }
