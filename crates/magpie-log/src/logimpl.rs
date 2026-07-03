@@ -63,6 +63,14 @@ fn verify_chain_on<S: LogStore>(
             .map_err(|_| LogError::BadSignature {
                 seq: event.core.seq,
             })?;
+        event
+            .core
+            .payload
+            .validate()
+            .map_err(|detail| LogError::ChainBroken {
+                seq: event.core.seq,
+                detail: detail.into(),
+            })?;
 
         // Genesis rules: exactly one, exactly at seq 0, self-describing and
         // consistent with the externally provided key. Trust in the key comes
@@ -178,6 +186,10 @@ impl<S: LogStore> LogWriter<S> {
                 },
             });
         }
+        payload.validate().map_err(|detail| LogError::ChainBroken {
+            seq: self.next_seq,
+            detail: detail.into(),
+        })?;
         let core = EventCore {
             seq: self.next_seq,
             timestamp_nanos: (self.clock)(),

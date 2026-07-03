@@ -160,6 +160,9 @@ fn search_returns_matching_sequences_in_ascending_order() {
     reader.replay(&mut view).unwrap();
 
     assert_eq!(view.search("semiclassical").unwrap(), vec![1]);
+    assert_eq!(view.search("1e-15").unwrap(), vec![2]);
+    assert_eq!(view.search("N=64..192").unwrap(), vec![3]);
+    assert_eq!(view.search("   ").unwrap(), Vec::<u64>::new());
     assert_eq!(view.search("definitelyabsent").unwrap(), Vec::<u64>::new());
 
     let event = view.get(1).unwrap();
@@ -169,10 +172,19 @@ fn search_returns_matching_sequences_in_ascending_order() {
     assert_eq!(event.source, "manuscript");
     assert_eq!(event.kind, "claim_asserted");
     assert_eq!(event.claim_id, Some("thm2".into()));
+    assert_eq!(event.claim_status, Some("Conjectured".into()));
+    assert_eq!(event.from_status, None);
+    assert_eq!(event.to_status, None);
     assert_eq!(
         event.body,
         "Four exponentially small spectral scales share one semiclassical exponent."
     );
+
+    let status_change = view.get(3).unwrap();
+    assert_eq!(status_change.kind, "claim_status_changed");
+    assert_eq!(status_change.claim_status, None);
+    assert_eq!(status_change.from_status, Some("Conjectured".into()));
+    assert_eq!(status_change.to_status, Some("Settled".into()));
 }
 
 #[test]
@@ -193,5 +205,34 @@ fn drop_and_rebuild_from_same_store_is_equal() {
         bytes_a,
         view_b.canonical_bytes(),
         "dropping the derived SQLite state must not lose information"
+    );
+}
+
+#[test]
+fn canonical_bytes_preserve_claim_asserted_status() {
+    fn bytes_for(status: Status) -> Vec<u8> {
+        let store = MemStore::new();
+        {
+            let mut w = writer(store.clone());
+            w.append(
+                Provenance::new("george", "manuscript"),
+                Payload::ClaimAsserted {
+                    claim_id: "same-claim".into(),
+                    statement: "Same statement.".into(),
+                    status,
+                },
+            )
+            .unwrap();
+        }
+        let reader = LogReader::open(store, verifying_key());
+        let mut view = EpisodicView::in_memory().unwrap();
+        reader.replay(&mut view).unwrap();
+        view.canonical_bytes()
+    }
+
+    assert_ne!(
+        bytes_for(Status::Open),
+        bytes_for(Status::Conjectured),
+        "asserted status is signed event content and must survive projection"
     );
 }

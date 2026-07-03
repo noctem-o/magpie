@@ -24,6 +24,9 @@ CREATE TABLE IF NOT EXISTS events (
     source          TEXT NOT NULL,
     kind            TEXT NOT NULL,
     claim_id        TEXT,
+    claim_status    TEXT,
+    from_status     TEXT,
+    to_status       TEXT,
     body            TEXT NOT NULL
 );
 CREATE VIRTUAL TABLE IF NOT EXISTS events_fts USING fts5(
@@ -40,6 +43,9 @@ pub struct EpisodicEvent {
     pub source: String,
     pub kind: String,
     pub claim_id: Option<String>,
+    pub claim_status: Option<String>,
+    pub from_status: Option<String>,
+    pub to_status: Option<String>,
     pub body: String,
 }
 
@@ -54,9 +60,10 @@ pub struct EpisodicEvent {
 /// bm25 rank. Until Magpie has an explicit reranker, deterministic replay order
 /// is more important than relevance scoring.
 ///
-/// `ClaimStatusChanged` stores the textual reason but not `from`/`to` columns.
-/// That is provisional: the claims projection owns current claim state, while
-/// this projection owns "what happened, findable by text".
+/// Claim statuses are stored as structured columns because the episodic
+/// projection is the record of what each signed event said at entry time. The
+/// claims projection owns current claim state; this projection owns the
+/// replayed timeline.
 ///
 /// Log timestamps are `u64`, while SQLite `INTEGER` is signed 64-bit. Applying
 /// an event whose timestamp cannot fit in SQLite panics with a clear message;
@@ -109,7 +116,8 @@ impl EpisodicView {
         };
         self.conn
             .query_row(
-                "SELECT seq, timestamp_nanos, agent, source, kind, claim_id, body
+                "SELECT seq, timestamp_nanos, agent, source, kind, claim_id,
+                        claim_status, from_status, to_status, body
                  FROM events
                  WHERE seq = ?1",
                 params![seq_i64],
@@ -121,6 +129,11 @@ impl EpisodicView {
 
     /// Return matching event sequence numbers in ascending log order.
     pub fn search(&self, query: &str) -> Result<Vec<u64>, rusqlite::Error> {
+        let query = query.trim();
+        if query.is_empty() {
+            return Ok(Vec::new());
+        }
+        let query = fts_phrase_query(query);
         let mut stmt = self.conn.prepare(
             "SELECT rowid
              FROM events_fts
@@ -153,7 +166,8 @@ impl EpisodicView {
 
     fn events_ordered(&self) -> Result<Vec<EpisodicEvent>, rusqlite::Error> {
         let mut stmt = self.conn.prepare(
-            "SELECT seq, timestamp_nanos, agent, source, kind, claim_id, body
+            "SELECT seq, timestamp_nanos, agent, source, kind, claim_id,
+                    claim_status, from_status, to_status, body
              FROM events
              ORDER BY seq ASC",
         )?;
@@ -185,9 +199,10 @@ impl Projection for EpisodicView {
             .expect("EpisodicView failed to begin SQLite transaction");
         tx.execute(
             "INSERT INTO events (
-                 seq, timestamp_nanos, agent, source, kind, claim_id, body
+                 seq, timestamp_nanos, agent, source, kind, claim_id,
+                 claim_status, from_status, to_status, body
              ) VALUES (
-                 ?1, ?2, ?3, ?4, ?5, ?6, ?7
+                 ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10
              )",
             params![
                 seq,
@@ -196,6 +211,9 @@ impl Projection for EpisodicView {
                 &event.core.provenance.source,
                 payload.kind,
                 payload.claim_id,
+                payload.claim_status,
+                payload.from_status,
+                payload.to_status,
                 payload.body,
             ],
         )
@@ -213,6 +231,9 @@ impl Projection for EpisodicView {
 struct PayloadParts<'a> {
     kind: &'static str,
     claim_id: Option<&'a str>,
+    claim_status: Option<&'static str>,
+    from_status: Option<&'static str>,
+    to_status: Option<&'static str>,
     body: &'a str,
 }
 
@@ -224,35 +245,50 @@ fn payload_parts(payload: &Payload) -> PayloadParts<'_> {
         } => PayloadParts {
             kind: "genesis",
             claim_id: None,
+            claim_status: None,
+            from_status: None,
+            to_status: None,
             body: canonicalization_profile,
         },
         Payload::ClaimAsserted {
             claim_id,
             statement,
-            status: _,
+            status,
         } => PayloadParts {
             kind: "claim_asserted",
             claim_id: Some(claim_id),
+            claim_status: Some(status_name(*status)),
+            from_status: None,
+            to_status: None,
             body: statement,
         },
         Payload::EvidenceRecorded { claim_id, summary } => PayloadParts {
             kind: "evidence_recorded",
             claim_id: Some(claim_id),
+            claim_status: None,
+            from_status: None,
+            to_status: None,
             body: summary,
         },
         Payload::ClaimStatusChanged {
             claim_id,
-            from: _,
-            to: _,
+            from,
+            to,
             reason,
         } => PayloadParts {
             kind: "claim_status_changed",
             claim_id: Some(claim_id),
+            claim_status: None,
+            from_status: Some(status_name(*from)),
+            to_status: Some(status_name(*to)),
             body: reason,
         },
         Payload::Note { text } => PayloadParts {
             kind: "note",
             claim_id: None,
+            claim_status: None,
+            from_status: None,
+            to_status: None,
             body: text,
         },
         // Anchors are timeline rows (ADR-0001): the searchable body is the
@@ -261,6 +297,9 @@ fn payload_parts(payload: &Payload) -> PayloadParts<'_> {
         Payload::SegmentAnchored { witness_root, .. } => PayloadParts {
             kind: "segment_anchored",
             claim_id: None,
+            claim_status: None,
+            from_status: None,
+            to_status: None,
             body: witness_root,
         },
     }
@@ -276,8 +315,25 @@ fn row_to_event(row: &Row<'_>) -> rusqlite::Result<EpisodicEvent> {
         source: row.get(3)?,
         kind: row.get(4)?,
         claim_id: row.get(5)?,
-        body: row.get(6)?,
+        claim_status: row.get(6)?,
+        from_status: row.get(7)?,
+        to_status: row.get(8)?,
+        body: row.get(9)?,
     })
+}
+
+fn status_name(status: magpie_log::Status) -> &'static str {
+    match status {
+        magpie_log::Status::Open => "Open",
+        magpie_log::Status::Conjectured => "Conjectured",
+        magpie_log::Status::Supported => "Supported",
+        magpie_log::Status::Settled => "Settled",
+        magpie_log::Status::Refuted => "Refuted",
+    }
+}
+
+fn fts_phrase_query(query: &str) -> String {
+    format!("\"{}\"", query.replace('"', "\"\""))
 }
 
 fn u64_to_sql_i64(value: u64, field: &str) -> i64 {
