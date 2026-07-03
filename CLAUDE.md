@@ -141,12 +141,14 @@ Freeze consequences:
 
 ## Queued work (keep current; update as things land)
 
-1. Deadbolt seam: the kernel (separate repo, the trust boundary) holds the `LogWriter`.
-   Open design question: does the kernel's witness pipeline emit into this log (one
-   truth) or coexist beside it (two)? Leaning: one truth. Do not start without the
-   design conversation. Survey input: `docs/deadbolt-witness-survey.md` (cited census
-   of deadbolt's witness machinery — active roots are SHA-256 canonical JSON with
-   per-bundle seal points; BLAKE3 is only a reserved marker).
+1. Deadbolt-side emitter (deadbolt repo): the gate appends one `SegmentAnchored`
+   per successful seal-and-verify, per ADR-0001 (`docs/adr/0001-deadbolt-seam.md`).
+   Includes the deferred reconciliation story for sealed-but-unanchored bundles
+   (visible set, retry policy) — ops design; needs its own design conversation
+   before any ticket is cut.
 2. Only after that: typed stores, reranker, evaluator. Earn each from use.
 
 Landed: SQLite + FTS5 episodic projection (`magpie-episodic`, PR #5, 2026-07-02).
+Landed: Deadbolt seam ratified as anchored hierarchy — ADR-0001, `SegmentAnchored`
+tag 5, FORMAT.md §3 addition, extended golden vectors (six events, seqs 0-4
+unchanged), tag-5 Python verifier (PR #8, 2026-07-03).
