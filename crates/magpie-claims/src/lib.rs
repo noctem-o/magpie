@@ -80,6 +80,10 @@ impl Projection for ClaimsView {
             }
             Payload::Note { .. } => {}
             Payload::Genesis { .. } => {}
+            // Anchors commit execution evidence, not epistemic claims; the
+            // claim store deliberately ignores them. (The episodic store is
+            // where they surface as timeline rows.)
+            Payload::SegmentAnchored { .. } => {}
         }
     }
 }

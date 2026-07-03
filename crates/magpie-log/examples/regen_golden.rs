@@ -62,6 +62,23 @@ fn main() {
             },
         )
         .unwrap();
+        // seq 5 — anchor coverage. The root is a deterministic fixture value
+        // (sha256 of a fixed string), formatted exactly as deadbolt surfaces
+        // roots: 64 lowercase hex chars.
+        w.append(
+            Provenance::new("deadbolt", "kernel-witness"),
+            Payload::SegmentAnchored {
+                bundle_kind: "kernel-decision-witness".into(),
+                witness_root: {
+                    use sha2::{Digest, Sha256};
+                    hex::encode(Sha256::digest(b"fixture-segment-0"))
+                },
+                witness_algorithm: "sha256".into(),
+                canonicalization_profile: "phase5-interim-jcs-like-v1".into(),
+                run_id: "run-0001".into(),
+            },
+        )
+        .unwrap();
     }
 
     // Write the fixture file.

@@ -63,6 +63,23 @@ pub enum Payload {
     Note {
         text: String,
     },
+    /// An anchor: commits an externally sealed evidence segment (a deadbolt
+    /// witness/evidence bundle) into the chain by its root. The chain
+    /// guarantees order, signature, and inclusion; the segment's *contents*
+    /// verify locally against `witness_root` using the sealing subsystem's
+    /// own verifier. Anything not anchored is not part of the record.
+    ///
+    /// `canonicalization_profile` names the FOREIGN profile that produced the
+    /// root (e.g. `phase5-interim-jcs-like-v1`) — deliberately not assumed to
+    /// be magpie-core-v1. Kind-agnostic on purpose: a new deadbolt bundle
+    /// kind must never require a Magpie format change.
+    SegmentAnchored {
+        bundle_kind: String,
+        witness_root: String,
+        witness_algorithm: String,
+        canonicalization_profile: String,
+        run_id: String,
+    },
 }
 
 /// Everything that is hashed and signed: position, time, the chain link, who
