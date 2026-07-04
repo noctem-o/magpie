@@ -82,9 +82,10 @@ there that may depend on `magpie-log`, and its `Anchorer::open` is the sole
 `LogWriter` construction site in that estate. Identity creation is explicit and
 fail-closed (`cog anchor init`, refuses to overwrite); emission is fail-open —
 anchoring failure writes a `pending-anchor.json` marker beside the bundle and never
-fails a seal. The kernel witness seal point emits anchors today; fan-out to the
-observation/codelet/transaction seal points and the marker-consuming reconcile pass
-are the active queue (deadbolt tickets 0008–0009).
+fails a seal. All four production seal points emit anchors today — kernel witness,
+observation, codelet, and desktop-transaction dry-run: every sealed bundle either
+has an anchor in the log or a `pending-anchor.json` beside it. The marker-consuming
+reconcile pass is the active queue (deadbolt ticket 0009).
 
 ## Development workflow
 
@@ -128,8 +129,8 @@ shell execution is unavailable.
 2. ~~Episodic projection~~ — **done**: `magpie-episodic`, SQLite + FTS5, pure fold.
 3. ~~Deadbolt seam~~ — **ratified and live**: ADR-0001, `SegmentAnchored` tag 5,
    deadbolt-side `Anchorer` emitting at the kernel witness seal point.
-4. **Now:** finish the anchor rollout — remaining deadbolt seal points (ticket 0008)
-   and the sealed-but-unanchored reconcile pass (ticket 0009).
+4. **Now:** the sealed-but-unanchored reconcile pass (deadbolt ticket 0009) —
+   idempotent, and deliberately the first consumer of anchors.
 5. Then, and only then: typed stores, the reranker, the evaluator. Earn each from use.
 
 Conserve the log. Derive the rest.
