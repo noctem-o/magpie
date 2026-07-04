@@ -134,7 +134,7 @@ Freeze consequences:
 
 - Doc comments carry design rationale, not just API description. Honest caveats are house style: if something is unsound or provisional, say so plainly.
 - Tests are adversarial where possible (tamper, forged rehash, wrong-key genesis, truncation). New chain-level behaviour needs a hostile test, not just a happy path.
-- No new dependencies without explicit discussion. The hash path especially stays dependency-minimal.
+- No new dependencies without explicit discussion. The hash path especially stays dependency-minimal. But "no new dependencies" never licenses hand-rolling entropy, cryptographic primitives, or security-relevant parsing — `getrandom` and audited equivalents are pre-approved for those purposes; when a ticket constraint forces that choice, stop and flag rather than pick a horn.
 - `BTreeMap` over `HashMap` anywhere that gets serialized — determinism is the point.
 - No knowledge graph. The wiki, when it exists, is a downstream projection.
 - Single-threaded by design for now (`MemStore` is `Rc`/`RefCell`); don't reach for `Arc`/`Mutex` without a design conversation.
