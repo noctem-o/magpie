@@ -84,8 +84,11 @@ fail-closed (`cog anchor init`, refuses to overwrite); emission is fail-open —
 anchoring failure writes a `pending-anchor.json` marker beside the bundle and never
 fails a seal. All four production seal points emit anchors today — kernel witness,
 observation, codelet, and desktop-transaction dry-run: every sealed bundle either
-has an anchor in the log or a `pending-anchor.json` beside it. The marker-consuming
-reconcile pass is the active queue (deadbolt ticket 0009).
+has an anchor in the log or a `pending-anchor.json` beside it. `cog anchor
+reconcile` (deadbolt ticket 0009, merged) pays the recorded debt idempotently,
+re-verifying every bundle with its own kind's verifier before anchoring — reconcile
+is deliberately the first consumer of anchors, folding an `AnchorSet` projection
+over a chain-verified replay of this log.
 
 ## Development workflow
 
@@ -129,8 +132,11 @@ shell execution is unavailable.
 2. ~~Episodic projection~~ — **done**: `magpie-episodic`, SQLite + FTS5, pure fold.
 3. ~~Deadbolt seam~~ — **ratified and live**: ADR-0001, `SegmentAnchored` tag 5,
    deadbolt-side `Anchorer` emitting at the kernel witness seal point.
-4. **Now:** the sealed-but-unanchored reconcile pass (deadbolt ticket 0009) —
-   idempotent, and deliberately the first consumer of anchors.
-5. Then, and only then: typed stores, the reranker, the evaluator. Earn each from use.
+4. ~~Reconcile pass~~ — **done** (deadbolt PR #320): verify-then-anchor,
+   idempotent, first consumer of anchors. The seam is complete end to end.
+5. **Now:** operate it — dogfood real workloads through the seal points, with
+   small ops tickets in support (`cog anchor status`, then `--require-anchor`).
+   The next *design* work is the governed claim write-path (ADR-0002-shaped).
+6. Then, and only then: typed stores, the reranker, the evaluator. Earn each from use.
 
 Conserve the log. Derive the rest.
