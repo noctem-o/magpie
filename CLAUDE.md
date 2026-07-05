@@ -141,14 +141,23 @@ Freeze consequences:
 
 ## Queued work (keep current; update as things land)
 
-1. Deadbolt-side emitter (deadbolt repo): the gate appends one `SegmentAnchored`
-   per successful seal-and-verify, per ADR-0001 (`docs/adr/0001-deadbolt-seam.md`).
-   Includes the deferred reconciliation story for sealed-but-unanchored bundles
-   (visible set, retry policy) — ops design; needs its own design conversation
-   before any ticket is cut.
-2. Only after that: typed stores, reranker, evaluator. Earn each from use.
+1. Operate the seam (deadbolt repo): dogfood real workloads through the four
+   seal points and let anchors accumulate. Small ops tickets in support:
+   `cog anchor status` read-only debt view (deadbolt ticket 0010, drafted);
+   `--require-anchor` strict mode after status shows the real debt rhythm.
+2. Governed claim write-path — the ADR-0002-shaped design conversation: who
+   may assert `ClaimAsserted`/`EvidenceRecorded`/`ClaimStatusChanged` into the
+   log, through what policy, with what provenance discipline. Claim lifecycle
+   design is on the do-not-delegate list; this is a conversation, not a ticket,
+   and nothing else mid-tier starts before it.
+3. Only after that: typed stores, reranker, evaluator. Earn each from use.
 
 Landed: SQLite + FTS5 episodic projection (`magpie-episodic`, PR #5, 2026-07-02).
 Landed: Deadbolt seam ratified as anchored hierarchy — ADR-0001, `SegmentAnchored`
 tag 5, FORMAT.md §3 addition, extended golden vectors (six events, seqs 0-4
 unchanged), tag-5 Python verifier (PR #8, 2026-07-03).
+Landed: Deadbolt-side seam complete (deadbolt PRs #316–#320, 2026-07-03..05):
+`cog-anchor` sole-writer crate; kernel, observation, codelet, and transaction
+seal points emit fail-open with `pending-anchor.json` debt markers; `cog anchor
+reconcile` re-verifies bundles then anchors idempotently via the `AnchorSet`
+projection — the first consumer of anchors.
