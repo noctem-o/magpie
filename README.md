@@ -162,9 +162,12 @@ shell execution is unavailable.
    idempotent, first consumer of anchors. The seam is complete end to end.
 5. ~~ADR-0002 groundwork~~ — **landed**: governed claim memory ADR, `StandingView`
    v0 skeleton, boundary tests, and additive tags 6-8 with verifier/golden coverage.
-6. **Now:** implement the standing fold behind the vocabulary — typed evidence
-   side tables, ceiling/debt semantics, and enforcement tests.
-7. Then add `EpistemicGate`; only after that should writer-facing surfaces, MCP
+6. ~~Standing replay structure~~ — **in progress**: typed claim, evidence, and
+   justification edge tables make ADR-0002 graph material regenerable.
+7. **Next:** implement standing semantics behind those tables — evidence
+   ceilings, support, contradiction debt, invalidation, supersession, and
+   ratification, each with enforcement tests.
+8. Then add `EpistemicGate`; only after that should writer-facing surfaces, MCP
    write paths, lens ingestion, typed stores, rerankers, or evaluators appear.
 
 Conserve the log. Derive the rest.
