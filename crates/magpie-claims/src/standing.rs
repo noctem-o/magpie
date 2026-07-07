@@ -1225,4 +1225,51 @@ mod tests {
         assert_eq!(view.typed_evidence_len(), 0);
         assert_eq!(view.justification_edge_len(), 0);
     }
+
+    #[test]
+    fn legacy_status_change_still_settles_typed_v2_claim_pending_gate() {
+        // CHARACTERIZATION of a known compatibility gap, not an endorsement.
+        //
+        // A legacy tag-3 `ClaimStatusChanged` still drives a typed tag-6
+        // `ClaimAssertedV2` claim to `Settled`, bypassing the ADR-0002 evidence
+        // ceilings entirely: `ClaimAssertedV2` alone only reaches `Conjectured`,
+        // and an `AgentProposer` may not settle — yet the legacy manual path
+        // settles it because no `EpistemicGate` exists to refuse the write.
+        //
+        // See docs/design/standing-view-evidence-ceilings.md ("Compatibility with
+        // v0 events" / `ClaimStatusChanged`) and ADR-0002. When the gate lands it
+        // must consciously close this path, and this test must change with it —
+        // it is a tripwire, not a promise.
+        let store = MemStore::new();
+        {
+            let mut writer = writer(store.clone());
+            writer
+                .append(provenance(), claim_asserted_v2("AgentProposer"))
+                .unwrap();
+            writer
+                .append(
+                    provenance(),
+                    Payload::ClaimStatusChanged {
+                        claim_id: "claim-v2".into(),
+                        from: Status::Conjectured,
+                        to: Status::Settled,
+                        reason: "Legacy manual settlement bypasses ceilings.".into(),
+                    },
+                )
+                .unwrap();
+        }
+
+        let view = replay(store, 3);
+        let claim = view.get("claim-v2").unwrap();
+
+        // The gap: a typed claim asserted by an ordinary agent is Settled through
+        // the legacy path, despite the ceiling law forbidding exactly this.
+        assert_eq!(claim.asserted_initial_status, Status::Conjectured);
+        assert_eq!(claim.standing, Status::Settled);
+        assert_eq!(claim.legacy_transitions, 1);
+
+        // The typed side table is untouched by the legacy status change.
+        let typed = view.typed_claim("claim-v2").unwrap();
+        assert_eq!(typed.actor_class, "AgentProposer");
+    }
 }
