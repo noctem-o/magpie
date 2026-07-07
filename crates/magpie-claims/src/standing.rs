@@ -346,37 +346,39 @@ mod tests {
     }
 
     fn justification_edge_recorded() -> Payload {
-        justification_edge_recorded_with(
-            "edge-v2",
-            "supports",
-            "evidence-v2",
-            "claim-v2",
-            "magpie:test",
-            "HumanRoot",
-            "Typed edges are inert until staged StandingView rules land.",
-            "{}",
-        )
+        justification_edge_recorded_with(EdgeInput {
+            edge_id: "edge-v2",
+            edge_kind: "supports",
+            source_id: "evidence-v2",
+            target_id: "claim-v2",
+            scope_ref: "magpie:test",
+            actor_class: "HumanRoot",
+            rationale: "Typed edges are inert until staged StandingView rules land.",
+            metadata_json: "{}",
+        })
     }
 
-    fn justification_edge_recorded_with(
-        edge_id: &str,
-        edge_kind: &str,
-        source_id: &str,
-        target_id: &str,
-        scope_ref: &str,
-        actor_class: &str,
-        rationale: &str,
-        metadata_json: &str,
-    ) -> Payload {
+    struct EdgeInput<'a> {
+        edge_id: &'a str,
+        edge_kind: &'a str,
+        source_id: &'a str,
+        target_id: &'a str,
+        scope_ref: &'a str,
+        actor_class: &'a str,
+        rationale: &'a str,
+        metadata_json: &'a str,
+    }
+
+    fn justification_edge_recorded_with(input: EdgeInput<'_>) -> Payload {
         Payload::JustificationEdgeRecorded {
-            edge_id: edge_id.into(),
-            edge_kind: edge_kind.into(),
-            source_id: source_id.into(),
-            target_id: target_id.into(),
-            scope_ref: scope_ref.into(),
-            actor_class: actor_class.into(),
-            rationale: rationale.into(),
-            metadata_json: metadata_json.into(),
+            edge_id: input.edge_id.into(),
+            edge_kind: input.edge_kind.into(),
+            source_id: input.source_id.into(),
+            target_id: input.target_id.into(),
+            scope_ref: input.scope_ref.into(),
+            actor_class: input.actor_class.into(),
+            rationale: input.rationale.into(),
+            metadata_json: input.metadata_json.into(),
         }
     }
 
@@ -998,16 +1000,16 @@ mod tests {
             writer
                 .append(
                     provenance(),
-                    justification_edge_recorded_with(
-                        "edge-v2",
-                        "supports",
-                        "evidence-v2",
-                        "claim-v2",
-                        "scope:edge",
-                        "HumanRoot",
-                        "Typed edge metadata is replayed.",
-                        "{\"edge\":\"metadata\"}",
-                    ),
+                    justification_edge_recorded_with(EdgeInput {
+                        edge_id: "edge-v2",
+                        edge_kind: "supports",
+                        source_id: "evidence-v2",
+                        target_id: "claim-v2",
+                        scope_ref: "scope:edge",
+                        actor_class: "HumanRoot",
+                        rationale: "Typed edge metadata is replayed.",
+                        metadata_json: "{\"edge\":\"metadata\"}",
+                    }),
                 )
                 .unwrap();
         }
@@ -1039,31 +1041,31 @@ mod tests {
             writer
                 .append(
                     provenance(),
-                    justification_edge_recorded_with(
-                        "edge-v2",
-                        "supports",
-                        "evidence-v2",
-                        "claim-v2",
-                        "scope:first",
-                        "HumanRoot",
-                        "first",
-                        "{\"n\":1}",
-                    ),
+                    justification_edge_recorded_with(EdgeInput {
+                        edge_id: "edge-v2",
+                        edge_kind: "supports",
+                        source_id: "evidence-v2",
+                        target_id: "claim-v2",
+                        scope_ref: "scope:first",
+                        actor_class: "HumanRoot",
+                        rationale: "first",
+                        metadata_json: "{\"n\":1}",
+                    }),
                 )
                 .unwrap();
             writer
                 .append(
                     provenance(),
-                    justification_edge_recorded_with(
-                        "edge-v2",
-                        "contradicts",
-                        "other-evidence",
-                        "claim-v2",
-                        "scope:second",
-                        "AgentProposer",
-                        "second",
-                        "{\"n\":2}",
-                    ),
+                    justification_edge_recorded_with(EdgeInput {
+                        edge_id: "edge-v2",
+                        edge_kind: "contradicts",
+                        source_id: "other-evidence",
+                        target_id: "claim-v2",
+                        scope_ref: "scope:second",
+                        actor_class: "AgentProposer",
+                        rationale: "second",
+                        metadata_json: "{\"n\":2}",
+                    }),
                 )
                 .unwrap();
         }
@@ -1136,31 +1138,31 @@ mod tests {
             writer
                 .append(
                     provenance(),
-                    justification_edge_recorded_with(
-                        "edge-a",
-                        "supports",
-                        "evidence-a",
-                        "claim-a",
-                        "scope:a",
-                        "HumanRoot",
-                        "Edge A.",
-                        "{}",
-                    ),
+                    justification_edge_recorded_with(EdgeInput {
+                        edge_id: "edge-a",
+                        edge_kind: "supports",
+                        source_id: "evidence-a",
+                        target_id: "claim-a",
+                        scope_ref: "scope:a",
+                        actor_class: "HumanRoot",
+                        rationale: "Edge A.",
+                        metadata_json: "{}",
+                    }),
                 )
                 .unwrap();
             writer
                 .append(
                     provenance(),
-                    justification_edge_recorded_with(
-                        "edge-b",
-                        "derived_from",
-                        "claim-a",
-                        "claim-b",
-                        "scope:b",
-                        "AgentProposer",
-                        "Edge B.",
-                        "{}",
-                    ),
+                    justification_edge_recorded_with(EdgeInput {
+                        edge_id: "edge-b",
+                        edge_kind: "derived_from",
+                        source_id: "claim-a",
+                        target_id: "claim-b",
+                        scope_ref: "scope:b",
+                        actor_class: "AgentProposer",
+                        rationale: "Edge B.",
+                        metadata_json: "{}",
+                    }),
                 )
                 .unwrap();
             writer.append(provenance(), anchor()).unwrap();
