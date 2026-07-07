@@ -1,8 +1,9 @@
 //! Regenerates `testdata/golden-v1.jsonl` and prints the expected values for
-//! `tests/golden.rs`. Run **only** when cutting a NEW canonicalization
-//! profile — for an existing profile, the committed golden file and the
-//! hardcoded hashes are the ground truth, and this program must reproduce
-//! them exactly.
+//! `tests/golden.rs`. Run only for a reviewed format-surface change: either
+//! when cutting a new canonicalization profile, or when appending additive
+//! payload tags whose old fixture records must remain byte-for-byte unchanged.
+//! For an existing committed fixture, the golden file and hardcoded hashes are
+//! the ground truth, and this program must reproduce them exactly.
 //!
 //! `cargo run --example regen_golden -p magpie-log`
 
@@ -76,6 +77,55 @@ fn main() {
                 witness_algorithm: "sha256".into(),
                 canonicalization_profile: "phase5-interim-jcs-like-v1".into(),
                 run_id: "run-0001".into(),
+            },
+        )
+        .unwrap();
+        // seq 6 — ADR-0002 typed claim assertion coverage.
+        w.append(
+            Provenance::new("george", "adr-0002"),
+            Payload::ClaimAssertedV2 {
+                claim_id: "claim-v2-thm2".into(),
+                statement:
+                    "Theorem 2 standing is governed by typed evidence and deterministic replay."
+                        .into(),
+                scope_ref: "magpie:adr-0002".into(),
+                actor_class: "HumanRoot".into(),
+                content_hash: "".into(),
+                metadata_json: "{}".into(),
+            },
+        )
+        .unwrap();
+        // seq 7 — ADR-0002 typed evidence coverage.
+        w.append(
+            Provenance::new("deadbolt", "adr-0002"),
+            Payload::EvidenceRegistered {
+                evidence_id: "ev-deadbolt-anchor-0001".into(),
+                evidence_kind: "DeadboltAnchor".into(),
+                summary:
+                    "Deadbolt anchor can prove occurrence and inclusion, not interpretation truth."
+                        .into(),
+                scope_ref: "magpie:adr-0002".into(),
+                actor_class: "DeadboltAnchorer".into(),
+                content_hash: "851d2a8f265e21192c4b1f1ff3bee2a8dc6305a848160412c74b66b74a909141"
+                    .into(),
+                metadata_json: "{\"cites_segment\":\"run-0001\"}".into(),
+            },
+        )
+        .unwrap();
+        // seq 8 — ADR-0002 typed justification edge coverage.
+        w.append(
+            Provenance::new("george", "adr-0002"),
+            Payload::JustificationEdgeRecorded {
+                edge_id: "edge-0001".into(),
+                edge_kind: "supports".into(),
+                source_id: "ev-deadbolt-anchor-0001".into(),
+                target_id: "claim-v2-thm2".into(),
+                scope_ref: "magpie:adr-0002".into(),
+                actor_class: "HumanRoot".into(),
+                rationale:
+                    "The evidence supports occurrence/inclusion only; interpretation remains governed by StandingView ceilings."
+                        .into(),
+                metadata_json: "{}".into(),
             },
         )
         .unwrap();

@@ -19,8 +19,9 @@ pub struct StandingClaim {
 
 /// ADR-0002 standing, derived from the verified append-only log.
 ///
-/// This skeleton folds only the current v0 payload vocabulary. It intentionally
-/// does not add claim-writing vocabulary, event tags, or writer-facing surfaces.
+/// This projection folds legacy v0 claim events and the additive ADR-0002 typed
+/// assertion vocabulary. It intentionally does not add writer-facing surfaces or
+/// authority gates.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
 pub struct StandingView {
     pub claims: BTreeMap<String, StandingClaim>,
@@ -90,6 +91,32 @@ impl Projection for StandingView {
                 // Future typed evidence may cite it; this v0 StandingView must not create or
                 // promote claims from anchors alone.
             }
+            Payload::ClaimAssertedV2 {
+                claim_id,
+                statement,
+                ..
+            } => {
+                // ADR-0002 v1 typed assertions start at Conjectured. They register a
+                // scoped claim node but do not settle truth or bypass future ceilings.
+                self.claims
+                    .entry(claim_id.clone())
+                    .or_insert_with(|| StandingClaim {
+                        statement: statement.clone(),
+                        asserted_initial_status: Status::Conjectured,
+                        standing: Status::Conjectured,
+                        legacy_evidence: Vec::new(),
+                        legacy_transitions: 0,
+                    });
+            }
+            Payload::EvidenceRegistered { .. } => {
+                // Typed evidence alone does not create or settle claims. Future
+                // StandingView work may retain an evidence side table and connect it
+                // through explicit JustificationEdgeRecorded events.
+            }
+            Payload::JustificationEdgeRecorded { .. } => {
+                // Edges are inert until the staged ADR-0002 fold implements support,
+                // debt, supersession, invalidation, and ratification semantics.
+            }
         }
     }
 }
@@ -129,6 +156,42 @@ mod tests {
             witness_algorithm: "sha256".into(),
             canonicalization_profile: "phase5-interim-jcs-like-v1".into(),
             run_id: "run-standing-view".into(),
+        }
+    }
+
+    fn claim_asserted_v2(actor_class: &str) -> Payload {
+        Payload::ClaimAssertedV2 {
+            claim_id: "claim-v2".into(),
+            statement: "Typed claims begin as governed conjectures.".into(),
+            scope_ref: "magpie:test".into(),
+            actor_class: actor_class.into(),
+            content_hash: "".into(),
+            metadata_json: "{}".into(),
+        }
+    }
+
+    fn evidence_registered() -> Payload {
+        Payload::EvidenceRegistered {
+            evidence_id: "evidence-v2".into(),
+            evidence_kind: "DeadboltAnchor".into(),
+            summary: "Typed evidence alone does not create standing.".into(),
+            scope_ref: "magpie:test".into(),
+            actor_class: "DeadboltAnchorer".into(),
+            content_hash: "".into(),
+            metadata_json: "{}".into(),
+        }
+    }
+
+    fn justification_edge_recorded() -> Payload {
+        Payload::JustificationEdgeRecorded {
+            edge_id: "edge-v2".into(),
+            edge_kind: "supports".into(),
+            source_id: "evidence-v2".into(),
+            target_id: "claim-v2".into(),
+            scope_ref: "magpie:test".into(),
+            actor_class: "HumanRoot".into(),
+            rationale: "Typed edges are inert until staged StandingView rules land.".into(),
+            metadata_json: "{}".into(),
         }
     }
 
@@ -440,5 +503,110 @@ mod tests {
         assert!(view.is_empty());
         assert_eq!(view.len(), 0);
         assert!(view.get("claim-created-from-anchor").is_none());
+    }
+
+    #[test]
+    fn claim_asserted_v2_creates_conjectured_claim() {
+        let store = MemStore::new();
+        {
+            let mut writer = writer(store.clone());
+            writer
+                .append(provenance(), claim_asserted_v2("HumanRoot"))
+                .unwrap();
+        }
+
+        let reader = LogReader::open(store, test_key().verifying_key());
+        let mut view = StandingView::new();
+        assert_eq!(reader.replay(&mut view).unwrap(), 2);
+
+        let claim = view.get("claim-v2").unwrap();
+        assert_eq!(view.len(), 1);
+        assert_eq!(
+            claim.statement,
+            "Typed claims begin as governed conjectures."
+        );
+        assert_eq!(claim.asserted_initial_status, Status::Conjectured);
+        assert_eq!(claim.standing, Status::Conjectured);
+        assert!(claim.legacy_evidence.is_empty());
+        assert_eq!(claim.legacy_transitions, 0);
+    }
+
+    #[test]
+    fn agent_proposer_claim_asserted_v2_does_not_settle() {
+        let store = MemStore::new();
+        {
+            let mut writer = writer(store.clone());
+            writer
+                .append(provenance(), claim_asserted_v2("AgentProposer"))
+                .unwrap();
+        }
+
+        let reader = LogReader::open(store, test_key().verifying_key());
+        let mut view = StandingView::new();
+        assert_eq!(reader.replay(&mut view).unwrap(), 2);
+
+        let claim = view.get("claim-v2").unwrap();
+        assert_eq!(claim.asserted_initial_status, Status::Conjectured);
+        assert_eq!(claim.standing, Status::Conjectured);
+    }
+
+    #[test]
+    fn evidence_registered_alone_does_not_create_claim() {
+        let store = MemStore::new();
+        {
+            let mut writer = writer(store.clone());
+            writer.append(provenance(), evidence_registered()).unwrap();
+        }
+
+        let reader = LogReader::open(store, test_key().verifying_key());
+        let mut view = StandingView::new();
+        assert_eq!(reader.replay(&mut view).unwrap(), 2);
+
+        assert!(view.is_empty());
+        assert!(view.get("claim-v2").is_none());
+    }
+
+    #[test]
+    fn justification_edge_recorded_alone_does_not_create_claim() {
+        let store = MemStore::new();
+        {
+            let mut writer = writer(store.clone());
+            writer
+                .append(provenance(), justification_edge_recorded())
+                .unwrap();
+        }
+
+        let reader = LogReader::open(store, test_key().verifying_key());
+        let mut view = StandingView::new();
+        assert_eq!(reader.replay(&mut view).unwrap(), 2);
+
+        assert!(view.is_empty());
+        assert!(view.get("claim-v2").is_none());
+    }
+
+    #[test]
+    fn segment_anchor_still_does_not_create_or_promote_claim_after_tags_6_8() {
+        let store = MemStore::new();
+        {
+            let mut writer = writer(store.clone());
+            writer
+                .append(provenance(), claim_asserted_v2("HumanRoot"))
+                .unwrap();
+            writer.append(provenance(), evidence_registered()).unwrap();
+            writer
+                .append(provenance(), justification_edge_recorded())
+                .unwrap();
+            writer.append(provenance(), anchor()).unwrap();
+        }
+
+        let reader = LogReader::open(store, test_key().verifying_key());
+        let mut view = StandingView::new();
+        assert_eq!(reader.replay(&mut view).unwrap(), 5);
+
+        let claim = view.get("claim-v2").unwrap();
+        assert_eq!(view.len(), 1);
+        assert_eq!(claim.standing, Status::Conjectured);
+        assert!(claim.legacy_evidence.is_empty());
+        assert_eq!(claim.legacy_transitions, 0);
     }
 }

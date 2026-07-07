@@ -6,8 +6,10 @@ to it; everything else is a derived, regenerable projection.**
 
 The skeleton walks: the bottom of the stack (`magpie-log`, L0, format-frozen and
 golden-pinned), two worked projections (`magpie-claims`, `magpie-episodic`), an
-independent Python verifier, and a ratified, live seam to `deadbolt` — the kernel
-now anchors its sealed evidence into this chain.
+independent Python verifier, a ratified live seam to `deadbolt`, and the first
+ADR-0002 claim-memory vocabulary. The kernel can anchor sealed evidence into the
+chain; Magpie can now name typed claim, evidence, and justification events
+without yet exposing ordinary writer surfaces.
 
 ## Run it
 
@@ -33,10 +35,11 @@ magpie/
       src/logimpl.rs       LogWriter (the write capability) / LogReader (read-only) / Projection / replay
       tests/chain.rs       chain integrity, tip recovery, tamper detection, genesis rules
       tests/golden.rs      golden vectors: pinned hashes, signatures, canonical preimages
-      testdata/            golden-v1.jsonl — the committed fixture chain (six events, incl. one anchor)
-      examples/regen_golden.rs   regenerates the fixture (ONLY when cutting a NEW profile)
+      testdata/            golden-v1.jsonl — the committed fixture chain (nine events, incl. ADR-0002 tags)
+      examples/regen_golden.rs   regenerates the fixture for reviewed format-surface changes
     magpie-claims/     projection #1: the epistemic claim store, folded from the log
       src/lib.rs           ClaimsView : Projection (claims move along open→settled→refuted)
+      src/standing.rs      StandingView : ADR-0002 read-only standing projection
       tests/regenerable.rs the thesis test
       examples/tour.rs     write → verify → replay → drop → replay → byte-identical
     magpie-episodic/   projection #2: SQLite + FTS5 full-text search over events
@@ -46,6 +49,7 @@ magpie/
     FORMAT.md          the normative format spec — a reimplementation from this page
                        alone must reproduce the golden vectors
     adr/0001-deadbolt-seam.md   the anchored-hierarchy decision (see seam section below)
+    adr/0002-governed-claim-memory.md   how memory events earn standing
   tools/
     verify_chain.py    independent verifier, written from FORMAT.md alone; CI runs it
                        against the golden fixture with a pinned trust root
@@ -90,6 +94,29 @@ re-verifying every bundle with its own kind's verifier before anchoring — reco
 is deliberately the first consumer of anchors, folding an `AnchorSet` projection
 over a chain-verified replay of this log.
 
+## Governed claim memory (ADR-0002 — additive vocabulary, no new authority)
+
+ADR-0002 answers the question the anchor seam intentionally does not answer:
+Deadbolt can prove or refuse occurrence, but what may Magpie believe about that
+evidence?
+
+The rule is deliberately conservative: a memory event earns standing through a
+governed write path and deterministic replay into `StandingView`. Standing is not
+stored as mutable truth, and `SegmentAnchored` remains occurrence/inclusion
+evidence, not interpretation truth.
+
+The log now knows three additive payload tags:
+
+- tag 6, `ClaimAssertedV2`: registers a scoped claim node;
+- tag 7, `EvidenceRegistered`: registers typed evidence under a deterministic
+  ceiling;
+- tag 8, `JustificationEdgeRecorded`: records a closed-vocabulary support,
+  contradiction, lineage, invalidation, supersession, or ratification edge.
+
+These are format vocabulary, not a permission system. `StandingView` gives the
+first deterministic read surface. `EpistemicGate` and all writer-facing surfaces
+remain future work.
+
 ## Development workflow
 
 Magpie uses a maker/checker loop for ordinary agent work:
@@ -110,13 +137,12 @@ shell execution is unavailable.
 - **Canonical encoding is `magpie-core-v1`** — a fixed binary codec (big-endian
   integers, length-prefixed UTF-8, tagged enums, magic-prefixed), spec'd in
   `docs/FORMAT.md` and pinned by golden vectors in CI. The format is **frozen**:
-  tag 5 (`SegmentAnchored`) was added under §3's additive-evolution rule with the
-  seqs 0–4 hashes provably unchanged. The store stays JSON-lines; stored bytes are
-  never the hash preimage. Every chain begins with a **genesis event** (seq 0)
-  declaring the profile and the verifying key, written automatically when a writer
-  opens an empty store. Signatures are made over `magpie-sig-v1 || hash` —
-  domain-separated, so this key's log signatures can't be confused with anything
-  else it signs.
+  tags 5-8 were added under §3's additive-evolution rule, with older golden hashes
+  and signatures unchanged. The store stays JSON-lines; stored bytes are never the
+  hash preimage. Every chain begins with a **genesis event** (seq 0) declaring the
+  profile and the verifying key, written automatically when a writer opens an
+  empty store. Signatures are made over `magpie-sig-v1 || hash` — domain-separated,
+  so this key's log signatures can't be confused with anything else it signs.
 - **`MemStore` is single-threaded** (`Rc`/`RefCell`). `FileStore` is the durable one; swap
   to `Arc`/`Mutex` only after a design conversation — single-threaded is currently a choice.
 - **Keys are dev-grade everywhere.** `magpie-log` takes a `SigningKey` from the
@@ -134,9 +160,11 @@ shell execution is unavailable.
    deadbolt-side `Anchorer` emitting at the kernel witness seal point.
 4. ~~Reconcile pass~~ — **done** (deadbolt PR #320): verify-then-anchor,
    idempotent, first consumer of anchors. The seam is complete end to end.
-5. **Now:** operate it — dogfood real workloads through the seal points, with
-   small ops tickets in support (`cog anchor status`, then `--require-anchor`).
-   The next *design* work is the governed claim write-path (ADR-0002-shaped).
-6. Then, and only then: typed stores, the reranker, the evaluator. Earn each from use.
+5. ~~ADR-0002 groundwork~~ — **landed**: governed claim memory ADR, `StandingView`
+   v0 skeleton, boundary tests, and additive tags 6-8 with verifier/golden coverage.
+6. **Now:** implement the standing fold behind the vocabulary — typed evidence
+   side tables, ceiling/debt semantics, and enforcement tests.
+7. Then add `EpistemicGate`; only after that should writer-facing surfaces, MCP
+   write paths, lens ingestion, typed stores, rerankers, or evaluators appear.
 
 Conserve the log. Derive the rest.

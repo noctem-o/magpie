@@ -80,11 +80,49 @@ pub enum Payload {
         canonicalization_profile: String,
         run_id: String,
     },
+    /// ADR-0002 typed claim assertion. Registers a scoped claim node; it does
+    /// not settle truth by itself. Standing remains a derived projection.
+    ClaimAssertedV2 {
+        claim_id: String,
+        statement: String,
+        scope_ref: String,
+        actor_class: String,
+        content_hash: String,
+        metadata_json: String,
+    },
+    /// ADR-0002 typed evidence registration. Evidence is inert until the
+    /// standing projection connects it through explicit justification edges.
+    EvidenceRegistered {
+        evidence_id: String,
+        evidence_kind: String,
+        summary: String,
+        scope_ref: String,
+        actor_class: String,
+        content_hash: String,
+        metadata_json: String,
+    },
+    /// ADR-0002 typed justification edge. Edge semantics are replayed by
+    /// projections; the log only records the closed vocabulary and fields.
+    JustificationEdgeRecorded {
+        edge_id: String,
+        edge_kind: String,
+        source_id: String,
+        target_id: String,
+        scope_ref: String,
+        actor_class: String,
+        rationale: String,
+        metadata_json: String,
+    },
 }
 
 impl Payload {
     pub(crate) fn validate(&self) -> Result<(), &'static str> {
         match self {
+            Payload::Genesis { .. }
+            | Payload::ClaimAsserted { .. }
+            | Payload::EvidenceRecorded { .. }
+            | Payload::ClaimStatusChanged { .. }
+            | Payload::Note { .. } => Ok(()),
             Payload::SegmentAnchored { witness_root, .. } => {
                 if is_lowercase_hex_64(witness_root) {
                     Ok(())
@@ -92,9 +130,85 @@ impl Payload {
                     Err("payload.witness_root must be 64 lowercase hex chars")
                 }
             }
-            _ => Ok(()),
+            Payload::ClaimAssertedV2 {
+                claim_id,
+                statement,
+                scope_ref,
+                actor_class,
+                content_hash,
+                metadata_json: _,
+            } => {
+                require_non_empty(claim_id, "payload.claim_id must be non-empty")?;
+                require_non_empty(statement, "payload.statement must be non-empty")?;
+                require_non_empty(scope_ref, "payload.scope_ref must be non-empty")?;
+                if !is_actor_class(actor_class) {
+                    return Err("payload.actor_class must be a known ADR-0002 actor class");
+                }
+                if !is_empty_or_lowercase_hex_64(content_hash) {
+                    return Err("payload.content_hash must be empty or 64 lowercase hex chars");
+                }
+                Ok(())
+            }
+            Payload::EvidenceRegistered {
+                evidence_id,
+                evidence_kind,
+                summary,
+                scope_ref,
+                actor_class,
+                content_hash,
+                metadata_json: _,
+            } => {
+                require_non_empty(evidence_id, "payload.evidence_id must be non-empty")?;
+                require_non_empty(summary, "payload.summary must be non-empty")?;
+                require_non_empty(scope_ref, "payload.scope_ref must be non-empty")?;
+                if !is_evidence_kind(evidence_kind) {
+                    return Err("payload.evidence_kind must be a known ADR-0002 evidence kind");
+                }
+                if !is_actor_class(actor_class) {
+                    return Err("payload.actor_class must be a known ADR-0002 actor class");
+                }
+                if !is_empty_or_lowercase_hex_64(content_hash) {
+                    return Err("payload.content_hash must be empty or 64 lowercase hex chars");
+                }
+                Ok(())
+            }
+            Payload::JustificationEdgeRecorded {
+                edge_id,
+                edge_kind,
+                source_id,
+                target_id,
+                scope_ref,
+                actor_class,
+                rationale,
+                metadata_json: _,
+            } => {
+                require_non_empty(edge_id, "payload.edge_id must be non-empty")?;
+                require_non_empty(source_id, "payload.source_id must be non-empty")?;
+                require_non_empty(target_id, "payload.target_id must be non-empty")?;
+                require_non_empty(scope_ref, "payload.scope_ref must be non-empty")?;
+                require_non_empty(rationale, "payload.rationale must be non-empty")?;
+                if !is_edge_kind(edge_kind) {
+                    return Err("payload.edge_kind must be a known ADR-0002 edge kind");
+                }
+                if !is_actor_class(actor_class) {
+                    return Err("payload.actor_class must be a known ADR-0002 actor class");
+                }
+                Ok(())
+            }
         }
     }
+}
+
+fn require_non_empty(value: &str, error: &'static str) -> Result<(), &'static str> {
+    if is_non_empty(value) {
+        Ok(())
+    } else {
+        Err(error)
+    }
+}
+
+fn is_non_empty(value: &str) -> bool {
+    !value.is_empty()
 }
 
 fn is_lowercase_hex_64(value: &str) -> bool {
@@ -102,6 +216,43 @@ fn is_lowercase_hex_64(value: &str) -> bool {
         && value
             .bytes()
             .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+}
+
+fn is_empty_or_lowercase_hex_64(value: &str) -> bool {
+    value.is_empty() || is_lowercase_hex_64(value)
+}
+
+fn is_actor_class(value: &str) -> bool {
+    matches!(
+        value,
+        "HumanRoot"
+            | "AgentProposer"
+            | "AutomatedVerifier"
+            | "DeadboltAnchorer"
+            | "LensWitness"
+            | "SourceImporter"
+    )
+}
+
+fn is_evidence_kind(value: &str) -> bool {
+    matches!(
+        value,
+        "DeterministicVerification"
+            | "HumanRatification"
+            | "DeadboltAnchor"
+            | "ExecutionEvidence"
+            | "BehavioralEvaluation"
+            | "ExternalSource"
+            | "ModelSelfReport"
+            | "LensReadout"
+    )
+}
+
+fn is_edge_kind(value: &str) -> bool {
+    matches!(
+        value,
+        "supports" | "derived_from" | "contradicts" | "supersedes" | "invalidates" | "ratifies"
+    )
 }
 
 /// Everything that is hashed and signed: position, time, the chain link, who

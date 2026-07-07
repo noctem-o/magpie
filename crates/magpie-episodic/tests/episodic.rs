@@ -262,6 +262,11 @@ fn replay_rejects_tampered_store_without_applying_partial_state() {
         } => panic!("fixture record 1 should be claim asserted"),
         Payload::Note { text: _ } => panic!("fixture record 1 should be claim asserted"),
         Payload::SegmentAnchored { .. } => panic!("fixture record 1 should be claim asserted"),
+        Payload::ClaimAssertedV2 { .. } => panic!("fixture record 1 should be claim asserted"),
+        Payload::EvidenceRegistered { .. } => panic!("fixture record 1 should be claim asserted"),
+        Payload::JustificationEdgeRecorded { .. } => {
+            panic!("fixture record 1 should be claim asserted")
+        }
     }
 
     records[1] = serde_json::to_vec(&event).unwrap();
