@@ -133,6 +133,188 @@ mod tests {
     }
 
     #[test]
+    fn orphan_evidence_does_not_create_claim() {
+        let store = MemStore::new();
+        {
+            let mut writer = writer(store.clone());
+            writer
+                .append(
+                    provenance(),
+                    Payload::EvidenceRecorded {
+                        claim_id: "missing-claim".into(),
+                        summary: "Evidence without an asserted claim.".into(),
+                    },
+                )
+                .unwrap();
+        }
+
+        let reader = LogReader::open(store, test_key().verifying_key());
+        let mut view = StandingView::new();
+        assert_eq!(reader.replay(&mut view).unwrap(), 2);
+
+        assert!(view.is_empty());
+        assert!(view.get("missing-claim").is_none());
+        assert_eq!(
+            view.canonical_bytes(),
+            StandingView::new().canonical_bytes()
+        );
+    }
+
+    #[test]
+    fn orphan_status_change_does_not_create_claim() {
+        let store = MemStore::new();
+        {
+            let mut writer = writer(store.clone());
+            writer
+                .append(
+                    provenance(),
+                    Payload::ClaimStatusChanged {
+                        claim_id: "missing-claim".into(),
+                        from: Status::Open,
+                        to: Status::Settled,
+                        reason: "Manual transition without an asserted claim.".into(),
+                    },
+                )
+                .unwrap();
+        }
+
+        let reader = LogReader::open(store, test_key().verifying_key());
+        let mut view = StandingView::new();
+        assert_eq!(reader.replay(&mut view).unwrap(), 2);
+
+        assert!(view.is_empty());
+        assert!(view.get("missing-claim").is_none());
+    }
+
+    #[test]
+    fn claim_asserted_does_not_overwrite_existing_claim() {
+        let store = MemStore::new();
+        {
+            let mut writer = writer(store.clone());
+            writer
+                .append(
+                    provenance(),
+                    Payload::ClaimAsserted {
+                        claim_id: "claim-1".into(),
+                        statement: "first statement".into(),
+                        status: Status::Conjectured,
+                    },
+                )
+                .unwrap();
+            writer
+                .append(
+                    provenance(),
+                    Payload::EvidenceRecorded {
+                        claim_id: "claim-1".into(),
+                        summary: "Evidence before duplicate assertion.".into(),
+                    },
+                )
+                .unwrap();
+            writer
+                .append(
+                    provenance(),
+                    Payload::ClaimAsserted {
+                        claim_id: "claim-1".into(),
+                        statement: "second statement".into(),
+                        status: Status::Settled,
+                    },
+                )
+                .unwrap();
+            writer
+                .append(
+                    provenance(),
+                    Payload::EvidenceRecorded {
+                        claim_id: "claim-1".into(),
+                        summary: "Evidence after duplicate assertion.".into(),
+                    },
+                )
+                .unwrap();
+        }
+
+        let reader = LogReader::open(store, test_key().verifying_key());
+        let mut view = StandingView::new();
+        assert_eq!(reader.replay(&mut view).unwrap(), 5);
+
+        let claim = view.get("claim-1").unwrap();
+        assert_eq!(claim.statement, "first statement");
+        assert_eq!(claim.asserted_initial_status, Status::Conjectured);
+        assert_eq!(claim.standing, Status::Conjectured);
+        assert_eq!(
+            claim.legacy_evidence,
+            vec![
+                "Evidence before duplicate assertion.".to_string(),
+                "Evidence after duplicate assertion.".to_string()
+            ]
+        );
+        assert_eq!(claim.legacy_transitions, 0);
+    }
+
+    #[test]
+    fn segment_anchor_does_not_affect_existing_claim() {
+        let store = MemStore::new();
+        {
+            let mut writer = writer(store.clone());
+            writer
+                .append(
+                    provenance(),
+                    Payload::ClaimAsserted {
+                        claim_id: "claim-1".into(),
+                        statement: "Anchors do not interpret this claim.".into(),
+                        status: Status::Supported,
+                    },
+                )
+                .unwrap();
+            writer.append(provenance(), anchor()).unwrap();
+        }
+
+        let reader = LogReader::open(store, test_key().verifying_key());
+        let mut view = StandingView::new();
+        assert_eq!(reader.replay(&mut view).unwrap(), 3);
+
+        let claim = view.get("claim-1").unwrap();
+        assert_eq!(view.len(), 1);
+        assert_eq!(claim.standing, Status::Supported);
+        assert!(claim.legacy_evidence.is_empty());
+        assert_eq!(claim.legacy_transitions, 0);
+    }
+
+    #[test]
+    fn note_does_not_affect_standing() {
+        let store = MemStore::new();
+        {
+            let mut writer = writer(store.clone());
+            writer
+                .append(
+                    provenance(),
+                    Payload::ClaimAsserted {
+                        claim_id: "claim-1".into(),
+                        statement: "Notes do not affect this claim.".into(),
+                        status: Status::Open,
+                    },
+                )
+                .unwrap();
+            writer
+                .append(
+                    provenance(),
+                    Payload::Note {
+                        text: "A note is not claim standing.".into(),
+                    },
+                )
+                .unwrap();
+        }
+
+        let reader = LogReader::open(store, test_key().verifying_key());
+        let mut view = StandingView::new();
+        assert_eq!(reader.replay(&mut view).unwrap(), 3);
+
+        let claim = view.get("claim-1").unwrap();
+        assert_eq!(view.len(), 1);
+        assert_eq!(claim.standing, Status::Open);
+        assert!(claim.legacy_evidence.is_empty());
+        assert_eq!(claim.legacy_transitions, 0);
+    }
+
+    #[test]
     fn standing_replay_is_deterministic() {
         let store = MemStore::new();
         {
