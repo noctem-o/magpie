@@ -325,6 +325,34 @@ fn payload_parts(payload: &Payload) -> PayloadParts<'_> {
             to_status: None,
             body: witness_root,
         },
+        Payload::ClaimAssertedV2 {
+            claim_id,
+            statement,
+            ..
+        } => PayloadParts {
+            kind: "claim_asserted_v2",
+            claim_id: Some(claim_id),
+            claim_status: Some("Conjectured"),
+            from_status: None,
+            to_status: None,
+            body: statement,
+        },
+        Payload::EvidenceRegistered { summary, .. } => PayloadParts {
+            kind: "evidence_registered",
+            claim_id: None,
+            claim_status: None,
+            from_status: None,
+            to_status: None,
+            body: summary,
+        },
+        Payload::JustificationEdgeRecorded { rationale, .. } => PayloadParts {
+            kind: "justification_edge_recorded",
+            claim_id: None,
+            claim_status: None,
+            from_status: None,
+            to_status: None,
+            body: rationale,
+        },
     }
 }
 

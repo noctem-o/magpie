@@ -88,6 +88,11 @@ impl Projection for ClaimsView {
             // claim store deliberately ignores them. (The episodic store is
             // where they surface as timeline rows.)
             Payload::SegmentAnchored { .. } => {}
+            // ADR-0002 typed events are interpreted by StandingView, not the
+            // legacy ClaimsView. Keep this compatibility projection explicit.
+            Payload::ClaimAssertedV2 { .. } => {}
+            Payload::EvidenceRegistered { .. } => {}
+            Payload::JustificationEdgeRecorded { .. } => {}
         }
     }
 }

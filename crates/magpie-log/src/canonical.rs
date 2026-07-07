@@ -17,9 +17,11 @@
 //! - **The store is not the preimage.** Records on disk stay JSON-lines for
 //!   greppability; these bytes are computed, hashed, and discarded.
 //!
-//! Changing anything here is a **format break**: it requires a new profile
-//! name, and a chain only ever carries one profile (declared in its genesis
-//! event). That friction is the point.
+//! Changing an existing encoding here is a **format break**: it requires a new
+//! profile name, and a chain only ever carries one profile (declared in its
+//! genesis event). Appending fresh payload tags under the same profile is only
+//! allowed when old bytes, old golden hashes, and the independent verifier all
+//! stay aligned.
 
 use crate::event::{EventCore, Payload, Status};
 
@@ -121,6 +123,60 @@ pub(crate) fn core_bytes(core: &EventCore) -> Vec<u8> {
             put_str(&mut out, witness_algorithm);
             put_str(&mut out, canonicalization_profile);
             put_str(&mut out, run_id);
+        }
+        Payload::ClaimAssertedV2 {
+            claim_id,
+            statement,
+            scope_ref,
+            actor_class,
+            content_hash,
+            metadata_json,
+        } => {
+            put_u8(&mut out, 6);
+            put_str(&mut out, claim_id);
+            put_str(&mut out, statement);
+            put_str(&mut out, scope_ref);
+            put_str(&mut out, actor_class);
+            put_str(&mut out, content_hash);
+            put_str(&mut out, metadata_json);
+        }
+        Payload::EvidenceRegistered {
+            evidence_id,
+            evidence_kind,
+            summary,
+            scope_ref,
+            actor_class,
+            content_hash,
+            metadata_json,
+        } => {
+            put_u8(&mut out, 7);
+            put_str(&mut out, evidence_id);
+            put_str(&mut out, evidence_kind);
+            put_str(&mut out, summary);
+            put_str(&mut out, scope_ref);
+            put_str(&mut out, actor_class);
+            put_str(&mut out, content_hash);
+            put_str(&mut out, metadata_json);
+        }
+        Payload::JustificationEdgeRecorded {
+            edge_id,
+            edge_kind,
+            source_id,
+            target_id,
+            scope_ref,
+            actor_class,
+            rationale,
+            metadata_json,
+        } => {
+            put_u8(&mut out, 8);
+            put_str(&mut out, edge_id);
+            put_str(&mut out, edge_kind);
+            put_str(&mut out, source_id);
+            put_str(&mut out, target_id);
+            put_str(&mut out, scope_ref);
+            put_str(&mut out, actor_class);
+            put_str(&mut out, rationale);
+            put_str(&mut out, metadata_json);
         }
     }
     out

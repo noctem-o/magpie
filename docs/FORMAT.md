@@ -5,12 +5,17 @@ page alone must reproduce the golden vectors in
 `crates/magpie-log/testdata/golden-v1.jsonl` and `tests/golden.rs`, byte for
 byte. If it can't, one of the two is wrong — and it's probably not this page.
 
-Any change to anything below is a **format break** and requires a new profile
-name. A chain carries exactly one profile, declared in its genesis event.
+Any incompatible change to an existing encoding below is a **format break** and
+requires a new profile name. A chain carries exactly one profile, declared in
+its genesis event. New variants may be appended with fresh tags under the
+evolution rule in §3, but old bytes must remain unchanged.
 
 Vocabulary history (additive, non-breaking per §3's evolution rule): tags 0-4
 at the v1 freeze; tag 5 (`SegmentAnchored`) added 2026-07-02 by ADR-0001, with
-golden coverage appended at seq 5 — seqs 0-4 hashes unchanged.
+golden coverage appended at seq 5 — seqs 0-4 hashes unchanged; tags 6-8
+(`ClaimAssertedV2`, `EvidenceRegistered`, `JustificationEdgeRecorded`) added by
+ADR-0002, with golden coverage appended at seqs 6-8 — seqs 0-5 hashes and
+signatures unchanged.
 
 ## 1. Primitives
 
@@ -47,6 +52,9 @@ payload               u8 tag, then the variant's fields in order (§3)
 | 3   | `ClaimStatusChanged`| `claim_id: str`, `from: u8`, `to: u8`, `reason: str`|
 | 4   | `Note`              | `text: str`                                         |
 | 5   | `SegmentAnchored`   | `bundle_kind: str`, `witness_root: str` (64 lowercase hex chars), `witness_algorithm: str`, `canonicalization_profile: str`, `run_id: str` |
+| 6   | `ClaimAssertedV2`   | `claim_id: str`, `statement: str`, `scope_ref: str`, `actor_class: str`, `content_hash: str`, `metadata_json: str` |
+| 7   | `EvidenceRegistered`| `evidence_id: str`, `evidence_kind: str`, `summary: str`, `scope_ref: str`, `actor_class: str`, `content_hash: str`, `metadata_json: str` |
+| 8   | `JustificationEdgeRecorded` | `edge_id: str`, `edge_kind: str`, `source_id: str`, `target_id: str`, `scope_ref: str`, `actor_class: str`, `rationale: str`, `metadata_json: str` |
 
 ### Anchors (tag 5)
 
@@ -62,9 +70,81 @@ are new `bundle_kind` strings, never new Magpie payload variants. Under the
 anchored-hierarchy model (ADR-0001), a segment that is not anchored is not
 part of the record.
 
+`SegmentAnchored` remains occurrence/inclusion evidence, not interpretation
+truth. Future typed evidence may cite an anchor; the anchor does not interpret
+itself.
+
+### ADR-0002 governed claim memory tags (tags 6-8)
+
+Tags 6-8 add typed, governed claim-memory vocabulary. They do not add writer
+authority, settle claims by themselves, or change any existing tag encoding.
+Standing remains a derived projection over replayed log events.
+
+`ClaimAssertedV2` (tag 6) registers a scoped claim node. Field order is:
+`claim_id`, `statement`, `scope_ref`, `actor_class`, `content_hash`,
+`metadata_json`.
+
+`EvidenceRegistered` (tag 7) registers typed evidence. Field order is:
+`evidence_id`, `evidence_kind`, `summary`, `scope_ref`, `actor_class`,
+`content_hash`, `metadata_json`.
+
+`JustificationEdgeRecorded` (tag 8) records a typed support, attack, lineage,
+invalidation, supersession, or ratification edge. Field order is: `edge_id`,
+`edge_kind`, `source_id`, `target_id`, `scope_ref`, `actor_class`,
+`rationale`, `metadata_json`.
+
+Closed actor classes are exactly:
+
+- `HumanRoot`
+- `AgentProposer`
+- `AutomatedVerifier`
+- `DeadboltAnchorer`
+- `LensWitness`
+- `SourceImporter`
+
+Closed evidence kinds are exactly:
+
+- `DeterministicVerification`
+- `HumanRatification`
+- `DeadboltAnchor`
+- `ExecutionEvidence`
+- `BehavioralEvaluation`
+- `ExternalSource`
+- `ModelSelfReport`
+- `LensReadout`
+
+Closed edge kinds are exactly:
+
+- `supports`
+- `derived_from`
+- `contradicts`
+- `supersedes`
+- `invalidates`
+- `ratifies`
+
+Vague relation labels such as `related_to`, `similar_to`, `about`,
+`probably_true`, and `associated_with` are invalid edge kinds.
+
+Validation rules for tags 6-8:
+
+- IDs are non-empty: `claim_id`, `evidence_id`, `edge_id`, `source_id`, and
+  `target_id` where present.
+- Human-readable content is non-empty: `statement`, `summary`, and `rationale`
+  where present.
+- `scope_ref` is opaque exact-match string material and must be non-empty.
+  There is no inheritance, prefix, wildcard, containment, lattice, or ontology
+  semantics in v1.
+- `actor_class`, `evidence_kind`, and `edge_kind` must be members of the closed
+  vocabularies above.
+- `content_hash` may be empty. If non-empty, it must be exactly 64 lowercase
+  hex characters. It is encoded as `str`, not as raw `hash32`.
+- `metadata_json` is opaque string material. It is encoded as `str`; L0 does not
+  parse it, validate it as JSON, or canonicalize JSON inside it.
+
 New variants may be appended with fresh tags without breaking existing chains
-(old bytes are unaffected); changing an **existing** variant's encoding is a
-format break.
+(old bytes are unaffected). Tags 0-5 are unchanged. Golden coverage is appended
+for new tags; old golden records must not be regenerated merely to make tests
+green. Changing an **existing** variant's encoding is a format break.
 
 Status tags follow the epistemic spectrum's order — the encoding is
 meaningful:
