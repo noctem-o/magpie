@@ -6,10 +6,14 @@
 //! any time. It reads through a `LogReader` and cannot write. That asymmetry
 //! is enforced by the type system.
 
+mod standing;
+
 use std::collections::BTreeMap;
 
 use magpie_log::{Payload, Projection, SignedEvent, Status};
 use serde::Serialize;
+
+pub use standing::{StandingClaim, StandingView};
 
 /// A single tracked claim and its current epistemic state.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
