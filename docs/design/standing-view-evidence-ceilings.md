@@ -88,8 +88,8 @@ vocabulary. They do not define the full current standing algorithm.
 | evidence kind | maximum positive contribution | rule |
 | --- | --- | --- |
 | `DeterministicVerification` | `Settled` | Only for exact machine-checkable predicates. |
-| `HumanRatification` | `Settled` | Only under explicit human authority and exact scope. |
-| `DeadboltAnchor` | `Settled` for occurrence/inclusion claims; `Supported` for interpretation claims | Proves/refuses occurrence and inclusion, not meaning. |
+| `HumanRatification` | `Settled` | Only under explicit human authority, exact scope, and the required admission gate. |
+| `DeadboltAnchor` | `Settled` for occurrence/inclusion claims with successful verifier context; `Supported` for interpretation claims | Proves/refuses verified occurrence and inclusion, not meaning. |
 | `ExecutionEvidence` | `Supported` | Supports operational or empirical claims; does not settle truth. |
 | `BehavioralEvaluation` | `Supported` | Supports observed behavior under stated conditions; does not settle truth. |
 | `ExternalSource` | `Supported` | May remain `Conjectured` if weak, stale, or uncorroborated. |
@@ -128,6 +128,9 @@ Restrictions:
 
 - Requires `actor_class = HumanRoot` or a future authority rule admitted by
   `EpistemicGate`.
+- The settlement rule must not be implemented before the corresponding
+  `EpistemicGate` admission rule exists; an L0 `actor_class` string is not
+  authority by itself.
 - Does not escape `scope_ref`.
 - Does not override deterministic contradictions without explicit later
   invalidation or supersession rules.
@@ -135,14 +138,18 @@ Restrictions:
 
 ### DeadboltAnchor
 
-Maximum positive contribution: `Settled` for occurrence/inclusion claims and
-`Supported` for interpretation claims.
+Maximum positive contribution: `Settled` for occurrence/inclusion claims only
+when paired with successful verifier context, and `Supported` for
+interpretation claims.
 
 Deadbolt can prove or refuse that a governed execution, witness, or bundle
 occurred and was included. It cannot decide what that occurrence means.
 
 Restrictions:
 
+- Requires successful verifier context before any occurrence/inclusion
+  settlement. A typed `EvidenceRegistered` node that merely labels itself
+  `DeadboltAnchor` is not enough.
 - Can settle claims like "bundle X was anchored with witness root Y".
 - Can settle claims like "run ID R is included in this chain".
 - Cannot settle claims like "the anchored result is scientifically true".
@@ -244,7 +251,8 @@ Future semantics should distinguish at least these domains:
 
 Domain constraints:
 
-- `DeadboltAnchor` can settle `Occurrence/Inclusion`, not `Interpretation`.
+- `DeadboltAnchor` can settle `Occurrence/Inclusion` only with successful
+  verifier context, not `Interpretation`.
 - `DeterministicVerification` can settle `ExactMachineCheckable`, not broad
   `Interpretation`.
 - `ExecutionEvidence` can support `OperationalObservation`.
@@ -262,7 +270,13 @@ Domain constraints:
 
 ### supports
 
-- May contribute positive standing up to the source evidence ceiling.
+- May contribute positive standing only up to both the source standing and the
+  source evidence ceiling.
+- Source claims cannot amplify a target beyond their own derived standing.
+  Unsupported or conjectured source claims cannot promote a target past that
+  standing.
+- Evidence sources use their evidence ceiling. Claim sources use their derived
+  standing plus any applicable ceiling rules.
 - Does not automatically promote.
 - Requires source and target existence.
 - Requires exact compatible `scope_ref` in v1.
@@ -273,6 +287,8 @@ Domain constraints:
 - May settle only under `HumanRatification` or a future explicit authority rule.
 - Requires exact scope.
 - Does not allow ordinary agents to settle claims.
+- Must not treat `actor_class = HumanRoot` as authority unless the event has
+  passed the applicable `EpistemicGate` admission rule.
 - Should be gated by future `EpistemicGate` before writer surfaces exist.
 
 ### derived_from
@@ -333,7 +349,7 @@ This preserves the ADR-0001/ADR-0002 boundary:
 ### Valid ceiling applications
 
 ```text
-DeadboltAnchor + supports + claim "run-0001 was anchored with witness_root X"
+DeadboltAnchor + successful verifier context + supports + claim "run-0001 was anchored with witness_root X"
 => may reach Settled as occurrence/inclusion.
 ```
 
@@ -400,6 +416,12 @@ DeadboltAnchor settles "this theorem is true" because a witness bundle exists.
 Invalid.
 
 ```text
+DeadboltAnchor settles occurrence/inclusion without successful verifier context.
+```
+
+Invalid.
+
+```text
 ExternalSource settles a claim without ratification or deterministic verification.
 ```
 
@@ -435,12 +457,14 @@ These are future tests for later PRs. This note does not add tests.
 4. Implement `supports` for `ExecutionEvidence` and `BehavioralEvaluation` to
    `Supported`.
 5. Implement exact deterministic verification settlement.
-6. Implement Deadbolt occurrence/inclusion settlement while preserving the
-   interpretation boundary.
-7. Implement HumanRoot ratification.
-8. Implement contradiction debt.
-9. Implement invalidation and supersession.
-10. Only then design `EpistemicGate` and writer-facing surfaces.
+6. Implement Deadbolt occurrence/inclusion settlement only with successful
+   verifier context while preserving the interpretation boundary.
+7. Design and implement the `EpistemicGate` admission slice required for
+   HumanRoot ratification.
+8. Implement HumanRoot ratification only through that gate.
+9. Implement contradiction debt.
+10. Implement invalidation and supersession.
+11. Only then expose writer-facing surfaces.
 
 This order keeps the lowest-ceiling no-promotion cases ahead of settlement
 cases. It proves that the projection can refuse overpromotion before it learns

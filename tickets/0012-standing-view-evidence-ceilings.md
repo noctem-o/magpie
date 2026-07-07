@@ -56,10 +56,11 @@ promotion.
 
 - `DeterministicVerification`: may reach `Settled` for exact
   machine-checkable predicates.
-- `HumanRatification`: may reach `Settled` under explicit human authority and
-  exact scope.
-- `DeadboltAnchor`: may reach `Settled` for occurrence/inclusion claims and
-  at most `Supported` for interpretation claims.
+- `HumanRatification`: may reach `Settled` under explicit human authority,
+  exact scope, and the required `EpistemicGate` admission rule.
+- `DeadboltAnchor`: may reach `Settled` for occurrence/inclusion claims only
+  with successful verifier context and at most `Supported` for interpretation
+  claims.
 - `ExecutionEvidence`: may reach `Supported`.
 - `BehavioralEvaluation`: may reach `Supported`.
 - `ExternalSource`: may reach `Supported`, but may remain `Conjectured`
@@ -69,10 +70,12 @@ promotion.
 
 ## Edge interactions
 
-- `supports`: may contribute positive standing up to the source evidence
-  ceiling; requires source and target existence plus exact compatible scope.
+- `supports`: may contribute positive standing only up to both source standing
+  and the source evidence ceiling; requires source and target existence plus
+  exact compatible scope.
 - `ratifies`: may settle only under `HumanRatification` or future explicit
-  authority; ordinary agents cannot ratify settlement.
+  authority admitted by `EpistemicGate`; ordinary agents cannot ratify
+  settlement.
 - `derived_from`: preserves lineage without promotion.
 - `contradicts`: future debt or settlement-blocking rule; no auto-refutation
   in this ticket.
@@ -140,9 +143,10 @@ This ticket does not add tests.
 - Confirm no ceiling is described as automatic promotion.
 - Confirm `ModelSelfReport` and `LensReadout` cannot promote beyond
   `Conjectured`.
-- Confirm `DeadboltAnchor` can settle occurrence/inclusion but not
-  interpretation truth.
-- Confirm `HumanRatification` requires human authority and exact scope.
+- Confirm `DeadboltAnchor` can settle occurrence/inclusion only with
+  successful verifier context, but not interpretation truth.
+- Confirm `HumanRatification` requires human authority, exact scope, and the
+  required `EpistemicGate` admission rule.
 - Confirm `scope_ref` remains exact-match and opaque.
 - Confirm `SegmentAnchored` remains occurrence/inclusion evidence only.
 - Confirm writer-facing surfaces remain blocked until `EpistemicGate`.
@@ -154,9 +158,12 @@ This ticket does not add tests.
 3. Implement `supports` to `Supported` for `ExecutionEvidence` and
    `BehavioralEvaluation`.
 4. Implement exact deterministic verification settlement.
-5. Implement Deadbolt occurrence/inclusion settlement.
-6. Implement HumanRoot ratification.
-7. Implement contradiction debt.
-8. Implement invalidation and supersession.
-9. Design `EpistemicGate`.
-10. Add writer-facing surfaces only after `EpistemicGate`.
+5. Implement Deadbolt occurrence/inclusion settlement only with successful
+   verifier context.
+6. Design and implement the `EpistemicGate` admission slice required for
+   HumanRoot ratification.
+7. Implement HumanRoot ratification only through that gate.
+8. Implement contradiction debt.
+9. Implement invalidation and supersession.
+10. Design remaining `EpistemicGate` admission rules.
+11. Add writer-facing surfaces only after `EpistemicGate`.
