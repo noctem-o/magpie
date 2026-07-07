@@ -13,7 +13,9 @@ use std::collections::BTreeMap;
 use magpie_log::{Payload, Projection, SignedEvent, Status};
 use serde::Serialize;
 
-pub use standing::{StandingClaim, StandingView};
+pub use standing::{
+    StandingClaim, StandingView, TypedClaimNode, TypedEvidenceNode, TypedJustificationEdge,
+};
 
 /// A single tracked claim and its current epistemic state.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
