@@ -58,6 +58,11 @@ ADR-0002 and the following implementation PRs have established the substrate:
 
 ## Core rule
 
+A belief is a replay result, not a string in memory. Standing is never stored
+as an authoritative mutable field; it is always the deterministic result of
+replaying L0 through the fold. Everything below caps what a replay is *allowed
+to conclude* — it does not record conclusions.
+
 An evidence ceiling is the maximum standing contribution a piece of evidence
 may make. It is not automatic promotion.
 
@@ -96,6 +101,46 @@ vocabulary. They do not define the full current standing algorithm.
 | `ModelSelfReport` | `Conjectured` | Can seed hypotheses; cannot support or settle by itself. |
 | `LensReadout` | `Conjectured` | Can seed model-internal hypotheses; cannot support or settle by itself in v1. |
 
+The table above is the one-dimensional summary. The authoritative ceiling is
+two-dimensional: the same evidence kind carries different authority in different
+claim domains. The matrix below is the cross-reference the future fold and
+`EpistemicGate` read; the per-kind sections that follow it are rationale.
+
+## Evidence ceiling matrix (evidence_kind × claim_domain)
+
+A ceiling is a function of both axes: `ceiling = f(evidence_kind, claim_domain)`.
+Cell values are the maximum positive contribution and are drawn only from
+`Settled` / `Supported` / `Conjectured` / `—` (no admissible contribution).
+
+Filling principle: each evidence kind reaches its per-kind ceiling only in its
+home domain(s). Where it bears on an adjacent domain without being authoritative
+there, it contributes at most one juridical level lower. Where it has no
+admissible bearing, the cell is `—`. No cell exceeds that kind's row maximum in
+the one-dimensional table above.
+
+| evidence kind ↓ / claim domain → | Occurrence/​Inclusion | ExactMachine​Checkable | Operational​Observation | Interpretation | ExternalReport | ModelIntro​spection | HumanJudgment |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `DeterministicVerification` | `Settled` | `Settled` | `Supported` | `—` | `—` | `—` | `—` |
+| `HumanRatification` | `Supported`† | `Supported`† | `Supported`† | `Settled`† | `Supported`† | `Conjectured`† | `Settled`† |
+| `DeadboltAnchor` | `Settled`‡ | `Supported` | `Supported` | `Supported` | `—` | `—` | `—` |
+| `ExecutionEvidence` | `—` | `—` | `Supported` | `—` | `—` | `—` | `—` |
+| `BehavioralEvaluation` | `—` | `—` | `Supported` | `Supported`§ | `—` | `—` | `—` |
+| `ExternalSource` | `—` | `—` | `—` | `Supported` | `Supported` | `—` | `—` |
+| `ModelSelfReport` | `—` | `—` | `—` | `Conjectured` | `—` | `Conjectured` | `—` |
+| `LensReadout` | `—` | `—` | `—` | `Conjectured` | `—` | `Conjectured` | `—` |
+
+† `HumanRatification` contributes only through an `EpistemicGate` admission rule;
+a bare `actor_class = HumanRoot` string is not authority. It may settle
+`HumanJudgment` and scoped `Interpretation`, but only *supports* the
+machine-decidable domains (`Occurrence/Inclusion`, `ExactMachineCheckable`)
+because human judgment must not override a deterministic contradiction.
+
+‡ `DeadboltAnchor` settles `Occurrence/Inclusion` only with successful verifier
+context; a node merely labelled `DeadboltAnchor` is not enough.
+
+§ `BehavioralEvaluation` may support only *bounded* interpretation under stated
+conditions; it never settles interpretation.
+
 ### DeterministicVerification
 
 Maximum positive contribution: `Settled`.
@@ -117,6 +162,13 @@ Restrictions:
 - If the predicate is not exact and machine-checkable, treat it as at most
   `Supported` or reject contribution until a later rule exists.
 
+Matrix note: `DeterministicVerification` × `ExactMachineCheckable` = `Settled`;
+`DeterministicVerification` × `OperationalObservation` = `Supported`. If an
+operational observation is expressed as an exact machine-checkable predicate,
+classify it as `ExactMachineCheckable`. If it depends on environment,
+interpretation, sampling, or empirical context, classify it as
+`OperationalObservation` and cap at `Supported`.
+
 ### HumanRatification
 
 Maximum positive contribution: `Settled`.
@@ -135,6 +187,12 @@ Restrictions:
 - Does not override deterministic contradictions without explicit later
   invalidation or supersession rules.
 - Does not let ordinary agents settle claims.
+
+Matrix note: `HumanRatification` settles `HumanJudgment` and scoped
+`Interpretation`, but does not settle the machine-decidable domains
+(`Occurrence/Inclusion`, `ExactMachineCheckable`) by override. A human
+ratification must not override deterministic contradiction; exact machine
+predicates are settled by `DeterministicVerification`, not by human assertion.
 
 ### DeadboltAnchor
 
@@ -171,6 +229,13 @@ Restrictions:
 - Can support operational or empirical claims.
 - If the execution evidence is also deterministic and machine-checkable, it
   should be represented as `DeterministicVerification`, not silently upgraded.
+
+Matrix note: `ExecutionEvidence` × `Interpretation` = no direct contribution.
+Operational evidence may support operational observations; interpretive bearing
+must travel through explicit claims and justification edges, not a direct matrix
+cell. For example, "command X passed on machine Y" may be `Supported`, but
+"therefore the architecture is correct" requires a separate interpretive claim
+and supporting rationale.
 
 ### BehavioralEvaluation
 
@@ -215,6 +280,8 @@ Restrictions:
 - May seed hypotheses or candidate claims.
 - Requires external evidence to rise above `Conjectured`.
 
+Law: model self-report is a hypothesis seed, not support.
+
 ### LensReadout
 
 Maximum positive contribution: `Conjectured`.
@@ -230,12 +297,30 @@ Restrictions:
 - Requires external validation or deterministic verification to rise above
   `Conjectured`.
 
+Law: lens/probe output is a hypothesis seed in v1 unless externally validated.
+
 ## Claim-domain distinction
 
-Claim domains are not yet encoded in L0 tags. They are part of future
-`StandingView` and `EpistemicGate` policy.
+Claim domains are a **closed v1 vocabulary**, exactly like the closed
+`actor_class`, `evidence_kind`, and `edge_kind` sets. The admissible domains are
+the seven listed below and no others; adding one is an amendment to this note, to
+the metadata convention (`docs/design/metadata-conventions.md`), and to any
+future `EpistemicGate` policy. An open-ended domain vocabulary would reintroduce
+the relation-slop the ADR rejected for edge kinds.
 
-Future semantics should distinguish at least these domains:
+Claim domains are not yet encoded in L0 tags. *Where* a claim carries its domain
+is defined by the metadata convention, not here: in v1 it is a `claim_domain` key
+inside `metadata_json`, and reading it stays advisory until `EpistemicGate`
+enforces it.
+
+The `claim_domain` vocabulary is closed by future `StandingView` / `EpistemicGate`
+policy. It is not currently enforced by L0 payload validation because
+`claim_domain` is not yet a dedicated L0 field. This PR does not mutate tags 6-8
+and does not add a `claim_domain` field to `ClaimAssertedV2`; the vocabulary is
+introduced as semantic policy and metadata convention, never by changing shipped
+payload fields.
+
+The seven admissible v1 claim domains are:
 
 - `Occurrence/Inclusion`: whether an event, run, bundle, witness root, chain
   record, or inclusion fact exists.
@@ -265,6 +350,22 @@ Domain constraints:
 - `LensReadout` can only conjecture model-internal hypotheses in v1.
 - `HumanRatification` can settle `HumanJudgment` or scoped interpretation only
   with explicit authority.
+
+## Domain assignment is admitted policy material
+
+Domain assignment is admitted policy material, not an inference from text.
+
+- `StandingView` must not infer a stronger domain merely because a claim is
+  phrased confidently.
+- Domain assignment is an assertion-time or gate-time classification, not a truth
+  discovered from prose alone.
+- If a claim has absent, ambiguous, conflicting, or unsupported domain
+  classification, future fold rules must choose the weaker applicable ceiling or
+  refuse promotion.
+- A broad `Interpretation` claim must not be automatically reclassified as
+  `ExactMachineCheckable` just because it contains a checkable subclaim.
+
+This prevents future ceiling escalation by classification drift.
 
 ## Edge interaction rules
 
@@ -315,6 +416,23 @@ Domain constraints:
 - Does not delete or rewrite old claims.
 - Must not silently erase old standing without explicit fold rules.
 
+### edge targeting and objections
+
+`JustificationEdgeRecorded` source/target references may later target claims,
+evidence, or edges by policy. The future interpretation convention over the
+opaque string refs is namespaced:
+
+- `claim:<claim_id>`
+- `evidence:<evidence_id>`
+- `edge:<edge_id>`
+
+This is a future interpretation convention over opaque string refs, not a format
+change; the L0 encoding of `source_id` / `target_id` stays an opaque string.
+
+Edge targeting lets an objection be represented without a new event type: an
+objection is an `invalidates` or `contradicts` edge targeting a support edge. For
+example, `edge:e2 invalidates edge:e1 because e1 has a scope mismatch`.
+
 ## Scope rules
 
 `scope_ref` is opaque exact-match string material in v1.
@@ -343,6 +461,18 @@ This preserves the ADR-0001/ADR-0002 boundary:
 - Magpie remembers.
 - `StandingView` derives standing by deterministic replay.
 - Future writer surfaces remain blocked until `EpistemicGate`.
+
+## BeliefChangeLedger
+
+`BeliefChangeLedger` is not a new source of truth and not a second persistent
+store. It is a materialized explanation trace of the deterministic `StandingView`
+fold — a replay trace that answers "Why does Magpie believe X?" by replaying the
+same events and rules.
+
+- It is derived, regenerable, and holds no authority L0 does not already hold.
+- It records why standing changed (which evidence, which edges, which ceiling
+  rule), never a conclusion that L0 did not produce.
+- It obeys the derived-views-only rule: a demo surface, not a write path.
 
 ## Examples
 
