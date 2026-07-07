@@ -124,6 +124,100 @@ impl StandingView {
     pub fn canonical_bytes(&self) -> Vec<u8> {
         serde_json::to_vec(self).expect("StandingView is always serializable")
     }
+
+    /// ADR-0002 governed belief surface — the first fold slice, settlement-blind.
+    ///
+    /// Derives a claim's standing by layering admissible `supports` edges from
+    /// typed evidence onto the raw [`StandingClaim::standing`], under the
+    /// conservative support-slice ceilings. It is a *pure query over the
+    /// accumulated tables*: it never mutates, never touches the raw `standing`
+    /// field, and is therefore order-independent and regenerable. Raw standing
+    /// stays the legacy surface; this is the governed one.
+    ///
+    /// A `supports` edge contributes only when the target typed claim and the
+    /// source typed evidence both exist and the evidence, edge, and target typed
+    /// claim share one exact `scope_ref`.
+    ///
+    /// Deliberately *not* inferred from absence in this slice, all deferred:
+    /// claim→claim support, ratification, contradiction debt, invalidation,
+    /// supersession, settlement, and any `claim_domain` / `metadata_json`
+    /// reading. No support edge derives [`Status::Settled`] here — a claim is
+    /// `Settled` only if the legacy path already made its raw standing `Settled`.
+    pub fn resolved_standing(&self, claim_id: &str) -> Option<Status> {
+        let raw = self.claims.get(claim_id)?.standing;
+
+        // `Refuted` is off the positive ladder — support cannot revive it.
+        // `Settled` (reachable here only via the legacy path) is already at the
+        // top and support never derives it, so both pass through untouched.
+        if matches!(raw, Status::Refuted | Status::Settled) {
+            return Some(raw);
+        }
+
+        let mut best = positive_rank(raw);
+
+        // Support requires a typed target; a v0-only claim cannot be promoted by
+        // ADR-0002 support edges.
+        if let Some(target) = self.typed_claims.get(claim_id) {
+            for edge in self.justification_edges.values() {
+                if edge.edge_kind != "supports" || edge.target_id != claim_id {
+                    continue;
+                }
+                // Missing source evidence: no contribution.
+                let Some(evidence) = self.typed_evidence.get(&edge.source_id) else {
+                    continue;
+                };
+                // Exact triple scope match: evidence, edge, and target typed claim.
+                if evidence.scope_ref != edge.scope_ref || edge.scope_ref != target.scope_ref {
+                    continue;
+                }
+                if let Some(ceiling) = support_slice_ceiling(&evidence.evidence_kind) {
+                    best = best.max(positive_rank(ceiling));
+                }
+            }
+        }
+
+        Some(status_from_positive_rank(best))
+    }
+}
+
+/// Rank on the positive standing ladder (`Open < Conjectured < Supported <
+/// Settled`). `Refuted` is off-ladder and must be handled before ranking.
+fn positive_rank(status: Status) -> u8 {
+    match status {
+        Status::Open => 0,
+        Status::Conjectured => 1,
+        Status::Supported => 2,
+        Status::Settled => 3,
+        // Off-ladder; `resolved_standing` handles `Refuted` before it ranks.
+        Status::Refuted => 0,
+    }
+}
+
+fn status_from_positive_rank(rank: u8) -> Status {
+    match rank {
+        0 => Status::Open,
+        1 => Status::Conjectured,
+        2 => Status::Supported,
+        _ => Status::Settled,
+    }
+}
+
+/// Conservative, settlement-blind support ceiling: the most a single `supports`
+/// edge from typed evidence of this kind may derive in the first fold slice.
+/// `None` means no admissible contribution (an unrecognized kind). No kind
+/// derives [`Status::Settled`] here — settlement is claim_domain-aware and
+/// deferred.
+fn support_slice_ceiling(evidence_kind: &str) -> Option<Status> {
+    match evidence_kind {
+        "ModelSelfReport" | "LensReadout" => Some(Status::Conjectured),
+        "DeterministicVerification"
+        | "HumanRatification"
+        | "DeadboltAnchor"
+        | "ExecutionEvidence"
+        | "BehavioralEvaluation"
+        | "ExternalSource" => Some(Status::Supported),
+        _ => None,
+    }
 }
 
 impl Projection for StandingView {
@@ -1271,5 +1365,462 @@ mod tests {
         // The typed side table is untouched by the legacy status change.
         let typed = view.typed_claim("claim-v2").unwrap();
         assert_eq!(typed.actor_class, "AgentProposer");
+    }
+
+    // ---- resolved_standing: first fold slice (evidence -> claim supports) ----
+
+    const SCOPE: &str = "scope:one";
+    const OTHER_SCOPE: &str = "scope:other";
+
+    /// A typed claim `c1`, one typed evidence `e1` of the given kind, and one
+    /// `supports` edge `e1 -> c1`, each with its own scope so scope-match rules
+    /// can be exercised.
+    fn support_view(
+        evidence_kind: &str,
+        ev_scope: &str,
+        edge_scope: &str,
+        claim_scope: &str,
+    ) -> StandingView {
+        let store = MemStore::new();
+        {
+            let mut w = writer(store.clone());
+            w.append(
+                provenance(),
+                claim_asserted_v2_with(
+                    "c1",
+                    "Target typed claim.",
+                    claim_scope,
+                    "AgentProposer",
+                    "",
+                    "{}",
+                ),
+            )
+            .unwrap();
+            w.append(
+                provenance(),
+                evidence_registered_with(
+                    "e1",
+                    evidence_kind,
+                    "Supporting evidence.",
+                    ev_scope,
+                    "AutomatedVerifier",
+                    "",
+                    "{}",
+                ),
+            )
+            .unwrap();
+            w.append(
+                provenance(),
+                justification_edge_recorded_with(EdgeInput {
+                    edge_id: "j1",
+                    edge_kind: "supports",
+                    source_id: "e1",
+                    target_id: "c1",
+                    scope_ref: edge_scope,
+                    actor_class: "HumanRoot",
+                    rationale: "Evidence supports the claim.",
+                    metadata_json: "{}",
+                }),
+            )
+            .unwrap();
+        }
+        replay(store, 4)
+    }
+
+    #[test]
+    fn supported_tier_evidence_promotes_conjectured_to_supported() {
+        for kind in [
+            "DeterministicVerification",
+            "HumanRatification",
+            "DeadboltAnchor",
+            "ExecutionEvidence",
+            "BehavioralEvaluation",
+            "ExternalSource",
+        ] {
+            let view = support_view(kind, SCOPE, SCOPE, SCOPE);
+            assert_eq!(
+                view.resolved_standing("c1"),
+                Some(Status::Supported),
+                "{kind} should derive Supported"
+            );
+            // Settlement is deferred: no support path may reach Settled.
+            assert_ne!(view.resolved_standing("c1"), Some(Status::Settled));
+            // Raw standing is never mutated by resolution.
+            assert_eq!(view.get("c1").unwrap().standing, Status::Conjectured);
+        }
+    }
+
+    #[test]
+    fn weak_evidence_is_admitted_but_capped_at_conjectured() {
+        for kind in ["ModelSelfReport", "LensReadout"] {
+            let view = support_view(kind, SCOPE, SCOPE, SCOPE);
+            assert_eq!(
+                view.resolved_standing("c1"),
+                Some(Status::Conjectured),
+                "{kind} must stay Conjectured"
+            );
+            assert_eq!(view.get("c1").unwrap().standing, Status::Conjectured);
+        }
+    }
+
+    #[test]
+    fn multiple_supports_never_derive_settled() {
+        let store = MemStore::new();
+        {
+            let mut w = writer(store.clone());
+            w.append(
+                provenance(),
+                claim_asserted_v2_with("c1", "Target.", SCOPE, "AgentProposer", "", "{}"),
+            )
+            .unwrap();
+            w.append(
+                provenance(),
+                evidence_registered_with(
+                    "e1",
+                    "DeterministicVerification",
+                    "One.",
+                    SCOPE,
+                    "AutomatedVerifier",
+                    "",
+                    "{}",
+                ),
+            )
+            .unwrap();
+            w.append(
+                provenance(),
+                evidence_registered_with(
+                    "e2",
+                    "ExecutionEvidence",
+                    "Two.",
+                    SCOPE,
+                    "AutomatedVerifier",
+                    "",
+                    "{}",
+                ),
+            )
+            .unwrap();
+            for (edge_id, source_id) in [("j1", "e1"), ("j2", "e2")] {
+                w.append(
+                    provenance(),
+                    justification_edge_recorded_with(EdgeInput {
+                        edge_id,
+                        edge_kind: "supports",
+                        source_id,
+                        target_id: "c1",
+                        scope_ref: SCOPE,
+                        actor_class: "HumanRoot",
+                        rationale: "supports",
+                        metadata_json: "{}",
+                    }),
+                )
+                .unwrap();
+            }
+        }
+        let view = replay(store, 6);
+        assert_eq!(view.resolved_standing("c1"), Some(Status::Supported));
+    }
+
+    #[test]
+    fn scope_mismatch_blocks_support() {
+        // A mismatch in any leg of the evidence/edge/claim triple refuses support.
+        assert_eq!(
+            support_view("ExecutionEvidence", OTHER_SCOPE, SCOPE, SCOPE).resolved_standing("c1"),
+            Some(Status::Conjectured),
+            "evidence scope mismatch"
+        );
+        assert_eq!(
+            support_view("ExecutionEvidence", SCOPE, OTHER_SCOPE, SCOPE).resolved_standing("c1"),
+            Some(Status::Conjectured),
+            "edge scope mismatch"
+        );
+        assert_eq!(
+            support_view("ExecutionEvidence", SCOPE, SCOPE, OTHER_SCOPE).resolved_standing("c1"),
+            Some(Status::Conjectured),
+            "claim scope mismatch"
+        );
+    }
+
+    #[test]
+    fn missing_source_evidence_blocks_support() {
+        let store = MemStore::new();
+        {
+            let mut w = writer(store.clone());
+            w.append(
+                provenance(),
+                claim_asserted_v2_with("c1", "Target.", SCOPE, "AgentProposer", "", "{}"),
+            )
+            .unwrap();
+            w.append(
+                provenance(),
+                justification_edge_recorded_with(EdgeInput {
+                    edge_id: "j1",
+                    edge_kind: "supports",
+                    source_id: "e1", // never registered
+                    target_id: "c1",
+                    scope_ref: SCOPE,
+                    actor_class: "HumanRoot",
+                    rationale: "dangling support",
+                    metadata_json: "{}",
+                }),
+            )
+            .unwrap();
+        }
+        let view = replay(store, 3);
+        assert_eq!(view.resolved_standing("c1"), Some(Status::Conjectured));
+    }
+
+    #[test]
+    fn missing_target_claim_yields_none() {
+        let store = MemStore::new();
+        {
+            let mut w = writer(store.clone());
+            w.append(
+                provenance(),
+                evidence_registered_with(
+                    "e1",
+                    "ExecutionEvidence",
+                    "Evidence.",
+                    SCOPE,
+                    "AutomatedVerifier",
+                    "",
+                    "{}",
+                ),
+            )
+            .unwrap();
+            w.append(
+                provenance(),
+                justification_edge_recorded_with(EdgeInput {
+                    edge_id: "j1",
+                    edge_kind: "supports",
+                    source_id: "e1",
+                    target_id: "c1", // never asserted
+                    scope_ref: SCOPE,
+                    actor_class: "HumanRoot",
+                    rationale: "support for a missing claim",
+                    metadata_json: "{}",
+                }),
+            )
+            .unwrap();
+        }
+        let view = replay(store, 3);
+        assert_eq!(view.resolved_standing("c1"), None);
+    }
+
+    #[test]
+    fn v0_claim_is_not_promoted_by_support() {
+        // A legacy v0 ClaimAsserted has no typed-claim node, so ADR-0002 support
+        // cannot reach it.
+        let store = MemStore::new();
+        {
+            let mut w = writer(store.clone());
+            w.append(
+                provenance(),
+                Payload::ClaimAsserted {
+                    claim_id: "c0".into(),
+                    statement: "Legacy v0 claim.".into(),
+                    status: Status::Conjectured,
+                },
+            )
+            .unwrap();
+            w.append(
+                provenance(),
+                evidence_registered_with(
+                    "e1",
+                    "ExecutionEvidence",
+                    "Evidence.",
+                    SCOPE,
+                    "AutomatedVerifier",
+                    "",
+                    "{}",
+                ),
+            )
+            .unwrap();
+            w.append(
+                provenance(),
+                justification_edge_recorded_with(EdgeInput {
+                    edge_id: "j1",
+                    edge_kind: "supports",
+                    source_id: "e1",
+                    target_id: "c0",
+                    scope_ref: SCOPE,
+                    actor_class: "HumanRoot",
+                    rationale: "supports",
+                    metadata_json: "{}",
+                }),
+            )
+            .unwrap();
+        }
+        let view = replay(store, 4);
+        assert_eq!(view.resolved_standing("c0"), Some(Status::Conjectured));
+    }
+
+    #[test]
+    fn typed_claim_without_support_resolves_to_raw() {
+        let store = MemStore::new();
+        {
+            let mut w = writer(store.clone());
+            w.append(provenance(), claim_asserted_v2("AgentProposer"))
+                .unwrap();
+        }
+        let view = replay(store, 2);
+        assert_eq!(
+            view.resolved_standing("claim-v2"),
+            Some(Status::Conjectured)
+        );
+    }
+
+    #[test]
+    fn resolved_standing_is_order_independent() {
+        // claim, evidence, edge in two different append orders.
+        let claim = || claim_asserted_v2_with("c1", "Target.", SCOPE, "AgentProposer", "", "{}");
+        let evidence = || {
+            evidence_registered_with(
+                "e1",
+                "ExecutionEvidence",
+                "Evidence.",
+                SCOPE,
+                "AutomatedVerifier",
+                "",
+                "{}",
+            )
+        };
+        let edge = || {
+            justification_edge_recorded_with(EdgeInput {
+                edge_id: "j1",
+                edge_kind: "supports",
+                source_id: "e1",
+                target_id: "c1",
+                scope_ref: SCOPE,
+                actor_class: "HumanRoot",
+                rationale: "supports",
+                metadata_json: "{}",
+            })
+        };
+
+        let build = |payloads: [Payload; 3]| {
+            let store = MemStore::new();
+            {
+                let mut w = writer(store.clone());
+                for p in payloads {
+                    w.append(provenance(), p).unwrap();
+                }
+            }
+            replay(store, 4)
+        };
+
+        let forward = build([claim(), evidence(), edge()]);
+        let reversed = build([edge(), evidence(), claim()]);
+
+        assert_eq!(forward.resolved_standing("c1"), Some(Status::Supported));
+        assert_eq!(
+            forward.resolved_standing("c1"),
+            reversed.resolved_standing("c1")
+        );
+    }
+
+    #[test]
+    fn refuted_raw_claim_is_not_promoted_by_support() {
+        let store = MemStore::new();
+        {
+            let mut w = writer(store.clone());
+            w.append(
+                provenance(),
+                claim_asserted_v2_with("c1", "Target.", SCOPE, "AgentProposer", "", "{}"),
+            )
+            .unwrap();
+            w.append(
+                provenance(),
+                Payload::ClaimStatusChanged {
+                    claim_id: "c1".into(),
+                    from: Status::Conjectured,
+                    to: Status::Refuted,
+                    reason: "Refuted by later work.".into(),
+                },
+            )
+            .unwrap();
+            w.append(
+                provenance(),
+                evidence_registered_with(
+                    "e1",
+                    "ExecutionEvidence",
+                    "Evidence.",
+                    SCOPE,
+                    "AutomatedVerifier",
+                    "",
+                    "{}",
+                ),
+            )
+            .unwrap();
+            w.append(
+                provenance(),
+                justification_edge_recorded_with(EdgeInput {
+                    edge_id: "j1",
+                    edge_kind: "supports",
+                    source_id: "e1",
+                    target_id: "c1",
+                    scope_ref: SCOPE,
+                    actor_class: "HumanRoot",
+                    rationale: "supports",
+                    metadata_json: "{}",
+                }),
+            )
+            .unwrap();
+        }
+        let view = replay(store, 5);
+        assert_eq!(view.get("c1").unwrap().standing, Status::Refuted);
+        assert_eq!(view.resolved_standing("c1"), Some(Status::Refuted));
+    }
+
+    #[test]
+    fn settled_raw_claim_is_preserved_under_support() {
+        let store = MemStore::new();
+        {
+            let mut w = writer(store.clone());
+            w.append(
+                provenance(),
+                claim_asserted_v2_with("c1", "Target.", SCOPE, "AgentProposer", "", "{}"),
+            )
+            .unwrap();
+            w.append(
+                provenance(),
+                Payload::ClaimStatusChanged {
+                    claim_id: "c1".into(),
+                    from: Status::Conjectured,
+                    to: Status::Settled,
+                    reason: "Settled via the legacy path.".into(),
+                },
+            )
+            .unwrap();
+            w.append(
+                provenance(),
+                evidence_registered_with(
+                    "e1",
+                    "ModelSelfReport",
+                    "Weak evidence.",
+                    SCOPE,
+                    "AgentProposer",
+                    "",
+                    "{}",
+                ),
+            )
+            .unwrap();
+            w.append(
+                provenance(),
+                justification_edge_recorded_with(EdgeInput {
+                    edge_id: "j1",
+                    edge_kind: "supports",
+                    source_id: "e1",
+                    target_id: "c1",
+                    scope_ref: SCOPE,
+                    actor_class: "HumanRoot",
+                    rationale: "supports",
+                    metadata_json: "{}",
+                }),
+            )
+            .unwrap();
+        }
+        let view = replay(store, 5);
+        assert_eq!(view.get("c1").unwrap().standing, Status::Settled);
+        assert_eq!(view.resolved_standing("c1"), Some(Status::Settled));
     }
 }
