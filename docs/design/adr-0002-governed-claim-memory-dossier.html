@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ADR-0002 Governed Claim Memory Dossier</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0d1117;
+      --panel: #151b23;
+      --panel-soft: #10161f;
+      --text: #e6edf3;
+      --muted: #9aa7b2;
+      --line: #2b3542;
+      --accent: #63c5da;
+      --accent-2: #f0b86a;
+      --danger: #ff8b8b;
+      --ok: #8de39d;
+      --code: #d5e9ff;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+    }
+
+    main {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 32px 18px 56px;
+    }
+
+    header {
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 24px;
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: clamp(2rem, 5vw, 4.25rem);
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 34px 0 12px;
+      font-size: 1.45rem;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 22px 0 8px;
+      font-size: 1.05rem;
+      letter-spacing: 0;
+      color: var(--accent);
+    }
+
+    p, li {
+      color: var(--text);
+    }
+
+    .dek {
+      max-width: 820px;
+      color: var(--muted);
+      font-size: 1.08rem;
+      margin: 0;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 18px;
+    }
+
+    .pill {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--muted);
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 0.88rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin: 18px 0;
+    }
+
+    .two {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      min-width: 0;
+    }
+
+    .card strong {
+      color: var(--accent-2);
+    }
+
+    .callout {
+      border-left: 4px solid var(--accent);
+      background: var(--panel-soft);
+      padding: 14px 16px;
+      margin: 18px 0;
+    }
+
+    .warning {
+      border-left-color: var(--danger);
+    }
+
+    .ok {
+      border-left-color: var(--ok);
+    }
+
+    code {
+      color: var(--code);
+      background: #0a0f15;
+      border: 1px solid #1f2a36;
+      border-radius: 4px;
+      padding: 0 4px;
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      font-size: 0.94em;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      overflow-wrap: anywhere;
+    }
+
+    th, td {
+      border: 1px solid var(--line);
+      padding: 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #101823;
+      color: var(--accent);
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 8px;
+      align-items: stretch;
+      margin: 18px 0;
+    }
+
+    .step {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      min-height: 96px;
+    }
+
+    .step span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.82rem;
+      margin-bottom: 8px;
+    }
+
+    ul {
+      padding-left: 1.2rem;
+    }
+
+    @media (max-width: 820px) {
+      .grid, .grid.two, .flow {
+        grid-template-columns: 1fr;
+      }
+
+      main {
+        padding: 22px 14px 42px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Governed Claim Memory</h1>
+      <p class="dek">ADR-0002 decides how a memory event earns standing: not by
+        being written, but by passing through a governed write path and then
+        being replayed into a deterministic <code>StandingView</code>.</p>
+      <div class="meta">
+        <span class="pill">ADR-0002</span>
+        <span class="pill">Status: Proposed</span>
+        <span class="pill">Docs-only companion</span>
+        <span class="pill">Ancestry, not machinery</span>
+      </div>
+    </header>
+
+    <section>
+      <h2>The problem</h2>
+      <div class="callout warning">
+        Memory events must not become belief merely because they were written.
+      </div>
+      <p>Magpie's L0 is the signed, append-only source of truth. That truth is
+        about the log: what was written, by whom, when, in what order, and under
+        what signature. It is not automatically truth about the world. ADR-0002
+        closes that gap with governed admission and replayable standing.</p>
+    </section>
+
+    <section>
+      <h2>The decision</h2>
+      <p>A memory event earns standing only through a governed write path and a
+        deterministic projection over the append-only log. Standing is not an
+        authoritative mutable field. It is derived, inspectable, and
+        rebuildable.</p>
+      <div class="flow" aria-label="governed memory pipeline">
+        <div class="step"><span>1</span>Proposal</div>
+        <div class="step"><span>2</span>Governed admission</div>
+        <div class="step"><span>3</span>Append-only log</div>
+        <div class="step"><span>4</span><code>StandingView</code></div>
+        <div class="step"><span>5</span>Read surfaces</div>
+      </div>
+      <p>Corrections are new events. Invalidations are new events. Ratifications
+        are new events. The log is conserved; the projection derives the rest.</p>
+    </section>
+
+    <section>
+      <h2>Deadbolt and Magpie</h2>
+      <div class="grid two">
+        <div class="card">
+          <h3>Deadbolt's role</h3>
+          <p>Deadbolt proves or refuses occurrence. It can seal evidence bundles
+            and emit <code>SegmentAnchored</code> events into Magpie after
+            successful verification. It does not decide interpretation truth.</p>
+        </div>
+        <div class="card">
+          <h3>Magpie's role</h3>
+          <p>Magpie preserves provenance, order, signatures, and inclusion. Its
+            derived views decide what current standing follows from replaying
+            governed claim, evidence, and justification events.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>What the tamper field test proved</h2>
+      <ul>
+        <li>The tampered witness root was syntactically valid.</li>
+        <li>Reconcile re-verified before anchoring.</li>
+        <li>Reconcile refused the bundle.</li>
+        <li>The forged root was not appended.</li>
+        <li>Status reported debt without mutating the anchor log.</li>
+      </ul>
+      <div class="callout ok">
+        Therefore Deadbolt can protect occurrence anchoring; ADR-0002 governs
+        what Magpie may believe about such evidence.
+      </div>
+    </section>
+
+    <section>
+      <h2>Actor classes</h2>
+      <div class="grid">
+        <div class="card"><strong>HumanRoot</strong><br>May ratify standing within explicit scope.</div>
+        <div class="card"><strong>AgentProposer</strong><br>May propose claims and evidence; may not settle claims directly.</div>
+        <div class="card"><strong>AutomatedVerifier</strong><br>May verify exact machine-checkable predicates.</div>
+        <div class="card"><strong>DeadboltAnchorer</strong><br>May anchor sealed occurrence evidence.</div>
+        <div class="card"><strong>LensWitness</strong><br>May provide ceilinged interpretability signal.</div>
+        <div class="card"><strong>SourceImporter</strong><br>May import external source material under policy.</div>
+      </div>
+      <p>These are semantic actor classes for the governed write path, not a
+        required Rust enum in this docs-only package.</p>
+    </section>
+
+    <section>
+      <h2>Evidence ceilings</h2>
+      <p>A ceiling is a deterministic cap on what one evidence kind may establish
+        alone. It is not numeric confidence.</p>
+      <table>
+        <thead>
+          <tr><th>Evidence kind</th><th>Ceiling</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>DeterministicVerification</code></td><td>May reach <code>Settled</code> for exact predicates.</td></tr>
+          <tr><td><code>HumanRatification</code></td><td>May reach <code>Settled</code> within explicit scope.</td></tr>
+          <tr><td><code>DeadboltAnchor</code> plus verifier context</td><td>May reach <code>Settled</code> for occurrence/inclusion, only <code>Supported</code> for interpretation.</td></tr>
+          <tr><td><code>ExecutionEvidence</code></td><td>May reach <code>Supported</code>.</td></tr>
+          <tr><td><code>BehavioralEvaluation</code></td><td>May reach <code>Supported</code>, discounted because models may detect or game evaluations.</td></tr>
+          <tr><td><code>ExternalSource</code></td><td>May reach <code>Conjectured</code> or <code>Supported</code> depending on policy and corroboration.</td></tr>
+          <tr><td><code>ModelSelfReport</code></td><td>May reach <code>Conjectured</code>.</td></tr>
+          <tr><td><code>LensReadout</code></td><td>May reach <code>Conjectured</code>; may corroborate, contradict, or create review debt, but must never settle alone.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Edge vocabulary</h2>
+      <div class="grid two">
+        <div class="card">
+          <h3>Allowed</h3>
+          <p><code>supports</code>, <code>derived_from</code>, <code>contradicts</code>,
+            <code>supersedes</code>, <code>invalidates</code>, <code>ratifies</code></p>
+        </div>
+        <div class="card">
+          <h3>Rejected</h3>
+          <p><code>related_to</code>, <code>similar_to</code>, <code>about</code>,
+            <code>probably_true</code>, <code>associated_with</code></p>
+        </div>
+      </div>
+      <p>The vocabulary is intentionally restrictive to prevent relation slop.</p>
+    </section>
+
+    <section>
+      <h2>v0 compatibility</h2>
+      <ul>
+        <li><code>ClaimAsserted</code>: assertion with initial status, not current truth.</li>
+        <li><code>EvidenceRecorded</code>: untyped evidence note, weak support ceilinged no higher than <code>Supported</code>.</li>
+        <li><code>ClaimStatusChanged</code>: compatibility and emergency/manual ratification path until ratification-as-edge exists.</li>
+        <li><code>Note</code>: ignored unless a later ADR says otherwise.</li>
+        <li><code>SegmentAnchored</code>: occurrence evidence, not interpretation truth.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Enforcement tests</h2>
+      <div class="card">
+        <p><code>standing_replay_is_deterministic</code></p>
+        <p><code>agent_proposer_cannot_settle</code></p>
+        <p><code>lens_readout_cannot_settle</code></p>
+        <p><code>contradiction_debt_blocks_settled</code></p>
+        <p><code>invalidated_evidence_contributes_no_support</code></p>
+        <p><code>supersession_preserves_lineage</code></p>
+        <p><code>cyclic_justification_does_not_self_support</code></p>
+        <p><code>legacy_v0_chains_still_replay</code></p>
+        <p><code>segment_anchor_is_occurrence_evidence_not_interpretation_truth</code></p>
+      </div>
+    </section>
+
+    <section>
+      <h2>Rollout order</h2>
+      <ol>
+        <li>Land the docs-only ADR-0002 package.</li>
+        <li>Implement <code>StandingView</code> skeleton over existing v0 events only.</li>
+        <li>Add enforcement tests against the v0-compatible <code>StandingView</code>.</li>
+        <li>Only then implement future tags 6-8 with FORMAT, canonical encoding, golden vectors, verifier support, and explicit projection match arms.</li>
+        <li>Add <code>EpistemicGate</code> / governed write admission.</li>
+        <li>Only then expose governed write surfaces.</li>
+      </ol>
+      <p>The projection earns the vocabulary; the vocabulary does not earn itself.</p>
+    </section>
+
+    <section>
+      <h2>Ancestry, not machinery</h2>
+      <p>Grounded argumentation, JTMS, screened belief revision, event sourcing,
+        PROV-O, SLSA, in-toto, Dempster-Shafer discounting, legal
+        corroboration, and interpretability work are useful ancestors. ADR-0002
+        does not import them as implementation semantics.</p>
+      <div class="callout">
+        If Magpie later needs competing accepted standings, credulous
+        acceptance, scope inheritance, or probabilistic fusion, ADR-0002 must be
+        revisited before the fold expands.
+      </div>
+    </section>
+  </main>
+</body>
+</html>
