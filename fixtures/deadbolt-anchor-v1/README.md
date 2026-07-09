@@ -17,6 +17,10 @@ verifying key recorded in the genesis event:
 d04ab232742bb4ab3a1368bd4615e4e6d0224ab71a016baf8520a332c9778737
 ```
 
+The signing seed used to create this checked-in fixture is not required to run
+the tests and is not part of the trust boundary; the committed log plus public
+verifying key are the fixture.
+
 The anchor payload records occurrence, inclusion, and order material only:
 
 ```text
