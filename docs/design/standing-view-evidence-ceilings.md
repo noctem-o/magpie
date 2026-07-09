@@ -157,6 +157,8 @@ claim domains. The matrix below is the cross-reference the future fold and
 A ceiling is a function of both axes: `ceiling = f(evidence_kind, claim_domain)`.
 Cell values are the maximum positive contribution and are drawn only from
 `Settled` / `Supported` / `Conjectured` / `—` (no admissible contribution).
+The code mirror for this matrix is `magpie_claims::policy::support_ceiling`;
+it encodes only the ceiling surface, not achieved standing.
 
 Filling principle: each evidence kind reaches its per-kind ceiling only in its
 home domain(s). Where it bears on an adjacent domain without being authoritative
@@ -400,8 +402,9 @@ Domain constraints:
 - `ModelSelfReport` can only conjecture `ModelIntrospection` or candidate
   hypotheses.
 - `LensReadout` can only conjecture model-internal hypotheses in v1.
-- `HumanRatification` can support `HumanJudgment` or scoped interpretation only
-  with explicit authority; it does not settle truth.
+- `HumanRatification` may support `HumanJudgment`, scoped `Interpretation`, and
+  bounded `OperationalObservation` only with explicit authority; it does not
+  settle truth.
 
 ## Domain assignment is admitted policy material
 

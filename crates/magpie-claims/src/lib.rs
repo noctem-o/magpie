@@ -6,6 +6,8 @@
 //! any time. It reads through a `LogReader` and cannot write. That asymmetry
 //! is enforced by the type system.
 
+pub mod policy;
+
 mod standing;
 
 use std::collections::BTreeMap;
