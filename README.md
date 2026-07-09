@@ -48,6 +48,8 @@ magpie/
   docs/
     FORMAT.md          the normative format spec — a reimplementation from this page
                        alone must reproduce the golden vectors
+    portable-base.md   the machine-agnostic base boundary: Magpie runs without Deadbolt
+    seams/deadbolt-anchor-contract.md   the optional Deadbolt anchor protocol contract
     adr/0001-deadbolt-seam.md   the anchored-hierarchy decision (see seam section below)
     adr/0002-governed-claim-memory.md   how memory events earn standing
   tools/
@@ -66,6 +68,12 @@ magpie/
    to write.
 
 ## How this meets `deadbolt` (the seam — ratified and live)
+
+Magpie core is portable and can run without Deadbolt. Deadbolt integration is
+optional but protocol-defined by `docs/seams/deadbolt-anchor-contract.md`; the
+portable base boundary is in `docs/portable-base.md`. The always-on
+librarian/navigator is deliberately future work and is not part of the base
+trust architecture.
 
 ADR-0001 (**anchored hierarchy**, ratified 2026-07-02): deadbolt keeps its internal
 witness/evidence machinery unchanged; after each successful **seal-and-verify**, the
