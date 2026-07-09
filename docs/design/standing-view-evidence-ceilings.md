@@ -207,6 +207,11 @@ Contradiction debt, invalidation, supersession, and achieved standing remain
 future fold behavior. A `contradicts` edge may create debt or block settlement
 later; it does not automatically refute in this phase.
 
+Aggregation and independence-group policy are defined separately in
+`docs/design/standing-aggregation-independence-groups.md`. Ceilings define
+maximum admissible contribution; aggregation defines how eligible contributions
+are combined into achieved standing.
+
 ### DeterministicVerification
 
 Maximum positive contribution: `Settled`.
@@ -680,12 +685,14 @@ These are future tests for later PRs. This note does not add tests.
 8. Define separate `support_ceiling`, `refutation_ceiling`, and achieved
    standing aggregation. `support_ceiling` is maximum attainable support, not
    automatic promotion.
-9. Add independence-group corroboration for external sources.
-10. Implement contradiction debt.
-11. Implement invalidation and supersession.
-12. Design and implement the `EpistemicGate` admission slice for governed
+9. Define aggregation and independence-group doctrine, including
+   external-source corroboration limits.
+10. Implement aggregation policy helper code.
+11. Implement contradiction debt.
+12. Implement invalidation and supersession.
+13. Design and implement the `EpistemicGate` admission slice for governed
     writes, including human ratification as governance/judgment evidence.
-13. Only then expose writer-facing surfaces.
+14. Only then expose writer-facing surfaces.
 
 This order keeps the lowest-ceiling no-promotion cases ahead of settlement
 cases. It proves that the projection can refuse overpromotion before it learns
