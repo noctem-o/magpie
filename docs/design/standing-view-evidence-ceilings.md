@@ -191,6 +191,22 @@ context; a node merely labelled `DeadboltAnchor` is not enough.
 § `BehavioralEvaluation` may support only *bounded* interpretation under stated
 conditions; it never settles interpretation.
 
+## Refutation ceiling policy
+
+`support_ceiling` and `refutation_ceiling` are separate policy surfaces.
+
+A support ceiling says how high a piece of evidence may contribute positively.
+A refutation ceiling says whether a piece of evidence may directly contribute
+`Refuted`.
+
+Neither function performs achieved-standing aggregation. The code mirror for
+the negative ceiling surface is
+`magpie_claims::policy::refutation_ceiling`.
+
+Contradiction debt, invalidation, supersession, and achieved standing remain
+future fold behavior. A `contradicts` edge may create debt or block settlement
+later; it does not automatically refute in this phase.
+
 ### DeterministicVerification
 
 Maximum positive contribution: `Settled`.
