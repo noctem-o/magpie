@@ -606,8 +606,7 @@ DeadboltAnchor settles occurrence/inclusion without successful verifier context.
 Invalid.
 
 ```text
-ExternalSource settles a claim without deterministic verification or explicit
-corroboration policy.
+ExternalSource settles a claim, even with corroboration policy.
 ```
 
 Invalid.
@@ -634,6 +633,7 @@ Future PRs should add tests with names such as:
 - `deterministic_verification_can_settle_exact_predicate`
 - `execution_evidence_supports_but_does_not_settle`
 - `external_source_supports_but_does_not_settle`
+- `human_ratification_requires_human_root_and_exact_scope`
 - `human_ratification_supports_judgment_but_does_not_settle_truth`
 - `support_requires_existing_source_and_target`
 - `support_requires_exact_scope_match`

@@ -206,8 +206,9 @@ Standing implications:
   same exact scope unless future rules say otherwise.
 - `invalidates` removes support contribution from the invalidated target on
   replay.
-- `ratifies` can settle only when admitted under `HumanRoot` or another
-  appropriate authority and explicit scope rules.
+- `ratifies` may support governance/judgment claims only when admitted under
+  `HumanRoot` or another explicit future authority rule and exact scope rules.
+  It must not settle truth.
 
 Full edge semantics may be staged. The first implementation PR may add tags
 and explicit projection arms without implementing every advanced standing
