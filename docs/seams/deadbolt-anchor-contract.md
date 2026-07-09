@@ -67,6 +67,11 @@ The seam must remain testable without requiring the user's live Deadbolt
 machine. Future fixture work should provide portable logs and anchor material
 that exercise the `SegmentAnchored` contract deterministically.
 
+The portable fixture at `fixtures/deadbolt-anchor-v1/` contains a deterministic
+Magpie log with one `SegmentAnchored` event. It proves Magpie-side
+verification and replay of anchor fields without requiring Deadbolt or live
+machine artifacts.
+
 Magpie core must not depend on Deadbolt being installed for:
 
 - core tests;
