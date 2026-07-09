@@ -1,7 +1,9 @@
-//! Closed ADR-0002 policy vocabulary and support ceilings.
+//! Closed ADR-0002 policy vocabulary and support/refutation ceilings.
 //!
-//! This module encodes only the support-ceiling surface. A ceiling is the
-//! maximum positive contribution policy permits; it is not automatic promotion.
+//! This module encodes only the ceiling policy surfaces. A support ceiling is
+//! the maximum positive contribution policy permits. A refutation ceiling is
+//! the maximum negative contribution policy permits. Neither is automatic
+//! achieved-standing aggregation.
 
 use std::{error::Error, fmt, str::FromStr};
 
@@ -274,11 +276,88 @@ pub fn support_ceiling(kind: EvidenceKind, domain: ClaimDomain) -> Option<Status
     }
 }
 
+/// Maximum negative refutation contribution for an evidence kind and claim domain.
+///
+/// `None` means this evidence kind has no admissible direct negative
+/// refutation contribution for the domain. This is only a policy ceiling, not
+/// achieved standing and not automatic refutation.
+pub fn refutation_ceiling(kind: EvidenceKind, domain: ClaimDomain) -> Option<Status> {
+    match (kind, domain) {
+        (EvidenceKind::DeterministicVerification, ClaimDomain::OccurrenceInclusion) => {
+            Some(Status::Refuted)
+        }
+        (EvidenceKind::DeterministicVerification, ClaimDomain::ExactMachineCheckable) => {
+            Some(Status::Refuted)
+        }
+        (EvidenceKind::DeterministicVerification, ClaimDomain::OperationalObservation) => None,
+        (EvidenceKind::DeterministicVerification, ClaimDomain::Interpretation) => None,
+        (EvidenceKind::DeterministicVerification, ClaimDomain::ExternalReport) => None,
+        (EvidenceKind::DeterministicVerification, ClaimDomain::ModelIntrospection) => None,
+        (EvidenceKind::DeterministicVerification, ClaimDomain::HumanJudgment) => None,
+
+        (EvidenceKind::HumanRatification, ClaimDomain::OccurrenceInclusion) => None,
+        (EvidenceKind::HumanRatification, ClaimDomain::ExactMachineCheckable) => None,
+        (EvidenceKind::HumanRatification, ClaimDomain::OperationalObservation) => None,
+        (EvidenceKind::HumanRatification, ClaimDomain::Interpretation) => None,
+        (EvidenceKind::HumanRatification, ClaimDomain::ExternalReport) => None,
+        (EvidenceKind::HumanRatification, ClaimDomain::ModelIntrospection) => None,
+        (EvidenceKind::HumanRatification, ClaimDomain::HumanJudgment) => None,
+
+        (EvidenceKind::DeadboltAnchor, ClaimDomain::OccurrenceInclusion) => Some(Status::Refuted),
+        (EvidenceKind::DeadboltAnchor, ClaimDomain::ExactMachineCheckable) => None,
+        (EvidenceKind::DeadboltAnchor, ClaimDomain::OperationalObservation) => None,
+        (EvidenceKind::DeadboltAnchor, ClaimDomain::Interpretation) => None,
+        (EvidenceKind::DeadboltAnchor, ClaimDomain::ExternalReport) => None,
+        (EvidenceKind::DeadboltAnchor, ClaimDomain::ModelIntrospection) => None,
+        (EvidenceKind::DeadboltAnchor, ClaimDomain::HumanJudgment) => None,
+
+        (EvidenceKind::ExecutionEvidence, ClaimDomain::OccurrenceInclusion) => None,
+        (EvidenceKind::ExecutionEvidence, ClaimDomain::ExactMachineCheckable) => None,
+        (EvidenceKind::ExecutionEvidence, ClaimDomain::OperationalObservation) => None,
+        (EvidenceKind::ExecutionEvidence, ClaimDomain::Interpretation) => None,
+        (EvidenceKind::ExecutionEvidence, ClaimDomain::ExternalReport) => None,
+        (EvidenceKind::ExecutionEvidence, ClaimDomain::ModelIntrospection) => None,
+        (EvidenceKind::ExecutionEvidence, ClaimDomain::HumanJudgment) => None,
+
+        (EvidenceKind::BehavioralEvaluation, ClaimDomain::OccurrenceInclusion) => None,
+        (EvidenceKind::BehavioralEvaluation, ClaimDomain::ExactMachineCheckable) => None,
+        (EvidenceKind::BehavioralEvaluation, ClaimDomain::OperationalObservation) => None,
+        (EvidenceKind::BehavioralEvaluation, ClaimDomain::Interpretation) => None,
+        (EvidenceKind::BehavioralEvaluation, ClaimDomain::ExternalReport) => None,
+        (EvidenceKind::BehavioralEvaluation, ClaimDomain::ModelIntrospection) => None,
+        (EvidenceKind::BehavioralEvaluation, ClaimDomain::HumanJudgment) => None,
+
+        (EvidenceKind::ExternalSource, ClaimDomain::OccurrenceInclusion) => None,
+        (EvidenceKind::ExternalSource, ClaimDomain::ExactMachineCheckable) => None,
+        (EvidenceKind::ExternalSource, ClaimDomain::OperationalObservation) => None,
+        (EvidenceKind::ExternalSource, ClaimDomain::Interpretation) => None,
+        (EvidenceKind::ExternalSource, ClaimDomain::ExternalReport) => None,
+        (EvidenceKind::ExternalSource, ClaimDomain::ModelIntrospection) => None,
+        (EvidenceKind::ExternalSource, ClaimDomain::HumanJudgment) => None,
+
+        (EvidenceKind::ModelSelfReport, ClaimDomain::OccurrenceInclusion) => None,
+        (EvidenceKind::ModelSelfReport, ClaimDomain::ExactMachineCheckable) => None,
+        (EvidenceKind::ModelSelfReport, ClaimDomain::OperationalObservation) => None,
+        (EvidenceKind::ModelSelfReport, ClaimDomain::Interpretation) => None,
+        (EvidenceKind::ModelSelfReport, ClaimDomain::ExternalReport) => None,
+        (EvidenceKind::ModelSelfReport, ClaimDomain::ModelIntrospection) => None,
+        (EvidenceKind::ModelSelfReport, ClaimDomain::HumanJudgment) => None,
+
+        (EvidenceKind::LensReadout, ClaimDomain::OccurrenceInclusion) => None,
+        (EvidenceKind::LensReadout, ClaimDomain::ExactMachineCheckable) => None,
+        (EvidenceKind::LensReadout, ClaimDomain::OperationalObservation) => None,
+        (EvidenceKind::LensReadout, ClaimDomain::Interpretation) => None,
+        (EvidenceKind::LensReadout, ClaimDomain::ExternalReport) => None,
+        (EvidenceKind::LensReadout, ClaimDomain::ModelIntrospection) => None,
+        (EvidenceKind::LensReadout, ClaimDomain::HumanJudgment) => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    const EXPECTED_MATRIX: [(EvidenceKind, ClaimDomain, Option<Status>); 56] = [
+    const EXPECTED_SUPPORT_MATRIX: [(EvidenceKind, ClaimDomain, Option<Status>); 56] = [
         (
             EvidenceKind::DeterministicVerification,
             ClaimDomain::OccurrenceInclusion,
@@ -553,6 +632,277 @@ mod tests {
         (EvidenceKind::LensReadout, ClaimDomain::HumanJudgment, None),
     ];
 
+    const EXPECTED_REFUTATION_MATRIX: [(EvidenceKind, ClaimDomain, Option<Status>); 56] = [
+        (
+            EvidenceKind::DeterministicVerification,
+            ClaimDomain::OccurrenceInclusion,
+            Some(Status::Refuted),
+        ),
+        (
+            EvidenceKind::DeterministicVerification,
+            ClaimDomain::ExactMachineCheckable,
+            Some(Status::Refuted),
+        ),
+        (
+            EvidenceKind::DeterministicVerification,
+            ClaimDomain::OperationalObservation,
+            None,
+        ),
+        (
+            EvidenceKind::DeterministicVerification,
+            ClaimDomain::Interpretation,
+            None,
+        ),
+        (
+            EvidenceKind::DeterministicVerification,
+            ClaimDomain::ExternalReport,
+            None,
+        ),
+        (
+            EvidenceKind::DeterministicVerification,
+            ClaimDomain::ModelIntrospection,
+            None,
+        ),
+        (
+            EvidenceKind::DeterministicVerification,
+            ClaimDomain::HumanJudgment,
+            None,
+        ),
+        (
+            EvidenceKind::HumanRatification,
+            ClaimDomain::OccurrenceInclusion,
+            None,
+        ),
+        (
+            EvidenceKind::HumanRatification,
+            ClaimDomain::ExactMachineCheckable,
+            None,
+        ),
+        (
+            EvidenceKind::HumanRatification,
+            ClaimDomain::OperationalObservation,
+            None,
+        ),
+        (
+            EvidenceKind::HumanRatification,
+            ClaimDomain::Interpretation,
+            None,
+        ),
+        (
+            EvidenceKind::HumanRatification,
+            ClaimDomain::ExternalReport,
+            None,
+        ),
+        (
+            EvidenceKind::HumanRatification,
+            ClaimDomain::ModelIntrospection,
+            None,
+        ),
+        (
+            EvidenceKind::HumanRatification,
+            ClaimDomain::HumanJudgment,
+            None,
+        ),
+        (
+            EvidenceKind::DeadboltAnchor,
+            ClaimDomain::OccurrenceInclusion,
+            Some(Status::Refuted),
+        ),
+        (
+            EvidenceKind::DeadboltAnchor,
+            ClaimDomain::ExactMachineCheckable,
+            None,
+        ),
+        (
+            EvidenceKind::DeadboltAnchor,
+            ClaimDomain::OperationalObservation,
+            None,
+        ),
+        (
+            EvidenceKind::DeadboltAnchor,
+            ClaimDomain::Interpretation,
+            None,
+        ),
+        (
+            EvidenceKind::DeadboltAnchor,
+            ClaimDomain::ExternalReport,
+            None,
+        ),
+        (
+            EvidenceKind::DeadboltAnchor,
+            ClaimDomain::ModelIntrospection,
+            None,
+        ),
+        (
+            EvidenceKind::DeadboltAnchor,
+            ClaimDomain::HumanJudgment,
+            None,
+        ),
+        (
+            EvidenceKind::ExecutionEvidence,
+            ClaimDomain::OccurrenceInclusion,
+            None,
+        ),
+        (
+            EvidenceKind::ExecutionEvidence,
+            ClaimDomain::ExactMachineCheckable,
+            None,
+        ),
+        (
+            EvidenceKind::ExecutionEvidence,
+            ClaimDomain::OperationalObservation,
+            None,
+        ),
+        (
+            EvidenceKind::ExecutionEvidence,
+            ClaimDomain::Interpretation,
+            None,
+        ),
+        (
+            EvidenceKind::ExecutionEvidence,
+            ClaimDomain::ExternalReport,
+            None,
+        ),
+        (
+            EvidenceKind::ExecutionEvidence,
+            ClaimDomain::ModelIntrospection,
+            None,
+        ),
+        (
+            EvidenceKind::ExecutionEvidence,
+            ClaimDomain::HumanJudgment,
+            None,
+        ),
+        (
+            EvidenceKind::BehavioralEvaluation,
+            ClaimDomain::OccurrenceInclusion,
+            None,
+        ),
+        (
+            EvidenceKind::BehavioralEvaluation,
+            ClaimDomain::ExactMachineCheckable,
+            None,
+        ),
+        (
+            EvidenceKind::BehavioralEvaluation,
+            ClaimDomain::OperationalObservation,
+            None,
+        ),
+        (
+            EvidenceKind::BehavioralEvaluation,
+            ClaimDomain::Interpretation,
+            None,
+        ),
+        (
+            EvidenceKind::BehavioralEvaluation,
+            ClaimDomain::ExternalReport,
+            None,
+        ),
+        (
+            EvidenceKind::BehavioralEvaluation,
+            ClaimDomain::ModelIntrospection,
+            None,
+        ),
+        (
+            EvidenceKind::BehavioralEvaluation,
+            ClaimDomain::HumanJudgment,
+            None,
+        ),
+        (
+            EvidenceKind::ExternalSource,
+            ClaimDomain::OccurrenceInclusion,
+            None,
+        ),
+        (
+            EvidenceKind::ExternalSource,
+            ClaimDomain::ExactMachineCheckable,
+            None,
+        ),
+        (
+            EvidenceKind::ExternalSource,
+            ClaimDomain::OperationalObservation,
+            None,
+        ),
+        (
+            EvidenceKind::ExternalSource,
+            ClaimDomain::Interpretation,
+            None,
+        ),
+        (
+            EvidenceKind::ExternalSource,
+            ClaimDomain::ExternalReport,
+            None,
+        ),
+        (
+            EvidenceKind::ExternalSource,
+            ClaimDomain::ModelIntrospection,
+            None,
+        ),
+        (
+            EvidenceKind::ExternalSource,
+            ClaimDomain::HumanJudgment,
+            None,
+        ),
+        (
+            EvidenceKind::ModelSelfReport,
+            ClaimDomain::OccurrenceInclusion,
+            None,
+        ),
+        (
+            EvidenceKind::ModelSelfReport,
+            ClaimDomain::ExactMachineCheckable,
+            None,
+        ),
+        (
+            EvidenceKind::ModelSelfReport,
+            ClaimDomain::OperationalObservation,
+            None,
+        ),
+        (
+            EvidenceKind::ModelSelfReport,
+            ClaimDomain::Interpretation,
+            None,
+        ),
+        (
+            EvidenceKind::ModelSelfReport,
+            ClaimDomain::ExternalReport,
+            None,
+        ),
+        (
+            EvidenceKind::ModelSelfReport,
+            ClaimDomain::ModelIntrospection,
+            None,
+        ),
+        (
+            EvidenceKind::ModelSelfReport,
+            ClaimDomain::HumanJudgment,
+            None,
+        ),
+        (
+            EvidenceKind::LensReadout,
+            ClaimDomain::OccurrenceInclusion,
+            None,
+        ),
+        (
+            EvidenceKind::LensReadout,
+            ClaimDomain::ExactMachineCheckable,
+            None,
+        ),
+        (
+            EvidenceKind::LensReadout,
+            ClaimDomain::OperationalObservation,
+            None,
+        ),
+        (EvidenceKind::LensReadout, ClaimDomain::Interpretation, None),
+        (EvidenceKind::LensReadout, ClaimDomain::ExternalReport, None),
+        (
+            EvidenceKind::LensReadout,
+            ClaimDomain::ModelIntrospection,
+            None,
+        ),
+        (EvidenceKind::LensReadout, ClaimDomain::HumanJudgment, None),
+    ];
+
     #[test]
     fn evidence_kinds_parse_from_exact_strings() {
         for kind in EvidenceKind::ALL {
@@ -588,13 +938,13 @@ mod tests {
     #[test]
     fn full_support_ceiling_matrix_matches_docs() {
         assert_eq!(
-            EXPECTED_MATRIX.len(),
+            EXPECTED_SUPPORT_MATRIX.len(),
             EvidenceKind::ALL.len() * ClaimDomain::ALL.len()
         );
 
         for kind in EvidenceKind::ALL {
             for domain in ClaimDomain::ALL {
-                let matching_cells = EXPECTED_MATRIX
+                let matching_cells = EXPECTED_SUPPORT_MATRIX
                     .iter()
                     .filter(|(expected_kind, expected_domain, _)| {
                         *expected_kind == kind && *expected_domain == domain
@@ -602,7 +952,7 @@ mod tests {
                     .count();
                 assert_eq!(matching_cells, 1, "{kind} x {domain} appears once");
 
-                let (_, _, expected) = EXPECTED_MATRIX
+                let (_, _, expected) = EXPECTED_SUPPORT_MATRIX
                     .iter()
                     .find(|(expected_kind, expected_domain, _)| {
                         *expected_kind == kind && *expected_domain == domain
@@ -688,6 +1038,196 @@ mod tests {
         assert_eq!(
             support_ceiling(EvidenceKind::DeadboltAnchor, ClaimDomain::Interpretation),
             Some(Status::Supported)
+        );
+    }
+
+    #[test]
+    fn full_refutation_ceiling_matrix_matches_docs() {
+        assert_eq!(
+            EXPECTED_REFUTATION_MATRIX.len(),
+            EvidenceKind::ALL.len() * ClaimDomain::ALL.len()
+        );
+
+        for kind in EvidenceKind::ALL {
+            for domain in ClaimDomain::ALL {
+                let matching_cells = EXPECTED_REFUTATION_MATRIX
+                    .iter()
+                    .filter(|(expected_kind, expected_domain, _)| {
+                        *expected_kind == kind && *expected_domain == domain
+                    })
+                    .count();
+                assert_eq!(matching_cells, 1, "{kind} x {domain} appears once");
+
+                let (_, _, expected) = EXPECTED_REFUTATION_MATRIX
+                    .iter()
+                    .find(|(expected_kind, expected_domain, _)| {
+                        *expected_kind == kind && *expected_domain == domain
+                    })
+                    .expect("all cells are covered");
+                assert_eq!(
+                    refutation_ceiling(kind, domain),
+                    *expected,
+                    "{kind} x {domain}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn refutation_ceiling_matrix_has_56_cells() {
+        assert_eq!(EXPECTED_REFUTATION_MATRIX.len(), 56);
+        assert_eq!(EvidenceKind::ALL.len() * ClaimDomain::ALL.len(), 56);
+    }
+
+    #[test]
+    fn refutation_ceiling_only_returns_refuted_or_none() {
+        for kind in EvidenceKind::ALL {
+            for domain in ClaimDomain::ALL {
+                assert!(
+                    matches!(
+                        refutation_ceiling(kind, domain),
+                        Some(Status::Refuted) | None
+                    ),
+                    "{kind} x {domain} returned a non-refutation status"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn deterministic_verification_can_refute_exact_domains() {
+        assert_eq!(
+            refutation_ceiling(
+                EvidenceKind::DeterministicVerification,
+                ClaimDomain::OccurrenceInclusion
+            ),
+            Some(Status::Refuted)
+        );
+        assert_eq!(
+            refutation_ceiling(
+                EvidenceKind::DeterministicVerification,
+                ClaimDomain::ExactMachineCheckable
+            ),
+            Some(Status::Refuted)
+        );
+
+        for domain in [
+            ClaimDomain::OperationalObservation,
+            ClaimDomain::Interpretation,
+            ClaimDomain::ExternalReport,
+            ClaimDomain::ModelIntrospection,
+            ClaimDomain::HumanJudgment,
+        ] {
+            assert_eq!(
+                refutation_ceiling(EvidenceKind::DeterministicVerification, domain),
+                None,
+                "DeterministicVerification x {domain}"
+            );
+        }
+    }
+
+    #[test]
+    fn deadbolt_anchor_can_refute_occurrence_inclusion_only() {
+        assert_eq!(
+            refutation_ceiling(
+                EvidenceKind::DeadboltAnchor,
+                ClaimDomain::OccurrenceInclusion
+            ),
+            Some(Status::Refuted)
+        );
+
+        for domain in [
+            ClaimDomain::ExactMachineCheckable,
+            ClaimDomain::OperationalObservation,
+            ClaimDomain::Interpretation,
+            ClaimDomain::ExternalReport,
+            ClaimDomain::ModelIntrospection,
+            ClaimDomain::HumanJudgment,
+        ] {
+            assert_eq!(
+                refutation_ceiling(EvidenceKind::DeadboltAnchor, domain),
+                None,
+                "DeadboltAnchor x {domain}"
+            );
+        }
+    }
+
+    #[test]
+    fn human_ratification_never_refutes() {
+        for domain in ClaimDomain::ALL {
+            assert_eq!(
+                refutation_ceiling(EvidenceKind::HumanRatification, domain),
+                None,
+                "HumanRatification x {domain}"
+            );
+        }
+    }
+
+    #[test]
+    fn external_source_never_refutes() {
+        for domain in ClaimDomain::ALL {
+            assert_eq!(
+                refutation_ceiling(EvidenceKind::ExternalSource, domain),
+                None,
+                "ExternalSource x {domain}"
+            );
+        }
+    }
+
+    #[test]
+    fn model_self_report_and_lens_readout_never_refute() {
+        for kind in [EvidenceKind::ModelSelfReport, EvidenceKind::LensReadout] {
+            for domain in ClaimDomain::ALL {
+                assert_eq!(refutation_ceiling(kind, domain), None, "{kind} x {domain}");
+            }
+        }
+    }
+
+    #[test]
+    fn execution_and_behavioral_evidence_do_not_directly_refute() {
+        for kind in [
+            EvidenceKind::ExecutionEvidence,
+            EvidenceKind::BehavioralEvaluation,
+        ] {
+            for domain in ClaimDomain::ALL {
+                assert_eq!(refutation_ceiling(kind, domain), None, "{kind} x {domain}");
+            }
+        }
+    }
+
+    #[test]
+    fn support_and_refutation_ceilings_are_separate() {
+        assert_eq!(
+            support_ceiling(EvidenceKind::ExternalSource, ClaimDomain::ExternalReport),
+            Some(Status::Supported)
+        );
+        assert_eq!(
+            refutation_ceiling(EvidenceKind::ExternalSource, ClaimDomain::ExternalReport),
+            None
+        );
+
+        assert_eq!(
+            support_ceiling(EvidenceKind::HumanRatification, ClaimDomain::HumanJudgment),
+            Some(Status::Supported)
+        );
+        assert_eq!(
+            refutation_ceiling(EvidenceKind::HumanRatification, ClaimDomain::HumanJudgment),
+            None
+        );
+
+        assert_eq!(
+            support_ceiling(
+                EvidenceKind::DeadboltAnchor,
+                ClaimDomain::OccurrenceInclusion
+            ),
+            Some(Status::Settled)
+        );
+        assert_eq!(
+            refutation_ceiling(
+                EvidenceKind::DeadboltAnchor,
+                ClaimDomain::OccurrenceInclusion
+            ),
+            Some(Status::Refuted)
         );
     }
 }
