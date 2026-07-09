@@ -64,7 +64,8 @@ replaying L0 through the fold. Everything below caps what a replay is *allowed
 to conclude* — it does not record conclusions.
 
 An evidence ceiling is the maximum standing contribution a piece of evidence
-may make. It is not automatic promotion.
+may make. It is not automatic promotion. In short: `ceiling != achieved
+standing`.
 
 Evidence ceilings are deterministic caps, not probabilities and not numeric
 confidence. A piece of evidence may contribute less than its ceiling, or
@@ -88,12 +89,57 @@ The standing vocabulary remains:
 Ceilings in this note describe maximum positive contribution toward this
 vocabulary. They do not define the full current standing algorithm.
 
+## Human authority is not truth authority
+
+Corrected law:
+
+```text
+Humans settle nothing epistemically.
+```
+
+Human authority is real, but it lives on the governance and consent axis, not
+the truth axis. A human may approve an action, ratify a preference, record a
+judgment, accept operational risk, or provide evidence that a human judgment
+occurred. That evidence may support a claim under bounded rules. It does not
+make the claim true by decree.
+
+A human can approve a risky action; they cannot make a hash match by decree.
+
+`Settled` is not an honorific for trust in the actor. It is a standing result
+reserved for claims whose truth is established by deterministic verification,
+cryptographic verification, exact replay equivalence, or exact
+occurrence/inclusion evidence admitted by policy. General interpretation claims
+do not become `Settled` merely because a human, even the maintainer or
+`HumanRoot`, ratified them.
+
+Human ratification may support the claim "a human ratified X" as a
+governance/judgment record while not settling "X is true." Later policy may
+settle the occurrence of ratification if that occurrence is logged, signed, and
+verified; it must not settle the truth of the ratified statement merely from
+the ratification.
+
+This mirrors the existing treatment of model self-reports and lens readouts:
+they are admissible signals with strict ceilings, not privileged truth oracles.
+Claims remain contestable unless they are deterministic, cryptographic, exact
+replay, or exact occurrence/inclusion facts admitted by explicit policy.
+
+The standing boundary is therefore:
+
+```text
+Deadbolt governs permission.
+Magpie derives standing.
+Humans approve actions/preferences/judgments.
+Humans do not settle truth.
+Models propose or witness.
+Models do not settle truth.
+```
+
 ## Evidence ceiling table
 
 | evidence kind | maximum positive contribution | rule |
 | --- | --- | --- |
 | `DeterministicVerification` | `Settled` | Only for exact machine-checkable predicates. |
-| `HumanRatification` | `Settled` | Only under explicit human authority, exact scope, and the required admission gate. |
+| `HumanRatification` | `Supported` | Governance/judgment evidence only; humans do not settle truth. |
 | `DeadboltAnchor` | `Settled` for occurrence/inclusion claims with successful verifier context; `Supported` for interpretation claims | Proves/refuses verified occurrence and inclusion, not meaning. |
 | `ExecutionEvidence` | `Supported` | Supports operational or empirical claims; does not settle truth. |
 | `BehavioralEvaluation` | `Supported` | Supports observed behavior under stated conditions; does not settle truth. |
@@ -121,7 +167,7 @@ the one-dimensional table above.
 | evidence kind ↓ / claim domain → | Occurrence/​Inclusion | ExactMachine​Checkable | Operational​Observation | Interpretation | ExternalReport | ModelIntro​spection | HumanJudgment |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `DeterministicVerification` | `Settled` | `Settled` | `Supported` | `—` | `—` | `—` | `—` |
-| `HumanRatification` | `Supported`† | `Supported`† | `Supported`† | `Settled`† | `Supported`† | `Conjectured`† | `Settled`† |
+| `HumanRatification` | `—`† | `—`† | `Supported`† | `Supported`† | `—`† | `—`† | `Supported`† |
 | `DeadboltAnchor` | `Settled`‡ | `Supported` | `Supported` | `Supported` | `—` | `—` | `—` |
 | `ExecutionEvidence` | `—` | `—` | `Supported` | `—` | `—` | `—` | `—` |
 | `BehavioralEvaluation` | `—` | `—` | `Supported` | `Supported`§ | `—` | `—` | `—` |
@@ -130,10 +176,12 @@ the one-dimensional table above.
 | `LensReadout` | `—` | `—` | `—` | `Conjectured` | `—` | `Conjectured` | `—` |
 
 † `HumanRatification` contributes only through an `EpistemicGate` admission rule;
-a bare `actor_class = HumanRoot` string is not authority. It may settle
-`HumanJudgment` and scoped `Interpretation`, but only *supports* the
-machine-decidable domains (`Occurrence/Inclusion`, `ExactMachineCheckable`)
-because human judgment must not override a deterministic contradiction.
+a bare `actor_class = HumanRoot` string is not standing authority. Human
+ratification may support `HumanJudgment`, scoped `Interpretation`, or bounded
+`OperationalObservation`; it does not settle them. It has no direct positive
+standing contribution for exact machine-checkable, occurrence/inclusion,
+external-report, or model-introspection truth. Those domains require their own
+evidence policy.
 
 ‡ `DeadboltAnchor` settles `Occurrence/Inclusion` only with successful verifier
 context; a node merely labelled `DeadboltAnchor` is not enough.
@@ -171,28 +219,32 @@ interpretation, sampling, or empirical context, classify it as
 
 ### HumanRatification
 
-Maximum positive contribution: `Settled`.
+Maximum positive contribution: `Supported`.
 
-Human ratification may settle only under explicit human authority and exact
-scope.
+Human ratification is governance/judgment evidence. It can record that a human
+approved an action, accepted a preference, made a scoped judgment, or ratified
+an operational decision. It cannot make the ratified proposition true.
 
 Restrictions:
 
 - Requires `actor_class = HumanRoot` or a future authority rule admitted by
   `EpistemicGate`.
-- The settlement rule must not be implemented before the corresponding
+- The support rule must not be implemented before the corresponding
   `EpistemicGate` admission rule exists; an L0 `actor_class` string is not
-  authority by itself.
+  standing authority by itself.
 - Does not escape `scope_ref`.
 - Does not override deterministic contradictions without explicit later
   invalidation or supersession rules.
 - Does not let ordinary agents settle claims.
+- Does not let humans settle claims by decree.
 
-Matrix note: `HumanRatification` settles `HumanJudgment` and scoped
-`Interpretation`, but does not settle the machine-decidable domains
-(`Occurrence/Inclusion`, `ExactMachineCheckable`) by override. A human
-ratification must not override deterministic contradiction; exact machine
-predicates are settled by `DeterministicVerification`, not by human assertion.
+Matrix note: `HumanRatification` may support `HumanJudgment`, scoped
+`Interpretation`, and bounded `OperationalObservation`. It does not settle
+machine-decidable domains (`Occurrence/Inclusion`, `ExactMachineCheckable`) by
+override. A human ratification must not override deterministic contradiction;
+exact machine predicates are settled by `DeterministicVerification`, not by
+human assertion. Occurrence/inclusion settlement belongs to exact Deadbolt
+anchor or deterministic verification policy, not human assertion.
 
 ### DeadboltAnchor
 
@@ -263,8 +315,8 @@ Restrictions:
 - Does not settle truth by itself.
 - Source credibility, corroboration, and freshness are future policy concerns.
 - May remain only `Conjectured` if weak, stale, or uncorroborated.
-- Cannot exceed `Supported` in v1 without human ratification or deterministic
-  verification.
+- Cannot exceed `Supported` in v1. Human ratification may record a judgment
+  about the source, but it does not settle the external report's truth.
 
 ### ModelSelfReport
 
@@ -348,8 +400,8 @@ Domain constraints:
 - `ModelSelfReport` can only conjecture `ModelIntrospection` or candidate
   hypotheses.
 - `LensReadout` can only conjecture model-internal hypotheses in v1.
-- `HumanRatification` can settle `HumanJudgment` or scoped interpretation only
-  with explicit authority.
+- `HumanRatification` can support `HumanJudgment` or scoped interpretation only
+  with explicit authority; it does not settle truth.
 
 ## Domain assignment is admitted policy material
 
@@ -385,9 +437,11 @@ This prevents future ceiling escalation by classification drift.
 
 ### ratifies
 
-- May settle only under `HumanRatification` or a future explicit authority rule.
+- Records governance, consent, preference, or scoped human judgment.
+- May support a claim only up to the `HumanRatification` ceiling.
 - Requires exact scope.
 - Does not allow ordinary agents to settle claims.
+- Does not allow human actors to settle truth by decree.
 - Must not treat `actor_class = HumanRoot` as authority unless the event has
   passed the applicable `EpistemicGate` admission rule.
 - Should be gated by future `EpistemicGate` before writer surfaces exist.
@@ -510,7 +564,7 @@ ExecutionEvidence + supports + claim "command X passed on machine Y at time T"
 
 ```text
 HumanRatification + ratifies + claim "this interpretation is accepted for scope S"
-=> may reach Settled only under explicit HumanRoot authority and exact scope.
+=> may support that scoped human judgment under explicit HumanRoot authority and exact scope; it does not settle the interpretation's truth.
 ```
 
 ### Invalid promotions
@@ -552,7 +606,19 @@ DeadboltAnchor settles occurrence/inclusion without successful verifier context.
 Invalid.
 
 ```text
-ExternalSource settles a claim without ratification or deterministic verification.
+ExternalSource settles a claim, even with corroboration policy.
+```
+
+Invalid.
+
+```text
+HumanRatification settles "this interpretation is true" because HumanRoot ratified it.
+```
+
+Invalid.
+
+```text
+HumanRatification settles "hash H matches artifact A" because a human approved it.
 ```
 
 Invalid.
@@ -568,6 +634,7 @@ Future PRs should add tests with names such as:
 - `execution_evidence_supports_but_does_not_settle`
 - `external_source_supports_but_does_not_settle`
 - `human_ratification_requires_human_root_and_exact_scope`
+- `human_ratification_supports_judgment_but_does_not_settle_truth`
 - `support_requires_existing_source_and_target`
 - `support_requires_exact_scope_match`
 - `derived_from_preserves_lineage_without_promotion`
@@ -589,12 +656,17 @@ These are future tests for later PRs. This note does not add tests.
 5. Implement exact deterministic verification settlement.
 6. Implement Deadbolt occurrence/inclusion settlement only with successful
    verifier context while preserving the interpretation boundary.
-7. Design and implement the `EpistemicGate` admission slice required for
-   HumanRoot ratification.
-8. Implement HumanRoot ratification only through that gate.
-9. Implement contradiction debt.
-10. Implement invalidation and supersession.
-11. Only then expose writer-facing surfaces.
+7. Define explicit policy enums and exhaustive support ceilings with no
+   wildcard catch-all.
+8. Define separate `support_ceiling`, `refutation_ceiling`, and achieved
+   standing aggregation. `support_ceiling` is maximum attainable support, not
+   automatic promotion.
+9. Add independence-group corroboration for external sources.
+10. Implement contradiction debt.
+11. Implement invalidation and supersession.
+12. Design and implement the `EpistemicGate` admission slice for governed
+    writes, including human ratification as governance/judgment evidence.
+13. Only then expose writer-facing surfaces.
 
 This order keeps the lowest-ceiling no-promotion cases ahead of settlement
 cases. It proves that the projection can refuse overpromotion before it learns
@@ -612,6 +684,7 @@ Stop before implementation if:
 - defining ceilings appears to require Python verifier changes;
 - evidence ceilings cannot be defined without adding claim-domain fields to L0;
 - support, debt, or ratification semantics seem necessary now;
+- evidence ceiling correction seems to require achieved-standing aggregation;
 - `EpistemicGate` seems necessary now;
 - writer-facing surfaces seem necessary now;
 - Deadbolt changes seem necessary now.
@@ -626,7 +699,12 @@ Stop before implementation if:
 - Confirm `scope_ref` remains opaque exact-match string material.
 - Confirm `SegmentAnchored` remains occurrence/inclusion evidence and not
   interpretation truth.
+- Confirm `HumanRatification` cannot yield `Settled` in any claim domain.
+- Confirm `Settled` is reserved for deterministic, cryptographic, exact replay,
+  or exact occurrence/inclusion facts admitted by policy.
 - Confirm edge rules defer promotion, contradiction debt, invalidation,
   supersession, and ratification implementation.
+- Confirm future code guidance keeps `support_ceiling`, `refutation_ceiling`,
+  and achieved standing separate.
 - Confirm future tests cover low-ceiling refusal before settlement.
 - Confirm writer-facing surfaces remain blocked until `EpistemicGate`.

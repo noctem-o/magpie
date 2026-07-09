@@ -1,5 +1,9 @@
 # Ticket 0013: Evidence ceilings as an evidence_kind × claim_domain matrix
 
+Superseded doctrine note: ticket 0019 corrects the HumanRatification row.
+Humans settle nothing epistemically; HumanRatification is capped at `Supported`
+and cannot settle `HumanJudgment` or scoped `Interpretation`.
+
 ## Goal
 
 Amend `docs/design/standing-view-evidence-ceilings.md` so the ceiling law is
@@ -112,9 +116,9 @@ Pre-PR review clarifications added to the doc (still docs-only, no new tags, no
    ambiguous/absent/conflicting classification takes the weaker applicable ceiling
    or refuses promotion; a broad `Interpretation` claim is not reclassified as
    `ExactMachineCheckable` because it contains a checkable subclaim.
-3. `HumanRatification` settles `HumanJudgment` and scoped `Interpretation` only;
-   it does not settle machine-decidable domains by override (deterministic
-   contradiction wins).
+3. `HumanRatification` supports `HumanJudgment` and scoped `Interpretation`
+   only; it does not settle any domain by override (deterministic contradiction
+   wins).
 4. `ExecutionEvidence` × `Interpretation` = no direct contribution; interpretive
    bearing travels through claims and edges.
 5. `DeterministicVerification` × `OperationalObservation` = `Supported`, with a

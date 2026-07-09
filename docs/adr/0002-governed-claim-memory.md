@@ -90,8 +90,9 @@ is treated as real.
 These are semantic actor classes for the governed claim write-path. This
 docs-only ADR does not require a Rust enum implementation.
 
-- `HumanRoot`: a human authority able to ratify standing within explicit
-  scope.
+- `HumanRoot`: a human authority able to ratify governance, consent,
+  preference, scoped judgment, or operational decisions. Human authority is not
+  epistemic settlement authority.
 - `AgentProposer`: an ordinary agent able to propose claims, evidence, and
   review debt, but not settle claims directly.
 - `AutomatedVerifier`: deterministic machinery that can verify exact
@@ -107,10 +108,18 @@ docs-only ADR does not require a Rust enum implementation.
 A ceiling is a deterministic cap on what one evidence kind may establish alone.
 It is not a probability and it is not numeric confidence.
 
+Corrected standing doctrine: humans settle nothing epistemically. A human may
+approve an action, ratify a judgment, or provide evidence that a judgment
+occurred, but `HumanRatification` is governance/judgment evidence rather than a
+truth-settlement authority. `Settled` is reserved for deterministic,
+cryptographic, exact replay, or exact occurrence/inclusion facts admitted by
+policy. A human can approve a risky action; they cannot make a hash match by
+decree.
+
 | evidence kind | maximum standing ceiling |
 | --- | --- |
 | `DeterministicVerification` | May reach `Settled` for exact machine-checkable predicates. |
-| `HumanRatification` | May reach `Settled` within an explicit scope. |
+| `HumanRatification` | May reach `Supported` for scoped human judgment or governance evidence; it must not settle truth. |
 | `DeadboltAnchor` plus successful verifier context | May reach `Settled` for occurrence/inclusion, but only `Supported` for interpretation. |
 | `ExecutionEvidence` | May reach `Supported`. |
 | `BehavioralEvaluation` | May reach `Supported`, discounted because models may detect or game evaluations. |
@@ -183,8 +192,9 @@ Existing tags 0-5 remain unchanged.
   target claim, with a ceiling no higher than `Supported` unless re-registered
   by a future typed evidence event.
 - `ClaimStatusChanged`: legacy/manual standing judgment. New ordinary writers
-  should not emit it. It remains for compatibility and emergency/manual
-  ratification until ratification-as-edge is implemented.
+  should not emit it. It remains for compatibility only and is a known
+  pre-`EpistemicGate` gap: new governed paths must not use it as a way for
+  humans or agents to settle truth by decree.
 - `Note`: ignored by `StandingView` unless a future ADR says otherwise.
 - `SegmentAnchored`: execution evidence anchor, not itself a claim. It may be
   cited by future typed evidence or justification events. It is occurrence
@@ -210,6 +220,7 @@ Later code PRs should add these tests before treating ADR-0002 as implemented:
 
 - `standing_replay_is_deterministic`
 - `agent_proposer_cannot_settle`
+- `human_ratification_supports_judgment_but_does_not_settle_truth`
 - `lens_readout_cannot_settle`
 - `contradiction_debt_blocks_settled`
 - `invalidated_evidence_contributes_no_support`
@@ -244,6 +255,7 @@ Negative / deferred:
 - Numeric confidence/probability as v1 standing.
 - Knowledge graph in L0.
 - Lens readouts as privileged oracle truth.
+- Human ratification as epistemic settlement authority.
 - Letting agents write settled claims directly.
 - Implementing scope inheritance in v1.
 
