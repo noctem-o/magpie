@@ -4,6 +4,10 @@
 
 Proposed planning note.
 
+Doctrine note: ticket 0019 supersedes the old HumanRatification settlement
+language. Humans settle nothing epistemically; HumanRatification is
+governance/judgment evidence capped below `Settled`.
+
 ## Purpose
 
 This note plans the future ADR-0002 additive event tags:
@@ -151,7 +155,7 @@ Evidence ceiling plan:
 
 ```text
 DeterministicVerification -> may reach Settled for exact machine-checkable predicates.
-HumanRatification -> may reach Settled within explicit scope.
+HumanRatification -> may reach Supported for scoped human judgment or governance evidence; never Settled.
 DeadboltAnchor + successful verifier context -> may reach Settled for occurrence/inclusion, Supported for interpretation.
 ExecutionEvidence -> may reach Supported.
 BehavioralEvaluation -> may reach Supported.

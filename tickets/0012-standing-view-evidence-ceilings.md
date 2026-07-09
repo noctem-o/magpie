@@ -1,5 +1,9 @@
 # Ticket 0012: StandingView evidence ceilings
 
+Superseded doctrine note: ticket 0019 corrects the HumanRatification rule.
+Humans settle nothing epistemically; HumanRatification is governance/judgment
+evidence and must not yield `Settled`.
+
 ## Goal
 
 Define the ADR-0002 evidence ceiling law for future `StandingView` semantics.
@@ -56,8 +60,9 @@ promotion.
 
 - `DeterministicVerification`: may reach `Settled` for exact
   machine-checkable predicates.
-- `HumanRatification`: may reach `Settled` under explicit human authority,
-  exact scope, and the required `EpistemicGate` admission rule.
+- `HumanRatification`: may reach at most `Supported` as governance/judgment
+  evidence under explicit human authority, exact scope, and the required
+  `EpistemicGate` admission rule.
 - `DeadboltAnchor`: may reach `Settled` for occurrence/inclusion claims only
   with successful verifier context and at most `Supported` for interpretation
   claims.
@@ -73,9 +78,10 @@ promotion.
 - `supports`: may contribute positive standing only up to both source standing
   and the source evidence ceiling; requires source and target existence plus
   exact compatible scope.
-- `ratifies`: may settle only under `HumanRatification` or future explicit
-  authority admitted by `EpistemicGate`; ordinary agents cannot ratify
-  settlement.
+- `ratifies`: may support governance/judgment claims only under
+  `HumanRatification` or future explicit authority admitted by
+  `EpistemicGate`; ordinary agents cannot ratify settlement, and human
+  ratification does not settle truth.
 - `derived_from`: preserves lineage without promotion.
 - `contradicts`: future debt or settlement-blocking rule; no auto-refutation
   in this ticket.
@@ -146,7 +152,7 @@ This ticket does not add tests.
 - Confirm `DeadboltAnchor` can settle occurrence/inclusion only with
   successful verifier context, but not interpretation truth.
 - Confirm `HumanRatification` requires human authority, exact scope, and the
-  required `EpistemicGate` admission rule.
+  required `EpistemicGate` admission rule, and still does not yield `Settled`.
 - Confirm `scope_ref` remains exact-match and opaque.
 - Confirm `SegmentAnchored` remains occurrence/inclusion evidence only.
 - Confirm writer-facing surfaces remain blocked until `EpistemicGate`.
@@ -161,8 +167,9 @@ This ticket does not add tests.
 5. Implement Deadbolt occurrence/inclusion settlement only with successful
    verifier context.
 6. Design and implement the `EpistemicGate` admission slice required for
-   HumanRoot ratification.
-7. Implement HumanRoot ratification only through that gate.
+   HumanRoot governance/judgment ratification.
+7. Implement HumanRoot ratification only through that gate, capped below
+   epistemic settlement.
 8. Implement contradiction debt.
 9. Implement invalidation and supersession.
 10. Design remaining `EpistemicGate` admission rules.

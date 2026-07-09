@@ -290,13 +290,16 @@
       <h2>Evidence ceilings</h2>
       <p>A ceiling is a deterministic cap on what one evidence kind may establish
         alone. It is not numeric confidence.</p>
+      <p><strong>Doctrine update:</strong> humans settle nothing epistemically.
+        <code>HumanRatification</code> is governance/judgment evidence capped
+        below <code>Settled</code>.</p>
       <table>
         <thead>
           <tr><th>Evidence kind</th><th>Ceiling</th></tr>
         </thead>
         <tbody>
           <tr><td><code>DeterministicVerification</code></td><td>May reach <code>Settled</code> for exact predicates.</td></tr>
-          <tr><td><code>HumanRatification</code></td><td>May reach <code>Settled</code> within explicit scope.</td></tr>
+          <tr><td><code>HumanRatification</code></td><td>May reach <code>Supported</code> for scoped human judgment or governance evidence; never <code>Settled</code>.</td></tr>
           <tr><td><code>DeadboltAnchor</code> plus verifier context</td><td>May reach <code>Settled</code> for occurrence/inclusion, only <code>Supported</code> for interpretation.</td></tr>
           <tr><td><code>ExecutionEvidence</code></td><td>May reach <code>Supported</code>.</td></tr>
           <tr><td><code>BehavioralEvaluation</code></td><td>May reach <code>Supported</code>, discounted because models may detect or game evaluations.</td></tr>
