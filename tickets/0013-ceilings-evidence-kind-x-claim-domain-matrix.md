@@ -116,9 +116,9 @@ Pre-PR review clarifications added to the doc (still docs-only, no new tags, no
    ambiguous/absent/conflicting classification takes the weaker applicable ceiling
    or refuses promotion; a broad `Interpretation` claim is not reclassified as
    `ExactMachineCheckable` because it contains a checkable subclaim.
-3. `HumanRatification` supports `HumanJudgment` and scoped `Interpretation`
-   only; it does not settle any domain by override (deterministic contradiction
-   wins).
+3. `HumanRatification` may support `HumanJudgment`, scoped `Interpretation`,
+   and bounded `OperationalObservation` only; it does not settle any domain by
+   override.
 4. `ExecutionEvidence` × `Interpretation` = no direct contribution; interpretive
    bearing travels through claims and edges.
 5. `DeterministicVerification` × `OperationalObservation` = `Supported`, with a
