@@ -20,7 +20,7 @@ Corroboration may help reach an allowed ceiling; it must not exceed the ceiling.
 ```
 
 This phase is docs/tickets only. It freezes vocabulary and constraints for a
-later implementation phase; it does not change current `StandingView` behavior.
+later implementation phase; it does not change runtime `StandingView` behavior.
 
 ## Non-goals
 
@@ -39,7 +39,8 @@ later implementation phase; it does not change current `StandingView` behavior.
 - No invalidation implementation.
 - No supersession implementation.
 - No ratification admission semantics.
-- No `StandingView::resolved_standing()` behavior change.
+- No runtime `StandingView::resolved_standing()` behavior change in this
+  docs-only PR.
 - No support-ceiling behavior change.
 - No refutation-ceiling behavior change.
 - No Deadbolt changes.
@@ -61,12 +62,20 @@ justification edges:
 - `magpie_claims::policy::refutation_ceiling` defines whether an evidence kind
   and claim domain may directly contribute `Refuted`.
 
-`StandingView::resolved_standing()` already exists as an older first fold slice.
-It is a pure read-only query over accumulated tables. It currently handles
-evidence-to-claim `supports` edges under a conservative support slice, but it
-deliberately does not read `claim_domain`, does not parse `metadata_json`, and
-does not implement settlement, contradiction debt, invalidation, supersession,
-`EpistemicGate`, or writer surfaces.
+Once PR #33 lands, `StandingResolution` v0 is the canonical governed-standing
+explanation surface. It names the fixed `magpie-claims-standing-v0` policy,
+parses the target typed claim's `claim_domain` from `metadata_json` fail-closed,
+and reports candidate support ceilings in deterministic trace entries.
+
+`StandingView::resolved_standing()` is then a compatibility scalar that
+delegates to the governed result from `StandingResolution`; it is not a second
+standing engine. V0 does not turn candidate ceilings into achieved standing.
+It exposes legacy raw status separately as quarantined audit material rather
+than governed truth.
+
+Current v0 resolution does not implement aggregation, independence
+amplification, direct refutation, contradiction debt, invalidation,
+supersession, or public writer admission through `EpistemicGate`.
 
 This note does not mutate that behavior.
 
@@ -74,24 +83,36 @@ This note does not mutate that behavior.
 
 ### Candidate Contribution
 
-A candidate contribution is something that may contribute if edge kind, source,
-target, scope, domain, admission, and ceiling checks pass.
+A candidate contribution is structurally present and parseable enough for the
+resolver to inspect. It may still have missing endpoints, a scope mismatch, no
+permitted ceiling, or an unmet admission/verifier requirement.
 
-A candidate contribution is not yet standing. It is merely material that the
-future fold may inspect.
+A candidate contribution is not standing, policy eligibility, or admission. It
+is merely material that the fold can explain deterministically.
 
-### Eligible Contribution
+### PolicyEligible Contribution
 
-An eligible contribution is a candidate contribution that passed the relevant
-checks for edge kind, source existence, target existence, exact scope, domain
-classification, admission policy, source standing, and ceiling.
+A policy-eligible contribution is a candidate that passes non-authority checks
+for edge kind, source and target existence, exact scope, closed domain, source
+standing, applicable ceiling, and graph constraints.
 
-Eligibility means the future aggregator may consider the contribution. It does
-not mean the target claim is automatically promoted or refuted.
+Policy eligibility does not mean an actor, verifier, evidence label, domain, or
+independence assertion is authorized. Do not call a contribution eligible for
+an effect if that effect depends on an admission or verifier decision that has
+not been made.
+
+### Admitted Contribution
+
+An admitted contribution is policy-eligible material whose authority-dependent
+claims have passed replayable admission/verifier policy or a future
+`EpistemicGate` decision.
+
+Only admitted contributions may affect achieved standing. Admission still does
+not imply promotion: aggregation and ceiling rules remain separate.
 
 ### Support Contribution
 
-A support contribution is an eligible positive contribution capped by
+A support contribution is an admitted positive contribution capped by
 `support_ceiling` and any source-standing limits.
 
 Support contribution is not achieved support. It is one input to future
@@ -99,7 +120,7 @@ aggregation.
 
 ### Refutation Contribution
 
-A refutation contribution is an eligible negative contribution capped by
+A refutation contribution is an admitted negative contribution capped by
 `refutation_ceiling`.
 
 Refutation contribution is not contradiction debt, invalidation, or
@@ -129,12 +150,12 @@ from the same origin from counting as independent corroboration.
 Independence groups are policy material, not L0 canonical material.
 
 Future policy may use a `metadata_json` key such as `independence_group`. This
-is future policy over opaque `metadata_json`. It is not a canonical encoding
-change and not a new `Payload` field.
+is asserted, advisory data until admitted by replayable policy. It is not a
+canonical encoding change, a new `Payload` field, or authority by itself.
 
 ### Independent Corroboration
 
-Independent corroboration is corroboration from eligible contributions that the
+Independent corroboration is corroboration from admitted contributions that the
 future fold admits as distinct independence groups.
 
 Independent corroboration may help a contribution reach its allowed ceiling. It
@@ -150,10 +171,11 @@ must not be counted as multiple independent corroborators.
 
 ### Aggregation Lane
 
-An aggregation lane is a deterministic partition of eligible contributions that
-future policy aggregates together. A lane may be separated by claim, direction
-of contribution, evidence kind, claim domain, edge kind, scope, or independence
-group.
+An aggregation lane is a deterministic partition that may organize candidates
+and policy-eligible contributions for explanation. Only admitted contributions
+may affect achieved standing within a lane. A lane may be separated by claim,
+direction of contribution, evidence kind, claim domain, edge kind, scope, or
+independence group.
 
 Aggregation lanes prevent unrelated evidence from being combined accidentally
 and give future explainability code a stable way to report why a claim reached
@@ -180,6 +202,20 @@ its achieved standing.
 13. Aggregation must keep support, refutation, contradiction debt,
     invalidation, and supersession as separate policy concepts.
 
+## Admission and Authority Boundary
+
+Advisory metadata and vocabulary labels are never authority by themselves.
+`actor_class`, `evidence_kind`, `claim_domain`, `independence_group`, and a
+`DeadboltAnchor` evidence label are asserted data until admitted by replayable
+policy.
+
+A trace policy identifier discloses which fixed policy produced an explanation.
+It is not a caller-controlled selector that may choose a more favorable outcome.
+
+Successful Deadbolt settlement or direct refutation requires admitted verifier
+context. A bare typed evidence node labelled `DeadboltAnchor` proves neither
+that verification occurred nor that the label's author had Deadbolt authority.
+
 ## Independence-Group Laws
 
 Independence group keys are opaque exact strings.
@@ -196,12 +232,17 @@ Rules:
 - No "same publisher but different URL" inference unless future policy
   explicitly admits it.
 
-Absent, ambiguous, conflicting, or unsupported independence-group metadata must
-not be treated as independent corroboration. Future fold rules may either count
-it as a single weak lane or refuse corroborating aggregation.
+Absent, malformed, ambiguous, conflicting, unsupported, or unadmitted
+independence-group metadata must not be treated as independent corroboration or
+amplify standing. Future fold rules may retain it in one non-amplifying lane or
+refuse corroborating aggregation.
+
+A self-declared unique `independence_group` must not count as independent
+corroboration. Evidence producers cannot manufacture independence by choosing a
+fresh string for every report.
 
 Independence groups are not source truth. They only constrain whether multiple
-eligible contributions may count as independent corroborators.
+admitted contributions may count as independent corroborators.
 
 ## External-Source Corroboration
 
@@ -224,7 +265,9 @@ independence.
 
 Human ratification of an external report may record a human judgment about the
 report, but it does not settle the report's truth. A human can approve relying
-on a report for a scoped decision; they cannot make the report true by decree.
+on a report for a scoped decision or govern how a contradiction is handled;
+they cannot make the report true by decree or erase truth-bearing contradiction
+debt.
 
 Model self-reports and lens readouts do not become supporting evidence merely by
 repetition. Repeated model or lens outputs may seed hypotheses, but repetition
@@ -234,7 +277,7 @@ corroboration.
 ## Interaction With Support Ceilings
 
 `support_ceiling` defines the maximum positive contribution permitted for an
-evidence-kind/domain pair. Future support aggregation may combine eligible
+evidence-kind/domain pair. Future support aggregation may combine admitted
 support contributions, but the result must not exceed the applicable ceiling.
 
 Examples:
@@ -255,7 +298,7 @@ resolver that combines them.
 
 Refutation eligibility must not be confused with contradiction debt. A direct
 refutation contribution requires a `refutation_ceiling` cell that permits
-`Refuted` plus future eligibility checks.
+`Refuted`, the non-authority policy checks, and admitted verifier context.
 
 Only the refutation ceiling policy can admit direct `Refuted` contribution. It
 does not make refutation automatic.
@@ -276,20 +319,28 @@ Contradiction debt is future fold behavior. It should remain distinct from:
 Invalidation and supersession are separate future semantics. Invalidation is not
 refutation. Supersession is not deletion.
 
+Future policy must define explicit precedence between direct refutation and
+contradiction debt. Human ratification may govern action or handling, but it
+must not erase truth-bearing contradiction debt or settle factual truth.
+
 ## Future Implementation Order
 
-1. Add aggregation policy helper code that computes candidate and eligible
-   contributions without changing writer surfaces.
-2. Parse advisory `claim_domain` and future `independence_group` metadata under
-   policy, not L0 validation.
-3. Add deterministic aggregation lanes and explanation traces.
-4. Add external-source corroboration with independence-group limits.
-5. Add direct refutation aggregation only where `refutation_ceiling` permits it.
-6. Implement contradiction debt.
-7. Implement invalidation and supersession.
-8. Implement `EpistemicGate` admission rules.
-9. Add optional librarian/navigator behavior only after the policy substrate is
-   explicit and reviewed.
+1. Keep or land `StandingResolution` v0 as the canonical fail-closed
+   explanation surface.
+2. Add pure admission and verifier-context predicates before any new achieved
+   `Settled`, `Refuted`, or independence-amplified standing.
+3. Prove one narrow achieved-standing slice, preferably verified Deadbolt
+   occurrence/inclusion.
+4. Add deterministic aggregation lanes and traces without amplification.
+5. Add one explicit support aggregation rule; do not invent generic thresholds.
+6. Add conservative independence handling. Absent, malformed, unadmitted, or
+   self-declared groups must not amplify.
+7. Add direct refutation only through admitted verifier context plus
+   `refutation_ceiling`.
+8. Add contradiction debt with explicit precedence against direct refutation.
+9. Add invalidation and supersession semantics.
+10. Add the capability-bearing `EpistemicGate` and writer surfaces.
+11. Add optional librarian, navigator, model, or lens ingestion later.
 
 ## Future Tests
 
@@ -308,6 +359,10 @@ Future PRs should add tests with names such as:
 - `supersession_is_not_deletion`
 - `aggregation_is_order_independent`
 - `aggregation_is_regenerable`
+- `self_declared_independence_group_does_not_amplify`
+- `bare_deadbolt_label_is_not_admitted_verifier_context`
+- `trace_policy_id_is_not_an_outcome_selector`
+- `human_ratification_does_not_erase_contradiction_debt`
 
 These are future tests for later PRs. This note does not add tests.
 
@@ -318,7 +373,13 @@ These are future tests for later PRs. This note does not add tests.
   clusters.
 - Confirm missing or ambiguous independence metadata does not count as
   independent corroboration.
+- Confirm self-declared or unadmitted independence groups never amplify.
 - Confirm external-source corroboration cannot yield `Settled`.
 - Confirm support and refutation aggregation remain separate from contradiction
   debt, invalidation, and supersession.
-- Confirm no current `StandingView::resolved_standing()` behavior changes.
+- Confirm `StandingResolution` v0 is described as the canonical governed
+  explanation surface and `resolved_standing()` only as its compatibility
+  scalar.
+- Confirm admission/verifier context precedes aggregation, direct refutation,
+  and independence amplification.
+- Confirm no runtime `StandingView` behavior changes are made by this docs PR.
