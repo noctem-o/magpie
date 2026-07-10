@@ -16,7 +16,9 @@ use magpie_log::{Payload, Projection, SignedEvent, Status};
 use serde::Serialize;
 
 pub use standing::{
-    StandingClaim, StandingView, TypedClaimNode, TypedEvidenceNode, TypedJustificationEdge,
+    StandingClaim, StandingCurrentness, StandingResolution, StandingTraceEntry,
+    StandingTraceReason, StandingView, TypedClaimNode, TypedEvidenceNode, TypedJustificationEdge,
+    MAGPIE_CLAIMS_POLICY_ID,
 };
 
 /// A single tracked claim and its current epistemic state.
