@@ -6,13 +6,16 @@ Proposed design note.
 
 ## Purpose
 
-This note defines the ADR-0002 evidence ceiling law that later
-`StandingView` semantics must implement.
+This note defines the ADR-0002 evidence ceiling law used by current explanation
+and later achieved-standing semantics.
 
 The current substrate can retain typed claims, typed evidence, and typed
-justification edges. It deliberately does not yet implement support promotion,
-settlement, contradiction debt, invalidation, supersession, ratification,
-`EpistemicGate`, or writer-facing surfaces.
+justification edges. Once PR #33 lands, `StandingResolution` v0 also explains
+candidate ceilings under a fixed policy identifier, parses the target claim's
+`claim_domain` fail-closed, and quarantines legacy raw status. It deliberately
+does not implement support promotion, settlement, contradiction debt,
+invalidation, supersession, ratification, `EpistemicGate`, or writer-facing
+surfaces.
 
 This note freezes the next rule layer before those semantics are implemented.
 
@@ -52,7 +55,13 @@ ADR-0002 and the following implementation PRs have established the substrate:
 - `StandingView` retains typed justification edges in
   `TypedJustificationEdge`.
 - `ClaimAssertedV2` creates a `Conjectured` claim.
-- `EvidenceRegistered` and `JustificationEdgeRecorded` are retained but inert.
+- `StandingResolution` v0 is the canonical governed-standing explanation
+  surface, while `resolved_standing()` is its compatibility scalar.
+- `EvidenceRegistered` and `JustificationEdgeRecorded` may be inspected as
+  candidate material and reported in deterministic traces, but candidate
+  ceilings do not become achieved standing.
+- Legacy raw status remains visible as quarantined audit material, not governed
+  truth.
 - `SegmentAnchored` remains occurrence/inclusion evidence only; it does not
   create typed evidence, promote claims, or decide interpretation truth.
 
@@ -206,6 +215,11 @@ the negative ceiling surface is
 Contradiction debt, invalidation, supersession, and achieved standing remain
 future fold behavior. A `contradicts` edge may create debt or block settlement
 later; it does not automatically refute in this phase.
+
+Aggregation and independence-group policy are defined separately in
+`docs/design/standing-aggregation-independence-groups.md`. Ceilings define
+maximum candidate contribution; only admitted contributions may later be
+combined into achieved standing.
 
 ### DeterministicVerification
 
@@ -380,11 +394,12 @@ the relation-slop the ADR rejected for edge kinds.
 
 Claim domains are not yet encoded in L0 tags. *Where* a claim carries its domain
 is defined by the metadata convention, not here: in v1 it is a `claim_domain` key
-inside `metadata_json`, and reading it stays advisory until `EpistemicGate`
-enforces it.
+inside `metadata_json`. `StandingResolution` v0 parses that target metadata
+fail-closed for candidate explanation, but the asserted value remains advisory
+rather than authority until replayable admission policy admits it.
 
-The `claim_domain` vocabulary is closed by future `StandingView` / `EpistemicGate`
-policy. It is not currently enforced by L0 payload validation because
+The `claim_domain` vocabulary is closed by `StandingView` policy and future
+`EpistemicGate` admission. It is not enforced by L0 payload validation because
 `claim_domain` is not yet a dedicated L0 field. This PR does not mutate tags 6-8
 and does not add a `claim_domain` field to `ClaimAssertedV2`; the vocabulary is
 introduced as semantic policy and metadata convention, never by changing shipped
@@ -542,6 +557,10 @@ store. It is a materialized explanation trace of the deterministic `StandingView
 fold — a replay trace that answers "Why does Magpie believe X?" by replaying the
 same events and rules.
 
+`StandingResolution` v0 trace entries are the first concrete explanation
+surface for this purpose. A future `BeliefChangeLedger` may materialize or
+present those replay explanations, but it must not become a parallel resolver.
+
 - It is derived, regenerable, and holds no authority L0 does not already hold.
 - It records why standing changed (which evidence, which edges, which ceiling
   rule), never a conclusion that L0 did not produce.
@@ -666,30 +685,25 @@ These are future tests for later PRs. This note does not add tests.
 
 ## Rollout order
 
-1. This PR: docs-only evidence ceiling law.
-2. Next PR: test-only or scaffold PR for ceiling fixtures.
-3. Implement `supports` for no-promotion ceiling cases first:
-   `ModelSelfReport`, `LensReadout`, and conservative `ExternalSource`.
-4. Implement `supports` for `ExecutionEvidence` and `BehavioralEvaluation` to
-   `Supported`.
-5. Implement exact deterministic verification settlement.
-6. Implement Deadbolt occurrence/inclusion settlement only with successful
-   verifier context while preserving the interpretation boundary.
-7. Define explicit policy enums and exhaustive support ceilings with no
-   wildcard catch-all.
-8. Define separate `support_ceiling`, `refutation_ceiling`, and achieved
-   standing aggregation. `support_ceiling` is maximum attainable support, not
-   automatic promotion.
-9. Add independence-group corroboration for external sources.
-10. Implement contradiction debt.
-11. Implement invalidation and supersession.
-12. Design and implement the `EpistemicGate` admission slice for governed
-    writes, including human ratification as governance/judgment evidence.
-13. Only then expose writer-facing surfaces.
+1. Keep or land `StandingResolution` v0 as the canonical fail-closed
+   explanation surface.
+2. Add pure admission and verifier-context predicates before any new achieved
+   `Settled`, `Refuted`, or independence-amplified standing.
+3. Prove one narrow achieved-standing slice, preferably verified Deadbolt
+   occurrence/inclusion.
+4. Add deterministic aggregation lanes and traces without amplification.
+5. Add one explicit support aggregation rule; do not invent generic thresholds.
+6. Add conservative independence handling. Absent, malformed, unadmitted, or
+   self-declared groups must not amplify.
+7. Add direct refutation only through admitted verifier context plus
+   `refutation_ceiling`.
+8. Add contradiction debt with explicit precedence against direct refutation.
+9. Add invalidation and supersession semantics.
+10. Add the capability-bearing `EpistemicGate` and writer surfaces.
+11. Add optional librarian, navigator, model, or lens ingestion later.
 
-This order keeps the lowest-ceiling no-promotion cases ahead of settlement
-cases. It proves that the projection can refuse overpromotion before it learns
-to settle.
+This order keeps fail-closed explanation and admission ahead of every new
+authority-bearing result.
 
 ## Stop conditions
 
@@ -714,7 +728,9 @@ Stop before implementation if:
 - Confirm every ADR-0002 evidence kind has a ceiling.
 - Confirm ceilings are deterministic caps, not probabilities.
 - Confirm ceilings are not automatic promotion.
-- Confirm claim domains are future policy, not new L0 fields.
+- Confirm claim domains are parsed fail-closed by the governed explanation
+  surface but remain policy metadata, not new L0 fields or authority by
+  themselves.
 - Confirm `scope_ref` remains opaque exact-match string material.
 - Confirm `SegmentAnchored` remains occurrence/inclusion evidence and not
   interpretation truth.
@@ -726,4 +742,6 @@ Stop before implementation if:
 - Confirm future code guidance keeps `support_ceiling`, `refutation_ceiling`,
   and achieved standing separate.
 - Confirm future tests cover low-ceiling refusal before settlement.
+- Confirm admission/verifier context precedes aggregation, direct refutation,
+  and independence amplification.
 - Confirm writer-facing surfaces remain blocked until `EpistemicGate`.
