@@ -6,7 +6,10 @@ use serde::{
     Deserialize, Deserializer, Serialize,
 };
 
-use crate::policy::{support_ceiling, ClaimDomain, EvidenceKind};
+use crate::policy::{
+    support_ceiling, support_context_requirement, ClaimDomain, EvidenceKind,
+    SupportContextRequirement,
+};
 
 /// Fixed policy identifier for the first governed-standing explanation engine.
 ///
@@ -375,30 +378,44 @@ impl StandingView {
         };
 
         entry.candidate_ceiling = support_ceiling(kind, domain);
-        let Some(_ceiling) = entry.candidate_ceiling else {
+        let context_requirement = support_context_requirement(kind, domain);
+        debug_assert_eq!(
+            entry.candidate_ceiling.is_none(),
+            context_requirement == SupportContextRequirement::NoSupportContribution,
+        );
+        if support_candidate_is_rejected(entry.candidate_ceiling, context_requirement) {
+            entry.candidate_ceiling = None;
             entry.reasons.push(StandingTraceReason::NoSupportCeiling);
             return entry;
-        };
+        }
 
         entry.reasons.push(StandingTraceReason::AcceptedCandidate);
-        match kind {
-            EvidenceKind::HumanRatification => {
+        match context_requirement {
+            SupportContextRequirement::NoSupportContribution => {
+                unreachable!("no-support requirements return before candidate acceptance")
+            }
+            SupportContextRequirement::HumanAdmission => {
                 entry.reasons.push(StandingTraceReason::RequiresAdmission)
             }
-            EvidenceKind::DeadboltAnchor | EvidenceKind::DeterministicVerification => entry
+            SupportContextRequirement::DeterministicVerifierContext
+            | SupportContextRequirement::DeadboltVerifierContext => entry
                 .reasons
                 .push(StandingTraceReason::RequiresVerifierContext),
-            EvidenceKind::ExecutionEvidence
-            | EvidenceKind::BehavioralEvaluation
-            | EvidenceKind::ExternalSource
-            | EvidenceKind::ModelSelfReport
-            | EvidenceKind::LensReadout => {}
+            SupportContextRequirement::NoPrivilegedContext => {}
         }
         entry
             .reasons
             .push(StandingTraceReason::CeilingIsCandidateOnly);
         entry
     }
+}
+
+fn support_candidate_is_rejected(
+    candidate_ceiling: Option<Status>,
+    context_requirement: SupportContextRequirement,
+) -> bool {
+    candidate_ceiling.is_none()
+        || context_requirement == SupportContextRequirement::NoSupportContribution
 }
 
 fn push_claim_trace(
@@ -658,6 +675,22 @@ mod tests {
 
     fn provenance() -> Provenance {
         Provenance::new("test", "standing-view")
+    }
+
+    #[test]
+    fn support_candidate_gate_fails_closed_on_policy_disagreement() {
+        assert!(support_candidate_is_rejected(
+            None,
+            SupportContextRequirement::NoPrivilegedContext
+        ));
+        assert!(support_candidate_is_rejected(
+            Some(Status::Supported),
+            SupportContextRequirement::NoSupportContribution
+        ));
+        assert!(!support_candidate_is_rejected(
+            Some(Status::Supported),
+            SupportContextRequirement::NoPrivilegedContext
+        ));
     }
 
     fn anchor() -> Payload {
