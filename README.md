@@ -6,10 +6,11 @@ to it; everything else is a derived, regenerable projection.**
 
 The skeleton walks: the bottom of the stack (`magpie-log`, L0, format-frozen and
 golden-pinned), two worked projections (`magpie-claims`, `magpie-episodic`), an
-independent Python verifier, a ratified live seam to `deadbolt`, and the first
-ADR-0002 claim-memory vocabulary. The kernel can anchor sealed evidence into the
-chain; Magpie can now name typed claim, evidence, and justification events
-without yet exposing ordinary writer surfaces.
+independent Python verifier, a ratified live seam to `deadbolt`, and a
+fail-closed governed-standing explanation surface. Magpie retains typed claims,
+evidence, and justification edges; applies closed support, refutation, and
+privileged-context policy; and still exposes no ordinary writer or automatic
+promotion path.
 
 ## Run it
 
@@ -38,9 +39,11 @@ magpie/
       testdata/            golden-v1.jsonl — the committed fixture chain (nine events, incl. ADR-0002 tags)
       examples/regen_golden.rs   regenerates the fixture for reviewed format-surface changes
     magpie-claims/     projection #1: the epistemic claim store, folded from the log
-      src/lib.rs           ClaimsView : Projection (claims move along open→settled→refuted)
-      src/standing.rs      StandingView : ADR-0002 read-only standing projection
+      src/lib.rs           ClaimsView compatibility projection + public read surfaces
+      src/policy.rs        closed evidence/domain ceilings and support-context policy
+      src/standing.rs      StandingView + fail-closed StandingResolution v0
       tests/regenerable.rs the thesis test
+      tests/standing_resolution.rs   adversarial governed-resolution coverage
       examples/tour.rs     write → verify → replay → drop → replay → byte-identical
     magpie-episodic/   projection #2: SQLite + FTS5 full-text search over events
       src/lib.rs           EpisodicView : Projection (the only crate that may depend on SQLite)
@@ -52,6 +55,8 @@ magpie/
     seams/deadbolt-anchor-contract.md   the optional Deadbolt anchor protocol contract
     adr/0001-deadbolt-seam.md   the anchored-hierarchy decision (see seam section below)
     adr/0002-governed-claim-memory.md   how memory events earn standing
+    design/standing-view-evidence-ceilings.md   evidence/domain ceiling doctrine
+    design/standing-aggregation-independence-groups.md   future aggregation constraints
   tools/
     verify_chain.py    independent verifier, written from FORMAT.md alone; CI runs it
                        against the golden fixture with a pinned trust root
@@ -121,9 +126,24 @@ The log now knows three additive payload tags:
 - tag 8, `JustificationEdgeRecorded`: records a closed-vocabulary support,
   contradiction, lineage, invalidation, supersession, or ratification edge.
 
-These are format vocabulary, not a permission system. `StandingView` gives the
-first deterministic read surface. `EpistemicGate` and all writer-facing surfaces
-remain future work.
+These are format vocabulary, not a permission system. `StandingView` retains
+the typed replay tables. `StandingResolution v0` is the canonical governed read
+surface: it parses the target claim's closed `claim_domain` fail-closed,
+quarantines legacy raw status, and explains candidate support ceilings under the
+fixed `magpie-claims-standing-v0` policy.
+
+Candidate is not policy-eligible, admitted, aggregated, or achieved standing.
+The closed policy currently provides:
+
+- `support_ceiling(EvidenceKind, ClaimDomain)`;
+- `refutation_ceiling(EvidenceKind, ClaimDomain)`;
+- `support_context_requirement(EvidenceKind, ClaimDomain)`.
+
+Human ratification still requires future replayable admission; deterministic
+verification and Deadbolt anchors still require verifier context. Candidate
+ceilings are reported but never promoted. `EpistemicGate`, achieved standing,
+aggregation, refutation application, and all writer-facing surfaces remain
+future work.
 
 ## Development workflow
 
@@ -170,12 +190,16 @@ shell execution is unavailable.
    idempotent, first consumer of anchors. The seam is complete end to end.
 5. ~~ADR-0002 groundwork~~ — **landed**: governed claim memory ADR, `StandingView`
    v0 skeleton, boundary tests, and additive tags 6-8 with verifier/golden coverage.
-6. ~~Standing replay structure~~ — **in progress**: typed claim, evidence, and
+6. ~~Standing replay structure~~ — **landed**: typed claim, evidence, and
    justification edge tables make ADR-0002 graph material regenerable.
-7. **Next:** implement standing semantics behind those tables — evidence
-   ceilings, support, contradiction debt, invalidation, supersession, and
-   ratification, each with enforcement tests.
-8. Then add `EpistemicGate`; only after that should writer-facing surfaces, MCP
+7. ~~Fail-closed standing policy foundation~~ — **landed**: closed support and
+   refutation ceilings, support-context requirements, and deterministic
+   `StandingResolution v0` traces without promotion.
+8. **Current frontier:** prove verifier context for one exact Deadbolt
+   occurrence/inclusion slice, then add one narrowly reviewed achieved-standing
+   rule. Aggregation, contradiction debt, invalidation, and supersession remain
+   separate later phases.
+9. Then add `EpistemicGate`; only after that should writer-facing surfaces, MCP
    write paths, lens ingestion, typed stores, rerankers, or evaluators appear.
 
 Conserve the log. Derive the rest.
