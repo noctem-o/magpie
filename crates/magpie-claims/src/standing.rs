@@ -1,7 +1,91 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use magpie_log::{Payload, Projection, SignedEvent, Status};
-use serde::Serialize;
+use serde::{
+    de::{IgnoredAny, MapAccess, Visitor},
+    Deserialize, Deserializer, Serialize,
+};
+
+use crate::policy::{support_ceiling, ClaimDomain, EvidenceKind};
+
+/// Fixed policy identifier for the first governed-standing explanation engine.
+///
+/// V0 deliberately has no runtime-selectable policy versions. Every resolution
+/// names the one compiled policy so callers cannot mistake an ambient policy
+/// change for evidence from L0.
+pub const MAGPIE_CLAIMS_POLICY_ID: &str = "magpie-claims-standing-v0";
+
+/// Whether a resolution is known to describe the current claim.
+///
+/// Supersession is outside v0, so the resolver conservatively returns
+/// [`StandingCurrentness::Unknown`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StandingCurrentness {
+    Current,
+    Unknown,
+}
+
+/// Closed explanation vocabulary for governed-standing v0.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StandingTraceReason {
+    AcceptedCandidate,
+    UnsupportedEdgeKindForV0,
+    MissingTargetClaim,
+    MissingSourceEvidence,
+    MissingTypedTargetClaim,
+    ScopeMismatch,
+    UnknownEvidenceKind,
+    MissingClaimDomain,
+    MalformedMetadata,
+    WrongTypeClaimDomain,
+    UnknownClaimDomain,
+    DuplicateMetadataKey,
+    RequiresAdmission,
+    RequiresVerifierContext,
+    NoSupportCeiling,
+    CeilingIsCandidateOnly,
+    LegacyRawStatusQuarantined,
+}
+
+impl StandingTraceReason {
+    fn is_blocker(self) -> bool {
+        self != Self::AcceptedCandidate
+    }
+}
+
+/// Deterministic explanation for one target edge, or for a claim-level blocker
+/// when `edge_id` is absent.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct StandingTraceEntry {
+    pub edge_id: Option<String>,
+    pub source_id: Option<String>,
+    pub target_id: String,
+    pub evidence_kind: Option<String>,
+    pub claim_domain: Option<String>,
+    pub candidate_ceiling: Option<Status>,
+    pub reasons: Vec<StandingTraceReason>,
+}
+
+/// Canonical governed-standing explanation for one claim under policy v0.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct StandingResolution {
+    pub claim_id: String,
+    pub governed_standing: Option<Status>,
+    pub legacy_raw_standing: Option<Status>,
+    pub currentness: StandingCurrentness,
+    pub policy_id: &'static str,
+    pub trace: Vec<StandingTraceEntry>,
+    pub blockers: Vec<StandingTraceReason>,
+}
+
+impl StandingResolution {
+    /// Deterministic projection bytes for replay and explanation tests.
+    pub fn canonical_bytes(&self) -> Vec<u8> {
+        serde_json::to_vec(self).expect("StandingResolution is always serializable")
+    }
+}
 
 /// A claim as seen by ADR-0002's first read-only standing projection.
 ///
@@ -125,99 +209,307 @@ impl StandingView {
         serde_json::to_vec(self).expect("StandingView is always serializable")
     }
 
-    /// ADR-0002 governed belief surface — the first fold slice, settlement-blind.
+    /// Compatibility scalar for callers that do not yet consume explanations.
     ///
-    /// Derives a claim's standing by layering admissible `supports` edges from
-    /// typed evidence onto the raw [`StandingClaim::standing`], under the
-    /// conservative support-slice ceilings. It is a *pure query over the
-    /// accumulated tables*: it never mutates, never touches the raw `standing`
-    /// field, and is therefore order-independent and regenerable. Raw standing
-    /// stays the legacy surface; this is the governed one.
-    ///
-    /// A `supports` edge contributes only when the target typed claim and the
-    /// source typed evidence both exist and the evidence, edge, and target typed
-    /// claim share one exact `scope_ref`.
-    ///
-    /// Deliberately *not* inferred from absence in this slice, all deferred:
-    /// claim→claim support, ratification, contradiction debt, invalidation,
-    /// supersession, settlement, and any `claim_domain` / `metadata_json`
-    /// reading. No support edge derives [`Status::Settled`] here — a claim is
-    /// `Settled` only if the legacy path already made its raw standing `Settled`.
+    /// This delegates to [`Self::resolved_standing_with_trace`] and returns only
+    /// its governed result. Legacy/manual status is intentionally available only
+    /// as [`StandingResolution::legacy_raw_standing`]; it is not an authoritative
+    /// input to governed standing.
     pub fn resolved_standing(&self, claim_id: &str) -> Option<Status> {
-        let raw = self.claims.get(claim_id)?.standing;
+        self.resolved_standing_with_trace(claim_id)
+            .governed_standing
+    }
 
-        // `Refuted` is off the positive ladder — support cannot revive it.
-        // `Settled` (reachable here only via the legacy path) is already at the
-        // top and support never derives it, so both pass through untouched.
-        if matches!(raw, Status::Refuted | Status::Settled) {
-            return Some(raw);
+    /// Resolve one typed claim under the fixed, fail-closed v0 standing policy.
+    ///
+    /// V0 explains candidate support ceilings but performs no support
+    /// aggregation or promotion. A typed claim therefore remains Conjectured;
+    /// legacy status is quarantined, and every edge targeting the claim receives
+    /// one deterministic trace entry.
+    pub fn resolved_standing_with_trace(&self, claim_id: &str) -> StandingResolution {
+        let legacy_raw_standing = self.claims.get(claim_id).map(|claim| claim.standing);
+        let typed_target = self.typed_claims.get(claim_id);
+        let governed_standing = if legacy_raw_standing.is_some() && typed_target.is_some() {
+            Some(Status::Conjectured)
+        } else {
+            None
+        };
+        let claim_domain = typed_target.map(|target| parse_claim_domain(&target.metadata_json));
+        let mut trace = Vec::new();
+        let mut blockers = BTreeSet::new();
+
+        if let Some(claim) = self.claims.get(claim_id) {
+            if typed_target.is_some()
+                && (claim.legacy_transitions > 0 || claim.standing != Status::Conjectured)
+            {
+                push_claim_trace(
+                    &mut trace,
+                    claim_id,
+                    StandingTraceReason::LegacyRawStatusQuarantined,
+                );
+                blockers.insert(StandingTraceReason::LegacyRawStatusQuarantined);
+            }
+        } else {
+            blockers.insert(StandingTraceReason::MissingTargetClaim);
         }
 
-        let mut best = positive_rank(raw);
+        if typed_target.is_none() {
+            blockers.insert(StandingTraceReason::MissingTypedTargetClaim);
+        }
 
-        // Support requires a typed target; a v0-only claim cannot be promoted by
-        // ADR-0002 support edges.
-        if let Some(target) = self.typed_claims.get(claim_id) {
-            for edge in self.justification_edges.values() {
-                if edge.edge_kind != "supports" || edge.target_id != claim_id {
-                    continue;
+        if let Some(Err(reason)) = claim_domain {
+            blockers.insert(reason);
+        }
+
+        let mut relevant_edge_count = 0usize;
+        for (edge_id, edge) in &self.justification_edges {
+            if edge.target_id != claim_id {
+                continue;
+            }
+            relevant_edge_count += 1;
+            let entry =
+                self.resolve_support_candidate(claim_id, edge_id, edge, typed_target, claim_domain);
+            for reason in &entry.reasons {
+                if reason.is_blocker() {
+                    blockers.insert(*reason);
                 }
-                // Missing source evidence: no contribution.
-                let Some(evidence) = self.typed_evidence.get(&edge.source_id) else {
-                    continue;
-                };
-                // Exact triple scope match: evidence, edge, and target typed claim.
-                if evidence.scope_ref != edge.scope_ref || edge.scope_ref != target.scope_ref {
-                    continue;
-                }
-                if let Some(ceiling) = support_slice_ceiling(&evidence.evidence_kind) {
-                    best = best.max(positive_rank(ceiling));
-                }
+            }
+            trace.push(entry);
+        }
+
+        if relevant_edge_count == 0 {
+            if legacy_raw_standing.is_none() {
+                push_claim_trace(
+                    &mut trace,
+                    claim_id,
+                    StandingTraceReason::MissingTargetClaim,
+                );
+            } else if typed_target.is_none() {
+                push_claim_trace(
+                    &mut trace,
+                    claim_id,
+                    StandingTraceReason::MissingTypedTargetClaim,
+                );
+            } else if let Some(Err(reason)) = claim_domain {
+                push_claim_trace(&mut trace, claim_id, reason);
             }
         }
 
-        Some(status_from_positive_rank(best))
+        StandingResolution {
+            claim_id: claim_id.to_owned(),
+            governed_standing,
+            legacy_raw_standing,
+            currentness: StandingCurrentness::Unknown,
+            policy_id: MAGPIE_CLAIMS_POLICY_ID,
+            trace,
+            blockers: blockers.into_iter().collect(),
+        }
+    }
+
+    fn resolve_support_candidate(
+        &self,
+        claim_id: &str,
+        edge_id: &str,
+        edge: &TypedJustificationEdge,
+        typed_target: Option<&TypedClaimNode>,
+        claim_domain: Option<Result<ClaimDomain, StandingTraceReason>>,
+    ) -> StandingTraceEntry {
+        let mut entry = StandingTraceEntry {
+            edge_id: Some(edge_id.to_owned()),
+            source_id: Some(edge.source_id.clone()),
+            target_id: claim_id.to_owned(),
+            evidence_kind: None,
+            claim_domain: claim_domain
+                .and_then(Result::ok)
+                .map(|domain| domain.as_str().to_owned()),
+            candidate_ceiling: None,
+            reasons: Vec::new(),
+        };
+
+        if !self.claims.contains_key(claim_id) {
+            entry.reasons.push(StandingTraceReason::MissingTargetClaim);
+            return entry;
+        }
+        let Some(target) = typed_target else {
+            entry
+                .reasons
+                .push(StandingTraceReason::MissingTypedTargetClaim);
+            return entry;
+        };
+        if edge.edge_kind != "supports" {
+            entry
+                .reasons
+                .push(StandingTraceReason::UnsupportedEdgeKindForV0);
+            return entry;
+        }
+        let Some(domain_result) = claim_domain else {
+            entry
+                .reasons
+                .push(StandingTraceReason::MissingTypedTargetClaim);
+            return entry;
+        };
+        let domain = match domain_result {
+            Ok(domain) => domain,
+            Err(reason) => {
+                entry.reasons.push(reason);
+                return entry;
+            }
+        };
+        let Some(evidence) = self.typed_evidence.get(&edge.source_id) else {
+            entry
+                .reasons
+                .push(StandingTraceReason::MissingSourceEvidence);
+            return entry;
+        };
+        entry.evidence_kind = Some(evidence.evidence_kind.clone());
+        if evidence.scope_ref != edge.scope_ref || edge.scope_ref != target.scope_ref {
+            entry.reasons.push(StandingTraceReason::ScopeMismatch);
+            return entry;
+        }
+        let kind = match EvidenceKind::try_from(evidence.evidence_kind.as_str()) {
+            Ok(kind) => kind,
+            Err(_) => {
+                entry.reasons.push(StandingTraceReason::UnknownEvidenceKind);
+                return entry;
+            }
+        };
+
+        entry.candidate_ceiling = support_ceiling(kind, domain);
+        let Some(_ceiling) = entry.candidate_ceiling else {
+            entry.reasons.push(StandingTraceReason::NoSupportCeiling);
+            return entry;
+        };
+
+        entry.reasons.push(StandingTraceReason::AcceptedCandidate);
+        match kind {
+            EvidenceKind::HumanRatification => {
+                entry.reasons.push(StandingTraceReason::RequiresAdmission)
+            }
+            EvidenceKind::DeadboltAnchor | EvidenceKind::DeterministicVerification => entry
+                .reasons
+                .push(StandingTraceReason::RequiresVerifierContext),
+            EvidenceKind::ExecutionEvidence
+            | EvidenceKind::BehavioralEvaluation
+            | EvidenceKind::ExternalSource
+            | EvidenceKind::ModelSelfReport
+            | EvidenceKind::LensReadout => {}
+        }
+        entry
+            .reasons
+            .push(StandingTraceReason::CeilingIsCandidateOnly);
+        entry
     }
 }
 
-/// Rank on the positive standing ladder (`Open < Conjectured < Supported <
-/// Settled`). `Refuted` is off-ladder and must be handled before ranking.
-fn positive_rank(status: Status) -> u8 {
-    match status {
-        Status::Open => 0,
-        Status::Conjectured => 1,
-        Status::Supported => 2,
-        Status::Settled => 3,
-        // Off-ladder; `resolved_standing` handles `Refuted` before it ranks.
-        Status::Refuted => 0,
+fn push_claim_trace(
+    trace: &mut Vec<StandingTraceEntry>,
+    claim_id: &str,
+    reason: StandingTraceReason,
+) {
+    trace.push(StandingTraceEntry {
+        edge_id: None,
+        source_id: None,
+        target_id: claim_id.to_owned(),
+        evidence_kind: None,
+        claim_domain: None,
+        candidate_ceiling: None,
+        reasons: vec![reason],
+    });
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ClaimDomainMetadataIssue {
+    Missing,
+    WrongType,
+    DuplicateKey,
+}
+
+#[derive(Debug)]
+struct ClaimDomainMetadata {
+    claim_domain: Option<String>,
+    issue: Option<ClaimDomainMetadataIssue>,
+}
+
+impl<'de> Deserialize<'de> for ClaimDomainMetadata {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct ClaimDomainMetadataVisitor;
+
+        impl<'de> Visitor<'de> for ClaimDomainMetadataVisitor {
+            type Value = ClaimDomainMetadata;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("a JSON object containing one string claim_domain")
+            }
+
+            fn visit_map<M>(self, mut map: M) -> Result<Self::Value, M::Error>
+            where
+                M: MapAccess<'de>,
+            {
+                let mut seen_keys = BTreeSet::new();
+                let mut claim_domain = None;
+                let mut issue = None;
+
+                while let Some(key) = map.next_key::<String>()? {
+                    let duplicate = !seen_keys.insert(key.clone());
+                    if duplicate {
+                        issue = Some(ClaimDomainMetadataIssue::DuplicateKey);
+                    }
+                    if key == "claim_domain" {
+                        let value = map.next_value::<serde_json::Value>()?;
+                        if !duplicate {
+                            if let serde_json::Value::String(domain) = value {
+                                claim_domain = Some(domain);
+                            } else if issue.is_none() {
+                                issue = Some(ClaimDomainMetadataIssue::WrongType);
+                            }
+                        }
+                    } else {
+                        map.next_value::<IgnoredAny>()?;
+                    }
+                }
+
+                if claim_domain.is_none() && issue.is_none() {
+                    issue = Some(ClaimDomainMetadataIssue::Missing);
+                }
+                Ok(ClaimDomainMetadata {
+                    claim_domain,
+                    issue,
+                })
+            }
+        }
+
+        deserializer.deserialize_map(ClaimDomainMetadataVisitor)
     }
 }
 
-fn status_from_positive_rank(rank: u8) -> Status {
-    match rank {
-        0 => Status::Open,
-        1 => Status::Conjectured,
-        2 => Status::Supported,
-        _ => Status::Settled,
-    }
-}
+fn parse_claim_domain(metadata_json: &str) -> Result<ClaimDomain, StandingTraceReason> {
+    let mut deserializer = serde_json::Deserializer::from_str(metadata_json);
+    let metadata = ClaimDomainMetadata::deserialize(&mut deserializer)
+        .map_err(|_| StandingTraceReason::MalformedMetadata)?;
+    deserializer
+        .end()
+        .map_err(|_| StandingTraceReason::MalformedMetadata)?;
 
-/// Conservative, settlement-blind support ceiling: the most a single `supports`
-/// edge from typed evidence of this kind may derive in the first fold slice.
-/// `None` means no admissible contribution (an unrecognized kind). No kind
-/// derives [`Status::Settled`] here — settlement is claim_domain-aware and
-/// deferred.
-fn support_slice_ceiling(evidence_kind: &str) -> Option<Status> {
-    match evidence_kind {
-        "ModelSelfReport" | "LensReadout" => Some(Status::Conjectured),
-        "DeterministicVerification"
-        | "HumanRatification"
-        | "DeadboltAnchor"
-        | "ExecutionEvidence"
-        | "BehavioralEvaluation"
-        | "ExternalSource" => Some(Status::Supported),
-        _ => None,
+    match metadata.issue {
+        Some(ClaimDomainMetadataIssue::Missing) => {
+            return Err(StandingTraceReason::MissingClaimDomain)
+        }
+        Some(ClaimDomainMetadataIssue::WrongType) => {
+            return Err(StandingTraceReason::WrongTypeClaimDomain)
+        }
+        Some(ClaimDomainMetadataIssue::DuplicateKey) => {
+            return Err(StandingTraceReason::DuplicateMetadataKey)
+        }
+        None => {}
     }
+
+    let raw = metadata
+        .claim_domain
+        .ok_or(StandingTraceReason::MissingClaimDomain)?;
+    ClaimDomain::try_from(raw.as_str()).map_err(|_| StandingTraceReason::UnknownClaimDomain)
 }
 
 impl Projection for StandingView {
@@ -1428,7 +1720,7 @@ mod tests {
     }
 
     #[test]
-    fn supported_tier_evidence_promotes_conjectured_to_supported() {
+    fn supported_tier_ceiling_does_not_promote_in_v0() {
         for kind in [
             "DeterministicVerification",
             "HumanRatification",
@@ -1440,18 +1732,16 @@ mod tests {
             let view = support_view(kind, SCOPE, SCOPE, SCOPE);
             assert_eq!(
                 view.resolved_standing("c1"),
-                Some(Status::Supported),
-                "{kind} should derive Supported"
+                Some(Status::Conjectured),
+                "{kind} must remain a candidate in v0"
             );
-            // Settlement is deferred: no support path may reach Settled.
-            assert_ne!(view.resolved_standing("c1"), Some(Status::Settled));
             // Raw standing is never mutated by resolution.
             assert_eq!(view.get("c1").unwrap().standing, Status::Conjectured);
         }
     }
 
     #[test]
-    fn weak_evidence_is_admitted_but_capped_at_conjectured() {
+    fn weak_evidence_does_not_promote_in_v0() {
         for kind in ["ModelSelfReport", "LensReadout"] {
             let view = support_view(kind, SCOPE, SCOPE, SCOPE);
             assert_eq!(
@@ -1464,7 +1754,7 @@ mod tests {
     }
 
     #[test]
-    fn multiple_supports_never_derive_settled() {
+    fn multiple_supports_do_not_aggregate_or_promote_in_v0() {
         let store = MemStore::new();
         {
             let mut w = writer(store.clone());
@@ -1517,7 +1807,7 @@ mod tests {
             }
         }
         let view = replay(store, 6);
-        assert_eq!(view.resolved_standing("c1"), Some(Status::Supported));
+        assert_eq!(view.resolved_standing("c1"), Some(Status::Conjectured));
     }
 
     #[test]
@@ -1651,11 +1941,11 @@ mod tests {
             .unwrap();
         }
         let view = replay(store, 4);
-        assert_eq!(view.resolved_standing("c0"), Some(Status::Conjectured));
+        assert_eq!(view.resolved_standing("c0"), None);
     }
 
     #[test]
-    fn typed_claim_without_support_resolves_to_raw() {
+    fn typed_claim_without_support_resolves_to_governed_baseline() {
         let store = MemStore::new();
         {
             let mut w = writer(store.clone());
@@ -1711,7 +2001,7 @@ mod tests {
         let forward = build([claim(), evidence(), edge()]);
         let reversed = build([edge(), evidence(), claim()]);
 
-        assert_eq!(forward.resolved_standing("c1"), Some(Status::Supported));
+        assert_eq!(forward.resolved_standing("c1"), Some(Status::Conjectured));
         assert_eq!(
             forward.resolved_standing("c1"),
             reversed.resolved_standing("c1")
@@ -1719,7 +2009,7 @@ mod tests {
     }
 
     #[test]
-    fn refuted_raw_claim_is_not_promoted_by_support() {
+    fn refuted_raw_claim_is_quarantined_from_governed_standing() {
         let store = MemStore::new();
         {
             let mut w = writer(store.clone());
@@ -1768,11 +2058,15 @@ mod tests {
         }
         let view = replay(store, 5);
         assert_eq!(view.get("c1").unwrap().standing, Status::Refuted);
-        assert_eq!(view.resolved_standing("c1"), Some(Status::Refuted));
+        assert_eq!(view.resolved_standing("c1"), Some(Status::Conjectured));
+        assert_eq!(
+            view.resolved_standing_with_trace("c1").legacy_raw_standing,
+            Some(Status::Refuted)
+        );
     }
 
     #[test]
-    fn settled_raw_claim_is_preserved_under_support() {
+    fn settled_raw_claim_is_quarantined_from_governed_standing() {
         let store = MemStore::new();
         {
             let mut w = writer(store.clone());
@@ -1821,6 +2115,10 @@ mod tests {
         }
         let view = replay(store, 5);
         assert_eq!(view.get("c1").unwrap().standing, Status::Settled);
-        assert_eq!(view.resolved_standing("c1"), Some(Status::Settled));
+        assert_eq!(view.resolved_standing("c1"), Some(Status::Conjectured));
+        assert_eq!(
+            view.resolved_standing_with_trace("c1").legacy_raw_standing,
+            Some(Status::Settled)
+        );
     }
 }
