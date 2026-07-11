@@ -8,12 +8,18 @@
 
 pub mod policy;
 
+mod deadbolt_context;
 mod standing;
 
 use std::collections::BTreeMap;
 
 use magpie_log::{Payload, Projection, SignedEvent, Status};
 use serde::Serialize;
+
+pub use deadbolt_context::{
+    resolve_deadbolt_occurrence_context, DeadboltAnchorIdentity, DeadboltAnchorIndex,
+    DeadboltAnchorOccurrence, DeadboltOccurrenceContextResolution, DEADBOLT_OCCURRENCE_SCHEMA,
+};
 
 pub use standing::{
     StandingClaim, StandingCurrentness, StandingResolution, StandingTraceEntry,
