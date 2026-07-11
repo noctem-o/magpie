@@ -38,11 +38,22 @@ pub struct DeadboltAnchorOccurrence {
     pub provenance_source: String,
 }
 
-/// Replay-derived index of exact `SegmentAnchored` occurrences.
+/// Projection index of exact `SegmentAnchored` occurrences.
 ///
 /// `len` counts distinct five-field identities. Repeated identical anchors
 /// remain available through `occurrences` in sequence order without becoming
 /// distinct identities or stronger epistemic evidence.
+///
+/// The index records every `SegmentAnchored` event applied to it; it does not
+/// intrinsically prove how those events were obtained. In particular,
+/// [`Projection::apply`] does not verify signatures, event hashes, sequence or
+/// previous-hash links, genesis key binding, chain membership, or trust in a
+/// verifying key. Manual application is useful for projection mechanics and
+/// tests, but it does not establish accepted-chain provenance.
+///
+/// Trusted occurrence conclusions require exclusive construction through a
+/// successful [`magpie_log::LogReader::replay`] using the intended verifying
+/// key. Trust in that key remains external to this projection.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct DeadboltAnchorIndex {
     occurrences_by_identity: BTreeMap<DeadboltAnchorIdentity, Vec<DeadboltAnchorOccurrence>>,
@@ -141,9 +152,14 @@ impl Projection for DeadboltAnchorIndex {
 /// Closed outcome of exact Deadbolt occurrence-context resolution.
 ///
 /// `Matched` means only that the structured claim predicate and typed evidence
-/// reference identify an exact anchor retained from verified Magpie replay.
-/// It is not admission, aggregation, achieved standing, or a foreign bundle
-/// interpretation verdict.
+/// reference identify an exact occurrence present in the supplied
+/// [`DeadboltAnchorIndex`]. Interpreting that occurrence as belonging to an
+/// accepted Magpie chain additionally requires the supplied index to have been
+/// constructed exclusively through successful verified replay with the
+/// intended verifying key.
+///
+/// `Matched` is not admission, aggregation, achieved standing, foreign bundle
+/// verification, or an interpretation-truth verdict.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DeadboltOccurrenceContextResolution {
     Matched(DeadboltAnchorOccurrence),
@@ -160,7 +176,17 @@ pub enum DeadboltOccurrenceContextResolution {
 /// Resolve exact Deadbolt occurrence context from closed policy inputs.
 ///
 /// No actor class, prose, caller-provided verifier flag, ambient state, or
-/// foreign Deadbolt runtime participates in this pure match.
+/// foreign Deadbolt runtime participates in this pure match. The resolver does
+/// not verify the Magpie chain or how the supplied index was constructed. It
+/// checks the supplied [`EvidenceKind`] and [`ClaimDomain`] values but does not
+/// prove their provenance.
+///
+/// For trusted use, `claim_domain` must be derived fail-closed from the same
+/// target claim metadata supplied as `claim_metadata_json`; callers must not
+/// select [`ClaimDomain::OccurrenceInclusion`] independently to enter this
+/// matching path. Accepted-chain interpretation further requires an index
+/// constructed through successful [`magpie_log::LogReader::replay`] with the
+/// intended externally trusted verifying key.
 pub fn resolve_deadbolt_occurrence_context(
     evidence_kind: EvidenceKind,
     claim_domain: ClaimDomain,

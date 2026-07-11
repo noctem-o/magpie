@@ -73,8 +73,10 @@ verification and replay of anchor fields without requiring Deadbolt or live
 machine artifacts.
 
 The inert exact-match scaffold and its structured claim/evidence metadata
-contract are defined in `docs/design/deadbolt-occurrence-context-v0.md`. A
-context match records exact chain occurrence only; it does not change standing.
+contract are defined in `docs/design/deadbolt-occurrence-context-v0.md`. A match
+establishes exact membership in the supplied anchor index; accepted-chain
+interpretation additionally requires the verified-replay construction
+precondition defined there. A match does not change standing.
 
 Magpie core must not depend on Deadbolt being installed for:
 

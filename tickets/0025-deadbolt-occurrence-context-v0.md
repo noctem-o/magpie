@@ -2,9 +2,10 @@
 
 ## Goal
 
-Add an inert replay-derived scaffold that can determine whether a structured
+Add an inert exact-match scaffold that can determine whether a structured
 occurrence claim and typed `DeadboltAnchor` evidence reference identify an exact
-`SegmentAnchored` record in the verified Magpie chain.
+identity in a supplied `DeadboltAnchorIndex`. Accepted-chain interpretation
+requires the separate verified-replay construction precondition.
 
 ## Architectural law
 
@@ -13,7 +14,7 @@ structured claim predicate
         ==
 typed evidence anchor reference
         ==
-replayed SegmentAnchored identity
+identity present in supplied DeadboltAnchorIndex
 ```
 
 An anchor-shaped assertion, evidence label, actor class, prose statement, or
@@ -52,8 +53,10 @@ The target domain must be `Occurrence/Inclusion` and the evidence kind must be
 - `PredicateReferenceMismatch`;
 - `AnchorNotFound`.
 
-`Matched` means only that exact structured identities refer to an anchor
-retained from verified Magpie replay.
+`Matched` means only that exact structured identities refer to an occurrence in
+the supplied `DeadboltAnchorIndex`. Accepted-chain provenance additionally
+requires construction through successful verified replay with the intended
+verifying key.
 
 ## Acceptance criteria
 
@@ -64,8 +67,16 @@ retained from verified Magpie replay.
 - Repeated identities retain all occurrences in sequence order under one key.
 - Strict metadata parsing rejects duplicates, unknown nested fields, aliases,
   wrong types, nulls, invalid roots, empty strings, and unknown schema values.
-- Exact claim/reference equality precedes exact replay lookup.
+- Exact claim/reference equality precedes exact supplied-index lookup.
 - The pure resolver accepts no actor, prose, verifier flag, or ambient state.
+- The public contract distinguishes exact membership in the supplied index from
+  proof that the index was built by verified replay.
+- Trusted callers derive `ClaimDomain` fail-closed from the same target claim
+  metadata supplied to the occurrence resolver.
+- Future standing policy must not accept an arbitrary caller-supplied anchor
+  index. `StandingView` and `DeadboltAnchorIndex` must be derived from the same
+  successful `LogReader::replay` of the same log under the same intended
+  verifying key.
 - Current standing and canonical resolution bytes remain unchanged.
 
 ## Tests

@@ -2,9 +2,11 @@
 
 ## Purpose
 
-This note defines the inert replay-derived contract by which future standing
+This note defines the inert exact-match contract by which future standing
 policy may determine that a typed `DeadboltAnchor` candidate refers to an
-actual `SegmentAnchored` record in the verified Magpie chain.
+identity in a supplied `DeadboltAnchorIndex`. Treating that identity as an
+accepted-chain occurrence requires the separate verified-replay construction
+precondition defined below.
 
 The contract establishes occurrence/inclusion context only. It does not admit
 evidence, promote a claim, aggregate contributions, or produce achieved
@@ -46,8 +48,9 @@ An occurrence/inclusion claim uses this authoritative nested object:
 }
 ```
 
-The predicate means only that an exact `SegmentAnchored` identity exists in the
-accepted Magpie chain. Claim prose is not parsed for matching or authority.
+The predicate asserts that an exact `SegmentAnchored` identity exists. The pure
+resolver tests that assertion against the supplied anchor index. Claim prose is
+not parsed for matching or authority.
 
 ## Evidence reference schema
 
@@ -94,19 +97,54 @@ structured claim predicate
         ==
 typed evidence anchor reference
         ==
-replayed SegmentAnchored identity
+identity present in supplied DeadboltAnchorIndex
 ```
 
 `Matched` requires `DeadboltAnchor × Occurrence/Inclusion`, successful strict
 parsing on both metadata surfaces, exact predicate/reference equality, and an
-exact identity present in `DeadboltAnchorIndex` after verified Magpie replay.
+exact identity present in the supplied `DeadboltAnchorIndex`.
+
+## Trusted construction precondition
+
+`DeadboltAnchorIndex` is a generic projection, not a verified-container type.
+It records whatever `SegmentAnchored` events are passed to
+`Projection::apply`. Direct application does not validate signatures, event
+hashes, sequence or previous-hash links, genesis key binding, chain membership,
+or trust in a verifying key. Likewise, `LogReader::events` parses stored events
+without verifying them.
+
+The pure resolver therefore proves exact membership only in the supplied
+index. Treating a match as accepted-chain occurrence/inclusion requires the
+index to have been populated exclusively through a successful
+`LogReader::replay` using the intended verifying key. `LogReader::replay`
+verifies the chain before folding its events, while trust in the supplied
+verifying key remains external to the projection.
+
+Future standing integration must derive `StandingView` and
+`DeadboltAnchorIndex` from the same successfully verified replay of the same log
+under the same intended verifying key. It must not accept an arbitrary
+caller-constructed index, an index populated by manual `Projection::apply`, an
+index populated from unverified `LogReader::events`, or projections produced
+from different logs or keys.
+
+The future policy-bearing caller must also derive `claim_domain` fail-closed
+from the same target claim metadata passed as `claim_metadata_json`. A caller
+must not select `Occurrence/Inclusion` independently merely to enter the
+Deadbolt matching path.
+
+This inert phase intentionally introduces no verified wrapper, combined replay
+object, typestate, construction token, or achieved-standing API.
 
 ## Matched-context meaning
 
 `Matched` means only:
 
 > The exact structured claim and exact typed evidence reference identify a
-> `SegmentAnchored` occurrence retained from the accepted Magpie chain.
+> `SegmentAnchored` occurrence present in the supplied anchor index.
+
+Only when the trusted construction precondition holds may that membership be
+interpreted as occurrence/inclusion in the accepted Magpie chain. Neither the
+projection nor the resolver itself proves that provenance.
 
 It does not establish interpretation truth, policy wisdom, general safety,
 scientific correctness, action success beyond the exact proposition, admission,
@@ -118,6 +156,9 @@ and inclusion; it does not replace the foreign bundle verifier.
 The resolver has no inputs for actor class, claim prose, evidence summary,
 caller-provided `verified` or `admitted` booleans, filesystem state, network
 state, or runtime-selected policy. Those values cannot manufacture context.
+The resolver also does not verify the Magpie chain, the construction history of
+the supplied index, or how its `EvidenceKind` and `ClaimDomain` arguments were
+derived.
 
 ## Portability
 
