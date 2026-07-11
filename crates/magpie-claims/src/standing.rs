@@ -6,7 +6,10 @@ use serde::{
     Deserialize, Deserializer, Serialize,
 };
 
-use crate::policy::{support_ceiling, ClaimDomain, EvidenceKind};
+use crate::policy::{
+    support_ceiling, support_context_requirement, ClaimDomain, EvidenceKind,
+    SupportContextRequirement,
+};
 
 /// Fixed policy identifier for the first governed-standing explanation engine.
 ///
@@ -375,24 +378,27 @@ impl StandingView {
         };
 
         entry.candidate_ceiling = support_ceiling(kind, domain);
-        let Some(_ceiling) = entry.candidate_ceiling else {
+        let context_requirement = support_context_requirement(kind, domain);
+        if context_requirement == SupportContextRequirement::NoSupportContribution {
+            debug_assert!(entry.candidate_ceiling.is_none());
             entry.reasons.push(StandingTraceReason::NoSupportCeiling);
             return entry;
-        };
+        }
+        debug_assert!(entry.candidate_ceiling.is_some());
 
         entry.reasons.push(StandingTraceReason::AcceptedCandidate);
-        match kind {
-            EvidenceKind::HumanRatification => {
+        match context_requirement {
+            SupportContextRequirement::NoSupportContribution => {
+                unreachable!("no-support requirements return before candidate acceptance")
+            }
+            SupportContextRequirement::HumanAdmission => {
                 entry.reasons.push(StandingTraceReason::RequiresAdmission)
             }
-            EvidenceKind::DeadboltAnchor | EvidenceKind::DeterministicVerification => entry
+            SupportContextRequirement::DeterministicVerifierContext
+            | SupportContextRequirement::DeadboltVerifierContext => entry
                 .reasons
                 .push(StandingTraceReason::RequiresVerifierContext),
-            EvidenceKind::ExecutionEvidence
-            | EvidenceKind::BehavioralEvaluation
-            | EvidenceKind::ExternalSource
-            | EvidenceKind::ModelSelfReport
-            | EvidenceKind::LensReadout => {}
+            SupportContextRequirement::NoPrivilegedContext => {}
         }
         entry
             .reasons

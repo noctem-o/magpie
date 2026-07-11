@@ -276,6 +276,209 @@ pub fn support_ceiling(kind: EvidenceKind, domain: ClaimDomain) -> Option<Status
     }
 }
 
+/// Privileged context required before a support-policy cell could be admitted.
+///
+/// This classification does not admit, trust, aggregate, or promote a
+/// candidate. In particular, [`SupportContextRequirement::NoPrivilegedContext`]
+/// means only that this surface requires no HumanRoot or verifier-specific
+/// privileged context; all other policy and achieved-standing rules remain
+/// separate.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SupportContextRequirement {
+    NoSupportContribution,
+    NoPrivilegedContext,
+    HumanAdmission,
+    DeterministicVerifierContext,
+    DeadboltVerifierContext,
+}
+
+/// Classifies the privileged context required by one closed support-policy cell.
+///
+/// The result is candidate policy only. It neither proves that the context
+/// exists nor accepts an evidence-kind or actor-class label as authority.
+pub fn support_context_requirement(
+    kind: EvidenceKind,
+    domain: ClaimDomain,
+) -> SupportContextRequirement {
+    match (kind, domain) {
+        (EvidenceKind::DeterministicVerification, ClaimDomain::OccurrenceInclusion) => {
+            SupportContextRequirement::DeterministicVerifierContext
+        }
+        (EvidenceKind::DeterministicVerification, ClaimDomain::ExactMachineCheckable) => {
+            SupportContextRequirement::DeterministicVerifierContext
+        }
+        (EvidenceKind::DeterministicVerification, ClaimDomain::OperationalObservation) => {
+            SupportContextRequirement::DeterministicVerifierContext
+        }
+        (EvidenceKind::DeterministicVerification, ClaimDomain::Interpretation) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+        (EvidenceKind::DeterministicVerification, ClaimDomain::ExternalReport) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+        (EvidenceKind::DeterministicVerification, ClaimDomain::ModelIntrospection) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+        (EvidenceKind::DeterministicVerification, ClaimDomain::HumanJudgment) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+
+        (EvidenceKind::HumanRatification, ClaimDomain::OccurrenceInclusion) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+        (EvidenceKind::HumanRatification, ClaimDomain::ExactMachineCheckable) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+        (EvidenceKind::HumanRatification, ClaimDomain::OperationalObservation) => {
+            SupportContextRequirement::HumanAdmission
+        }
+        (EvidenceKind::HumanRatification, ClaimDomain::Interpretation) => {
+            SupportContextRequirement::HumanAdmission
+        }
+        (EvidenceKind::HumanRatification, ClaimDomain::ExternalReport) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+        (EvidenceKind::HumanRatification, ClaimDomain::ModelIntrospection) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+        (EvidenceKind::HumanRatification, ClaimDomain::HumanJudgment) => {
+            SupportContextRequirement::HumanAdmission
+        }
+
+        (EvidenceKind::DeadboltAnchor, ClaimDomain::OccurrenceInclusion) => {
+            SupportContextRequirement::DeadboltVerifierContext
+        }
+        (EvidenceKind::DeadboltAnchor, ClaimDomain::ExactMachineCheckable) => {
+            SupportContextRequirement::DeadboltVerifierContext
+        }
+        (EvidenceKind::DeadboltAnchor, ClaimDomain::OperationalObservation) => {
+            SupportContextRequirement::DeadboltVerifierContext
+        }
+        (EvidenceKind::DeadboltAnchor, ClaimDomain::Interpretation) => {
+            SupportContextRequirement::DeadboltVerifierContext
+        }
+        (EvidenceKind::DeadboltAnchor, ClaimDomain::ExternalReport) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+        (EvidenceKind::DeadboltAnchor, ClaimDomain::ModelIntrospection) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+        (EvidenceKind::DeadboltAnchor, ClaimDomain::HumanJudgment) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+
+        (EvidenceKind::ExecutionEvidence, ClaimDomain::OccurrenceInclusion) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+        (EvidenceKind::ExecutionEvidence, ClaimDomain::ExactMachineCheckable) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+        (EvidenceKind::ExecutionEvidence, ClaimDomain::OperationalObservation) => {
+            SupportContextRequirement::NoPrivilegedContext
+        }
+        (EvidenceKind::ExecutionEvidence, ClaimDomain::Interpretation) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+        (EvidenceKind::ExecutionEvidence, ClaimDomain::ExternalReport) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+        (EvidenceKind::ExecutionEvidence, ClaimDomain::ModelIntrospection) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+        (EvidenceKind::ExecutionEvidence, ClaimDomain::HumanJudgment) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+
+        (EvidenceKind::BehavioralEvaluation, ClaimDomain::OccurrenceInclusion) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+        (EvidenceKind::BehavioralEvaluation, ClaimDomain::ExactMachineCheckable) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+        (EvidenceKind::BehavioralEvaluation, ClaimDomain::OperationalObservation) => {
+            SupportContextRequirement::NoPrivilegedContext
+        }
+        (EvidenceKind::BehavioralEvaluation, ClaimDomain::Interpretation) => {
+            SupportContextRequirement::NoPrivilegedContext
+        }
+        (EvidenceKind::BehavioralEvaluation, ClaimDomain::ExternalReport) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+        (EvidenceKind::BehavioralEvaluation, ClaimDomain::ModelIntrospection) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+        (EvidenceKind::BehavioralEvaluation, ClaimDomain::HumanJudgment) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+
+        (EvidenceKind::ExternalSource, ClaimDomain::OccurrenceInclusion) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+        (EvidenceKind::ExternalSource, ClaimDomain::ExactMachineCheckable) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+        (EvidenceKind::ExternalSource, ClaimDomain::OperationalObservation) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+        (EvidenceKind::ExternalSource, ClaimDomain::Interpretation) => {
+            SupportContextRequirement::NoPrivilegedContext
+        }
+        (EvidenceKind::ExternalSource, ClaimDomain::ExternalReport) => {
+            SupportContextRequirement::NoPrivilegedContext
+        }
+        (EvidenceKind::ExternalSource, ClaimDomain::ModelIntrospection) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+        (EvidenceKind::ExternalSource, ClaimDomain::HumanJudgment) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+
+        (EvidenceKind::ModelSelfReport, ClaimDomain::OccurrenceInclusion) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+        (EvidenceKind::ModelSelfReport, ClaimDomain::ExactMachineCheckable) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+        (EvidenceKind::ModelSelfReport, ClaimDomain::OperationalObservation) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+        (EvidenceKind::ModelSelfReport, ClaimDomain::Interpretation) => {
+            SupportContextRequirement::NoPrivilegedContext
+        }
+        (EvidenceKind::ModelSelfReport, ClaimDomain::ExternalReport) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+        (EvidenceKind::ModelSelfReport, ClaimDomain::ModelIntrospection) => {
+            SupportContextRequirement::NoPrivilegedContext
+        }
+        (EvidenceKind::ModelSelfReport, ClaimDomain::HumanJudgment) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+
+        (EvidenceKind::LensReadout, ClaimDomain::OccurrenceInclusion) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+        (EvidenceKind::LensReadout, ClaimDomain::ExactMachineCheckable) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+        (EvidenceKind::LensReadout, ClaimDomain::OperationalObservation) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+        (EvidenceKind::LensReadout, ClaimDomain::Interpretation) => {
+            SupportContextRequirement::NoPrivilegedContext
+        }
+        (EvidenceKind::LensReadout, ClaimDomain::ExternalReport) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+        (EvidenceKind::LensReadout, ClaimDomain::ModelIntrospection) => {
+            SupportContextRequirement::NoPrivilegedContext
+        }
+        (EvidenceKind::LensReadout, ClaimDomain::HumanJudgment) => {
+            SupportContextRequirement::NoSupportContribution
+        }
+    }
+}
+
 /// Maximum negative refutation contribution for an evidence kind and claim domain.
 ///
 /// `None` means this evidence kind has no admissible direct negative
@@ -1039,6 +1242,123 @@ mod tests {
             support_ceiling(EvidenceKind::DeadboltAnchor, ClaimDomain::Interpretation),
             Some(Status::Supported)
         );
+    }
+
+    #[test]
+    fn support_context_requirement_covers_full_matrix() {
+        let mut cell_count = 0usize;
+
+        for kind in EvidenceKind::ALL {
+            for domain in ClaimDomain::ALL {
+                match support_context_requirement(kind, domain) {
+                    SupportContextRequirement::NoSupportContribution
+                    | SupportContextRequirement::NoPrivilegedContext
+                    | SupportContextRequirement::HumanAdmission
+                    | SupportContextRequirement::DeterministicVerifierContext
+                    | SupportContextRequirement::DeadboltVerifierContext => {}
+                }
+                cell_count += 1;
+            }
+        }
+
+        assert_eq!(cell_count, 56);
+    }
+
+    #[test]
+    fn support_context_requirement_never_revives_missing_support_cell() {
+        for kind in EvidenceKind::ALL {
+            for domain in ClaimDomain::ALL {
+                assert_eq!(
+                    support_context_requirement(kind, domain)
+                        == SupportContextRequirement::NoSupportContribution,
+                    support_ceiling(kind, domain).is_none(),
+                    "{kind} x {domain}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn support_context_requirement_category_counts_are_frozen() {
+        let mut counts = [0usize; 5];
+
+        for kind in EvidenceKind::ALL {
+            for domain in ClaimDomain::ALL {
+                let index = match support_context_requirement(kind, domain) {
+                    SupportContextRequirement::NoSupportContribution => 0,
+                    SupportContextRequirement::HumanAdmission => 1,
+                    SupportContextRequirement::DeterministicVerifierContext => 2,
+                    SupportContextRequirement::DeadboltVerifierContext => 3,
+                    SupportContextRequirement::NoPrivilegedContext => 4,
+                };
+                counts[index] += 1;
+            }
+        }
+
+        assert_eq!(counts, [37, 3, 3, 4, 9]);
+    }
+
+    #[test]
+    fn support_context_requirement_doctrine_sensitive_cells_are_explicit() {
+        use SupportContextRequirement::{
+            DeadboltVerifierContext, DeterministicVerifierContext, HumanAdmission,
+            NoPrivilegedContext, NoSupportContribution,
+        };
+
+        for (kind, domain, expected) in [
+            (
+                EvidenceKind::HumanRatification,
+                ClaimDomain::HumanJudgment,
+                HumanAdmission,
+            ),
+            (
+                EvidenceKind::HumanRatification,
+                ClaimDomain::OccurrenceInclusion,
+                NoSupportContribution,
+            ),
+            (
+                EvidenceKind::DeterministicVerification,
+                ClaimDomain::ExactMachineCheckable,
+                DeterministicVerifierContext,
+            ),
+            (
+                EvidenceKind::DeterministicVerification,
+                ClaimDomain::Interpretation,
+                NoSupportContribution,
+            ),
+            (
+                EvidenceKind::DeadboltAnchor,
+                ClaimDomain::OccurrenceInclusion,
+                DeadboltVerifierContext,
+            ),
+            (
+                EvidenceKind::DeadboltAnchor,
+                ClaimDomain::Interpretation,
+                DeadboltVerifierContext,
+            ),
+            (
+                EvidenceKind::DeadboltAnchor,
+                ClaimDomain::ExternalReport,
+                NoSupportContribution,
+            ),
+            (
+                EvidenceKind::ExternalSource,
+                ClaimDomain::ExternalReport,
+                NoPrivilegedContext,
+            ),
+            (
+                EvidenceKind::ModelSelfReport,
+                ClaimDomain::ModelIntrospection,
+                NoPrivilegedContext,
+            ),
+            (
+                EvidenceKind::LensReadout,
+                ClaimDomain::Interpretation,
+                NoPrivilegedContext,
+            ),
+        ] {
+            assert_eq!(support_context_requirement(kind, domain), expected);
+        }
     }
 
     #[test]

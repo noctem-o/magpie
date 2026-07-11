@@ -1,5 +1,8 @@
 use magpie_claims::{
-    policy::{support_ceiling, ClaimDomain, EvidenceKind},
+    policy::{
+        support_ceiling, support_context_requirement, ClaimDomain, EvidenceKind,
+        SupportContextRequirement,
+    },
     StandingClaim, StandingCurrentness, StandingResolution, StandingTraceReason, StandingView,
     TypedClaimNode, TypedEvidenceNode, TypedJustificationEdge, MAGPIE_CLAIMS_POLICY_ID,
 };
@@ -176,6 +179,11 @@ fn support_ceiling_is_reported_as_candidate_only() {
             StandingTraceReason::AcceptedCandidate,
             StandingTraceReason::CeilingIsCandidateOnly,
         ]
+    );
+    assert_eq!(
+        resolution.canonical_bytes(),
+        br#"{"claim_id":"claim-1","governed_standing":"Conjectured","legacy_raw_standing":"Conjectured","currentness":"unknown","policy_id":"magpie-claims-standing-v0","trace":[{"edge_id":"edge-1","source_id":"evidence-1","target_id":"claim-1","evidence_kind":"ExternalSource","claim_domain":"ExternalReport","candidate_ceiling":"Supported","reasons":["accepted_candidate","ceiling_is_candidate_only"]}],"blockers":["ceiling_is_candidate_only"]}"#
+            .to_vec()
     );
 }
 
@@ -383,6 +391,32 @@ fn runtime_candidate_lookup_matches_full_support_matrix() {
                 "{kind} x {domain}"
             );
             assert_eq!(resolution.governed_standing, Some(Status::Conjectured));
+
+            let expected_context_reason = match support_context_requirement(kind, domain) {
+                SupportContextRequirement::NoSupportContribution => {
+                    Some(StandingTraceReason::NoSupportCeiling)
+                }
+                SupportContextRequirement::HumanAdmission => {
+                    Some(StandingTraceReason::RequiresAdmission)
+                }
+                SupportContextRequirement::DeterministicVerifierContext
+                | SupportContextRequirement::DeadboltVerifierContext => {
+                    Some(StandingTraceReason::RequiresVerifierContext)
+                }
+                SupportContextRequirement::NoPrivilegedContext => None,
+            };
+            assert_eq!(
+                entry.reasons.iter().copied().find(|reason| {
+                    matches!(
+                        reason,
+                        StandingTraceReason::NoSupportCeiling
+                            | StandingTraceReason::RequiresAdmission
+                            | StandingTraceReason::RequiresVerifierContext
+                    )
+                }),
+                expected_context_reason,
+                "{kind} x {domain}"
+            );
         }
     }
 }
