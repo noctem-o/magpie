@@ -65,6 +65,9 @@ resolution shapes remain unchanged.
 - `NoSupportContribution` is equivalent to a missing support ceiling.
 - Exact category counts and doctrine-sensitive cells are tested.
 - `StandingResolution` delegates context trace reasons to the helper.
+- A support candidate is accepted only when its support ceiling exists and its
+  context requirement is not `NoSupportContribution`. Either surface fails
+  closed in release builds; debug assertions are diagnostic only.
 - Candidate ceilings remain candidate-only and never affect achieved standing.
 - A representative canonical resolution byte sequence is pinned.
 

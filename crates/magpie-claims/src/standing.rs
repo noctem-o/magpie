@@ -379,12 +379,15 @@ impl StandingView {
 
         entry.candidate_ceiling = support_ceiling(kind, domain);
         let context_requirement = support_context_requirement(kind, domain);
-        if context_requirement == SupportContextRequirement::NoSupportContribution {
-            debug_assert!(entry.candidate_ceiling.is_none());
+        debug_assert_eq!(
+            entry.candidate_ceiling.is_none(),
+            context_requirement == SupportContextRequirement::NoSupportContribution,
+        );
+        if support_candidate_is_rejected(entry.candidate_ceiling, context_requirement) {
+            entry.candidate_ceiling = None;
             entry.reasons.push(StandingTraceReason::NoSupportCeiling);
             return entry;
         }
-        debug_assert!(entry.candidate_ceiling.is_some());
 
         entry.reasons.push(StandingTraceReason::AcceptedCandidate);
         match context_requirement {
@@ -405,6 +408,14 @@ impl StandingView {
             .push(StandingTraceReason::CeilingIsCandidateOnly);
         entry
     }
+}
+
+fn support_candidate_is_rejected(
+    candidate_ceiling: Option<Status>,
+    context_requirement: SupportContextRequirement,
+) -> bool {
+    candidate_ceiling.is_none()
+        || context_requirement == SupportContextRequirement::NoSupportContribution
 }
 
 fn push_claim_trace(
@@ -664,6 +675,22 @@ mod tests {
 
     fn provenance() -> Provenance {
         Provenance::new("test", "standing-view")
+    }
+
+    #[test]
+    fn support_candidate_gate_fails_closed_on_policy_disagreement() {
+        assert!(support_candidate_is_rejected(
+            None,
+            SupportContextRequirement::NoPrivilegedContext
+        ));
+        assert!(support_candidate_is_rejected(
+            Some(Status::Supported),
+            SupportContextRequirement::NoSupportContribution
+        ));
+        assert!(!support_candidate_is_rejected(
+            Some(Status::Supported),
+            SupportContextRequirement::NoPrivilegedContext
+        ));
     }
 
     fn anchor() -> Payload {
