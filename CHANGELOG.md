@@ -49,8 +49,8 @@ aggregation, writer, and production capabilities remain outside this release.
 - Standing and anchor context are co-derived from one verified replay. Policy
   v1 requires exact agreement across all five Deadbolt identity fields.
 - Hostile mismatch, authority-confusion, interpretation, changing-store,
-  duplicate-anchor, and multiple-path controls prove fail-closed behavior and
-  no epistemic amplification.
+  duplicate-anchor, and multiple-path controls exercise fail-closed behavior
+  and reject epistemic amplification.
 - CI executes formatting, strict Clippy, workspace tests, the governed tour,
   metadata and inventory checks, standalone `magpie-log` packaging, and
   independent frozen-chain verification.
