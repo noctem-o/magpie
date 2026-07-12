@@ -33,17 +33,19 @@ The thesis, as a test (`crates/magpie-claims/tests/regenerable.rs`):
 
 ### Release boundary
 
-The intended `v0.1.0` source, format, policy, replay, and architectural
-milestone is defined by
+The human-created `v0.1.0` tag exists and resolves to
+`2bbfbd1f451e35b65e8c89aeaf39801621e484df`. It names the reviewed v0.1.0
+source release, whose format, policy, replay, and architectural milestone is
+defined by
 [`docs/releases/v0.1.0-contract.md`](docs/releases/v0.1.0-contract.md). The
 workspace now has shared, explicitly non-publishable release metadata, and CI
 checks all three package inventories. Only `magpie-log` is verified as a
 standalone archive; `magpie-claims` and `magpie-episodic` remain path-workspace
 members rather than independently registry-resolvable packages. The exact
-source release candidate is now versioned `0.1.0` and recorded in
-[`CHANGELOG.md`](CHANGELOG.md). The `v0.1.0` tag and any GitHub release remain
-absent until separate human-controlled actions; no registry publication is
-implied or enabled.
+source release is versioned `0.1.0` and recorded in
+[`CHANGELOG.md`](CHANGELOG.md). A GitHub prerelease exists for the tag; it is
+not registry publication. No crates.io or other registry publication is
+implied or enabled, and all path-workspace and packageability boundaries remain.
 
 ## Layout
 
@@ -228,13 +230,18 @@ shell execution is unavailable.
    The governed-standing public tour now executes this boundary in CI.
    Aggregation, contradiction debt, invalidation, and supersession remain
    separate later phases.
-10. **v0.1.0 release candidate prepared** — the semantic contract,
+10. **v0.1.0 source release tagged** — the semantic contract,
     non-publishable metadata, package inventories, changelog, and coordinated
     workspace version are complete. `magpie-log` alone is standalone-verified;
-    dependent crates remain path-workspace members. The tag and any GitHub
-    release remain separate human actions.
-11. Complete the remaining standing-policy phases recorded in
-    `docs/design/standing-aggregation-independence-groups.md`; only then add
-    `EpistemicGate` and writer-facing surfaces.
+    dependent crates remain path-workspace members. The human-created `v0.1.0`
+    tag names reviewed source commit `2bbfbd1f451e35b65e8c89aeaf39801621e484df`;
+    this does not imply registry publication.
+11. **Define replayable deterministic-verifier admission** — exact
+    proof-carrying witness, same-snapshot checker, derived receipt, and one
+    future direct policy-v2 `Supported` rule. This is design work, not an active
+    verifier or policy.
+12. Only after that, add genuine aggregation, conservative provenance-derived
+    independence, refutation, contradiction debt, invalidation, supersession,
+    `EpistemicGate`, and writer surfaces.
 
 Conserve the log. Derive the rest.
