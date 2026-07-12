@@ -224,7 +224,8 @@ shell execution is unavailable.
 10. **Define the v0.1.0 release boundary** — this documentation phase states
     the achieved semantic contract. Package preparation, version/changelog
     changes, tagging, and any GitHub release remain separate later actions.
-11. Then add `EpistemicGate`; only after that should writer-facing surfaces, MCP
-   write paths, lens ingestion, typed stores, rerankers, or evaluators appear.
+11. Complete the remaining standing-policy phases recorded in
+    `docs/design/standing-aggregation-independence-groups.md`; only then add
+    `EpistemicGate` and writer-facing surfaces.
 
 Conserve the log. Derive the rest.
