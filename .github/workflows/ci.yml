@@ -39,6 +39,9 @@ jobs:
       - name: Run tests
         run: cargo test --workspace --locked
 
+      - name: Run governed-standing tour
+        run: cargo run --locked --example tour -p magpie-claims
+
       - name: Install Python verifier dependencies
         run: python -m pip install --upgrade pip cryptography
 
