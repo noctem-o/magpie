@@ -57,9 +57,10 @@ ADR-0002 and the following implementation PRs have established the substrate:
 - `ClaimAssertedV2` creates a `Conjectured` claim.
 - `StandingResolution` v0 is the canonical governed-standing explanation
   surface, while `resolved_standing()` is its compatibility scalar.
-- `EvidenceRegistered` and `JustificationEdgeRecorded` may be inspected as
-  candidate material and reported in deterministic traces, but candidate
-  ceilings do not become achieved standing.
+- `EvidenceRegistered` and `JustificationEdgeRecorded` are inspected as
+  candidate material. One explicit snapshot-only v1 rule may apply a matched
+  `DeadboltAnchor × Occurrence/Inclusion` candidate as `Settled`; the ceiling
+  alone still never becomes achieved standing.
 - Legacy raw status remains visible as quarantined audit material, not governed
   truth.
 - `SegmentAnchored` remains occurrence/inclusion evidence only; it does not
@@ -212,9 +213,10 @@ Neither function performs achieved-standing aggregation. The code mirror for
 the negative ceiling surface is
 `magpie_claims::policy::refutation_ceiling`.
 
-Contradiction debt, invalidation, supersession, and achieved standing remain
-future fold behavior. A `contradicts` edge may create debt or block settlement
-later; it does not automatically refute in this phase.
+Contradiction debt, invalidation, supersession, and all achieved-standing rules
+beyond exact Deadbolt occurrence/inclusion remain future fold behavior. A
+`contradicts` edge may create debt or block settlement later; it does not
+automatically refute in this phase.
 
 Aggregation and independence-group policy are defined separately in
 `docs/design/standing-aggregation-independence-groups.md`. Ceilings define
