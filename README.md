@@ -36,7 +36,12 @@ The thesis, as a test (`crates/magpie-claims/tests/regenerable.rs`):
 The intended `v0.1.0` source, format, policy, replay, and architectural
 milestone is defined by
 [`docs/releases/v0.1.0-contract.md`](docs/releases/v0.1.0-contract.md). The
-contract is not a version bump, package publication, tag, or GitHub release.
+workspace now has shared, explicitly non-publishable release metadata, and CI
+checks all three package inventories. Only `magpie-log` is verified as a
+standalone archive; `magpie-claims` and `magpie-episodic` remain path-workspace
+members rather than independently registry-resolvable packages. All crate
+versions remain `0.0.1`. A changelog and coordinated version bump, the tag,
+and any GitHub release remain later human-controlled actions.
 
 ## Layout
 
@@ -221,9 +226,11 @@ shell execution is unavailable.
    The governed-standing public tour now executes this boundary in CI.
    Aggregation, contradiction debt, invalidation, and supersession remain
    separate later phases.
-10. **Define the v0.1.0 release boundary** — this documentation phase states
-    the achieved semantic contract. Package preparation, version/changelog
-    changes, tagging, and any GitHub release remain separate later actions.
+10. **Prepare the v0.1.0 release boundary** — the semantic contract and shared
+    non-publishable metadata are defined. Package inventories are checked, and
+    `magpie-log` alone is verified as a standalone archive. The dependent
+    crates remain path-workspace members. Version/changelog changes, tagging,
+    and any GitHub release remain separate later actions.
 11. Complete the remaining standing-policy phases recorded in
     `docs/design/standing-aggregation-independence-groups.md`; only then add
     `EpistemicGate` and writer-facing surfaces.

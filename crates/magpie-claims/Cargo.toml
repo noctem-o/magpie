@@ -1,8 +1,11 @@
 [package]
 name = "magpie-claims"
-version = "0.0.1"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+readme.workspace = true
+publish.workspace = true
 description = "A projection: the epistemic claim store, folded from the log."
 
 [dependencies]

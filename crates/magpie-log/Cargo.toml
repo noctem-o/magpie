@@ -1,8 +1,11 @@
 [package]
 name = "magpie-log"
-version = "0.0.1"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+readme.workspace = true
+publish.workspace = true
 description = "L0 — the signed, hash-chained, append-only event log. The sole source of truth."
 
 [dependencies]
