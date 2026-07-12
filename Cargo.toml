@@ -7,9 +7,12 @@ members = [
 ]
 
 [workspace.package]
+version = "0.0.1"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/noctem-o/magpie"
+readme = "README.md"
+publish = false
 
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
