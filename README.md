@@ -16,8 +16,16 @@ promotion path.
 
 ```sh
 cargo test                                   # whole workspace, incl. the thesis test
-cargo run --example tour -p magpie-claims    # a 30-second end-to-end tour
+cargo run --example tour -p magpie-claims    # governed-standing end-to-end tour
 ```
+
+The tour demonstrates the current vertical thesis: one signed history verifies
+completely and co-replays standing with exact anchor context; policy v0 exposes
+candidate-only standing, while explicit policy v1 settles only the exact matched
+Deadbolt occurrence proposition. A structured mismatch and an interpretation
+claim remain unpromoted, then every snapshot and resolution byte regenerates
+identically after all derived standing state is dropped. It does not verify
+foreign bundle contents or implement general aggregation or writer admission.
 
 The thesis, as a test (`crates/magpie-claims/tests/regenerable.rs`):
 > build a projection → **drop all derived state** → replay from the log alone →
@@ -45,7 +53,7 @@ magpie/
       src/replay_snapshot.rs   co-replayed standing + anchor context, standing-inert
       tests/regenerable.rs the thesis test
       tests/standing_resolution.rs   adversarial governed-resolution coverage
-      examples/tour.rs     write → verify → replay → drop → replay → byte-identical
+      examples/tour.rs     governed v0/v1 standing → hostile controls → byte-identical replay
     magpie-episodic/   projection #2: SQLite + FTS5 full-text search over events
       src/lib.rs           EpisodicView : Projection (the only crate that may depend on SQLite)
       tests/episodic.rs    incl. rebuilt-from-zero == incrementally-built
