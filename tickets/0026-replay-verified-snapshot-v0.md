@@ -149,3 +149,6 @@ immutable record vector is verified and folded unchanged.
 It does not make a manually constructed `DeadboltAnchorIndex` verified, admit
 evidence, integrate standing, or settle any claim. Those remain future
 policy-bearing work.
+
+Ticket 0027 consumes this guarantee by co-deriving `StandingView` and
+`DeadboltAnchorIndex` through one replay invocation without changing standing.

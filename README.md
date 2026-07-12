@@ -42,6 +42,7 @@ magpie/
       src/lib.rs           ClaimsView compatibility projection + public read surfaces
       src/policy.rs        closed evidence/domain ceilings and support-context policy
       src/standing.rs      StandingView + fail-closed StandingResolution v0
+      src/replay_snapshot.rs   co-replayed standing + anchor context, standing-inert
       tests/regenerable.rs the thesis test
       tests/standing_resolution.rs   adversarial governed-resolution coverage
       examples/tour.rs     write → verify → replay → drop → replay → byte-identical
@@ -195,11 +196,14 @@ shell execution is unavailable.
 7. ~~Fail-closed standing policy foundation~~ — **landed**: closed support and
    refutation ceilings, support-context requirements, and deterministic
    `StandingResolution v0` traces without promotion.
-8. **Current frontier:** prove verifier context for one exact Deadbolt
-   occurrence/inclusion slice, then add one narrowly reviewed achieved-standing
-   rule. Aggregation, contradiction debt, invalidation, and supersession remain
-   separate later phases.
-9. Then add `EpistemicGate`; only after that should writer-facing surfaces, MCP
+8. ~~Exact Deadbolt context and replay prerequisites~~ — **landed**: strict
+   structured occurrence matching and single-snapshot verified replay.
+9. **Current frontier:** co-derive standing and anchor context through one
+   verified replay snapshot — landed here as replay trust-provenance hardening
+   without achieved standing — then implement one explicit policy-v1 Deadbolt
+   occurrence settlement rule. Aggregation, contradiction debt, invalidation,
+   and supersession remain separate later phases.
+10. Then add `EpistemicGate`; only after that should writer-facing surfaces, MCP
    write paths, lens ingestion, typed stores, rerankers, or evaluators appear.
 
 Conserve the log. Derive the rest.
