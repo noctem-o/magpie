@@ -1,10 +1,13 @@
 //! Chain integrity, tip recovery on reopen, tamper detection, and the
 //! genesis/domain-separation rules of the `magpie-core-v1` format.
 
+use std::cell::Cell;
+use std::rc::Rc;
+
 use ed25519_dalek::{Signer, SigningKey};
 use magpie_log::{
-    ContentHash, EventCore, FileStore, LogError, LogReader, LogWriter, MemStore, Payload,
-    Provenance, Sig, SignedEvent, CANONICALIZATION_PROFILE,
+    ContentHash, EventCore, FileStore, LogError, LogReader, LogStore, LogWriter, MemStore, Payload,
+    Projection, Provenance, Sig, SignedEvent, CANONICALIZATION_PROFILE,
 };
 
 const SEED: [u8; 32] = [42u8; 32];
@@ -74,6 +77,39 @@ fn genesis_core(profile: &str, vk_hex: &str) -> EventCore {
     }
 }
 
+struct ChangingSnapshotStore {
+    first_snapshot: Vec<Vec<u8>>,
+    second_snapshot: Vec<Vec<u8>>,
+    read_count: Rc<Cell<usize>>,
+}
+
+impl LogStore for ChangingSnapshotStore {
+    fn append_record(&mut self, _bytes: &[u8]) -> Result<(), LogError> {
+        panic!("ChangingSnapshotStore is read-only in replay tests")
+    }
+
+    fn read_records(&self) -> Result<Vec<Vec<u8>>, LogError> {
+        let read_count = self.read_count.get();
+        self.read_count.set(read_count + 1);
+        if read_count == 0 {
+            Ok(self.first_snapshot.clone())
+        } else {
+            Ok(self.second_snapshot.clone())
+        }
+    }
+}
+
+#[derive(Default)]
+struct RecordingProjection {
+    payloads: Vec<Payload>,
+}
+
+impl Projection for RecordingProjection {
+    fn apply(&mut self, event: &SignedEvent) {
+        self.payloads.push(event.core.payload.clone());
+    }
+}
+
 #[test]
 fn genesis_is_written_on_empty_open() {
     let store = MemStore::new();
@@ -113,6 +149,78 @@ fn chain_verifies_and_counts() {
 
     let reader = LogReader::open(store, key().verifying_key());
     assert_eq!(reader.verify_chain().unwrap(), 4);
+}
+
+#[test]
+fn replay_uses_one_verified_snapshot_when_store_changes_on_read() {
+    let source = MemStore::new();
+    let (first_snapshot, mut second_snapshot) = {
+        let mut w = writer(source.clone());
+        w.append(prov(), note("verified snapshot note")).unwrap();
+        let first_snapshot = source.records();
+        w.append(
+            prov(),
+            anchor("851d2a8f265e21192c4b1f1ff3bee2a8dc6305a848160412c74b66b74a909141"),
+        )
+        .unwrap();
+        (first_snapshot, source.records())
+    };
+
+    let mut injected: SignedEvent =
+        serde_json::from_slice(second_snapshot.last().unwrap()).unwrap();
+    injected.signature = Sig::new([0u8; 64]);
+    *second_snapshot.last_mut().unwrap() = serde_json::to_vec(&injected).unwrap();
+
+    let read_count = Rc::new(Cell::new(0));
+    let store = ChangingSnapshotStore {
+        first_snapshot,
+        second_snapshot,
+        read_count: Rc::clone(&read_count),
+    };
+    let reader = LogReader::open(store, key().verifying_key());
+    let mut projection = RecordingProjection::default();
+
+    assert_eq!(reader.replay(&mut projection).unwrap(), 2);
+    assert_eq!(read_count.get(), 1, "replay must read exactly one snapshot");
+    assert_eq!(projection.payloads.len(), 2);
+    assert!(matches!(projection.payloads[0], Payload::Genesis { .. }));
+    assert!(matches!(projection.payloads[1], Payload::Note { .. }));
+    assert!(
+        !projection
+            .payloads
+            .iter()
+            .any(|payload| matches!(payload, Payload::SegmentAnchored { .. })),
+        "the forged second-snapshot anchor must never be applied"
+    );
+}
+
+#[test]
+fn replay_does_not_apply_valid_prefix_before_later_verification_failure() {
+    let store = MemStore::new();
+    {
+        let mut w = writer(store.clone());
+        w.append(prov(), note("valid prefix")).unwrap();
+        w.append(
+            prov(),
+            anchor("851d2a8f265e21192c4b1f1ff3bee2a8dc6305a848160412c74b66b74a909141"),
+        )
+        .unwrap();
+    }
+
+    let mut records = store.records();
+    let mut invalid: SignedEvent = serde_json::from_slice(records.last().unwrap()).unwrap();
+    invalid.signature = Sig::new([0u8; 64]);
+    *records.last_mut().unwrap() = serde_json::to_vec(&invalid).unwrap();
+
+    let reader = LogReader::open(MemStore::from_records(records), key().verifying_key());
+    let mut projection = RecordingProjection::default();
+    let err = reader.replay(&mut projection).unwrap_err();
+
+    assert!(matches!(err, LogError::BadSignature { seq: 2 }));
+    assert!(
+        projection.payloads.is_empty(),
+        "no valid-prefix event may be applied before the full snapshot verifies"
+    );
 }
 
 #[test]

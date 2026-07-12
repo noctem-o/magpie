@@ -117,8 +117,20 @@ The pure resolver therefore proves exact membership only in the supplied
 index. Treating a match as accepted-chain occurrence/inclusion requires the
 index to have been populated exclusively through a successful
 `LogReader::replay` using the intended verifying key. `LogReader::replay`
-verifies the chain before folding its events, while trust in the supplied
+reads one record vector, parses and verifies that exact immutable snapshot
+completely, and then folds the same parsed events unchanged. No projection
+event is applied if snapshot verification fails. Trust in the supplied
 verifying key remains external to the projection.
+
+```text
+manual Projection::apply
+    !=
+successful LogReader::replay
+```
+
+The single-snapshot guarantee supplies the trusted-construction prerequisite;
+it does not make `DeadboltAnchorIndex` intrinsically verified when manually
+constructed.
 
 Future standing integration must derive `StandingView` and
 `DeadboltAnchorIndex` from the same successfully verified replay of the same log
