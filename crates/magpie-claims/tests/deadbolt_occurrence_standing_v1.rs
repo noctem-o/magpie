@@ -212,6 +212,24 @@ fn deadbolt_occurrence_standing_v1_exact_match_settles_only_v1() {
 }
 
 #[test]
+fn standing_policy_v0_surfaces_and_canonical_bytes_remain_frozen() {
+    let snapshot = replay(positive_payloads());
+    let resolution = snapshot.standing().resolved_standing_with_trace(CLAIM_ID);
+
+    assert_eq!(MAGPIE_CLAIMS_POLICY_ID, "magpie-claims-standing-v0");
+    assert_eq!(resolution.policy_id, MAGPIE_CLAIMS_POLICY_ID);
+    assert_eq!(resolution.governed_standing, Some(Status::Conjectured));
+    assert_eq!(
+        snapshot.standing().resolved_standing(CLAIM_ID),
+        resolution.governed_standing
+    );
+    assert_eq!(
+        String::from_utf8(resolution.canonical_bytes()).unwrap(),
+        r#"{"claim_id":"claim-policy-v1","governed_standing":"Conjectured","legacy_raw_standing":"Conjectured","currentness":"unknown","policy_id":"magpie-claims-standing-v0","trace":[{"edge_id":"edge-policy-v1","source_id":"evidence-policy-v1","target_id":"claim-policy-v1","evidence_kind":"DeadboltAnchor","claim_domain":"Occurrence/Inclusion","candidate_ceiling":"Settled","reasons":["accepted_candidate","requires_verifier_context","ceiling_is_candidate_only"]}],"blockers":["requires_verifier_context","ceiling_is_candidate_only"]}"#
+    );
+}
+
+#[test]
 fn deadbolt_occurrence_standing_v1_reports_every_context_failure_exactly() {
     let anchored = identity();
     let valid_claim = claim_metadata(&anchored);
@@ -588,7 +606,68 @@ fn deadbolt_occurrence_standing_v1_duplicate_anchor_uses_earliest_without_amplif
 }
 
 #[test]
-fn deadbolt_occurrence_standing_v1_regenerates_and_pins_canonical_bytes() {
+fn two_direct_proof_paths_are_traced_without_amplification() {
+    let anchored = identity();
+    let snapshot = replay(vec![
+        claim_payload(&claim_metadata(&anchored)),
+        evidence_payload(
+            "evidence-a",
+            "DeadboltAnchor",
+            SCOPE,
+            &evidence_metadata(&anchored),
+        ),
+        edge_payload("edge-a", "supports", "evidence-a", SCOPE),
+        evidence_payload(
+            "evidence-b",
+            "DeadboltAnchor",
+            SCOPE,
+            &evidence_metadata(&anchored),
+        ),
+        edge_payload("edge-b", "supports", "evidence-b", SCOPE),
+        anchor_payload(&anchored),
+    ]);
+
+    let resolution = snapshot.resolved_standing_with_trace_v1(CLAIM_ID);
+
+    assert_eq!(resolution.governed_standing, Some(Status::Settled));
+    assert!(resolution.blockers.is_empty());
+    assert_eq!(resolution.trace.len(), 2);
+    assert_eq!(
+        resolution
+            .trace
+            .iter()
+            .map(|entry| entry.candidate.edge_id.as_deref().unwrap())
+            .collect::<Vec<_>>(),
+        vec!["edge-a", "edge-b"]
+    );
+    assert!(resolution.trace.iter().all(|entry| {
+        entry.application.as_ref().is_some_and(|application| {
+            application.rule == StandingPolicyRule::DeadboltOccurrenceInclusionV1
+                && application.achieved_standing == Some(Status::Settled)
+                && matches!(
+                    application.context,
+                    DeadboltOccurrenceContextTrace::Matched { .. }
+                )
+        })
+    }));
+
+    let serialized = serde_json::to_value(&resolution).unwrap();
+    assert_eq!(
+        serialized.as_object().unwrap().keys().collect::<Vec<_>>(),
+        vec![
+            "blockers",
+            "claim_id",
+            "currentness",
+            "governed_standing",
+            "legacy_raw_standing",
+            "policy_id",
+            "trace",
+        ]
+    );
+}
+
+#[test]
+fn contribution_lane_refactor_preserves_literal_v1_canonical_bytes() {
     let store = MemStore::new();
     {
         let mut timestamp = 0u64;
