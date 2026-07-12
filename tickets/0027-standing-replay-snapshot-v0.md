@@ -144,6 +144,6 @@ rg -n "MAGPIE_CLAIMS_POLICY_ID|StandingTraceReason|governed_standing|Settled|Sup
 
 ## Follow-up
 
-The next phase is **Deadbolt occurrence/inclusion achieved-standing policy v1**.
-That phase may resolve one exact rule through `StandingReplaySnapshot`. This
-ticket defines no such rule.
+Ticket 0028 implements **Deadbolt occurrence/inclusion achieved-standing policy
+v1** through this snapshot. Ticket 0027 itself remains construction-only and
+defines no achieved-standing rule.

@@ -11,6 +11,7 @@ pub mod policy;
 mod deadbolt_context;
 mod replay_snapshot;
 mod standing;
+mod standing_v1;
 
 use std::collections::BTreeMap;
 
@@ -28,6 +29,11 @@ pub use standing::{
     StandingClaim, StandingCurrentness, StandingResolution, StandingTraceEntry,
     StandingTraceReason, StandingView, TypedClaimNode, TypedEvidenceNode, TypedJustificationEdge,
     MAGPIE_CLAIMS_POLICY_ID,
+};
+
+pub use standing_v1::{
+    DeadboltOccurrenceContextTrace, StandingPolicyApplication, StandingPolicyRule,
+    StandingResolutionV1, StandingTraceEntryV1, MAGPIE_CLAIMS_POLICY_V1_ID,
 };
 
 /// A single tracked claim and its current epistemic state.

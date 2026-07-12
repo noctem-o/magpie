@@ -140,11 +140,13 @@ The closed policy currently provides:
 - `refutation_ceiling(EvidenceKind, ClaimDomain)`;
 - `support_context_requirement(EvidenceKind, ClaimDomain)`.
 
-Human ratification still requires future replayable admission; deterministic
-verification and Deadbolt anchors still require verifier context. Candidate
-ceilings are reported but never promoted. `EpistemicGate`, achieved standing,
-aggregation, refutation application, and all writer-facing surfaces remain
-future work.
+Human ratification still requires future replayable admission, and
+deterministic verification still requires verifier context. One explicit
+snapshot-only v1 rule now settles the exact structured proposition that a
+five-field Deadbolt occurrence identity appears in the same verified replay;
+v0 remains candidate-only and still returns `Conjectured`. General achieved
+standing, aggregation, refutation application, `EpistemicGate`, and all
+writer-facing surfaces remain future work.
 
 ## Development workflow
 
@@ -198,11 +200,11 @@ shell execution is unavailable.
    `StandingResolution v0` traces without promotion.
 8. ~~Exact Deadbolt context and replay prerequisites~~ — **landed**: strict
    structured occurrence matching and single-snapshot verified replay.
-9. **Current frontier:** co-derive standing and anchor context through one
-   verified replay snapshot — landed here as replay trust-provenance hardening
-   without achieved standing — then implement one explicit policy-v1 Deadbolt
-   occurrence settlement rule. Aggregation, contradiction debt, invalidation,
-   and supersession remain separate later phases.
+9. ~~First achieved-standing slice~~ — **done**: co-replayed standing and anchor
+   context now feed one explicit `magpie-claims-standing-v1` direct-proof rule
+   for exact Deadbolt occurrence/inclusion. The v0 resolver remains unchanged.
+   Aggregation, contradiction debt, invalidation, and supersession remain
+   separate later phases.
 10. Then add `EpistemicGate`; only after that should writer-facing surfaces, MCP
    write paths, lens ingestion, typed stores, rerankers, or evaluators appear.
 

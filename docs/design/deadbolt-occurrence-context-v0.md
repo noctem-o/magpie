@@ -156,9 +156,10 @@ from the same target claim metadata passed as `claim_metadata_json`. A caller
 must not select `Occurrence/Inclusion` independently merely to enter the
 Deadbolt matching path.
 
-The co-replayed snapshot is read-only and standing-inert. It introduces no
-typestate, construction token, admission, resolution integration, or
-achieved-standing API.
+The co-replayed snapshot itself remains read-only. Policy v1 now consumes it
+through explicitly versioned snapshot methods; the independent context
+resolver and independently constructible projections remain standing-inert and
+cannot manufacture the trusted policy path.
 
 ## Matched-context meaning
 
@@ -204,8 +205,9 @@ reason, policy ID change, L0 or canonical change, fixture regeneration, foreign
 bundle verification, admission, support/refutation application, aggregation,
 writer surface, or Deadbolt execution is introduced here.
 
-## Follow-up
+## Follow-up status
 
-The narrowly scoped follow-up is **Deadbolt occurrence/inclusion
-achieved-standing policy v1**. That phase, not this scaffold, must decide how a
-matched context participates in standing.
+Deadbolt occurrence/inclusion achieved-standing policy v1 is implemented in
+`docs/design/deadbolt-occurrence-standing-v1.md`. It applies one exact matched
+context as a direct `Settled` contribution only through
+`StandingReplaySnapshot`; this v0 context scaffold itself remains inert.
