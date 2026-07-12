@@ -9,8 +9,8 @@ golden-pinned), two worked projections (`magpie-claims`, `magpie-episodic`), an
 independent Python verifier, a ratified live seam to `deadbolt`, and a
 fail-closed governed-standing explanation surface. Magpie retains typed claims,
 evidence, and justification edges; applies closed support, refutation, and
-privileged-context policy; and still exposes no ordinary writer or automatic
-promotion path.
+privileged-context policy; and still exposes no ordinary writer, ambient
+promotion mechanism, or implicit latest-policy selector.
 
 ## Run it
 
@@ -30,6 +30,13 @@ foreign bundle contents or implement general aggregation or writer admission.
 The thesis, as a test (`crates/magpie-claims/tests/regenerable.rs`):
 > build a projection → **drop all derived state** → replay from the log alone →
 > assert the result is **byte-for-byte identical**.
+
+### Release boundary
+
+The intended `v0.1.0` source, format, policy, replay, and architectural
+milestone is defined by
+[`docs/releases/v0.1.0-contract.md`](docs/releases/v0.1.0-contract.md). The
+contract is not a version bump, package publication, tag, or GitHub release.
 
 ## Layout
 
@@ -211,9 +218,13 @@ shell execution is unavailable.
 9. ~~First achieved-standing slice~~ — **done**: co-replayed standing and anchor
    context now feed one explicit `magpie-claims-standing-v1` direct-proof rule
    for exact Deadbolt occurrence/inclusion. The v0 resolver remains unchanged.
+   The governed-standing public tour now executes this boundary in CI.
    Aggregation, contradiction debt, invalidation, and supersession remain
    separate later phases.
-10. Then add `EpistemicGate`; only after that should writer-facing surfaces, MCP
+10. **Define the v0.1.0 release boundary** — this documentation phase states
+    the achieved semantic contract. Package preparation, version/changelog
+    changes, tagging, and any GitHub release remain separate later actions.
+11. Then add `EpistemicGate`; only after that should writer-facing surfaces, MCP
    write paths, lens ingestion, typed stores, rerankers, or evaluators appear.
 
 Conserve the log. Derive the rest.
