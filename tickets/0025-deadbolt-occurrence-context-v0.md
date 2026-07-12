@@ -77,6 +77,8 @@ verifying key.
   index. `StandingView` and `DeadboltAnchorIndex` must be derived from the same
   successful `LogReader::replay` of the same log under the same intended
   verifying key.
+- Ticket 0026 supplies the replay prerequisite by verifying and folding the
+  same immutable record snapshot with no projection apply before full success.
 - Current standing and canonical resolution bytes remain unchanged.
 
 ## Tests

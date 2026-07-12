@@ -34,10 +34,26 @@ fn verify_chain_on<S: LogStore>(
     vk: &VerifyingKey,
 ) -> Result<(u64, ContentHash), LogError> {
     let records = store.read_records()?;
-    let mut prev = ContentHash::ZERO;
-    let mut expected_seq = 0u64;
+    let verified = parse_and_verify_records(&records, vk)?;
+    Ok((verified.events.len() as u64, verified.tip))
+}
 
-    for record in &records {
+struct VerifiedSnapshot {
+    events: Vec<SignedEvent>,
+    tip: ContentHash,
+}
+
+/// Parse and verify one already-read record snapshot without consulting its
+/// store again. Events are returned only after the complete snapshot verifies.
+fn parse_and_verify_records(
+    records: &[Vec<u8>],
+    vk: &VerifyingKey,
+) -> Result<VerifiedSnapshot, LogError> {
+    let mut prev = ContentHash::ZERO;
+    let mut events = Vec::with_capacity(records.len());
+
+    for (expected_seq, record) in records.iter().enumerate() {
+        let expected_seq = expected_seq as u64;
         let event: SignedEvent = serde_json::from_slice(record)?;
 
         if event.core.seq != expected_seq {
@@ -116,10 +132,10 @@ this implementation verifies {CANONICALIZATION_PROFILE:?}"
         }
 
         prev = event.hash;
-        expected_seq += 1;
+        events.push(event);
     }
 
-    Ok((expected_seq, prev))
+    Ok(VerifiedSnapshot { events, tip: prev })
 }
 
 /// The **write capability**. Possessing a `LogWriter` is the authority to append.
@@ -244,8 +260,11 @@ impl<S: LogStore> LogReader<S> {
         }
     }
 
-    /// All stored events, parsed but not verified. Prefer [`Self::verify_chain`]
-    /// or [`Self::replay`] for anything you intend to trust.
+    /// All stored events, parsed but not verified. This parses the snapshot
+    /// returned by its own [`LogStore::read_records`] call, but does not verify
+    /// chain linkage, hashes, signatures, genesis binding, or payload validity.
+    /// It must not be used as the source of authority-bearing projections.
+    /// Prefer [`Self::verify_chain`] or [`Self::replay`] for trusted use.
     pub fn events(&self) -> Result<Vec<SignedEvent>, LogError> {
         self.store
             .read_records()?
@@ -260,16 +279,20 @@ impl<S: LogStore> LogReader<S> {
         verify_chain_on(&self.store, &self.verifying_key).map(|(count, _)| count)
     }
 
-    /// Fold the (verified) log into a projection. This is how every derived view
-    /// is (re)built: drop the view, `replay`, and you are back exactly where you
-    /// were — the log is the source of truth.
+    /// Fold one verified record snapshot into a projection. Replay reads one
+    /// snapshot, verifies that exact snapshot completely, then folds those same
+    /// parsed events. If snapshot parsing or verification fails, no event is
+    /// applied. Trust in the supplied verifying key remains external.
+    ///
+    /// This is how every derived view is (re)built: drop the view, `replay`, and
+    /// you are back exactly where you were — the log is the source of truth.
     pub fn replay<P: Projection>(&self, projection: &mut P) -> Result<u64, LogError> {
-        self.verify_chain()?; // never fold an unverified log
-        let events = self.events()?;
-        for event in &events {
+        let records = self.store.read_records()?;
+        let verified = parse_and_verify_records(&records, &self.verifying_key)?;
+        for event in &verified.events {
             projection.apply(event);
         }
-        Ok(events.len() as u64)
+        Ok(verified.events.len() as u64)
     }
 }
 
