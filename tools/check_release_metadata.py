@@ -12,6 +12,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGES = ("magpie-log", "magpie-claims", "magpie-episodic")
+EXPECTED_VERSION = "0.1.0"
 EXPECTED_REPOSITORY = "https://github.com/noctem-o/magpie"
 REQUIRED_COMMON = {
     "Cargo.lock",
@@ -74,7 +75,7 @@ def check_metadata() -> None:
     for name in PACKAGES:
         package = packages[name]
         expected = {
-            "version": "0.0.1",
+            "version": EXPECTED_VERSION,
             "publish": [],
             "repository": EXPECTED_REPOSITORY,
             "license": "MIT OR Apache-2.0",
