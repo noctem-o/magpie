@@ -23,6 +23,12 @@ explicit policy.
 A successful receipt may admit one bounded contribution.
 It does not establish arbitrary semantic truth, external artifact
 origin, interpretation truth, or publication authority.
+
+A machine predicate cannot lend standing to adjacent prose.
+
+The standing-bearing statement must be the exact canonical rendering
+of the predicate, and the claim content hash must commit to that exact
+statement.
 ```
 
 The stages remain separate:
@@ -86,6 +92,9 @@ identity, acquisition, origin, or semantic policy and is outside this contract.
 
 - A **candidate** is v0's deterministic explanation of structurally eligible
   claim, evidence, and edge material. It is not verification.
+- A **machine claim** is the jointly bound set of claim ID, exact canonical
+  statement, statement content hash, and structured machine predicate. No
+  element may be substituted independently or treated as adjacent annotation.
 - A **verification witness** is untrusted L0-carried checker input inside the
   evidence node's opaque metadata. Being signed into Magpie preserves the
   assertion; it does not make the assertion correct.
@@ -114,6 +123,22 @@ It does not mean an external file has digest H, a named artifact came from a
 source, a URL returned the bytes, a program produced them, the bytes are safe
 or semantically correct, or an interpretation is true.
 
+The standing-bearing claim statement is not free prose. Its sole accepted
+canonical rendering is:
+
+```text
+sha256_bytes_equals_v0:<expected_sha256>
+```
+
+Conceptually,
+`canonical_statement(predicate) = "sha256_bytes_equals_v0:" +
+predicate.expected_sha256`. The rendering uses ASCII only and has no leading,
+trailing, or internal whitespace; newline; quotation marks; `0x` prefix;
+uppercase hexadecimal; Unicode normalization; case folding; alias; explanatory
+prefix or suffix; or equivalent-expression handling. Requiring this rendering
+does not broaden the proposition checked. It prevents that exact proposition
+from lending standing to unrelated prose.
+
 ## Claim metadata schema
 
 For this predicate, the exact claim `metadata_json` object is:
@@ -140,6 +165,49 @@ The existing v0 claim-domain parser remains unchanged: it reads
 duplicate-key failure. A later v2 predicate parser separately applies the
 stricter whole-object schema. Thus v0 behaviour does not change and v2 cannot
 reinterpret unrelated claim metadata as a machine predicate.
+
+The complete claim-side representation stores three existing fields
+separately:
+
+```text
+statement:
+sha256_bytes_equals_v0:<expected_sha256>
+
+content_hash:
+SHA-256 over the exact UTF-8 bytes of that statement, rendered lowercase hex
+
+metadata_json:
+{
+  "claim_domain": "ExactMachineCheckable",
+  "machine_predicate": {
+    "schema": "magpie-machine-predicate-v0",
+    "predicate_id": "sha256_bytes_equals_v0",
+    "expected_sha256": "<expected_sha256>"
+  }
+}
+```
+
+Metadata parsing alone is insufficient. Successful v2 admission requires
+agreement among the structured metadata, replayed statement, and replayed
+content hash. `statement` and `content_hash` remain existing
+`ClaimAssertedV2` fields, not metadata keys, so this introduces no L0 shape
+change. It makes the existing `docs/design/metadata-conventions.md` meaning —
+`ClaimAssertedV2.content_hash` is the hash of canonical claim-statement bytes —
+load-bearing only for this v2 predicate family; it does not redefine the field
+globally or change L0 validation.
+
+The two digest roles are distinct:
+
+```text
+machine_predicate.expected_sha256
+    hashes the evidence witness bytes
+
+ClaimAssertedV2.content_hash
+    hashes the canonical machine-claim statement bytes
+```
+
+A matching witness digest cannot compensate for a missing or mismatched claim
+content hash. The two digests are equal only by coincidence.
 
 ## Evidence witness schema
 
@@ -190,11 +258,16 @@ witness.predicate_id == claim.machine_predicate.predicate_id
 claim.machine_predicate.schema == "magpie-machine-predicate-v0"
 witness.schema == "magpie-verification-witness-v0"
 predicate_id == "sha256_bytes_equals_v0"
+claim.statement == "sha256_bytes_equals_v0:" + expected_sha256
+claim.statement == canonical_statement(claim.machine_predicate)
+claim.content_hash is non-empty
+claim.content_hash == sha256_lower_hex(UTF-8(claim.statement))
 ```
 
 Candidate trace identities are routing hints, not authority. Lane execution
 must re-fetch the claim, evidence, and edge by ID from the same private
-snapshot, then revalidate every condition above.
+snapshot, including the actual claim statement and content hash, then
+revalidate every condition above.
 
 ## Strict parsing and checker algorithm
 
@@ -210,13 +283,22 @@ The closed checker is:
    `edge_id` selected by the closed v2 lane.
 2. Re-fetch all three objects and validate supports/source/target, evidence
    kind, claim domain, and four-way scope equality.
-3. Strictly parse the claim predicate and witness schemas.
-4. Validate exact schema, predicate, claim, and scope bindings.
-5. Validate and decode strict witness hex while enforcing the fixed 4096-byte
+3. Strictly parse the claim predicate.
+4. Derive the exact canonical statement from that predicate.
+5. Compare it byte-for-byte with the replayed claim statement.
+6. Require a non-empty replayed claim content hash.
+7. Compute SHA-256 over the exact UTF-8 bytes of the replayed statement.
+8. Compare its lowercase hexadecimal rendering byte-for-byte with
+   `claim.content_hash`.
+9. Strictly parse the evidence witness.
+10. Validate exact schema, predicate, claim, and scope bindings.
+11. Validate and decode strict witness hex while enforcing the fixed 4096-byte
    decoded limit before allocation beyond that bound.
-6. Compute SHA-256 over exactly the decoded bytes.
-7. Compare the 32 computed bytes to the strictly decoded expected digest.
-8. Return `Matched` with audit material only on equality; otherwise return one
+12. Compute SHA-256 over exactly the decoded witness bytes.
+13. Compare the 32 computed witness-digest bytes to the strictly decoded
+    `expected_sha256`.
+14. Return `Matched` with audit material only if every prior check succeeds;
+    otherwise return one
    closed failure and no partial successful context.
 
 The checker is deterministic, total or fail-closed, commandless, networkless,
@@ -234,6 +316,8 @@ DeterministicVerifierContextTraceV0::Matched {
     evidence_id,
     edge_id,
     scope_ref,
+    canonical_statement,
+    claim_content_hash,
     expected_sha256,
     computed_sha256,
     witness_len,
@@ -250,6 +334,9 @@ UnknownPredicateKey
 UnknownPredicateSchema
 UnknownPredicateId
 InvalidExpectedDigest
+StatementPredicateMismatch
+MissingClaimContentHash
+ClaimContentHashMismatch
 MissingVerificationWitness
 MalformedVerificationWitness
 DuplicateWitnessKey
@@ -263,6 +350,13 @@ WitnessTooLarge
 DigestMismatch
 ```
 
+`StatementPredicateMismatch` means the replayed statement is not the exact
+canonical rendering of the successfully parsed predicate.
+`MissingClaimContentHash` means the existing claim content-hash field is empty.
+`ClaimContentHashMismatch` means it differs from the lowercase SHA-256 digest
+recomputed over the exact UTF-8 statement bytes. These are closed byte-binding
+failures; there is no generic semantic-equivalence outcome.
+
 Existing v0 candidate tracing owns missing replayed nodes, unsupported edge
 kind, source/target structure, wrong evidence kind, wrong/missing claim domain,
 and node/edge/claim scope mismatch. Therefore those checks are revalidated by
@@ -270,10 +364,13 @@ the v2 executor but are not duplicated as verifier-context variants. If
 revalidation disagrees with the candidate, no context attempt is emitted and
 the v2 lane records a closed `CandidateRevalidationFailed` classification.
 
-Verifier-context tracing owns only strict predicate/witness parsing, their
-bindings, bounded decoding, and digest comparison. V2 lane classification owns
-whether the exact v0 deterministic-verification candidate selects the one v2
-rule. Claim-level v2 blockers are deterministically derived from unresolved v0
+Verifier-context tracing owns strict predicate and witness parsing, exact
+statement derivation, statement/content-hash binding, predicate/witness
+bindings, bounded decoding, and digest comparison. Statement and claim-hash
+mismatches do not belong to v0 candidate tracing because v0 does not interpret
+machine-predicate statement semantics. V2 lane classification owns whether the
+exact v0 deterministic-verification candidate selects the one v2 rule.
+Claim-level v2 blockers are deterministically derived from unresolved v0
 blockers, `CandidateRevalidationFailed`, or the exact unsuccessful context
 outcome; they do not repeat the check as a second authority source. One
 successful application satisfies only its own `RequiresVerifierContext` and
@@ -289,6 +386,7 @@ one successful LogReader verification
 → one StandingReplaySnapshot containing all required projections
 → exact candidate lane classification
 → replayed-node and edge revalidation
+→ exact predicate, canonical statement, and claim content-hash binding
 → closed deterministic predicate checker
 → derived Matched verifier context
 ```
@@ -310,6 +408,10 @@ policy, `Matched` proves only that:
 
 - the exact claim, evidence, and supports edge were co-replayed in one verified
   snapshot and satisfied the stated identity and scope bindings; and
+- the replayed claim statement was the exact canonical rendering of the
+  structured `sha256_bytes_equals_v0` predicate;
+- the replayed claim content hash committed to the exact UTF-8 bytes of that
+  statement; and
 - the bytes decoded from that evidence node's witness have the expected SHA-256
   digest under `sha256_bytes_equals_v0`.
 
@@ -327,6 +429,8 @@ all v1 behaviour and adds exactly one direct-support family:
 ```text
 DeterministicVerification
 × ExactMachineCheckable
+× exact canonical predicate statement
+× matching claim statement content hash
 × sha256_bytes_equals_v0
 × successful same-snapshot deterministic verifier context
 → Some(Status::Supported)
@@ -387,10 +491,16 @@ No ambient latest-policy selector is added.
 ## Deterministic basis and canonical bytes
 
 Every successful v2 application records rule identity, claim ID, evidence ID,
-edge ID, exact scope, predicate schema and ID, expected and computed digests,
-witness byte length, exact verifier-context outcome, and achieved contribution.
-The complete witness is not copied into the resolution; it remains in the
-replayed evidence projection.
+edge ID, exact scope, predicate schema and ID, exact canonical statement, claim
+content hash, explicit successful statement-binding outcome, expected and
+computed witness digests, witness byte length, exact verifier-context outcome,
+and achieved contribution. The complete witness is not copied into the
+resolution; it remains in the replayed evidence projection.
+
+A claim ID plus predicate digest is insufficient audit basis because it does
+not reveal whether the displayed standing-bearing proposition matched the
+checked predicate. The canonical statement is small and makes that attribution
+explicit.
 
 A Boolean or count loses exact attribution, prevents precise replay comparison
 and later invalidation, obscures hostile failures, and invites amplification.
@@ -415,6 +525,16 @@ bare_deterministic_verification_label_does_not_support
 actor_class_does_not_create_verifier_authority
 verified_boolean_does_not_create_verifier_authority
 caller_constructed_receipt_does_not_prove_trusted_origin
+arbitrary_statement_cannot_inherit_machine_predicate_support
+statement_predicate_mismatch_fails_closed
+missing_claim_content_hash_fails_closed
+claim_content_hash_mismatch_fails_closed
+statement_whitespace_variant_fails_closed
+statement_uppercase_digest_variant_fails_closed
+statement_trailing_newline_fails_closed
+witness_match_cannot_override_statement_mismatch
+witness_match_cannot_override_claim_content_hash_mismatch
+matched_trace_binds_canonical_statement_and_content_hash
 
 sha256_witness_exact_match_supports_only_under_v2
 sha256_witness_digest_mismatch_does_not_support
@@ -446,11 +566,16 @@ Additional fixtures must cover empty witness success, the exact 4096-byte
 boundary, 4097-byte rejection, unknown keys at both levels, trailing JSON,
 wrong field types, missing nodes, edge source/target mismatch, all four scope
 positions, expected-digest case/length errors, and deterministic blocker order.
+The positive fixture must set `statement` to exactly
+`sha256_bytes_equals_v0:<expected_sha256>` and recompute the correct claim
+content hash over those exact UTF-8 bytes.
 
 ## End-to-end flow
 
 ```text
-ClaimAssertedV2 machine predicate
+ClaimAssertedV2 structured machine predicate
++ exact canonical claim statement
++ matching claim statement content hash
 + EvidenceRegistered witness
 + supports edge
 + exact scope
@@ -490,4 +615,8 @@ cannot express unambiguous bindings; a new payload or artifact store is needed;
 the checker needs file, shell, network, plugin, callback, or ambient authority;
 v0/v1 semantics or bytes would change; the contribution cannot remain exactly
 `Supported`; or accurate documentation would require claiming external origin
-or general truth.
+or general truth. It must also stop if it cannot bind the standing-bearing
+statement exactly to the predicate; would require semantic natural-language
+equivalence; would permit arbitrary prose beside the machine predicate; cannot
+recompute and check the claim content hash; or could display a proposition that
+differs from the checked proposition.

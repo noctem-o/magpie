@@ -6,6 +6,13 @@ Land the documentation contract for one proof-carrying witness, one closed
 deterministic checker, one replay-derived verifier receipt, and one future
 policy-v2 direct `Supported` rule. Implement none of them.
 
+This documentation-contract amendment also closes a review finding in the
+original contract: claim ID, structured predicate, and witness were bound, but
+the standing-bearing `ClaimAssertedV2.statement` was not required to express
+that predicate. A valid witness could therefore have lent `Supported` standing
+to unrelated displayed prose. No checker or standing rule is implemented by
+this correction.
+
 Starting commit:
 `2bbfbd1f451e35b65e8c89aeaf39801621e484df` (PR #44 merge).
 The human-controlled `v0.1.0` tag must exist and resolve exactly there before
@@ -33,6 +40,12 @@ No metadata schema becomes trusted merely because it is documented.
 Authority begins only when a later reviewed implementation derives a
 successful receipt through the closed checker over one verified replay
 snapshot.
+
+A successful witness check must never lend standing to unrelated claim prose.
+
+The claim statement is therefore an exact canonical rendering of the
+structured predicate, and ClaimAssertedV2.content_hash commits to the
+exact UTF-8 bytes of that statement.
 
 ## Exact scope and schemas
 
@@ -76,13 +89,55 @@ this exact claim, supports edge, and scope binding, have SHA-256 digest H. It
 makes no external artifact, acquisition, execution, safety, semantic, or origin
 claim.
 
+For `sha256_bytes_equals_v0`, the sole standing-bearing statement is:
+
+```text
+sha256_bytes_equals_v0:<expected_sha256>
+```
+
+It is exact ASCII with no whitespace, newline, prefix, suffix, case folding,
+normalization, alias, or semantic-equivalence handling. The existing metadata
+convention says `ClaimAssertedV2.content_hash` hashes canonical claim-statement
+bytes. This v2 family makes that convention load-bearing without redefining it
+globally or changing L0 validation:
+
+```text
+claim.content_hash
+    == lowercase_hex(SHA-256(UTF-8(
+         "sha256_bytes_equals_v0:" + expected_sha256
+       )))
+```
+
+The claim content hash must be non-empty. It hashes the canonical machine-claim
+statement; `machine_predicate.expected_sha256` separately hashes the evidence
+witness bytes. A witness match cannot compensate for either statement-binding
+failure.
+
 ## Binding and trusted construction
 
 The later checker must require exact supports edge source/target, exact claim,
 evidence and edge IDs, `DeterministicVerification`,
 `ExactMachineCheckable`, exact four-way scope equality, exact claim-ID binding,
 exact schema and predicate binding, and exact digest comparison. It must
-re-fetch nodes and the edge rather than trust candidate trace fields.
+re-fetch nodes and the edge rather than trust candidate trace fields. It must
+also derive the canonical statement from the parsed predicate, compare it
+byte-for-byte with the replayed claim statement, require non-empty
+`claim.content_hash`, and recompute and compare the statement digest before
+parsing or accepting witness success.
+
+Statement and content-hash failures are closed deterministic verifier-context
+outcomes:
+
+```text
+StatementPredicateMismatch
+MissingClaimContentHash
+ClaimContentHashMismatch
+```
+
+They are not v0 candidate failures because v0 does not interpret structured
+machine-predicate statement semantics. A successful `Matched` audit adds
+`canonical_statement` and `claim_content_hash`; the complete witness remains
+omitted.
 
 The sole legitimate construction is:
 
@@ -92,6 +147,7 @@ one successful LogReader verification
 → one StandingReplaySnapshot
 → closed candidate classification
 → replayed-node and edge revalidation
+→ exact predicate, canonical statement, and claim content-hash binding
 → closed sha256_bytes_equals_v0 checker
 → derived Matched receipt
 ```
@@ -108,6 +164,8 @@ The future identity is `magpie-claims-standing-v2`. It preserves v1 and adds:
 ```text
 DeterministicVerification
 × ExactMachineCheckable
+× exact canonical predicate statement
+× matching claim statement content hash
 × sha256_bytes_equals_v0
 × successful same-snapshot deterministic verifier context
 → Some(Status::Supported)
@@ -154,6 +212,14 @@ file/shell/network/plugin authority, proof system, or model/lens infrastructure.
   law, bindings, checker algorithm, outcome vocabulary, trusted origin, proof
   boundary, policy-v2 rule, precedence, non-amplification, explicit v2 types,
   canonical-byte requirements, hostile tests, and stop conditions.
+- The review authority-transposition path is closed: an exact witness can
+  contribute only when the replayed statement is the canonical predicate
+  rendering and its non-empty claim content hash matches the recomputed digest.
+- The three statement-binding failures are verifier-context outcomes, and a
+  successful trace retains the canonical statement and claim content hash.
+- The future hostile matrix includes arbitrary prose, whitespace, uppercase,
+  trailing-newline, missing/mismatched claim-hash, witness-override, and matched
+  audit-binding cases.
 - README records the exact tag target and reviewed source-release meaning while
   preserving non-publication, path-workspace, packageability, format, policy,
   and absence boundaries; it does not imply registry publication.
@@ -181,4 +247,27 @@ diff/status/PR inspection exactly as specified in the task.
 
 Stop the later implementation if it needs new L0 or artifact infrastructure,
 external authority, v0/v1 mutation, or a result broader than the exact bounded
-proposition and `Supported` contribution.
+proposition and `Supported` contribution. It must also stop if the displayed
+statement cannot be exactly derived from the predicate, natural-language
+equivalence would be required, arbitrary adjacent prose would be permitted, or
+the claim content hash cannot be recomputed and checked.
+
+## Review-amendment hostile tests
+
+The later code PR must include:
+
+```text
+arbitrary_statement_cannot_inherit_machine_predicate_support
+statement_predicate_mismatch_fails_closed
+missing_claim_content_hash_fails_closed
+claim_content_hash_mismatch_fails_closed
+statement_whitespace_variant_fails_closed
+statement_uppercase_digest_variant_fails_closed
+statement_trailing_newline_fails_closed
+witness_match_cannot_override_statement_mismatch
+witness_match_cannot_override_claim_content_hash_mismatch
+matched_trace_binds_canonical_statement_and_content_hash
+```
+
+Its positive fixture must use the exact canonical statement and its correctly
+recomputed claim content hash.
