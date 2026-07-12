@@ -235,7 +235,7 @@ dependencies = [
 
 [[package]]
 name = "magpie-claims"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "ed25519-dalek",
  "magpie-log",
@@ -245,7 +245,7 @@ dependencies = [
 
 [[package]]
 name = "magpie-episodic"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "ed25519-dalek",
  "magpie-log",
@@ -256,7 +256,7 @@ dependencies = [
 
 [[package]]
 name = "magpie-log"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "ed25519-dalek",
  "hex",
