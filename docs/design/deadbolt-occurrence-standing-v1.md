@@ -61,7 +61,9 @@ compatibility scalar on `StandingView`.
 Each `StandingTraceEntryV1` preserves the exact v0 `StandingTraceEntry` as its
 `candidate`. An optional `StandingPolicyApplication` records whether the one
 closed v1 rule was attempted, its exact context outcome, and its achieved
-contribution.
+contribution. The rule now executes through the private closed contribution-lane
+path described in `standing-contribution-lanes-v1.md`; this is a control-flow
+refactor, not a new rule or result.
 
 ```text
 candidate evaluation
@@ -159,7 +161,9 @@ event, fixture, or Deadbolt change is part of v1.
 
 An anchor-only log creates no proposition and therefore no policy application.
 
-## Next phase
+## Contribution-lane structure
 
-The next narrow phase is deterministic achieved-standing contribution lanes
-without amplification. It must remain separate from this direct proof rule.
+The deterministic contribution-lane refactor is specified in
+`standing-contribution-lanes-v1.md`. `StandingPolicyRule` remains the serialized
+lane identity, and the exact direct-proof semantics in this note remain
+unchanged.

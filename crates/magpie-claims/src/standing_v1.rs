@@ -156,7 +156,8 @@ impl StandingReplaySnapshot {
             .iter()
             .cloned()
             .map(|candidate| {
-                let application = self.apply_deadbolt_occurrence_rule(claim_id, &candidate);
+                let application = classify_contribution_lane(&candidate)
+                    .and_then(|rule| self.apply_contribution_lane(claim_id, &candidate, rule));
                 achieved_settled |= application
                     .as_ref()
                     .is_some_and(|value| value.achieved_standing == Some(Status::Settled));
@@ -185,15 +186,24 @@ impl StandingReplaySnapshot {
         }
     }
 
-    fn apply_deadbolt_occurrence_rule(
+    fn apply_contribution_lane(
+        &self,
+        claim_id: &str,
+        candidate: &StandingTraceEntry,
+        rule: StandingPolicyRule,
+    ) -> Option<StandingPolicyApplication> {
+        match rule {
+            StandingPolicyRule::DeadboltOccurrenceInclusionV1 => {
+                self.apply_deadbolt_occurrence_lane(claim_id, candidate)
+            }
+        }
+    }
+
+    fn apply_deadbolt_occurrence_lane(
         &self,
         claim_id: &str,
         candidate: &StandingTraceEntry,
     ) -> Option<StandingPolicyApplication> {
-        if !baseline_is_exact_deadbolt_occurrence_candidate(candidate) {
-            return None;
-        }
-
         if candidate.target_id != claim_id {
             return None;
         }
@@ -235,8 +245,8 @@ impl StandingReplaySnapshot {
     }
 }
 
-fn baseline_is_exact_deadbolt_occurrence_candidate(candidate: &StandingTraceEntry) -> bool {
-    candidate.edge_id.is_some()
+fn classify_contribution_lane(candidate: &StandingTraceEntry) -> Option<StandingPolicyRule> {
+    (candidate.edge_id.is_some()
         && candidate.source_id.is_some()
         && candidate.evidence_kind.as_deref() == Some(EvidenceKind::DeadboltAnchor.as_str())
         && candidate.claim_domain.as_deref() == Some(ClaimDomain::OccurrenceInclusion.as_str())
@@ -246,7 +256,8 @@ fn baseline_is_exact_deadbolt_occurrence_candidate(candidate: &StandingTraceEntr
                 StandingTraceReason::AcceptedCandidate,
                 StandingTraceReason::RequiresVerifierContext,
                 StandingTraceReason::CeilingIsCandidateOnly,
-            ]
+            ])
+    .then_some(StandingPolicyRule::DeadboltOccurrenceInclusionV1)
 }
 
 fn unresolved_blockers(
@@ -296,6 +307,77 @@ fn unresolved_blockers(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn exact_deadbolt_occurrence_candidate() -> StandingTraceEntry {
+        StandingTraceEntry {
+            edge_id: Some("edge".into()),
+            source_id: Some("evidence".into()),
+            target_id: "claim".into(),
+            evidence_kind: Some(EvidenceKind::DeadboltAnchor.as_str().into()),
+            claim_domain: Some(ClaimDomain::OccurrenceInclusion.as_str().into()),
+            candidate_ceiling: Some(Status::Settled),
+            reasons: vec![
+                StandingTraceReason::AcceptedCandidate,
+                StandingTraceReason::RequiresVerifierContext,
+                StandingTraceReason::CeilingIsCandidateOnly,
+            ],
+        }
+    }
+
+    #[test]
+    fn exact_candidate_selects_the_only_closed_contribution_lane() {
+        let selected = classify_contribution_lane(&exact_deadbolt_occurrence_candidate());
+
+        assert_eq!(
+            selected,
+            Some(StandingPolicyRule::DeadboltOccurrenceInclusionV1)
+        );
+        assert_eq!(selected.into_iter().count(), 1);
+    }
+
+    #[test]
+    fn closed_contribution_lane_classification_rejects_boundary_changes() {
+        let exact = exact_deadbolt_occurrence_candidate();
+        let mut cases = Vec::new();
+
+        let mut wrong_evidence_kind = exact.clone();
+        wrong_evidence_kind.evidence_kind = Some(EvidenceKind::ExternalSource.as_str().into());
+        cases.push(("wrong evidence kind", wrong_evidence_kind));
+
+        let mut wrong_claim_domain = exact.clone();
+        wrong_claim_domain.claim_domain = Some(ClaimDomain::Interpretation.as_str().into());
+        cases.push(("wrong claim domain", wrong_claim_domain));
+
+        let mut wrong_candidate_ceiling = exact.clone();
+        wrong_candidate_ceiling.candidate_ceiling = Some(Status::Supported);
+        cases.push(("wrong candidate ceiling", wrong_candidate_ceiling));
+
+        let mut missing_edge = exact.clone();
+        missing_edge.edge_id = None;
+        cases.push(("missing edge", missing_edge));
+
+        let mut missing_source = exact.clone();
+        missing_source.source_id = None;
+        cases.push(("missing source", missing_source));
+
+        let mut altered_reason_set = exact.clone();
+        altered_reason_set.reasons.pop();
+        cases.push(("altered reason set", altered_reason_set));
+
+        let mut altered_reason_order = exact.clone();
+        altered_reason_order.reasons.swap(1, 2);
+        cases.push(("altered reason order", altered_reason_order));
+
+        let mut unknown_vocabulary = exact;
+        unknown_vocabulary.evidence_kind = Some("UnknownEvidenceKind".into());
+        unknown_vocabulary.candidate_ceiling = None;
+        unknown_vocabulary.reasons = vec![StandingTraceReason::UnknownEvidenceKind];
+        cases.push(("unknown vocabulary", unknown_vocabulary));
+
+        for (case, candidate) in cases {
+            assert_eq!(classify_contribution_lane(&candidate), None, "{case}");
+        }
+    }
 
     #[test]
     fn context_outcome_and_achieved_standing_correspond_exactly() {
@@ -350,6 +432,6 @@ mod tests {
             reasons: vec![StandingTraceReason::UnknownEvidenceKind],
         };
 
-        assert!(!baseline_is_exact_deadbolt_occurrence_candidate(&candidate));
+        assert_eq!(classify_contribution_lane(&candidate), None);
     }
 }
