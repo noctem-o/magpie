@@ -9,6 +9,7 @@
 pub mod policy;
 
 mod deadbolt_context;
+mod replay_snapshot;
 mod standing;
 
 use std::collections::BTreeMap;
@@ -20,6 +21,8 @@ pub use deadbolt_context::{
     resolve_deadbolt_occurrence_context, DeadboltAnchorIdentity, DeadboltAnchorIndex,
     DeadboltAnchorOccurrence, DeadboltOccurrenceContextResolution, DEADBOLT_OCCURRENCE_SCHEMA,
 };
+
+pub use replay_snapshot::{replay_standing_context, StandingReplaySnapshot};
 
 pub use standing::{
     StandingClaim, StandingCurrentness, StandingResolution, StandingTraceEntry,

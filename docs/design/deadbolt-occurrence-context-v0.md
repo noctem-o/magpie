@@ -132,20 +132,33 @@ The single-snapshot guarantee supplies the trusted-construction prerequisite;
 it does not make `DeadboltAnchorIndex` intrinsically verified when manually
 constructed.
 
-Future standing integration must derive `StandingView` and
-`DeadboltAnchorIndex` from the same successfully verified replay of the same log
-under the same intended verifying key. It must not accept an arbitrary
-caller-constructed index, an index populated by manual `Projection::apply`, an
-index populated from unverified `LogReader::events`, or projections produced
-from different logs or keys.
+The intended policy-bearing construction path is now:
+
+```text
+replay_standing_context
+    -> StandingReplaySnapshot
+    -> same verified replay for StandingView and DeadboltAnchorIndex
+```
+
+`StandingReplaySnapshot` is returned only after one successful replay into a
+private composite projection, so both internal views observed the same verified
+event vector during the same replay invocation. Trust in the reader's supplied
+verifying key remains external. Independent projections remain useful derived
+views, but do not prove shared replay provenance.
+
+Future standing integration must consume that co-replayed context rather than
+an arbitrary caller-constructed index, an index populated by manual
+`Projection::apply`, an index populated from unverified `LogReader::events`, or
+projections produced from different logs, replay calls, or keys.
 
 The future policy-bearing caller must also derive `claim_domain` fail-closed
 from the same target claim metadata passed as `claim_metadata_json`. A caller
 must not select `Occurrence/Inclusion` independently merely to enter the
 Deadbolt matching path.
 
-This inert phase intentionally introduces no verified wrapper, combined replay
-object, typestate, construction token, or achieved-standing API.
+The co-replayed snapshot is read-only and standing-inert. It introduces no
+typestate, construction token, admission, resolution integration, or
+achieved-standing API.
 
 ## Matched-context meaning
 
