@@ -325,22 +325,30 @@ must not erase truth-bearing contradiction debt or settle factual truth.
 
 ## Future Implementation Order
 
-1. Keep or land `StandingResolution` v0 as the canonical fail-closed
-   explanation surface.
-2. Add pure admission and verifier-context predicates before any new achieved
-   `Settled`, `Refuted`, or independence-amplified standing.
-3. Prove one narrow achieved-standing slice, preferably verified Deadbolt
-   occurrence/inclusion.
-4. Add deterministic aggregation lanes and traces without amplification.
-5. Add one explicit support aggregation rule; do not invent generic thresholds.
-6. Add conservative independence handling. Absent, malformed, unadmitted, or
-   self-declared groups must not amplify.
-7. Add direct refutation only through admitted verifier context plus
-   `refutation_ceiling`.
-8. Add contradiction debt with explicit precedence against direct refutation.
-9. Add invalidation and supersession semantics.
-10. Add the capability-bearing `EpistemicGate` and writer surfaces.
-11. Add optional librarian, navigator, model, or lens ingestion later.
+1. `StandingResolution` v0 explanation surface — landed.
+2. Support-context classification — landed.
+3. Narrow Deadbolt achieved-standing slice — landed.
+4. Closed contribution lanes — landed.
+5. Replayable deterministic-verifier admission contract.
+6. Standing-inert verifier-context projection and closed checker.
+7. One direct policy-v2 `Supported` rule.
+8. Only then genuine aggregation; the first v2 `Supported` rule is direct
+   support and is not the support aggregation rule described in this note.
+9. Conservative provenance-derived independence. Absent, malformed,
+   unadmitted, or self-declared groups must not amplify.
+10. Direct refutation only through admitted verifier context plus
+    `refutation_ceiling`.
+11. Contradiction debt with explicit precedence against direct refutation.
+12. Invalidation and supersession semantics.
+13. The capability-bearing `EpistemicGate`.
+14. Writer surfaces.
+15. Optional librarian, navigator, model, or lens infrastructure.
+
+The direct policy-v2 rule consumes one successful closed verifier context and
+contributes `Supported` without combining evidence. It introduces no numeric
+threshold, source count, corroboration, or independence claim. The aggregation
+laws and independence requirements in this note remain prerequisites for the
+later, genuinely aggregating rule.
 
 ## Future Tests
 
