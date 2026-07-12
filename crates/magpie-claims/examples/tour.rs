@@ -324,12 +324,13 @@ fn capture_and_assert(
         DeadboltOccurrenceContextTrace::PredicateReferenceMismatch
     );
     assert_eq!(mismatch_application.achieved_standing, None);
-    assert!(mismatch_v1
-        .blockers
-        .contains(&StandingTraceReason::RequiresVerifierContext));
-    assert!(mismatch_v1
-        .blockers
-        .contains(&StandingTraceReason::CeilingIsCandidateOnly));
+    assert_eq!(
+        mismatch_v1.blockers,
+        vec![
+            StandingTraceReason::RequiresVerifierContext,
+            StandingTraceReason::CeilingIsCandidateOnly,
+        ]
+    );
 
     let interpretation_v0 = snapshot
         .standing()
