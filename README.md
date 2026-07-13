@@ -236,12 +236,15 @@ shell execution is unavailable.
     dependent crates remain path-workspace members. The human-created `v0.1.0`
     tag names reviewed source commit `2bbfbd1f451e35b65e8c89aeaf39801621e484df`;
     this does not imply registry publication.
-11. **Define replayable deterministic-verifier admission** — exact
-    proof-carrying witness, same-snapshot checker, derived receipt, and one
-    future direct policy-v2 `Supported` rule. This is design work, not an active
-    verifier or policy.
-12. Only after that, add genuine aggregation, conservative provenance-derived
-    independence, refutation, contradiction debt, invalidation, supersession,
-    `EpistemicGate`, and writer surfaces.
+11. **Replayable deterministic-verifier admission contract — landed.** The
+    contract fixes one exact predicate, same-snapshot trusted construction,
+    receipt boundary, and future policy-v2 admission rule.
+12. **Standing-inert deterministic verifier context — landed.** Strict schemas,
+    canonical statement/content-hash binding, bounded witness checking, and
+    snapshot-only receipt traces now derive deterministic audit material with
+    no standing effect.
+13. **Next: explicit policy-v2 direct `Supported` rule.** Only after that: genuine
+    aggregation, conservative independence, refutation, contradiction debt,
+    invalidation, supersession, `EpistemicGate`, and writers.
 
 Conserve the log. Derive the rest.

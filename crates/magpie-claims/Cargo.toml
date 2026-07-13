@@ -9,9 +9,11 @@ publish.workspace = true
 description = "A projection: the epistemic claim store, folded from the log."
 
 [dependencies]
+hex.workspace = true
 magpie-log = { path = "../magpie-log" }
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 
 [dev-dependencies]
 ed25519-dalek.workspace = true

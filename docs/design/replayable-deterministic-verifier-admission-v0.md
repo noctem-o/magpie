@@ -2,12 +2,27 @@
 
 ## Status and purpose
 
-Proposed architecture contract. Nothing in this document is implemented or
-active. It defines a later standing-inert verifier-context implementation and a
-separate later policy-v2 implementation. It adds no authority by documentation.
+Ratified architecture contract. Ticket 0035 implements the standing-inert
+strict parser, closed checker, snapshot-only context query, receipt trace, and
+hostile tests. Policy v2 and achieved `Supported` remain unimplemented. The
+implementation adds no standing authority.
 
 The purpose is to say exactly where deterministic-verifier authority may begin,
 and to bound the first achieved-`Supported` rule that may consume it.
+
+## Implementation mapping
+
+- module: `crates/magpie-claims/src/deterministic_verifier_context.rs`;
+- public snapshot method:
+  `StandingReplaySnapshot::resolve_deterministic_verifier_context_v0`;
+- public audit types: `DeterministicVerifierReceiptV0` and
+  `DeterministicVerifierContextTraceV0`;
+- private boundary: duplicate-aware metadata parsers, statement/hash binding,
+  bounded witness decoder, and the closed SHA-256 checker;
+- dependency boundary: existing workspace `hex` and `sha2` dependencies are
+  added directly to `magpie-claims` only;
+- hostile and literal audit fixtures:
+  `crates/magpie-claims/tests/deterministic_verifier_context.rs`.
 
 ## Architectural law
 
@@ -601,14 +616,11 @@ infrastructure and separately named predicates. They must not be smuggled into
 
 ## Implementation sequence
 
-1. Land this contract only.
-2. Add a standing-inert strict parser, closed checker, context trace, and
-   private-snapshot construction with hostile tests.
-3. Review its audit surface and same-snapshot provenance without standing
-   changes.
-4. Add explicit v2 types and the one direct `Supported` rule, preserving exact
-   v0/v1 bytes and precedence.
-5. Only then consider genuine aggregation and independence.
+1. Contract — landed.
+2. Standing-inert parser/checker/context — landed.
+3. Review audit surface and hostile tests — this PR.
+4. Explicit policy-v2 direct `Supported` rule — next.
+5. Genuine aggregation and independence — later.
 
 The later code PR must stop if exact parsing requires L0 changes; metadata
 cannot express unambiguous bindings; a new payload or artifact store is needed;
