@@ -1,17 +1,27 @@
-# Standing Aggregation and Independence Groups
+# Standing Aggregation and Origin Groups
 
 ## Status
 
 Proposed design note.
 
-Sequencing status: replayable verifier admission contract — landed;
-standing-inert verifier context — landed; one direct policy-v2 `Supported`
-rule — landed; genuine aggregation and conservative independence — next.
+The filename is preserved for link stability. “Independence group” is earlier
+design shorthand. The normative terms are **origin group** for the opaque
+policy key and **corroboration separation** for the relationship between
+distinct admitted groups. Magpie does not prove statistical, causal,
+institutional, organisational, or control independence.
+
+Sequencing status: replayable verifier admission, standing-inert verifier
+context, one direct policy-v2 `Supported` rule, and policy-v2 composition
+hardening are landed. The artifact-provenance and origin-admission contract is
+the next architecture slice. Genuine aggregation remains blocked until
+standing-inert foreign-bundle verification, origin-admission audit, and an
+admitted-contribution audit exist.
 
 ## Purpose
 
-This note defines the future doctrine for achieved-standing aggregation and
-independence groups before Magpie implements that behavior.
+This note defines the future doctrine for achieved-standing aggregation,
+origin groups, and corroboration separation before Magpie implements that
+behavior.
 
 Core laws:
 
@@ -19,8 +29,11 @@ Core laws:
 A ceiling is not achieved standing.
 A contribution is not aggregation.
 Aggregation is replay-derived, deterministic policy behavior.
-Independence groups prevent source-count inflation.
+Origin groups prevent source-count inflation.
 Corroboration may help reach an allowed ceiling; it must not exceed the ceiling.
+
+Distinct admitted origin groups are policy-recognised corroboration separation.
+Distinct admitted origin groups are not proof of statistical independence.
 ```
 
 This phase is docs/tickets only. It freezes vocabulary and constraints for a
@@ -39,6 +52,8 @@ later implementation phase; it does not change runtime `StandingView` behavior.
 - No MCP write paths.
 - No `EpistemicGate`.
 - No achieved-standing aggregation implementation.
+- No artifact, acquisition, derivation, origin-binding, or origin-admission
+  implementation.
 - No contradiction debt implementation.
 - No invalidation implementation.
 - No supersession implementation.
@@ -66,8 +81,8 @@ justification edges:
 - `magpie_claims::policy::refutation_ceiling` defines whether an evidence kind
   and claim domain may directly contribute `Refuted`.
 
-Once PR #33 lands, `StandingResolution` v0 is the canonical governed-standing
-explanation surface. It names the fixed `magpie-claims-standing-v0` policy,
+`StandingResolution` v0 is the canonical governed-standing explanation
+surface. It names the fixed `magpie-claims-standing-v0` policy,
 parses the target typed claim's `claim_domain` from `metadata_json` fail-closed,
 and reports candidate support ceilings in deterministic trace entries.
 
@@ -77,11 +92,13 @@ standing engine. V0 does not turn candidate ceilings into achieved standing.
 It exposes legacy raw status separately as quarantined audit material rather
 than governed truth.
 
-Current v0 resolution does not implement aggregation, independence
+Current v0 resolution does not implement aggregation, corroboration-separation
 amplification, direct refutation, contradiction debt, invalidation,
 supersession, or public writer admission through `EpistemicGate`.
 
-This note does not mutate that behavior.
+Explicit policy v2 adds one direct deterministic `Supported` contribution.
+That rule is not aggregation, and trace multiplicity is not corroboration.
+This note does not mutate any current behavior.
 
 ## Definitions
 
@@ -101,7 +118,7 @@ for edge kind, source and target existence, exact scope, closed domain, source
 standing, applicable ceiling, and graph constraints.
 
 Policy eligibility does not mean an actor, verifier, evidence label, domain, or
-independence assertion is authorized. Do not call a contribution eligible for
+origin assertion is authorized. Do not call a contribution eligible for
 an effect if that effect depends on an admission or verifier decision that has
 not been made.
 
@@ -113,6 +130,9 @@ claims have passed replayable admission/verifier policy or a future
 
 Only admitted contributions may affect achieved standing. Admission still does
 not imply promotion: aggregation and ceiling rules remain separate.
+For origin-sensitive aggregation, a standing-inert admitted-contribution audit
+must also associate the exact contribution with its replay-derived admitted
+origin result. That audit reports potential input and does not create support.
 
 ### Support Contribution
 
@@ -146,32 +166,36 @@ It is not stored in L0 and is not an authoritative mutable field.
 Achieved standing must be regenerable from the event log, policy, and derived
 projection rules.
 
-### Independence Group
+### Origin Group
 
-An independence group is an opaque policy key used to prevent multiple reports
-from the same origin from counting as independent corroboration.
+An origin group is an opaque exact policy key used to prevent multiple admitted
+contribution paths from the same governed origin from counting repeatedly.
 
-Independence groups are policy material, not L0 canonical material.
+Origin groups are policy material, not L0 canonical material, publisher
+identities, reputation scores, truth labels, or independence certificates.
+Their meaning is scoped by the exact origin-admission policy, contribution
+subject, and claim scope.
 
-Future policy may use a `metadata_json` key such as `independence_group`. This
-is asserted, advisory data until admitted by replayable policy. It is not a
-canonical encoding change, a new `Payload` field, or authority by itself.
+Earlier or future metadata such as `metadata_json.independence_group` is
+asserted advisory data only. It cannot create an origin group, change canonical
+encoding, or admit itself.
 
-### Independent Corroboration
+### Corroboration Separation
 
-Independent corroboration is corroboration from admitted contributions that the
-future fold admits as distinct independence groups.
+Corroboration separation means that an explicit origin-admission policy has
+assigned exact contribution-scoped paths to distinct admitted origin groups.
 
-Independent corroboration may help a contribution reach its allowed ceiling. It
-must not exceed that ceiling.
+Corroboration separation may be consumed only by a later explicit aggregation
+policy and must not exceed the applicable ceiling. It is not proof of
+statistical, causal, institutional, organisational, or control independence.
 
 ### Same-Origin Evidence
 
-Same-origin evidence is evidence that shares an independence group or otherwise
-fails future independence checks.
+Same-origin evidence shares an admitted origin group or otherwise has no
+admitted corroboration separation.
 
 Same-origin evidence may still be retained and may still be useful context. It
-must not be counted as multiple independent corroborators.
+must not be counted repeatedly.
 
 ### Aggregation Lane
 
@@ -179,7 +203,7 @@ An aggregation lane is a deterministic partition that may organize candidates
 and policy-eligible contributions for explanation. Only admitted contributions
 may affect achieved standing within a lane. A lane may be separated by claim,
 direction of contribution, evidence kind, claim domain, edge kind, scope, or
-independence group.
+origin group.
 
 Aggregation lanes prevent unrelated evidence from being combined accidentally
 and give future explainability code a stable way to report why a claim reached
@@ -196,8 +220,8 @@ its achieved standing.
    check fails.
 7. Corroboration may help reach an allowed ceiling; it must not exceed the
    ceiling.
-8. Repeated weak evidence from the same group must not simulate independent
-   corroboration.
+8. Repeated weak evidence from the same group must not simulate corroboration
+   separation.
 9. Support aggregation must not revive a raw `Refuted` claim without explicit
    future invalidation or supersession rules.
 10. Absence of evidence is not refutation.
@@ -209,9 +233,16 @@ its achieved standing.
 ## Admission and Authority Boundary
 
 Advisory metadata and vocabulary labels are never authority by themselves.
-`actor_class`, `evidence_kind`, `claim_domain`, `independence_group`, and a
-`DeadboltAnchor` evidence label are asserted data until admitted by replayable
-policy.
+`actor_class`, `evidence_kind`, `claim_domain`, a self-declared group, and
+a `DeadboltAnchor` evidence label are asserted data until admitted by
+replayable policy.
+
+The authority path is defined by
+`docs/design/artifact-provenance-origin-admission.md`: exact artifact and
+contribution identity, anchored and profile-verified acquisition/derivation/
+origin-binding bundles, explicit origin-admission policy, and no unresolved
+binding conflict. Origin admission still does not create a support
+contribution.
 
 A trace policy identifier discloses which fixed policy produced an explanation.
 It is not a caller-controlled selector that may choose a more favorable outcome.
@@ -220,9 +251,11 @@ Successful Deadbolt settlement or direct refutation requires admitted verifier
 context. A bare typed evidence node labelled `DeadboltAnchor` proves neither
 that verification occurred nor that the label's author had Deadbolt authority.
 
-## Independence-Group Laws
+## Origin-Group and Corroboration-Separation Laws
 
-Independence group keys are opaque exact strings.
+Origin-group keys are opaque exact strings. Their equality has meaning only
+under the exact origin-admission policy and contribution subject that admitted
+them.
 
 Rules:
 
@@ -232,21 +265,24 @@ Rules:
 - No fuzzy matching.
 - No URL/domain inference in v1.
 - No automatic source clustering.
-- No probabilistic independence.
+- No probabilistic independence scoring.
 - No "same publisher but different URL" inference unless future policy
   explicitly admits it.
 
-Absent, malformed, ambiguous, conflicting, unsupported, or unadmitted
-independence-group metadata must not be treated as independent corroboration or
-amplify standing. Future fold rules may retain it in one non-amplifying lane or
-refuse corroborating aggregation.
+Absent, malformed, ambiguous, conflicting, unsupported, unverified, or
+unadmitted
+origin material provides zero corroboration separation and must not amplify
+standing. Future folds may retain it in a non-amplifying lane or refuse
+corroborating aggregation.
 
-A self-declared unique `independence_group` must not count as independent
-corroboration. Evidence producers cannot manufacture independence by choosing a
-fresh string for every report.
+A self-declared unique group must not count as corroboration separation.
+Evidence producers cannot manufacture separation by choosing a fresh string
+for every report.
 
-Independence groups are not source truth. They only constrain whether multiple
-admitted contributions may count as independent corroborators.
+Origin groups are not source truth. They only constrain whether multiple exact
+admitted contributions may be treated as separate by a later aggregation
+policy. Unknown origin counts as zero corroboration separation in the first
+policy. Same-origin multiplicity may count at most once later.
 
 ## External-Source Corroboration
 
@@ -261,11 +297,10 @@ ExternalSource cannot settle truth, even with corroboration policy.
 contribution is admitted or remains weak, but corroboration cannot turn
 `ExternalSource` into `Settled`.
 
-Multiple external reports from the same independence group do not count as
-multiple independent corroborators. Reposted material, syndicated text, mirrored
-pages, copied abstracts, or repeated citations may be useful provenance but do
-not create independent lanes unless future policy explicitly admits their
-independence.
+Multiple external reports from the same origin group do not count repeatedly.
+Reposted material, syndicated text, mirrored pages, copied abstracts, or
+repeated citations may be useful provenance but do not create corroboration
+separation unless explicit contribution-scoped origin bindings are admitted.
 
 Human ratification of an external report may record a human judgment about the
 report, but it does not settle the report's truth. A human can approve relying
@@ -275,8 +310,8 @@ debt.
 
 Model self-reports and lens readouts do not become supporting evidence merely by
 repetition. Repeated model or lens outputs may seed hypotheses, but repetition
-alone must not raise them above their ceiling or simulate independent
-corroboration.
+alone must not raise them above their ceiling or simulate corroboration
+separation.
 
 ## Interaction With Support Ceilings
 
@@ -329,39 +364,37 @@ must not erase truth-bearing contradiction debt or settle factual truth.
 
 ## Future Implementation Order
 
-1. `StandingResolution` v0 explanation surface — landed.
-2. Support-context classification — landed.
-3. Narrow Deadbolt achieved-standing slice — landed.
-4. Closed contribution lanes — landed.
-5. Replayable deterministic-verifier admission contract — landed.
-6. Standing-inert verifier-context query and closed checker — landed.
-7. One direct policy-v2 `Supported` rule — landed.
-8. Next: genuine aggregation; the first v2 `Supported` rule is direct
-   support and is not the support aggregation rule described in this note.
-9. Conservative provenance-derived independence. Absent, malformed,
-   unadmitted, or self-declared groups must not amplify.
-10. Direct refutation only through admitted verifier context plus
-    `refutation_ceiling`.
-11. Contradiction debt with explicit precedence against direct refutation.
-12. Invalidation and supersession semantics.
-13. The capability-bearing `EpistemicGate`.
-14. Writer surfaces.
-15. Optional librarian, navigator, model, or lens infrastructure.
+1. Ratify Ticket 0037's artifact-provenance and origin-admission contract.
+2. Pin one exact versioned acquisition/derivation foreign-bundle schema and
+   verifier profile.
+3. Add portable bundle fixtures and standing-inert verification.
+4. Pin one exact origin-binding bundle schema and explicit origin-admission
+   policy.
+5. Add a standing-inert origin-admission audit.
+6. Add an admitted-contribution audit surface with no aggregation.
+7. Pin one explicit standing policy v3 aggregation rule.
+8. Implement conservative aggregation.
+9. Add direct refutation through admitted verifier context.
+10. Add contradiction debt with explicit precedence against direct refutation.
+11. Add invalidation and supersession/currentness.
+12. Add the capability-bearing `EpistemicGate` and writer-facing surfaces.
+13. Add governed acquisition tooling and librarian proposals.
 
 The direct policy-v2 rule consumes one successful closed verifier context and
 contributes `Supported` without combining evidence. It introduces no numeric
-threshold, source count, corroboration, or independence claim. The aggregation
-laws and independence requirements in this note remain prerequisites for the
-later, genuinely aggregating rule.
+threshold, source count, corroboration, or independence claim. Origin admission
+is not support, one admitted group is not aggregation, and steps 2-6 must remain
+standing-inert. Step 7 is future work: this note neither defines a threshold nor
+creates policy v3.
 
 ## Future Tests
 
 Future PRs should add tests with names such as:
 
-- `external_sources_same_independence_group_do_not_amplify`
-- `external_sources_independent_groups_may_correlate_to_supported`
+- `external_sources_same_origin_group_do_not_amplify`
+- `distinct_admitted_origin_groups_are_only_corroboration_separation`
 - `external_source_corroboration_never_settles`
-- `missing_independence_group_does_not_count_as_independent`
+- `unknown_origin_provides_zero_corroboration_separation`
 - `model_self_report_repetition_does_not_amplify`
 - `lens_readout_repetition_does_not_amplify`
 - `human_ratification_does_not_settle_external_report`
@@ -371,7 +404,8 @@ Future PRs should add tests with names such as:
 - `supersession_is_not_deletion`
 - `aggregation_is_order_independent`
 - `aggregation_is_regenerable`
-- `self_declared_independence_group_does_not_amplify`
+- `self_declared_origin_group_does_not_amplify`
+- `conflicting_origin_bindings_admit_zero_groups`
 - `bare_deadbolt_label_is_not_admitted_verifier_context`
 - `trace_policy_id_is_not_an_outcome_selector`
 - `human_ratification_does_not_erase_contradiction_debt`
@@ -381,17 +415,22 @@ These are future tests for later PRs. This note does not add tests.
 ## Reviewer Checklist
 
 - Confirm this phase is docs/tickets only.
-- Confirm independence groups are opaque policy strings, not inferred source
-  clusters.
-- Confirm missing or ambiguous independence metadata does not count as
-  independent corroboration.
-- Confirm self-declared or unadmitted independence groups never amplify.
+- Confirm origin groups are opaque policy strings, not inferred source
+  clusters, truth labels, or publisher identities.
+- Confirm the filename preserves earlier “independence group” shorthand while
+  normative prose uses origin group and corroboration separation.
+- Confirm missing, ambiguous, conflicting, or unknown origin material provides
+  zero corroboration separation.
+- Confirm self-declared or unadmitted origin groups never amplify.
 - Confirm external-source corroboration cannot yield `Settled`.
 - Confirm support and refutation aggregation remain separate from contradiction
   debt, invalidation, and supersession.
 - Confirm `StandingResolution` v0 is described as the canonical governed
   explanation surface and `resolved_standing()` only as its compatibility
   scalar.
-- Confirm admission/verifier context precedes aggregation, direct refutation,
-  and independence amplification.
+- Confirm artifact/bundle verification, origin-admission audit, and
+  admitted-contribution audit all precede aggregation.
+- Confirm origin admission is not support and one admitted group is not
+  aggregation.
+- Confirm no numeric threshold or implemented policy v3 appears.
 - Confirm no runtime `StandingView` behavior changes are made by this docs PR.
