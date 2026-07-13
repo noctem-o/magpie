@@ -21,9 +21,12 @@ use serde::Serialize;
 use crate::deterministic_verifier_context::DeterministicVerifierContextTraceV0;
 use crate::policy::{ClaimDomain, EvidenceKind};
 use crate::replay_snapshot::StandingReplaySnapshot;
-use crate::standing::{StandingCurrentness, StandingTraceEntry, StandingTraceReason};
+use crate::standing::{
+    StandingCurrentness, StandingResolution, StandingTraceEntry, StandingTraceReason,
+};
 use crate::standing_v1::{
     DeadboltOccurrenceContextTrace, StandingPolicyApplication, StandingPolicyRule,
+    StandingResolutionV1,
 };
 
 /// Fixed identity for the explicitly selected governed-standing v2 policy.
@@ -114,6 +117,19 @@ pub struct StandingTraceEntryV2 {
     pub application: Option<StandingPolicyApplicationV2>,
 }
 
+/// Closed failure vocabulary for policy-v2 composition invariants.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum StandingResolutionFailureV2 {
+    InheritedV1TraceLengthMismatch {
+        v0_trace_len: usize,
+        v1_trace_len: usize,
+    },
+    InheritedV1CandidateMismatch {
+        index: usize,
+    },
+}
+
 /// Deterministic governed-standing explanation under explicit policy v2.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct StandingResolutionV2 {
@@ -122,6 +138,8 @@ pub struct StandingResolutionV2 {
     pub legacy_raw_standing: Option<Status>,
     pub currentness: StandingCurrentness,
     pub policy_id: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolution_failure: Option<StandingResolutionFailureV2>,
     pub trace: Vec<StandingTraceEntryV2>,
     pub blockers: Vec<StandingTraceReason>,
 }
@@ -147,71 +165,117 @@ impl StandingReplaySnapshot {
     pub fn resolved_standing_with_trace_v2(&self, claim_id: &str) -> StandingResolutionV2 {
         let baseline = self.standing().resolved_standing_with_trace(claim_id);
         let inherited = self.resolved_standing_with_trace_v1(claim_id);
-        debug_assert_eq!(baseline.trace.len(), inherited.trace.len());
+        resolve_standing_v2_from_resolutions(self, claim_id, baseline, inherited)
+    }
+}
 
-        let mut achieved_deterministic_supported = false;
-        let trace = inherited
+fn resolve_standing_v2_from_resolutions(
+    snapshot: &StandingReplaySnapshot,
+    claim_id: &str,
+    baseline: StandingResolution,
+    inherited: StandingResolutionV1,
+) -> StandingResolutionV2 {
+    let v0_trace_len = baseline.trace.len();
+    let v1_trace_len = inherited.trace.len();
+    if v0_trace_len != v1_trace_len {
+        return failed_v2_resolution(
+            baseline,
+            StandingResolutionFailureV2::InheritedV1TraceLengthMismatch {
+                v0_trace_len,
+                v1_trace_len,
+            },
+        );
+    }
+
+    for index in 0..baseline.trace.len() {
+        if inherited.trace[index].candidate != baseline.trace[index] {
+            return failed_v2_resolution(
+                baseline,
+                StandingResolutionFailureV2::InheritedV1CandidateMismatch { index },
+            );
+        }
+    }
+
+    let mut achieved_deterministic_supported = false;
+    let trace = inherited
+        .trace
+        .into_iter()
+        .map(|entry| {
+            let application = match entry.application {
+                Some(application) => {
+                    let achieved = application.achieved_standing;
+                    let converted = StandingPolicyApplicationV2::inherited_deadbolt(application);
+                    debug_assert_eq!(converted.achieved_standing, achieved);
+                    Some(converted)
+                }
+                None => classify_deterministic_candidate(&entry.candidate).map(|rule| {
+                    debug_assert_eq!(rule, StandingPolicyRuleV2::Sha256BytesEqualsDirectSupportV0);
+                    let edge_id = entry
+                        .candidate
+                        .edge_id
+                        .as_deref()
+                        .expect("classified deterministic candidate has an edge id");
+                    let source_id = entry
+                        .candidate
+                        .source_id
+                        .as_deref()
+                        .expect("classified deterministic candidate has a source id");
+                    StandingPolicyApplicationV2::deterministic(
+                        snapshot.resolve_deterministic_verifier_context_v0(
+                            claim_id, source_id, edge_id,
+                        ),
+                    )
+                }),
+            };
+            achieved_deterministic_supported |= application.as_ref().is_some_and(|value| {
+                value.rule == StandingPolicyRuleV2::Sha256BytesEqualsDirectSupportV0
+                    && value.achieved_standing == Some(Status::Supported)
+            });
+            StandingTraceEntryV2 {
+                candidate: entry.candidate,
+                application,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let governed_standing = combine_v2_standing(
+        inherited.governed_standing,
+        achieved_deterministic_supported,
+    );
+    let blockers = unresolved_blockers_v2(&baseline.blockers, &trace);
+
+    StandingResolutionV2 {
+        claim_id: baseline.claim_id,
+        governed_standing,
+        legacy_raw_standing: baseline.legacy_raw_standing,
+        currentness: baseline.currentness,
+        policy_id: MAGPIE_CLAIMS_POLICY_V2_ID,
+        resolution_failure: None,
+        trace,
+        blockers,
+    }
+}
+
+fn failed_v2_resolution(
+    baseline: StandingResolution,
+    resolution_failure: StandingResolutionFailureV2,
+) -> StandingResolutionV2 {
+    StandingResolutionV2 {
+        claim_id: baseline.claim_id,
+        governed_standing: baseline.governed_standing,
+        legacy_raw_standing: baseline.legacy_raw_standing,
+        currentness: baseline.currentness,
+        policy_id: MAGPIE_CLAIMS_POLICY_V2_ID,
+        resolution_failure: Some(resolution_failure),
+        trace: baseline
             .trace
             .into_iter()
-            .zip(&baseline.trace)
-            .map(|(entry, baseline_candidate)| {
-                debug_assert_eq!(&entry.candidate, baseline_candidate);
-                let application = match entry.application {
-                    Some(application) => {
-                        let achieved = application.achieved_standing;
-                        let converted =
-                            StandingPolicyApplicationV2::inherited_deadbolt(application);
-                        debug_assert_eq!(converted.achieved_standing, achieved);
-                        Some(converted)
-                    }
-                    None => classify_deterministic_candidate(&entry.candidate).map(|rule| {
-                        debug_assert_eq!(
-                            rule,
-                            StandingPolicyRuleV2::Sha256BytesEqualsDirectSupportV0
-                        );
-                        let edge_id = entry
-                            .candidate
-                            .edge_id
-                            .as_deref()
-                            .expect("classified deterministic candidate has an edge id");
-                        let source_id = entry
-                            .candidate
-                            .source_id
-                            .as_deref()
-                            .expect("classified deterministic candidate has a source id");
-                        StandingPolicyApplicationV2::deterministic(
-                            self.resolve_deterministic_verifier_context_v0(
-                                claim_id, source_id, edge_id,
-                            ),
-                        )
-                    }),
-                };
-                achieved_deterministic_supported |= application.as_ref().is_some_and(|value| {
-                    value.rule == StandingPolicyRuleV2::Sha256BytesEqualsDirectSupportV0
-                        && value.achieved_standing == Some(Status::Supported)
-                });
-                StandingTraceEntryV2 {
-                    candidate: entry.candidate,
-                    application,
-                }
+            .map(|candidate| StandingTraceEntryV2 {
+                candidate,
+                application: None,
             })
-            .collect::<Vec<_>>();
-
-        let governed_standing = combine_v2_standing(
-            inherited.governed_standing,
-            achieved_deterministic_supported,
-        );
-        let blockers = unresolved_blockers_v2(&baseline.blockers, &trace);
-
-        StandingResolutionV2 {
-            claim_id: baseline.claim_id,
-            governed_standing,
-            legacy_raw_standing: baseline.legacy_raw_standing,
-            currentness: baseline.currentness,
-            policy_id: MAGPIE_CLAIMS_POLICY_V2_ID,
-            trace,
-            blockers,
-        }
+            .collect(),
+        blockers: baseline.blockers,
     }
 }
 
@@ -299,6 +363,174 @@ fn successful_application(entry: &StandingTraceEntryV2) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::standing_v1::StandingTraceEntryV1;
+    use magpie_log::{LogReader, LogWriter, MemStore, SigningKey};
+
+    fn test_snapshot() -> StandingReplaySnapshot {
+        let store = MemStore::new();
+        let key = SigningKey::from_bytes(&[101; 32]);
+        {
+            let _writer = LogWriter::open(store.clone(), key.clone()).unwrap();
+        }
+        let reader = LogReader::open(store, key.verifying_key());
+        crate::replay_standing_context(&reader).unwrap()
+    }
+
+    fn alignment_candidate(suffix: &str) -> StandingTraceEntry {
+        StandingTraceEntry {
+            edge_id: Some(format!("edge-{suffix}")),
+            source_id: Some(format!("evidence-{suffix}")),
+            target_id: "claim".into(),
+            evidence_kind: Some(EvidenceKind::DeterministicVerification.as_str().into()),
+            claim_domain: Some(ClaimDomain::ExactMachineCheckable.as_str().into()),
+            candidate_ceiling: Some(Status::Settled),
+            reasons: vec![
+                StandingTraceReason::AcceptedCandidate,
+                StandingTraceReason::RequiresVerifierContext,
+                StandingTraceReason::CeilingIsCandidateOnly,
+            ],
+        }
+    }
+
+    fn alignment_baseline() -> StandingResolution {
+        StandingResolution {
+            claim_id: "claim".into(),
+            governed_standing: Some(Status::Conjectured),
+            legacy_raw_standing: Some(Status::Settled),
+            currentness: StandingCurrentness::Unknown,
+            policy_id: crate::MAGPIE_CLAIMS_POLICY_ID,
+            trace: vec![alignment_candidate("a"), alignment_candidate("b")],
+            blockers: vec![
+                StandingTraceReason::RequiresVerifierContext,
+                StandingTraceReason::CeilingIsCandidateOnly,
+            ],
+        }
+    }
+
+    fn fabricated_inherited(candidates: Vec<StandingTraceEntry>) -> StandingResolutionV1 {
+        StandingResolutionV1 {
+            claim_id: "claim".into(),
+            governed_standing: Some(Status::Settled),
+            legacy_raw_standing: Some(Status::Settled),
+            currentness: StandingCurrentness::Unknown,
+            policy_id: crate::MAGPIE_CLAIMS_POLICY_V1_ID,
+            trace: candidates
+                .into_iter()
+                .map(|candidate| StandingTraceEntryV1 {
+                    candidate,
+                    application: Some(StandingPolicyApplication {
+                        rule: StandingPolicyRule::DeadboltOccurrenceInclusionV1,
+                        context: DeadboltOccurrenceContextTrace::AnchorNotFound,
+                        achieved_standing: Some(Status::Settled),
+                    }),
+                })
+                .collect(),
+            blockers: Vec::new(),
+        }
+    }
+
+    fn assert_alignment_failure(
+        resolution: &StandingResolutionV2,
+        baseline: &StandingResolution,
+        expected: StandingResolutionFailureV2,
+    ) {
+        assert_eq!(resolution.claim_id, baseline.claim_id);
+        assert_eq!(resolution.governed_standing, baseline.governed_standing);
+        assert_eq!(resolution.legacy_raw_standing, baseline.legacy_raw_standing);
+        assert_eq!(resolution.currentness, baseline.currentness);
+        assert_eq!(resolution.policy_id, MAGPIE_CLAIMS_POLICY_V2_ID);
+        assert_eq!(resolution.resolution_failure, Some(expected));
+        assert_eq!(resolution.trace.len(), baseline.trace.len());
+        assert!(resolution
+            .trace
+            .iter()
+            .all(|entry| entry.application.is_none()));
+        assert_eq!(
+            resolution
+                .trace
+                .iter()
+                .map(|entry| &entry.candidate)
+                .collect::<Vec<_>>(),
+            baseline.trace.iter().collect::<Vec<_>>()
+        );
+        assert_eq!(resolution.blockers, baseline.blockers);
+        assert_ne!(resolution.governed_standing, Some(Status::Settled));
+    }
+
+    #[test]
+    fn alignment_failure_short_inherited_trace_preserves_complete_v0_baseline() {
+        let snapshot = test_snapshot();
+        let baseline = alignment_baseline();
+        let inherited = fabricated_inherited(vec![alignment_candidate("a")]);
+
+        let resolution =
+            resolve_standing_v2_from_resolutions(&snapshot, "claim", baseline.clone(), inherited);
+
+        assert_alignment_failure(
+            &resolution,
+            &baseline,
+            StandingResolutionFailureV2::InheritedV1TraceLengthMismatch {
+                v0_trace_len: 2,
+                v1_trace_len: 1,
+            },
+        );
+    }
+
+    #[test]
+    fn alignment_failure_long_inherited_trace_preserves_complete_v0_baseline() {
+        let snapshot = test_snapshot();
+        let baseline = alignment_baseline();
+        let inherited = fabricated_inherited(vec![
+            alignment_candidate("a"),
+            alignment_candidate("b"),
+            alignment_candidate("c"),
+        ]);
+
+        let resolution =
+            resolve_standing_v2_from_resolutions(&snapshot, "claim", baseline.clone(), inherited);
+
+        assert_alignment_failure(
+            &resolution,
+            &baseline,
+            StandingResolutionFailureV2::InheritedV1TraceLengthMismatch {
+                v0_trace_len: 2,
+                v1_trace_len: 3,
+            },
+        );
+    }
+
+    #[test]
+    fn alignment_failure_reports_first_candidate_mismatch_and_discards_applications() {
+        let snapshot = test_snapshot();
+        let baseline = alignment_baseline();
+        let mut changed = alignment_candidate("b");
+        changed.source_id = Some("standing-bearing-source-mismatch".into());
+        let inherited = fabricated_inherited(vec![alignment_candidate("a"), changed]);
+
+        let resolution =
+            resolve_standing_v2_from_resolutions(&snapshot, "claim", baseline.clone(), inherited);
+
+        assert_alignment_failure(
+            &resolution,
+            &baseline,
+            StandingResolutionFailureV2::InheritedV1CandidateMismatch { index: 1 },
+        );
+    }
+
+    #[test]
+    fn alignment_failure_serialization_is_literal_and_deterministic() {
+        let snapshot = test_snapshot();
+        let baseline = alignment_baseline();
+        let inherited = fabricated_inherited(vec![alignment_candidate("a")]);
+
+        let resolution =
+            resolve_standing_v2_from_resolutions(&snapshot, "claim", baseline, inherited);
+
+        assert_eq!(
+            String::from_utf8(resolution.canonical_bytes()).unwrap(),
+            r#"{"claim_id":"claim","governed_standing":"Conjectured","legacy_raw_standing":"Settled","currentness":"unknown","policy_id":"magpie-claims-standing-v2","resolution_failure":{"kind":"inherited_v1_trace_length_mismatch","v0_trace_len":2,"v1_trace_len":1},"trace":[{"candidate":{"edge_id":"edge-a","source_id":"evidence-a","target_id":"claim","evidence_kind":"DeterministicVerification","claim_domain":"ExactMachineCheckable","candidate_ceiling":"Settled","reasons":["accepted_candidate","requires_verifier_context","ceiling_is_candidate_only"]},"application":null},{"candidate":{"edge_id":"edge-b","source_id":"evidence-b","target_id":"claim","evidence_kind":"DeterministicVerification","claim_domain":"ExactMachineCheckable","candidate_ceiling":"Settled","reasons":["accepted_candidate","requires_verifier_context","ceiling_is_candidate_only"]},"application":null}],"blockers":["requires_verifier_context","ceiling_is_candidate_only"]}"#
+        );
+    }
 
     fn exact_candidate() -> StandingTraceEntry {
         StandingTraceEntry {

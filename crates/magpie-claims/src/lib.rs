@@ -46,7 +46,8 @@ pub use standing_v1::{
 
 pub use standing_v2::{
     StandingPolicyApplicationV2, StandingPolicyContextV2, StandingPolicyRuleV2,
-    StandingResolutionV2, StandingTraceEntryV2, MAGPIE_CLAIMS_POLICY_V2_ID,
+    StandingResolutionFailureV2, StandingResolutionV2, StandingTraceEntryV2,
+    MAGPIE_CLAIMS_POLICY_V2_ID,
 };
 
 /// A single tracked claim and its current epistemic state.
