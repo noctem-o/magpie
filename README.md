@@ -21,11 +21,13 @@ cargo run --example tour -p magpie-claims    # governed-standing end-to-end tour
 
 The tour demonstrates the current vertical thesis: one signed history verifies
 completely and co-replays standing with exact anchor context; policy v0 exposes
-candidate-only standing, while explicit policy v1 settles only the exact matched
-Deadbolt occurrence proposition. A structured mismatch and an interpretation
-claim remain unpromoted, then every snapshot and resolution byte regenerates
-identically after all derived standing state is dropped. It does not verify
-foreign bundle contents or implement general aggregation or writer admission.
+candidate-only standing, explicit policy v1 settles only the exact matched
+Deadbolt occurrence proposition, and explicit policy v2 directly supports one
+exact canonical inline digest proposition after the same-snapshot verifier
+matches. A structured mismatch and an interpretation claim remain unpromoted,
+then every snapshot and resolution byte regenerates identically after all
+derived standing state is dropped. It does not verify foreign bundle contents
+or implement general aggregation or writer admission.
 
 The thesis, as a test (`crates/magpie-claims/tests/regenerable.rs`):
 > build a projection → **drop all derived state** → replay from the log alone →
@@ -243,8 +245,13 @@ shell execution is unavailable.
     canonical statement/content-hash binding, bounded witness checking, and
     snapshot-only receipt traces now derive deterministic audit material with
     no standing effect.
-13. **Next: explicit policy-v2 direct `Supported` rule.** Only after that: genuine
-    aggregation, conservative independence, refutation, contradiction debt,
+13. **Explicit policy-v2 deterministic direct support — landed.**
+    `magpie-claims-standing-v2` preserves the exact Deadbolt v1 settlement rule
+    and adds one `sha256_bytes_equals_v0` direct contribution that reaches
+    `Supported` only after the existing same-snapshot verifier returns
+    `Matched`. Repeated successful paths do not amplify or settle.
+14. **Next: genuine aggregation with conservative provenance-derived
+    independence.** Only after that: refutation, contradiction debt,
     invalidation, supersession, `EpistemicGate`, and writers.
 
 Conserve the log. Derive the rest.

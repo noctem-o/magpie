@@ -2,10 +2,10 @@
 
 ## Status and purpose
 
-Ratified architecture contract. Ticket 0035 implements the standing-inert
-strict parser, closed checker, snapshot-only context query, receipt trace, and
-hostile tests. Policy v2 and achieved `Supported` remain unimplemented. The
-implementation adds no standing authority.
+Ratified architecture contract with its first bounded policy consumer landed.
+The contract, standing-inert strict checker/context, and explicit policy-v2
+direct `Supported` rule are implemented. Genuine aggregation and conservative
+independence remain next.
 
 The purpose is to say exactly where deterministic-verifier authority may begin,
 and to bound the first achieved-`Supported` rule that may consume it.
@@ -22,7 +22,14 @@ and to bound the first achieved-`Supported` rule that may consume it.
 - dependency boundary: existing workspace `hex` and `sha2` dependencies are
   added directly to `magpie-claims` only;
 - hostile and literal audit fixtures:
-  `crates/magpie-claims/tests/deterministic_verifier_context.rs`.
+  `crates/magpie-claims/tests/deterministic_verifier_context.rs`;
+- `standing_v2.rs`: explicit policy-v2 types and resolver;
+- `resolved_standing_with_trace_v2`: internally inherits v1 and invokes the
+  snapshot-only verifier context;
+- `StandingPolicyContextV2`: retains exact inherited Deadbolt or deterministic
+  verifier traces;
+- `deterministic_support_standing_v2.rs`: policy, precedence, blocker,
+  non-amplification, and byte fixtures.
 
 ## Architectural law
 
@@ -63,8 +70,9 @@ The human-created `v0.1.0` tag names the reviewed source release at
 `2bbfbd1f451e35b65e8c89aeaf39801621e484df`. This post-release design neither
 rewrites that tag nor broadens its source, format, policy, replay, packaging,
 publication, or absence claims. Policy v0 and policy v1 remain exactly the
-released policies. This contract proposes the new identity
-`magpie-claims-standing-v2`; it does not activate it.
+released policies. The explicit post-release identity
+`magpie-claims-standing-v2` is now implemented; it is selected only by
+versioned snapshot methods and is not ambient policy.
 
 ## Premises and existing substrate
 
@@ -403,11 +411,13 @@ bindings, bounded decoding, and digest comparison. Statement and claim-hash
 mismatches do not belong to v0 candidate tracing because v0 does not interpret
 machine-predicate statement semantics. V2 lane classification owns whether the
 exact v0 deterministic-verification candidate selects the one v2 rule.
-Claim-level v2 blockers are deterministically derived from unresolved v0
-blockers, `CandidateRevalidationFailed`, or the exact unsuccessful context
-outcome; they do not repeat the check as a second authority source. One
-successful application satisfies only its own `RequiresVerifierContext` and
-`CeilingIsCandidateOnly` limitations.
+Claim-level v2 blockers are deterministically derived from baseline blockers
+and the complete v2 trace; they do not repeat the check as a second authority
+source. Exact context failure remains in the application trace. Generic
+unresolved `RequiresVerifierContext` and `CeilingIsCandidateOnly` remain in
+blockers, while a successful application clears only its own generic
+limitations. One unresolved path does not veto a successful path, and no new
+blocker vocabulary is required.
 
 ## Trusted construction and bypasses
 
@@ -454,9 +464,9 @@ identity beyond recorded provenance, semantic correctness, safety,
 interpretation truth, arbitrary claim truth, independent corroboration, or
 publication authority.
 
-## Proposed policy-v2 boundary
+## Implemented policy-v2 boundary
 
-The future policy identity is exactly `magpie-claims-standing-v2`. It preserves
+The policy identity is exactly `magpie-claims-standing-v2`. It preserves
 all v1 behaviour and adds exactly one direct-support family:
 
 ```text
@@ -538,7 +548,7 @@ explicit.
 A Boolean or count loses exact attribution, prevents precise replay comparison
 and later invalidation, obscures hostile failures, and invites amplification.
 
-A later implementation must:
+The implementation:
 
 - retain the literal v0 and v1 canonical-byte fixtures byte-for-byte;
 - add literal positive and failure v2 fixtures covering field names, order,
@@ -621,9 +631,9 @@ ClaimAssertedV2 structured machine predicate
 
 ## Non-goals and questions requiring new infrastructure
 
-This contract adds no payload, tag, projection, receipt type, checker, policy
-v2, achieved standing, aggregation, independence, refutation, contradiction
-debt, invalidation, supersession, currentness, `EpistemicGate`, writer surface,
+This policy slice adds no payload, tag, projection, receipt type, second
+checker, aggregation, independence, refutation, contradiction debt,
+invalidation, supersession, currentness, `EpistemicGate`, writer surface,
 artifact acquisition, file/shell/network/plugin/callback authority, proof
 system, formal verification, or model/lens ingestion.
 
@@ -637,9 +647,9 @@ infrastructure and separately named predicates. They must not be smuggled into
 
 1. Contract — landed.
 2. Standing-inert parser/checker/context — landed.
-3. Review audit surface and hostile tests — this PR.
-4. Explicit policy-v2 direct `Supported` rule — next.
-5. Genuine aggregation and independence — later.
+3. Review audit surface and hostile tests — landed.
+4. Explicit policy-v2 direct `Supported` rule — landed.
+5. Genuine aggregation and independence — next.
 
 The later code PR must stop if exact parsing requires L0 changes; metadata
 cannot express unambiguous bindings; a new payload or artifact store is needed;

@@ -6,16 +6,18 @@
 
 use magpie_claims::{
     replay_standing_context, DeadboltAnchorIdentity, DeadboltAnchorOccurrence,
-    DeadboltOccurrenceContextTrace, StandingPolicyRule, StandingReplaySnapshot,
-    StandingTraceReason, DEADBOLT_OCCURRENCE_SCHEMA, MAGPIE_CLAIMS_POLICY_ID,
-    MAGPIE_CLAIMS_POLICY_V1_ID,
+    DeadboltOccurrenceContextTrace, DeterministicVerifierContextTraceV0, StandingPolicyContextV2,
+    StandingPolicyRule, StandingPolicyRuleV2, StandingReplaySnapshot, StandingTraceReason,
+    DEADBOLT_OCCURRENCE_SCHEMA, MAGPIE_CLAIMS_POLICY_ID, MAGPIE_CLAIMS_POLICY_V1_ID,
+    MAGPIE_CLAIMS_POLICY_V2_ID,
 };
 use magpie_log::{LogReader, LogWriter, MemStore, Payload, Provenance, SigningKey, Status};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 
 const SEED: [u8; 32] = [71u8; 32];
-const EXPECTED_EVENT_COUNT: u64 = 11;
-const ANCHOR_SEQUENCE: u64 = 10;
+const EXPECTED_EVENT_COUNT: u64 = 14;
+const ANCHOR_SEQUENCE: u64 = 13;
 const PROVENANCE_AGENT: &str = "governed-standing-tour";
 const PROVENANCE_SOURCE: &str = "signed-history-v1";
 
@@ -34,14 +36,28 @@ const INTERPRETATION_EVIDENCE_ID: &str = "evidence-anchor-interpretation";
 const INTERPRETATION_EDGE_ID: &str = "edge-anchor-interpretation";
 const INTERPRETATION_SCOPE: &str = "scope:anchor-interpretation";
 
+const MACHINE_CLAIM_ID: &str = "claim-sha256-abc";
+const MACHINE_EVIDENCE_ID: &str = "evidence-sha256-abc";
+const MACHINE_EDGE_ID: &str = "edge-sha256-abc";
+const MACHINE_SCOPE: &str = "scope:sha256-abc";
+const MACHINE_DIGEST: &str = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+const MACHINE_STATEMENT: &str =
+    "sha256_bytes_equals_v0:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+
 #[derive(Debug, PartialEq, Eq)]
 struct ResolutionBytes {
     positive_v0: Vec<u8>,
     positive_v1: Vec<u8>,
+    positive_v2: Vec<u8>,
     mismatch_v0: Vec<u8>,
     mismatch_v1: Vec<u8>,
+    mismatch_v2: Vec<u8>,
     interpretation_v0: Vec<u8>,
     interpretation_v1: Vec<u8>,
+    interpretation_v2: Vec<u8>,
+    machine_v0: Vec<u8>,
+    machine_v1: Vec<u8>,
+    machine_v2: Vec<u8>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -53,6 +69,7 @@ struct TourFacts {
     anchor_identity_count: usize,
     positive_v0: Option<Status>,
     positive_v1: Option<Status>,
+    positive_v2: Option<Status>,
     positive_scalar: Option<Status>,
     positive_rule: StandingPolicyRule,
     positive_contribution: Option<Status>,
@@ -65,9 +82,15 @@ struct TourFacts {
     mismatch_blockers: Vec<StandingTraceReason>,
     interpretation_v0: Option<Status>,
     interpretation_v1: Option<Status>,
+    interpretation_v2: Option<Status>,
     interpretation_domain: String,
     interpretation_ceiling: Option<Status>,
     interpretation_has_application: bool,
+    machine_v0: Option<Status>,
+    machine_v1: Option<Status>,
+    machine_v2: Option<Status>,
+    machine_rule: StandingPolicyRuleV2,
+    machine_contribution: Option<Status>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -165,6 +188,46 @@ fn anchor_payload(identity: &DeadboltAnchorIdentity) -> Payload {
     }
 }
 
+fn machine_claim_payload() -> Payload {
+    Payload::ClaimAssertedV2 {
+        claim_id: MACHINE_CLAIM_ID.into(),
+        statement: MACHINE_STATEMENT.into(),
+        scope_ref: MACHINE_SCOPE.into(),
+        actor_class: "AgentProposer".into(),
+        content_hash: hex::encode(Sha256::digest(MACHINE_STATEMENT.as_bytes())),
+        metadata_json: json!({
+            "claim_domain": "ExactMachineCheckable",
+            "machine_predicate": {
+                "schema": "magpie-machine-predicate-v0",
+                "predicate_id": "sha256_bytes_equals_v0",
+                "expected_sha256": MACHINE_DIGEST,
+            }
+        })
+        .to_string(),
+    }
+}
+
+fn machine_evidence_payload() -> Payload {
+    Payload::EvidenceRegistered {
+        evidence_id: MACHINE_EVIDENCE_ID.into(),
+        evidence_kind: "DeterministicVerification".into(),
+        summary: "Inline abc witness for the exact digest proposition.".into(),
+        scope_ref: MACHINE_SCOPE.into(),
+        actor_class: "SourceImporter".into(),
+        content_hash: String::new(),
+        metadata_json: json!({
+            "verification_witness": {
+                "schema": "magpie-verification-witness-v0",
+                "predicate_id": "sha256_bytes_equals_v0",
+                "subject_claim_id": MACHINE_CLAIM_ID,
+                "scope_ref": MACHINE_SCOPE,
+                "witness_hex": "616263",
+            }
+        })
+        .to_string(),
+    }
+}
+
 fn deterministic_history(identity: &DeadboltAnchorIdentity) -> Vec<Payload> {
     let mut mismatched_reference = identity.clone();
     mismatched_reference.run_id = "governed-standing-tour-other-run".into();
@@ -224,6 +287,14 @@ fn deterministic_history(identity: &DeadboltAnchorIdentity) -> Vec<Payload> {
             INTERPRETATION_CLAIM_ID,
             INTERPRETATION_SCOPE,
         ),
+        machine_claim_payload(),
+        machine_evidence_payload(),
+        edge_payload(
+            MACHINE_EDGE_ID,
+            MACHINE_EVIDENCE_ID,
+            MACHINE_CLAIM_ID,
+            MACHINE_SCOPE,
+        ),
         anchor_payload(identity),
     ]
 }
@@ -234,19 +305,22 @@ fn capture_and_assert(
     print_results: bool,
 ) -> TourCapture {
     assert_eq!(snapshot.event_count(), EXPECTED_EVENT_COUNT);
-    assert_eq!(snapshot.standing().typed_claim_len(), 3);
-    assert_eq!(snapshot.standing().typed_evidence_len(), 3);
-    assert_eq!(snapshot.standing().justification_edge_len(), 3);
+    assert_eq!(snapshot.standing().typed_claim_len(), 4);
+    assert_eq!(snapshot.standing().typed_evidence_len(), 4);
+    assert_eq!(snapshot.standing().justification_edge_len(), 4);
     assert_eq!(snapshot.anchors().len(), 1);
 
     let positive_v0 = snapshot
         .standing()
         .resolved_standing_with_trace(POSITIVE_CLAIM_ID);
     let positive_v1 = snapshot.resolved_standing_with_trace_v1(POSITIVE_CLAIM_ID);
+    let positive_v2 = snapshot.resolved_standing_with_trace_v2(POSITIVE_CLAIM_ID);
     assert_eq!(positive_v0.policy_id, MAGPIE_CLAIMS_POLICY_ID);
     assert_eq!(positive_v1.policy_id, MAGPIE_CLAIMS_POLICY_V1_ID);
+    assert_eq!(positive_v2.policy_id, MAGPIE_CLAIMS_POLICY_V2_ID);
     assert_eq!(positive_v0.governed_standing, Some(Status::Conjectured));
     assert_eq!(positive_v1.governed_standing, Some(Status::Settled));
+    assert_eq!(positive_v2.governed_standing, Some(Status::Settled));
     assert_eq!(positive_v0.trace.len(), 1);
     assert_eq!(
         positive_v0.trace[0].candidate_ceiling,
@@ -295,8 +369,10 @@ fn capture_and_assert(
         .standing()
         .resolved_standing_with_trace(MISMATCH_CLAIM_ID);
     let mismatch_v1 = snapshot.resolved_standing_with_trace_v1(MISMATCH_CLAIM_ID);
+    let mismatch_v2 = snapshot.resolved_standing_with_trace_v2(MISMATCH_CLAIM_ID);
     assert_eq!(mismatch_v0.governed_standing, Some(Status::Conjectured));
     assert_eq!(mismatch_v1.governed_standing, Some(Status::Conjectured));
+    assert_eq!(mismatch_v2.governed_standing, Some(Status::Conjectured));
     assert_eq!(mismatch_v0.trace.len(), 1);
     assert_eq!(
         mismatch_v0.trace[0].candidate_ceiling,
@@ -336,12 +412,17 @@ fn capture_and_assert(
         .standing()
         .resolved_standing_with_trace(INTERPRETATION_CLAIM_ID);
     let interpretation_v1 = snapshot.resolved_standing_with_trace_v1(INTERPRETATION_CLAIM_ID);
+    let interpretation_v2 = snapshot.resolved_standing_with_trace_v2(INTERPRETATION_CLAIM_ID);
     assert_eq!(
         interpretation_v0.governed_standing,
         Some(Status::Conjectured)
     );
     assert_eq!(
         interpretation_v1.governed_standing,
+        Some(Status::Conjectured)
+    );
+    assert_eq!(
+        interpretation_v2.governed_standing,
         Some(Status::Conjectured)
     );
     assert_ne!(interpretation_v1.governed_standing, Some(Status::Settled));
@@ -356,6 +437,33 @@ fn capture_and_assert(
         Some(Status::Supported)
     );
     assert!(interpretation_v1.trace[0].application.is_none());
+
+    let machine_v0 = snapshot
+        .standing()
+        .resolved_standing_with_trace(MACHINE_CLAIM_ID);
+    let machine_v1 = snapshot.resolved_standing_with_trace_v1(MACHINE_CLAIM_ID);
+    let machine_v2 = snapshot.resolved_standing_with_trace_v2(MACHINE_CLAIM_ID);
+    assert_eq!(machine_v0.governed_standing, Some(Status::Conjectured));
+    assert_eq!(machine_v1.governed_standing, Some(Status::Conjectured));
+    assert_eq!(machine_v2.governed_standing, Some(Status::Supported));
+    let machine_application = machine_v2.trace[0]
+        .application
+        .as_ref()
+        .expect("the exact machine candidate must enter the v2 lane");
+    assert_eq!(
+        machine_application.rule,
+        StandingPolicyRuleV2::Sha256BytesEqualsDirectSupportV0
+    );
+    assert_eq!(
+        machine_application.achieved_standing,
+        Some(Status::Supported)
+    );
+    assert!(matches!(
+        machine_application.context,
+        StandingPolicyContextV2::DeterministicVerifierV0 {
+            trace: DeterministicVerifierContextTraceV0::Matched(_)
+        }
+    ));
 
     if print_results {
         println!("── 4. resolve positive occurrence claim ──");
@@ -392,6 +500,14 @@ fn capture_and_assert(
         println!("  interpretation v1 governed standing: Conjectured");
         println!("  interpretation lane application: none");
         println!("  occurrence proves no interpretation of the occurrence");
+        println!("── 6. resolve exact deterministic machine claim ──");
+        println!("  machine v0 governed standing: Conjectured");
+        println!("  machine v1 governed standing: Conjectured");
+        println!("  machine v2 governed standing: Supported");
+        println!("  v2 direct machine support is achieved");
+        println!("  the contribution is Supported, not Settled");
+        println!("  the witness proves only its exact inline digest proposition");
+        println!("  no aggregation or source-independence claim is made");
     }
 
     TourCapture {
@@ -399,10 +515,16 @@ fn capture_and_assert(
         resolutions: ResolutionBytes {
             positive_v0: positive_v0.canonical_bytes(),
             positive_v1: positive_v1.canonical_bytes(),
+            positive_v2: positive_v2.canonical_bytes(),
             mismatch_v0: mismatch_v0.canonical_bytes(),
             mismatch_v1: mismatch_v1.canonical_bytes(),
+            mismatch_v2: mismatch_v2.canonical_bytes(),
             interpretation_v0: interpretation_v0.canonical_bytes(),
             interpretation_v1: interpretation_v1.canonical_bytes(),
+            interpretation_v2: interpretation_v2.canonical_bytes(),
+            machine_v0: machine_v0.canonical_bytes(),
+            machine_v1: machine_v1.canonical_bytes(),
+            machine_v2: machine_v2.canonical_bytes(),
         },
         facts: TourFacts {
             event_count: snapshot.event_count(),
@@ -412,6 +534,7 @@ fn capture_and_assert(
             anchor_identity_count: snapshot.anchors().len(),
             positive_v0: positive_v0.governed_standing,
             positive_v1: positive_v1.governed_standing,
+            positive_v2: positive_v2.governed_standing,
             positive_scalar: snapshot.standing().resolved_standing(POSITIVE_CLAIM_ID),
             positive_rule: positive_application.rule,
             positive_contribution: positive_application.achieved_standing,
@@ -424,12 +547,18 @@ fn capture_and_assert(
             mismatch_blockers: mismatch_v1.blockers.clone(),
             interpretation_v0: interpretation_v0.governed_standing,
             interpretation_v1: interpretation_v1.governed_standing,
+            interpretation_v2: interpretation_v2.governed_standing,
             interpretation_domain: interpretation_candidate
                 .claim_domain
                 .clone()
                 .expect("the interpretation domain must remain in trace"),
             interpretation_ceiling: interpretation_candidate.candidate_ceiling,
             interpretation_has_application: interpretation_v1.trace[0].application.is_some(),
+            machine_v0: machine_v0.governed_standing,
+            machine_v1: machine_v1.governed_standing,
+            machine_v2: machine_v2.governed_standing,
+            machine_rule: machine_application.rule,
+            machine_contribution: machine_application.achieved_standing,
         },
     }
 }
@@ -462,7 +591,7 @@ fn main() {
         assert_eq!(writer.len(), EXPECTED_EVENT_COUNT);
     }
     println!("  genesis");
-    println!("  3 typed claims + 3 typed evidence + 3 support edges");
+    println!("  4 typed claims + 4 typed evidence + 4 support edges");
     println!("  1 exact Deadbolt occurrence anchor");
 
     let reader = LogReader::open(store, signing_key().verifying_key());
@@ -483,10 +612,10 @@ fn main() {
     let before = capture_and_assert(&snapshot, &identity, true);
 
     drop(snapshot);
-    println!("── 6. drop all derived state ──");
+    println!("── 7. drop all derived state ──");
     println!("  all derived standing state dropped");
 
-    println!("── 7. replay and regenerate ──");
+    println!("── 8. replay and regenerate ──");
     let replayed = replay_standing_context(&reader)
         .expect("the signed history alone must regenerate governed standing");
     let after = capture_and_assert(&replayed, &identity, false);
