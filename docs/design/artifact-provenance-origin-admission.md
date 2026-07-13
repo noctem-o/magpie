@@ -2,12 +2,16 @@
 
 ## 1. Status
 
-Proposed architecture contract seeking human ratification.
+Ratified architecture contract. Ticket 0037 is landed.
 
 This note defines doctrine and implementation order only. Ticket 0037 is
-documentation-only. No artifact, acquisition, derivation, origin-binding,
-origin-admission, contribution, aggregation, or writer capability is
-implemented by this contract.
+documentation-only. [Ticket 0038](../../tickets/0038-artifact-acquisition-derivation-bundle-v0.md)
+and
+[`artifact-acquisition-derivation-bundle-v0.md`](artifact-acquisition-derivation-bundle-v0.md)
+now pin the proposed first exact acquisition/direct-derivation protocol; they
+also implement no runtime capability. No artifact, acquisition, derivation,
+origin-binding, origin-admission, contribution, aggregation, or writer
+capability is implemented by these contracts.
 
 ## 2. Purpose
 
@@ -156,8 +160,10 @@ Consequences:
 - Acquisition, derivation, and origin-binding statements use distinguishable,
   explicitly versioned foreign bundle families.
 - Each supported family has an explicit canonicalization and verifier profile.
-- Exact bundle-kind strings, wire schemas, digest algorithms, and verifier
-  profiles are deferred to later implementation contracts.
+- Ticket 0038 now pins exact bundle-kind strings, wire schemas, SHA-256
+  artifact/root algorithms, canonical bytes, and one standing-inert verifier
+  profile for the proposed first acquisition/direct-derivation sibling
+  families. Origin-binding identities and policy remain deferred.
 - A bare `bundle_kind` string grants no authority.
 - `SegmentAnchored` proves only that an exact foreign bundle identity occurred
   in the accepted Magpie chain at one chain position.
@@ -197,9 +203,11 @@ Different acquisitions of byte-identical material have one artifact identity
 and multiple acquisition occurrences. Different byte strings are not
 automatically different origins.
 
-The first implementation must pin an exact versioned representation before
-using artifact identity as authority. This contract selects no final digest
-algorithm and does not reinterpret historical `content_hash` values.
+The first implementation must use an exact versioned representation before
+using artifact identity as verified context. Ticket 0038 proposes exact
+`algorithm = "sha256"` identities for only its acquisition/direct-derivation
+v0 families. That local selection does not reinterpret historical
+`content_hash` values or create a global algorithm registry.
 
 ### 6.2 Acquisition occurrence
 
@@ -428,9 +436,9 @@ produce a root represented as exactly 64 lowercase hexadecimal characters,
 corresponding to 32 root bytes.
 ```
 
-The later profile contract must name the exact algorithm explicitly in
-`witness_algorithm`. Acknowledging the existing width does not silently select
-SHA-256 or any other algorithm. A scheme that requires a different root width
+Ticket 0038's proposed first profile names the exact `witness_algorithm` value
+`sha256` and uses the required representation. That selection is local to the
+two proposed v0 sibling families. A scheme that requires a different root width
 or encoding cannot reuse the existing seam unchanged; it requires a future ADR
 and potentially an explicit L0 evolution decision.
 
@@ -868,25 +876,23 @@ implementation promise for those standards.
 
 ## 18. Future implementation sequence
 
-1. Ratify Ticket 0037 and this architecture contract.
-2. Pin one exact versioned acquisition/derivation foreign-bundle schema and
-   verifier profile.
-3. Add portable bundle fixtures and standing-inert verification.
-4. Pin one exact origin-binding bundle schema and explicit origin-admission
-   policy.
-5. Add a standing-inert origin-admission audit.
-6. Add an admitted-contribution audit surface with no aggregation.
-7. Pin one explicit standing policy v3 aggregation rule.
-8. Implement conservative aggregation.
-9. Add direct refutation through admitted verifier context.
-10. Add contradiction debt.
-11. Add invalidation and supersession/currentness.
-12. Add `EpistemicGate` and writer-facing surfaces.
-13. Add governed acquisition tooling and librarian proposals.
+1. Ratify Ticket 0038.
+2. Add portable acquisition and derivation bundle fixtures reproducing the
+   normative vectors.
+3. Add standing-inert parser, canonicalizer and verifier implementation.
+4. Add immutable closure construction or an explicit test-only closure surface
+   as separately reviewed.
+5. Pin origin-binding bundle schema and origin-admission policy.
+6. Add standing-inert origin-admission audit.
+7. Add admitted-contribution audit.
+8. Pin policy-v3 aggregation.
+9. Implement conservative aggregation.
 
-Step 7 names a future policy slot only. Ticket 0037 does not define or
-implement policy v3, an aggregation threshold, or any achieved-standing change.
-Every step before aggregation remains standing-inert.
+The immediate next PR after Ticket 0038 combines only portable fixture files,
+standing-inert verification, and hostile tests, with no standing effect. Step 8
+names a future policy slot only. Neither Ticket 0037 nor Ticket 0038 defines or
+implements policy v3, an aggregation threshold, or any achieved-standing
+change. Every step before aggregation remains standing-inert.
 
 ## 19. Frozen surfaces and explicit non-goals
 
@@ -897,15 +903,17 @@ v0/v1/v2, existing snapshot or resolution bytes, evidence ceilings, actor
 classes, historical `content_hash` events, the release contract, workspace
 version, package inventory, `Cargo.lock`, or CI.
 
-It adds no Rust, tests, dependency, payload tag, canonical receipt bytes, final
-bundle-kind string, final canonicalization profile, cryptographic algorithm,
+It adds no Rust, tests, dependency, payload tag, canonical receipt bytes,
 resolution-content-closure manifest encoding, key custody, CAS implementation,
 crawler, downloader, filesystem/network access, callback, plugin, writer API,
 MCP write path, gate, aggregation,
 refutation, contradiction debt, invalidation, supersession, currentness,
 reputation, confidence score, probabilistic independence, identity ontology,
 automatic clustering, model integration, librarian implementation, Deadbolt
-code, or production-readiness claim.
+code, or production-readiness claim. Ticket 0038's exact proposed bundle kinds,
+canonicalization/verifier profiles, SHA-256 selection, and canonical bytes apply
+only to its acquisition/direct-derivation v0 contract and do not add runtime
+behavior.
 
 ## 20. Reviewer checklist
 
@@ -939,9 +947,9 @@ code, or production-readiness claim.
   reconstructed from L0.
 - Confirm missing artifact bytes block artifact-grounded origin admission and
   origin-sensitive aggregation input without erasing structural evidence.
-- Confirm first bundle profiles fit the frozen 64-lowercase-hex, 32-byte root
-  representation without selecting an algorithm, and that other widths require
-  a future ADR/L0 evolution decision.
+- Confirm Ticket 0038's proposed first bundle profiles fit the frozen
+  64-lowercase-hex, 32-byte root representation, select SHA-256 only for those
+  exact families, and leave other widths to a future ADR/L0 evolution decision.
 - Confirm origin admission remains distinct from support, aggregation, and
   settlement.
 - Confirm “origin group” and “corroboration separation” do not claim

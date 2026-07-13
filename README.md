@@ -254,12 +254,19 @@ shell execution is unavailable.
     `Matched`. Repeated successful paths do not amplify or settle. PR #48
     also makes inherited v0/v1 composition mismatches fail closed without
     changing the frozen policy surfaces.
-14. **Next: artifact provenance and origin admission.** Ticket 0037 and
-    `docs/design/artifact-provenance-origin-admission.md` define the proposed
-    replayable authority substrate. Aggregation remains blocked until
-    standing-inert foreign-bundle verification, origin-admission audit, and an
-    admitted-contribution audit exist. Only after explicit aggregation:
-    refutation, contradiction debt, invalidation, supersession,
-    `EpistemicGate`, and writers.
+14. **Artifact provenance and origin-admission architecture — landed.** Ticket
+    0037 and `docs/design/artifact-provenance-origin-admission.md` define the
+    replayable authority substrate and preserve the explicit `(H, P, M)`
+    resolution boundary.
+15. **Proposed exact acquisition/direct-derivation protocol — pinned for human
+    ratification.** Ticket 0038 and
+    `docs/design/artifact-acquisition-derivation-bundle-v0.md` fix the two
+    sibling bundle/schema identities, canonical JSON bytes, SHA-256 roots,
+    full anchor matching, and standing-inert conceptual verifier outcomes. No
+    verifier or standing behavior has landed. The next implementation slice is
+    portable fixtures plus a standing-inert verifier. Origin binding,
+    origin-admission audit, admitted-contribution audit, aggregation, policy
+    v3, refutation, contradiction debt, invalidation, supersession,
+    `EpistemicGate`, and writers remain later work.
 
 Conserve the log. Derive the rest.
