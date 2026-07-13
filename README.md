@@ -246,13 +246,20 @@ shell execution is unavailable.
     canonical statement/content-hash binding, bounded witness checking, and
     snapshot-only receipt traces now derive deterministic audit material with
     no standing effect.
-13. **Explicit policy-v2 deterministic direct support — landed.**
+13. **Explicit policy-v2 deterministic direct support and composition
+    hardening — landed.**
     `magpie-claims-standing-v2` preserves the exact Deadbolt v1 settlement rule
     and adds one `sha256_bytes_equals_v0` direct contribution that reaches
     `Supported` only after the existing same-snapshot verifier returns
-    `Matched`. Repeated successful paths do not amplify or settle.
-14. **Next: genuine aggregation with conservative provenance-derived
-    independence.** Only after that: refutation, contradiction debt,
-    invalidation, supersession, `EpistemicGate`, and writers.
+    `Matched`. Repeated successful paths do not amplify or settle. PR #48
+    also makes inherited v0/v1 composition mismatches fail closed without
+    changing the frozen policy surfaces.
+14. **Next: artifact provenance and origin admission.** Ticket 0037 and
+    `docs/design/artifact-provenance-origin-admission.md` define the proposed
+    replayable authority substrate. Aggregation remains blocked until
+    standing-inert foreign-bundle verification, origin-admission audit, and an
+    admitted-contribution audit exist. Only after explicit aggregation:
+    refutation, contradiction debt, invalidation, supersession,
+    `EpistemicGate`, and writers.
 
 Conserve the log. Derive the rest.
