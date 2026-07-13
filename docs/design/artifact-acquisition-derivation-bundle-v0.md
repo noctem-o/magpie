@@ -2,11 +2,14 @@
 
 ## 1. Status
 
-Proposed exact protocol contract seeking human ratification.
+Ratified exact protocol contract. Ticket 0038 is landed.
 
-This note pins bytes and conceptual future verifier behavior only. It does not
-implement a parser, canonicalizer, hasher, closure, replay path, fixture,
-standing rule, or runtime authority.
+[Ticket 0039](../../tickets/0039-artifact-provenance-verifier-v0.md) implements
+the exact portable fixtures and the standing-inert parser, canonicalizer and
+snapshot-only verifier in
+`crates/magpie-claims/src/artifact_provenance_verifier.rs`. It does not
+implement the production resolution-content-closure construction boundary, an
+origin-binding or admission rule, a standing rule, or runtime authority.
 
 ## 2. Purpose
 
@@ -367,11 +370,12 @@ canonicalization_profile
 run_id
 ```
 
-The exact Rust type and serialization remain deferred. A selector may come from
-an immutable resolution-content closure or another explicitly bounded request
-surface. It is lookup material, comparison material, and untrusted input. It is
-not proof of occurrence, trusted context, authority, permission to select a
-different verifier profile, or a caller-created matched result.
+Ticket 0039 implements this exact tuple as the exported, serialization-only
+`ArtifactProvenanceAnchorSelectorV0`. A selector may come from an immutable
+resolution-content closure or another explicitly bounded request surface. It
+is lookup material, comparison material, and untrusted input. It is not proof
+of occurrence, trusted context, authority, permission to select a different
+verifier profile, or a caller-created matched result.
 
 An anchor identity is the exact equality class of one five-field
 `SegmentAnchored` payload. An anchor occurrence is one replayed
@@ -439,8 +443,8 @@ repeated identical five-field SegmentAnchored events
 -> no standing amplification
 ```
 
-When a selector matches, future standing-inert audit material must retain all
-matching replay occurrences in deterministic sequence order. Each retained
+When a selector matches, the Ticket 0039 standing-inert audit receipt retains
+all matching replay occurrences in deterministic sequence order. Each retained
 occurrence may include sequence, event hash, event provenance, and the
 writer-supplied transaction timestamp. Those fields do not participate in
 five-field identity equality and confer no additional authority by themselves.
@@ -545,9 +549,9 @@ caller-constructible authority. No current standing policy consumes them.
 
 ## 16. Closed conceptual outcome vocabulary
 
-The later implementation must preserve this closed primary outcome vocabulary.
-Rust spelling may be refined, but no distinction may be removed or collapsed
-into `verified: bool` or arbitrary strings:
+The Ticket 0039 implementation preserves this closed primary outcome
+vocabulary as `ArtifactProvenanceContextTraceV0`. No distinction is removed or
+collapsed into `verified: bool` or arbitrary strings:
 
 ```text
 BundleUnavailable
@@ -846,20 +850,19 @@ export may use DSSE/in-toto under a separately reviewed contract.
 
 ## 22. Future implementation sequence
 
-1. Ratify Ticket 0038.
-2. Add portable acquisition and derivation bundle fixtures reproducing the
-   normative vectors.
-3. Add standing-inert parser, canonicalizer and verifier implementation.
-4. Add immutable closure construction or an explicit test-only closure surface
-   as separately reviewed.
-5. Pin origin-binding bundle schema and origin-admission policy.
-6. Add standing-inert origin-admission audit.
-7. Add admitted-contribution audit.
-8. Pin policy-v3 aggregation.
-9. Implement conservative aggregation.
+1. Ratify and merge Ticket 0039.
+2. Design the immutable production `ResolutionContentClosureV0` construction
+   boundary.
+3. Pin the origin-binding bundle schema.
+4. Pin explicit origin-admission policy.
+5. Implement standing-inert origin-admission audit.
+6. Implement admitted-contribution audit.
+7. Pin policy-v3 aggregation.
+8. Implement conservative aggregation.
 
-The immediate next PR after Ticket 0038 combines only portable fixture files,
-standing-inert verification, and hostile tests, with no standing effect.
+Step 2 is the next separately reviewed slice. Ticket 0039 implements no closure
+manifest, origin binding, origin admission, contribution audit, aggregation or
+standing effect.
 
 ## 23. Frozen surfaces and explicit non-goals
 
@@ -869,14 +872,14 @@ code, policies v0/v1/v2, snapshot bytes, resolution bytes, evidence ceilings,
 existing `content_hash` values, Ticket 0037, the release contract, workspace
 version, package inventories, `Cargo.lock`, or CI.
 
-It adds no Rust, tests, fixture files, Cargo dependency, parser,
-canonicalization implementation, hashing implementation, closure manifest
-encoding, runtime CAS, filesystem or network access, callback, plugin,
-downloader, L0 payload tag, origin-binding schema, origin-admission policy,
-origin group, aggregation lane, policy v3, support aggregation, direct
-refutation, contradiction debt, invalidation, supersession, currentness,
-`EpistemicGate`, writer authority, crawler, model/librarian integration, or
-production-readiness claim.
+Ticket 0039 adds only the fixed-schema Rust verifier, its hostile tests, the two
+portable normative fixture families, and narrow ledger/ticket updates. It adds
+no Cargo dependency, closure manifest encoding, runtime CAS, filesystem or
+network access, callback, plugin, downloader, L0 payload tag, origin-binding
+schema, origin-admission policy, origin group, aggregation lane, policy v3,
+support aggregation, direct refutation, contradiction debt, invalidation,
+supersession, currentness, `EpistemicGate`, writer authority, crawler,
+model/librarian integration, or production-readiness claim.
 
 The sibling families must not be replaced with a mixed statement list, generic
 metadata map, caller-selected authority role, origin-binding variant, or generic
@@ -884,7 +887,8 @@ provenance envelope.
 
 ## 24. Reviewer checklist
 
-- Confirm the status remains a proposed exact protocol contract.
+- Confirm the status is the ratified Ticket 0038 protocol and Ticket 0039
+  preserves every pinned byte and semantic law.
 - Confirm there are exactly two distinguishable single-statement families.
 - Confirm all schema, bundle-kind, canonicalization, verifier, and algorithm
   identifiers are exact.
@@ -918,5 +922,6 @@ provenance envelope.
   structures are `InvalidJson`, invalid UTF-8 is `InvalidUtf8`, and valid escaped
   surrogate pairs are `NonCanonicalEncoding`.
 - Confirm timestamps and embedded signers gain no hidden authority.
-- Confirm no runtime verifier, fixture, standing, origin-admission, support, or
-  aggregation claim appears.
+- Confirm the portable fixtures and snapshot-only verifier are standing-inert
+  and no origin-admission, support, aggregation, or writer-authority claim
+  appears.
