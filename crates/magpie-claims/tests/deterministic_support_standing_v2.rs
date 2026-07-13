@@ -239,6 +239,7 @@ fn sha256_witness_exact_match_supports_only_under_v2() {
 fn one_successful_receipt_reaches_supported_not_settled() {
     let snapshot = MachineFixture::matched().snapshot();
     let resolution = snapshot.resolved_standing_with_trace_v2(CLAIM_ID);
+    assert!(resolution.resolution_failure.is_none());
     assert_eq!(resolution.governed_standing, Some(Status::Supported));
     assert_ne!(resolution.governed_standing, Some(Status::Settled));
     assert_eq!(

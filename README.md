@@ -166,13 +166,14 @@ The closed policy currently provides:
 - `refutation_ceiling(EvidenceKind, ClaimDomain)`;
 - `support_context_requirement(EvidenceKind, ClaimDomain)`.
 
-Human ratification still requires future replayable admission, and
-deterministic verification still requires verifier context. One explicit
-snapshot-only v1 rule now settles the exact structured proposition that a
-five-field Deadbolt occurrence identity appears in the same verified replay;
-v0 remains candidate-only and still returns `Conjectured`. General achieved
-standing, aggregation, refutation application, `EpistemicGate`, and all
-writer-facing surfaces remain future work.
+Human ratification still requires future replayable admission. Policy v0
+remains candidate-only and still returns `Conjectured`. Explicit snapshot-only
+v1 settles only the exact structured proposition that a five-field Deadbolt
+occurrence identity appears in the same verified replay. Explicit snapshot-only
+v2 directly supports one exact canonical `sha256_bytes_equals_v0` proposition
+after same-snapshot deterministic verification. That direct contribution is
+`Supported`, not `Settled`, and is not aggregation. Aggregation, refutation
+application, `EpistemicGate`, and all writer-facing surfaces remain future work.
 
 ## Development workflow
 
