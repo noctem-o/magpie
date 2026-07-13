@@ -13,6 +13,7 @@ mod deterministic_verifier_context;
 mod replay_snapshot;
 mod standing;
 mod standing_v1;
+mod standing_v2;
 
 use std::collections::BTreeMap;
 
@@ -41,6 +42,11 @@ pub use standing::{
 pub use standing_v1::{
     DeadboltOccurrenceContextTrace, StandingPolicyApplication, StandingPolicyRule,
     StandingResolutionV1, StandingTraceEntryV1, MAGPIE_CLAIMS_POLICY_V1_ID,
+};
+
+pub use standing_v2::{
+    StandingPolicyApplicationV2, StandingPolicyContextV2, StandingPolicyRuleV2,
+    StandingResolutionV2, StandingTraceEntryV2, MAGPIE_CLAIMS_POLICY_V2_ID,
 };
 
 /// A single tracked claim and its current epistemic state.

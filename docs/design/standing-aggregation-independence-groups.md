@@ -4,6 +4,10 @@
 
 Proposed design note.
 
+Sequencing status: replayable verifier admission contract — landed;
+standing-inert verifier context — landed; one direct policy-v2 `Supported`
+rule — landed; genuine aggregation and conservative independence — next.
+
 ## Purpose
 
 This note defines the future doctrine for achieved-standing aggregation and
@@ -331,8 +335,8 @@ must not erase truth-bearing contradiction debt or settle factual truth.
 4. Closed contribution lanes — landed.
 5. Replayable deterministic-verifier admission contract — landed.
 6. Standing-inert verifier-context query and closed checker — landed.
-7. One direct policy-v2 `Supported` rule — next.
-8. Only then genuine aggregation; the first v2 `Supported` rule is direct
+7. One direct policy-v2 `Supported` rule — landed.
+8. Next: genuine aggregation; the first v2 `Supported` rule is direct
    support and is not the support aggregation rule described in this note.
 9. Conservative provenance-derived independence. Absent, malformed,
    unadmitted, or self-declared groups must not amplify.
