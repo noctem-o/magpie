@@ -111,6 +111,26 @@ and `StandingView` has no trusted query. The public snapshot query is pure,
 takes `&self`, caches nothing, returns no `Status`, and is accepted by no policy.
 V0, v1, raw standing, and snapshot canonical bytes remain unchanged.
 
+### Review amendment: standing-facing claim identity
+
+The initial implementation re-fetched `StandingClaim` but did not bind its
+statement to the typed machine claim. Because `claims` and `typed_claims` are
+independent first-write-wins maps, one claim ID could expose legacy prose while
+a typed canonical predicate produced `Matched`.
+
+The amendment makes these byte-identical prerequisites:
+
+```text
+StandingClaim.statement
+    == TypedClaimNode.statement
+    == canonical_statement(machine_predicate)
+```
+
+Acceptance requires every legacy/standing statement mismatch to produce
+`StatementPredicateMismatch` and no `Matched` receipt. Successful equality
+leaves the existing receipt schema sufficient because its canonical statement
+identifies the one proposition shared by both replay tables and the predicate.
+
 ## Dependencies, inventory, and tests
 
 `magpie-claims` adds direct workspace dependencies on existing `hex` and

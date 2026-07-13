@@ -284,6 +284,24 @@ must re-fetch the claim, evidence, and edge by ID from the same private
 snapshot, including the actual claim statement and content hash, then
 revalidate every condition above.
 
+`StandingView` currently retains `StandingClaim` and `TypedClaimNode` in
+separate first-write-wins maps. Exact deterministic-verifier claim binding
+therefore additionally requires:
+
+```text
+StandingClaim.statement
+    == TypedClaimNode.statement
+    == canonical_statement(machine_predicate)
+```
+
+The ordinary `StandingClaim` is part of replayed-node revalidation. A valid
+typed predicate and witness cannot produce `Matched` when the standing-facing
+claim statement differs. That eligible context attempt returns
+`StatementPredicateMismatch`; no normalization or semantic equivalence is
+permitted. The receipt schema need not grow because successful equality
+collapses every consumed claim representation to its existing canonical
+statement field.
+
 ## Strict parsing and checker algorithm
 
 JSON parsing must be deterministic and duplicate-aware. It must require one
@@ -541,6 +559,7 @@ actor_class_does_not_create_verifier_authority
 verified_boolean_does_not_create_verifier_authority
 caller_constructed_receipt_does_not_prove_trusted_origin
 arbitrary_statement_cannot_inherit_machine_predicate_support
+legacy_statement_cannot_differ_from_typed_machine_statement
 statement_predicate_mismatch_fails_closed
 missing_claim_content_hash_fails_closed
 claim_content_hash_mismatch_fails_closed

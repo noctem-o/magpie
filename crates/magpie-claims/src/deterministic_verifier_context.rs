@@ -198,7 +198,6 @@ impl StandingReplaySnapshot {
         let typed_claim = standing.typed_claim(claim_id)?;
         let evidence = standing.typed_evidence(evidence_id)?;
         let edge = standing.justification_edge(edge_id)?;
-        let _ = claim;
         if edge.edge_kind != "supports"
             || edge.source_id != evidence_id
             || edge.target_id != claim_id
@@ -217,7 +216,8 @@ impl StandingReplaySnapshot {
             "{SHA256_BYTES_EQUALS_STATEMENT_PREFIX_V0}{}",
             predicate.expected_sha256
         );
-        if typed_claim.statement != canonical_statement {
+        if claim.statement != typed_claim.statement || typed_claim.statement != canonical_statement
+        {
             return Some(DeterministicVerifierContextTraceV0::StatementPredicateMismatch);
         }
         if typed_claim.content_hash.is_empty() {

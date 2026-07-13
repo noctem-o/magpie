@@ -60,7 +60,8 @@ struct Fixture {
     include_typed_claim: bool,
     include_evidence: bool,
     include_edge: bool,
-    statement: String,
+    legacy_statement: String,
+    typed_statement: String,
     claim_content_hash: String,
     claim_metadata: String,
     claim_actor_class: String,
@@ -76,14 +77,15 @@ struct Fixture {
 
 impl Fixture {
     fn abc() -> Self {
-        let statement = format!("sha256_bytes_equals_v0:{ABC_DIGEST}");
-        let claim_content_hash = sha256_hex(statement.as_bytes());
+        let canonical_statement = format!("sha256_bytes_equals_v0:{ABC_DIGEST}");
+        let claim_content_hash = sha256_hex(canonical_statement.as_bytes());
         Self {
             include_legacy_claim: true,
             include_typed_claim: true,
             include_evidence: true,
             include_edge: true,
-            statement,
+            legacy_statement: canonical_statement.clone(),
+            typed_statement: canonical_statement,
             claim_content_hash,
             claim_metadata: predicate_metadata(ABC_DIGEST),
             claim_actor_class: "AgentProposer".into(),
@@ -100,10 +102,11 @@ impl Fixture {
 
     fn with_witness(bytes: &[u8]) -> Self {
         let expected = sha256_hex(bytes);
-        let statement = format!("sha256_bytes_equals_v0:{expected}");
+        let canonical_statement = format!("sha256_bytes_equals_v0:{expected}");
         Self {
-            statement: statement.clone(),
-            claim_content_hash: sha256_hex(statement.as_bytes()),
+            legacy_statement: canonical_statement.clone(),
+            typed_statement: canonical_statement.clone(),
+            claim_content_hash: sha256_hex(canonical_statement.as_bytes()),
             claim_metadata: predicate_metadata(&expected),
             evidence_metadata: witness_metadata(&hex::encode(bytes)),
             ..Self::abc()
@@ -119,7 +122,7 @@ impl Fixture {
                     provenance(),
                     Payload::ClaimAsserted {
                         claim_id: CLAIM_ID.into(),
-                        statement: self.statement.clone(),
+                        statement: self.legacy_statement.clone(),
                         status: Status::Conjectured,
                     },
                 )
@@ -130,7 +133,7 @@ impl Fixture {
                     provenance(),
                     Payload::ClaimAssertedV2 {
                         claim_id: CLAIM_ID.into(),
-                        statement: self.statement.clone(),
+                        statement: self.typed_statement.clone(),
                         scope_ref: SCOPE.into(),
                         actor_class: self.claim_actor_class.clone(),
                         content_hash: self.claim_content_hash.clone(),
@@ -207,7 +210,7 @@ fn assert_outcome(
 fn sha256_witness_exact_match_yields_standing_inert_context() {
     let fixture = Fixture::abc();
     assert_eq!(
-        sha256_hex(fixture.statement.as_bytes()),
+        sha256_hex(fixture.typed_statement.as_bytes()),
         "70cea2ac9ed9d373b422ef3543e45ddaf289fa4e64a8aed726fc6b13df797421"
     );
     let snapshot = fixture.snapshot();
@@ -221,7 +224,7 @@ fn sha256_witness_exact_match_yields_standing_inert_context() {
     assert_eq!(receipt.evidence_id(), EVIDENCE_ID);
     assert_eq!(receipt.edge_id(), EDGE_ID);
     assert_eq!(receipt.scope_ref(), SCOPE);
-    assert_eq!(receipt.canonical_statement(), fixture.statement);
+    assert_eq!(receipt.canonical_statement(), fixture.typed_statement);
     assert_eq!(receipt.claim_content_hash(), fixture.claim_content_hash);
     assert_eq!(receipt.expected_sha256(), ABC_DIGEST);
     assert_eq!(receipt.computed_sha256(), ABC_DIGEST);
@@ -229,6 +232,74 @@ fn sha256_witness_exact_match_yields_standing_inert_context() {
     assert_eq!(
         snapshot.standing().resolved_standing(CLAIM_ID),
         Some(Status::Conjectured)
+    );
+}
+
+#[test]
+fn legacy_statement_cannot_differ_from_typed_machine_statement() {
+    let mut fixture = Fixture::abc();
+    fixture.legacy_statement = "The moon is made of cheese".into();
+    let canonical_statement = fixture.typed_statement.clone();
+    let snapshot = fixture.snapshot();
+
+    assert_eq!(
+        snapshot.standing().get(CLAIM_ID).unwrap().statement,
+        "The moon is made of cheese"
+    );
+    assert_eq!(
+        snapshot.standing().typed_claim(CLAIM_ID).unwrap().statement,
+        canonical_statement
+    );
+
+    let outcome =
+        snapshot.resolve_deterministic_verifier_context_v0(CLAIM_ID, EVIDENCE_ID, EDGE_ID);
+    assert_eq!(
+        outcome,
+        Some(DeterministicVerifierContextTraceV0::StatementPredicateMismatch)
+    );
+    assert!(outcome
+        .as_ref()
+        .and_then(DeterministicVerifierContextTraceV0::matched_receipt)
+        .is_none());
+}
+
+#[test]
+fn matching_legacy_and_typed_statements_can_match() {
+    let fixture = Fixture::abc();
+    assert_eq!(fixture.legacy_statement, fixture.typed_statement);
+    assert!(matches!(
+        fixture.outcome(),
+        Some(DeterministicVerifierContextTraceV0::Matched(_))
+    ));
+}
+
+#[test]
+fn legacy_statement_whitespace_variant_fails_closed() {
+    let mut fixture = Fixture::abc();
+    fixture.legacy_statement = format!(" {}", fixture.typed_statement);
+    assert_eq!(
+        fixture.outcome(),
+        Some(DeterministicVerifierContextTraceV0::StatementPredicateMismatch)
+    );
+}
+
+#[test]
+fn legacy_statement_trailing_newline_fails_closed() {
+    let mut fixture = Fixture::abc();
+    fixture.legacy_statement.push('\n');
+    assert_eq!(
+        fixture.outcome(),
+        Some(DeterministicVerifierContextTraceV0::StatementPredicateMismatch)
+    );
+}
+
+#[test]
+fn legacy_arbitrary_prose_cannot_inherit_typed_witness_match() {
+    let mut fixture = Fixture::abc();
+    fixture.legacy_statement = "Unrelated standing-facing proposition".into();
+    assert_eq!(
+        fixture.outcome(),
+        Some(DeterministicVerifierContextTraceV0::StatementPredicateMismatch)
     );
 }
 
@@ -376,7 +447,7 @@ fn statement_and_content_hash_failures_precede_witness_parsing() {
         ),
     ] {
         let mut fixture = Fixture::abc();
-        fixture.statement = statement;
+        fixture.typed_statement = statement;
         fixture.claim_content_hash = hash;
         fixture.evidence_metadata = "not json".into();
         assert_eq!(fixture.outcome(), Some(expected), "{name}");
