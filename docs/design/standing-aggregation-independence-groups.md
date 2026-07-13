@@ -166,6 +166,11 @@ It is not stored in L0 and is not an authoritative mutable field.
 Achieved standing must be regenerable from the event log, policy, and derived
 projection rules.
 
+Future origin-sensitive aggregation cannot infer external-object availability
+from L0 alone. It must consume an immutable provenance/origin audit derived from
+the explicit tuple `(verified log prefix H, policy identities P, resolution
+content closure M)`.
+
 ### Origin Group
 
 An origin group is an opaque exact policy key used to prevent multiple admitted
@@ -173,17 +178,40 @@ contribution paths from the same governed origin from counting repeatedly.
 
 Origin groups are policy material, not L0 canonical material, publisher
 identities, reputation scores, truth labels, or independence certificates.
-Their meaning is scoped by the exact origin-admission policy, contribution
-subject, and claim scope.
+Bindings target individual contribution identities, but group equality is
+interpreted across multiple distinct contributions inside one exact
+`OriginComparisonNamespace`.
 
 Earlier or future metadata such as `metadata_json.independence_group` is
 asserted advisory data only. It cannot create an origin group, change canonical
 encoding, or admit itself.
 
+### Origin Comparison Namespace
+
+An `OriginComparisonNamespace` is the namespace in which origin-group keys may
+be compared across distinct contribution identities. Its minimum first-policy
+identity includes the exact origin-admission policy identity, target claim
+identity, and `scope_ref`.
+
+It does not include the complete contribution identity, source evidence ID,
+justification-edge ID, artifact identity, or acquisition occurrence when that
+would isolate every contribution and defeat comparison. A later explicit
+aggregation policy may further partition it through a separately defined
+aggregation-lane identity; this note does not define those lane fields.
+
+```text
+same group key + same origin-comparison namespace
+= same admitted origin group
+
+same group key + different origin-comparison namespace
+= no defined relationship
+```
+
 ### Corroboration Separation
 
 Corroboration separation means that an explicit origin-admission policy has
-assigned exact contribution-scoped paths to distinct admitted origin groups.
+assigned distinct exact contribution-scoped paths to different admitted origin
+groups inside the same origin-comparison namespace.
 
 Corroboration separation may be consumed only by a later explicit aggregation
 policy and must not exceed the applicable ceiling. It is not proof of
@@ -191,19 +219,22 @@ statistical, causal, institutional, organisational, or control independence.
 
 ### Same-Origin Evidence
 
-Same-origin evidence shares an admitted origin group or otherwise has no
-admitted corroboration separation.
+Same-origin evidence consists of distinct contributions assigned the same
+admitted origin-group key inside one origin-comparison namespace. Same-group
+distinct contributions are not a binding conflict. Material with no admitted
+corroboration separation remains non-amplifying but is not thereby proven to
+share one origin.
 
 Same-origin evidence may still be retained and may still be useful context. It
 must not be counted repeatedly.
 
 ### Aggregation Lane
 
-An aggregation lane is a deterministic partition that may organize candidates
-and policy-eligible contributions for explanation. Only admitted contributions
-may affect achieved standing within a lane. A lane may be separated by claim,
-direction of contribution, evidence kind, claim domain, edge kind, scope, or
-origin group.
+An aggregation lane is a future deterministic partition that may organize
+candidates and policy-eligible contributions for explanation. Only admitted
+contributions may affect achieved standing within a lane. A later explicit
+policy must define the lane identity before using it to further partition an
+origin-comparison namespace; this note does not select its fields.
 
 Aggregation lanes prevent unrelated evidence from being combined accidentally
 and give future explainability code a stable way to report why a claim reached
@@ -214,8 +245,11 @@ its achieved standing.
 1. A ceiling is not achieved standing.
 2. A contribution is not aggregation.
 3. Aggregation is deterministic replay policy, not a mutable stored field.
-4. Aggregation must be order-independent over the same admitted event set.
-5. Aggregation must be regenerable from L0 plus deterministic policy.
+4. Aggregation must be order-independent over the same admitted event set and
+   immutable audit input.
+5. Origin-sensitive aggregation must consume an immutable provenance/origin
+   audit derived from `(H, P, M)` plus its explicit aggregation policy. It must
+   not perform ambient CAS, filesystem, callback, remote, or network lookup.
 6. A contribution may be lower than its ceiling or ignored if any eligibility
    check fails.
 7. Corroboration may help reach an allowed ceiling; it must not exceed the
@@ -240,9 +274,16 @@ replayable policy.
 The authority path is defined by
 `docs/design/artifact-provenance-origin-admission.md`: exact artifact and
 contribution identity, anchored and profile-verified acquisition/derivation/
-origin-binding bundles, explicit origin-admission policy, and no unresolved
-binding conflict. Origin admission still does not create a support
-contribution.
+origin-binding bundles, an exact origin-comparison namespace, explicit
+origin-admission policy, and no unresolved binding conflict. Origin admission
+still does not create a support contribution.
+
+The standing-inert provenance/origin audit freezes external-object availability
+in an immutable resolution content closure. Its deterministic input is
+`(verified log prefix H, explicit policy identities P, immutable resolution
+content closure M)`. The closure is untrusted input, not authority. Neither that
+audit nor a later aggregation policy may search ambient CAS, scan a filesystem,
+invoke a callback, or perform a remote/network lookup to fill missing objects.
 
 A trace policy identifier discloses which fixed policy produced an explanation.
 It is not a caller-controlled selector that may choose a more favorable outcome.
@@ -253,9 +294,27 @@ that verification occurred nor that the label's author had Deadbolt authority.
 
 ## Origin-Group and Corroboration-Separation Laws
 
-Origin-group keys are opaque exact strings. Their equality has meaning only
-under the exact origin-admission policy and contribution subject that admitted
-them.
+Origin-group keys are opaque exact strings. Origin bindings remain exact and
+contribution-scoped; group equality is evaluated across distinct contribution
+assignments only inside one exact `OriginComparisonNamespace`.
+
+The comparison cases are closed:
+
+- same contribution, namespace, group, and policy: duplicate occurrences
+  remain visible, derive at most one assignment, do not amplify, and need not
+  conflict;
+- same contribution, namespace, and policy but different groups: explicit
+  conflict, no admitted group, zero corroboration separation, and no write-order
+  winner;
+- different contributions, same namespace, and same admitted group: valid
+  same-origin material, not a conflict, and countable at most once by a later
+  aggregation policy; and
+- different contributions, same namespace, and different admitted groups:
+  potential policy-recognised corroboration separation, not statistical-
+  independence proof and not support without a later aggregation policy.
+
+The same byte string in a different namespace is incomparable and has no
+cross-policy, cross-claim, or cross-scope meaning.
 
 Rules:
 
@@ -282,7 +341,8 @@ for every report.
 Origin groups are not source truth. They only constrain whether multiple exact
 admitted contributions may be treated as separate by a later aggregation
 policy. Unknown origin counts as zero corroboration separation in the first
-policy. Same-origin multiplicity may count at most once later.
+policy. Same-origin multiplicity inside one comparison namespace may count at
+most once later.
 
 ## External-Source Corroboration
 
@@ -297,7 +357,8 @@ ExternalSource cannot settle truth, even with corroboration policy.
 contribution is admitted or remains weak, but corroboration cannot turn
 `ExternalSource` into `Settled`.
 
-Multiple external reports from the same origin group do not count repeatedly.
+Multiple external-report contributions assigned the same origin group inside
+one origin-comparison namespace do not count repeatedly.
 Reposted material, syndicated text, mirrored pages, copied abstracts, or
 repeated citations may be useful provenance but do not create corroboration
 separation unless explicit contribution-scoped origin bindings are admitted.
@@ -417,6 +478,12 @@ These are future tests for later PRs. This note does not add tests.
 - Confirm this phase is docs/tickets only.
 - Confirm origin groups are opaque policy strings, not inferred source
   clusters, truth labels, or publisher identities.
+- Confirm bindings target exact contributions while group keys compare across
+  distinct contributions only inside one policy/claim/scope origin-comparison
+  namespace.
+- Confirm same-group distinct contributions are same-origin material rather
+  than a conflict, and byte-identical keys in different namespaces are
+  incomparable.
 - Confirm the filename preserves earlier “independence group” shorthand while
   normative prose uses origin group and corroboration separation.
 - Confirm missing, ambiguous, conflicting, or unknown origin material provides
@@ -430,6 +497,8 @@ These are future tests for later PRs. This note does not add tests.
   scalar.
 - Confirm artifact/bundle verification, origin-admission audit, and
   admitted-contribution audit all precede aggregation.
+- Confirm aggregation consumes an immutable audit derived from `(H, P, M)` and
+  performs no ambient CAS, filesystem, callback, or network lookup.
 - Confirm origin admission is not support and one admitted group is not
   aggregation.
 - Confirm no numeric threshold or implemented policy v3 appears.

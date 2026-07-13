@@ -275,7 +275,45 @@ investigation, copied press release, and syndicated report on a
 proposition-by-proposition basis. The first policy permits no prefix, wildcard,
 containment, inheritance, implicit reuse, or publisher-global assignment.
 
-### 6.6 Origin group
+### 6.6 Origin comparison namespace
+
+An `OriginComparisonNamespace` is the exact namespace within which origin-group
+keys assigned to multiple distinct contributions may be compared. It is not the
+subject of a binding. The minimum namespace for the first origin-admission
+policy includes:
+
+- the exact origin-admission policy identity;
+- the exact target claim identity; and
+- the exact `scope_ref`.
+
+A later explicit aggregation policy may further partition comparison through a
+separately defined aggregation-lane identity, such as direction or an
+evidence-policy cell. This contract does not define those future lane fields.
+
+The namespace must not include the source evidence identity, justification-edge
+identity, artifact identity, acquisition occurrence, or complete
+`ContributionIdentity` when doing so would place every contribution in a unique
+namespace and make comparison impossible.
+
+The governing distinction is:
+
+```text
+ContributionIdentity
+= the exact subject of one origin-binding statement
+
+OriginComparisonNamespace
+= the namespace within which origin-group keys from multiple
+  distinct contributions may be compared
+
+origin bindings are contribution-scoped
+
+origin-group comparison is namespace-scoped
+
+multiple distinct ContributionIdentity values may map to the same
+origin-group key inside one OriginComparisonNamespace
+```
+
+### 6.7 Origin group
 
 An origin group is an opaque exact policy key used to prevent several admitted
 contribution paths that share one governed origin from being counted
@@ -285,18 +323,32 @@ It is not a truth label, reputation score, source-quality score, publisher
 identity, confidence value, statistical proof of independence, ownership
 certificate, or authority key. Equality is exact.
 
-An origin group's meaning is scoped by the exact origin-admission policy, the
-contribution subject, and the relevant claim scope. A group identifier has no
-cross-policy meaning unless a later explicit contract says otherwise.
+An origin-group key has meaning only inside one exact
+`OriginComparisonNamespace`. Equality is interpreted across separately bound
+contributions in that namespace, not confined to one contribution subject:
 
-### 6.7 Origin-binding statement
+```text
+same group key
++ same origin-comparison namespace
+= same admitted origin group
+
+same group key
++ different origin-comparison namespace
+= no defined relationship
+```
+
+A byte-identical key has no cross-policy, cross-claim, or cross-scope meaning
+when those inputs select different namespaces.
+
+### 6.8 Origin-binding statement
 
 A governed origin-binding statement assigns one exact contribution identity to
-one opaque origin group under one explicit policy and authority path. A future
-statement must bind at minimum:
+one opaque origin group inside one exact origin-comparison namespace under one
+explicit policy and authority path. A future statement must bind at minimum:
 
 - a versioned schema and verifier profile;
 - the exact contribution identity;
+- the exact origin-comparison namespace;
 - relevant exact artifact and acquisition references;
 - the origin-group key;
 - the exact governance scope;
@@ -307,7 +359,7 @@ The bundle may retain rationale for audit. Prose rationale is not machine
 authority. An origin-binding statement governs grouping; it does not make
 evidence or claims true and does not create a support contribution.
 
-### 6.8 Admitted origin result
+### 6.9 Admitted origin result
 
 An admitted origin result is a replay-derived policy outcome, not caller input.
 A later policy may admit one group only after:
@@ -319,13 +371,15 @@ A later policy may admit one group only after:
 - every required derivation relation is present, anchored, and
   profile-verified;
 - the origin-binding bundle is present, anchored, and profile-verified;
-- the binding targets the exact contribution identity;
+- the binding targets the exact contribution identity and origin-comparison
+  namespace;
 - the binding authority is trusted under an explicit origin-admission policy;
   and
 - no unresolved conflicting binding exists.
 
 Admission is still not a support contribution. It authorizes only an exact
-grouping statement under the named policy.
+grouping statement for one contribution inside the named comparison namespace
+under the named policy.
 
 ## 7. Anchored foreign-bundle model
 
@@ -364,6 +418,22 @@ Unknown bundle kinds, unsupported profiles, malformed statements, root
 mismatches, and valid-but-unanchored bundles fail closed. A bundle cannot name
 its own signer or profile and thereby bootstrap trust.
 
+The existing anchor representation is a frozen compatibility constraint.
+`SegmentAnchored.witness_root` accepts exactly 64 lowercase hexadecimal
+characters, corresponding to 32 root bytes. Therefore:
+
+```text
+Any first foreign-bundle verifier profile reusing SegmentAnchored must
+produce a root represented as exactly 64 lowercase hexadecimal characters,
+corresponding to 32 root bytes.
+```
+
+The later profile contract must name the exact algorithm explicitly in
+`witness_algorithm`. Acknowledging the existing width does not silently select
+SHA-256 or any other algorithm. A scheme that requires a different root width
+or encoding cannot reuse the existing seam unchanged; it requires a future ADR
+and potentially an explicit L0 evolution decision.
+
 ## 8. Artifact and bundle storage
 
 The storage topology is:
@@ -388,16 +458,19 @@ The honest consequence is:
 - Interpreting a foreign bundle requires the exact bundle bytes and its
   verifier.
 - Missing bundle bytes leave that context unresolved.
-- Missing artifact bytes prevent content verification and evidential use.
+- Missing artifact bytes prevent artifact-grounded origin admission and provide
+  no origin-sensitive aggregation input. The structurally recorded evidence
+  remains visible as unresolved context and may remain relevant to a different
+  future policy that does not require artifact verification.
 - L0 alone cannot reconstruct foreign bundle contents.
 - A later archive or export mechanism may package the log and all referenced
   content-addressed objects, but that work is outside Ticket 0037.
 
 The external stores are not hidden sources of authority. Bytes from them are
 untrusted inputs until exact identity and root checks succeed against the same
-verified replay.
+verified replay and the explicitly selected policies.
 
-## 9. Same-snapshot verification
+## 9. Same-snapshot verification and resolution content closure
 
 The contract extends the existing trusted-construction pattern:
 
@@ -413,13 +486,62 @@ Callers may supply untrusted artifact and bundle bytes from content-addressed
 storage. They may not supply a trusted acquisition result, trusted origin
 binding, admitted origin result, or authority Boolean.
 
+The conceptual `ResolutionContentClosureV0` is an immutable, finite, explicitly
+identified set of untrusted artifact bytes and foreign-bundle bytes supplied to
+one resolution attempt. The exact Rust type, wire encoding, digest profile, and
+manifest schema remain deferred. A resolution content closure is not a trust
+root, authority registry, mutable CAS view, network namespace, evidence by
+itself, or permission to fetch additional material.
+
+A future closure must identify every supplied object by its exact expected
+identity:
+
+- artifact objects are keyed by exact `ArtifactIdentity`; and
+- foreign bundle objects are keyed by the full matching `SegmentAnchored`
+  identity, or by an exact derived anchor identity containing `bundle_kind`,
+  `witness_root`, `witness_algorithm`, `canonicalization_profile`, and `run_id`.
+
+A bare filename, URL, locator, or storage path is not a closure key. Supplying
+an object does not verify it. Every object remains untrusted until its digest or
+root, profile, and same-replay anchor checks succeed.
+
+The deterministic input law is:
+
+```text
+deterministic provenance/origin resolution input
+= verified log prefix H
++ explicit policy identities P
++ immutable resolution content closure M
+
+same H + same P + same M
+-> same derived result
+```
+
+The future output must disclose or bind the verified log-tip or prefix identity,
+every applicable policy identity, and the resolution-content-closure identity.
+No ambient CAS lookup, filesystem scan, remote fetch, callback, or network
+lookup may occur inside deterministic resolution. A separate loader may
+populate a closure before resolution; once constructed, the closure is finite
+and immutable.
+
+An object absent from closure `M` is unavailable for that resolution. The
+resolver emits the relevant explicit unavailable outcome and does not search
+ambient storage. Adding an object constructs a different closure `M2`; `M2`
+may resolve material that remained unresolved under `M1`. That is a new
+resolution input, not mutation or rewriting of the result for `(H, P, M1)`.
+CAS bytes remain untrusted inputs, so freezing availability does not make the
+external store a second authority system.
+
 Trusted context may be constructed only after artifact bytes match the exact
 artifact identity carried by a verified bundle and each supplied bundle root
 matches an exact anchor in the same completely verified replay. A foreign
 bundle that is otherwise valid but unanchored is outside Magpie's record. A
 bundle anchored only after historical tip H cannot influence a resolution as
-of H. A later snapshot may resolve and admit previously unresolved evidence
-without rewriting historical outcomes.
+of H. A later resolution over the same historical log prefix may resolve
+previously unavailable material only by using an explicitly different
+resolution content closure. If the verified log tip also changes, both the new
+prefix and the new closure remain visible in the resolution input. Neither case
+rewrites the result for an earlier `(H, P, M)` tuple.
 
 Existing v0, v1, and v2 policies and snapshot/resolution bytes remain frozen.
 The first implementation may reuse the existing same-snapshot anchor index, but
@@ -433,12 +555,14 @@ An origin-admission attempt begins with one exact `ContributionIdentity`, not
 with a publisher, domain, URL, or artifact collection. The policy re-fetches
 the target claim, source evidence, edge, scope, and artifact references from
 one verified snapshot and compares them exactly with the origin-binding
-statement.
+statement. It also derives and matches the exact `OriginComparisonNamespace`
+selected by the policy, target claim, and `scope_ref`.
 
 The conceptual flow is:
 
 ```text
 exact contribution identity
++ exact origin-comparison namespace
 + verified artifact identity
 + verified acquisition and required derivation lineage
 + exact verified origin-binding statement
@@ -447,10 +571,32 @@ exact contribution identity
 -> one admitted origin group
 ```
 
-There is no implicit reuse across claims, scopes, edges, artifacts, policies,
-or time. Supersession, revocation, expiry, and temporal ownership change are
-future semantics. Until those semantics exist, a conflict cannot be repaired
-by preferring a newer-looking statement.
+One binding never implicitly binds another contribution across claims, scopes,
+edges, artifacts, policies, or time. That exact-subject rule does not isolate
+group comparison: separately verified bindings for multiple distinct
+`ContributionIdentity` values may assign the same origin-group key inside one
+exact `OriginComparisonNamespace`.
+
+The coherent derivation chain is:
+
+```text
+exact contribution
++ exact origin-comparison namespace
++ verified binding
+-> one policy-scoped group assignment
+
+many contribution assignments in one namespace
+-> comparable origin-group keys
+
+verified log prefix
++ policy identities
++ immutable content closure
+-> reproducible origin-admission audit
+```
+
+Supersession, revocation, expiry, and temporal ownership change are future
+semantics. Until those semantics exist, a conflict cannot be repaired by
+preferring a newer-looking statement.
 
 ## 11. Trust roots and authority
 
@@ -482,7 +628,8 @@ contract. Log-carried data and caller inputs cannot negotiate authority.
 ### Exact duplicate binding
 
 Two exact verified bindings that assign the same exact contribution identity to
-the same exact origin group under the same policy:
+the same exact origin-comparison namespace and origin group under the same
+policy:
 
 - remain visible as duplicate occurrences;
 - do not create two groups;
@@ -494,7 +641,7 @@ The later audit may retain every occurrence while deriving one exact assignment.
 ### Conflicting binding
 
 Two verified bindings that assign the same exact contribution identity to
-different origin groups under the same policy:
+different origin groups under the same policy and origin-comparison namespace:
 
 - both remain visible;
 - produce an explicit conflict outcome;
@@ -506,6 +653,43 @@ different origin groups under the same policy:
 Supersession, revocation, expiry, and temporal ownership change are future work.
 Until then, unresolved conflict fails closed.
 
+### Intended same-origin grouping
+
+Two distinct contribution identities assigned the same admitted origin-group
+key inside the same origin-comparison namespace are not duplicates and are not
+in conflict. They remain two exact contribution assignments but are treated as
+sharing one origin. A later aggregation policy may count that admitted group at
+most once.
+
+For example:
+
+```text
+Contribution A -> group wire-report-17
+Contribution B -> group wire-report-17
+```
+
+under the same policy, target claim, and `scope_ref` namespace is valid
+same-origin grouping.
+
+### Potential corroboration separation
+
+Two distinct contribution identities assigned different admitted origin groups
+inside the same origin-comparison namespace may provide policy-recognised
+corroboration separation. This is not proof of statistical independence, and
+only a later explicit aggregation policy may consume it.
+
+For example:
+
+```text
+Contribution A -> group wire-report-17
+Contribution C -> group field-report-4
+```
+
+under the same namespace describes potential separation but creates no support
+by itself. If `wire-report-17` appears under another claim, scope, or policy
+namespace, the byte-identical group key has no defined relationship to either
+assignment above.
+
 ## 13. Conceptual audit outcomes
 
 The future audit surface must use a closed, stage-specific vocabulary. Exact
@@ -515,7 +699,7 @@ collapsed into Boolean `verified` or `independent` fields.
 | stage | required outcome | meaning and fail-closed effect |
 | --- | --- | --- |
 | artifact | no artifact identity | no exact subject; no admission |
-| artifact | artifact bytes unavailable | identity may be asserted, but content cannot be checked; no evidential use or admission |
+| artifact | artifact bytes unavailable | identity may be asserted, but content cannot be checked; structural evidence remains visible and unresolved, with no artifact-grounded origin admission or origin-sensitive aggregation input |
 | artifact | artifact digest mismatch | supplied bytes are not the named artifact; no admission |
 | acquisition | acquisition anchor absent | bundle is outside Magpie's record; no admission |
 | acquisition | acquisition bundle unavailable | occurrence remains visible; interpretation unresolved; no admission |
@@ -540,6 +724,9 @@ collapsed into Boolean `verified` or `independent` fields.
 Unknown or newly encountered states must not fall through to `origin admitted`.
 Later implementation may use a structured audit with several stage outcomes,
 but every terminal decision must remain deterministic and attributable.
+Unavailable outcomes are evaluated against the exact resolution content closure;
+they do not authorize ambient lookup and do not erase structurally recorded
+evidence.
 
 ## 14. Interaction with standing and aggregation
 
@@ -556,13 +743,17 @@ artifact provenance and origin-admission contract
 The admitted-contribution audit is a future standing-inert explanation surface.
 It will revalidate one exact policy-eligible contribution and associate it with
 its admitted origin result while preserving every unresolved prerequisite. It
-reports potential aggregation input; it does not create support or standing.
+is derived deterministically from `(verified log prefix H, explicit policy
+identities P, immutable resolution content closure M)`, reports potential
+aggregation input, and does not create support or standing.
 
 Policy v2 direct support is not aggregation. Origin admission is not support.
 One admitted group is not aggregation. Missing, malformed, conflicting,
 self-declared, or unverified origin material does not amplify. Unknown origin
 counts as zero corroborating separation in the first policy. Same-origin
-multiplicity may count at most once under a later aggregation policy.
+multiplicity within one origin-comparison namespace may count at most once under
+a later aggregation policy. Group keys from different namespaces are
+incomparable.
 
 The normative terminology is:
 
@@ -595,6 +786,9 @@ policy concepts.
 | example | future fail-closed result |
 | --- | --- |
 | One wire report appears at 100 URLs. | Many acquisitions and byte-identical or derivative artifacts may exist. URLs create no corroboration and there is not automatically more than one origin group. |
+| The syndicated report is represented by Contribution A and Contribution B, both admitted as `wire-report-17` under the same policy/claim/scope namespace. | This is valid same-origin grouping, not a conflict. The contributions remain distinct, and a later aggregation policy may count their shared group at most once. |
+| Contribution A is admitted as `wire-report-17` and Contribution C as `field-report-4` in the same namespace. | The different admitted groups may provide corroboration separation, not statistical-independence proof or support without a later aggregation policy. |
+| The key `wire-report-17` also appears under another claim or policy namespace. | The byte-identical key has no implied cross-namespace relationship. |
 | Two governed crawlers acquire the same exact bytes. | One artifact identity, two acquisition occurrences, and no duplicate corroboration. |
 | A paper exists as PDF, publisher HTML, and extracted text. | Possibly several artifacts with explicit lineage; no automatic separate origin. |
 | Several outlets repeat one company press release. | Distinct publishers do not establish distinct origin. Without admitted bindings, contributions remain non-amplifying. |
@@ -604,6 +798,8 @@ policy concepts.
 | Two statements use different signing keys controlled by one actor. | Signature diversity does not prove control separation and creates no automatic additional group. |
 | A valid acquisition or origin-binding bundle exists in CAS without a matching anchor. | It is outside Magpie's record and cannot be admitted. |
 | An exact anchor exists but the bundle bytes are unavailable. | Occurrence remains recorded; bundle interpretation is unresolved; no admission. |
+| For the same `H` and `P`, closure `M1` lacks bundle B while closure `M2` contains the exact bundle. | `M1` produces bundle-unavailable; verification may proceed under `M2`. The change is attributable to `M1 != M2`, not ambient storage drift. |
+| The external CAS gains or loses objects after closure construction. | An existing closure result does not change. A loader must construct a new closure; resolution performs no implicit CAS, filesystem, or network lookup. |
 | The same exact contribution is bound to two groups. | Explicit conflict, zero admitted groups, and no aggregation benefit. |
 | Artifact A cites B while B cites or copies A. | Citation topology does not create two origins. Cycles do not amplify; explicit lineage and origin admission remain required. |
 
@@ -703,8 +899,9 @@ version, package inventory, `Cargo.lock`, or CI.
 
 It adds no Rust, tests, dependency, payload tag, canonical receipt bytes, final
 bundle-kind string, final canonicalization profile, cryptographic algorithm,
-key custody, CAS implementation, crawler, downloader, filesystem/network
-access, callback, plugin, writer API, MCP write path, gate, aggregation,
+resolution-content-closure manifest encoding, key custody, CAS implementation,
+crawler, downloader, filesystem/network access, callback, plugin, writer API,
+MCP write path, gate, aggregation,
 refutation, contradiction debt, invalidation, supersession, currentness,
 reputation, confidence score, probabilistic independence, identity ontology,
 automatic clustering, model integration, librarian implementation, Deadbolt
@@ -718,19 +915,33 @@ code, or production-readiness claim.
   artifact identities.
 - Confirm artifact, acquisition, derivation, descriptor, contribution, group,
   binding, and admission identities remain distinct.
+- Confirm `ContributionIdentity` is the exact binding subject while
+  `OriginComparisonNamespace` is the policy/claim/scope namespace for comparing
+  group keys across distinct contributions.
+- Confirm the same group in one namespace means same-origin material, different
+  groups in one namespace may provide only corroboration separation, and keys
+  in different namespaces are incomparable.
 - Confirm the first implementation reuses `SegmentAnchored` without changing
   its fields or occurrence/inclusion meaning.
 - Confirm only selected versioned and profile-verified bundle families may
   participate.
 - Confirm a bare anchor, signature, bundle kind, URL, DOI, publisher, actor
   class, metadata field, or model score grants no origin authority.
-- Confirm all trusted context is same-snapshot, root-matched, and
-  profile-verified.
+- Confirm all trusted context is same-snapshot, root-matched, profile-verified,
+  and reproducible from explicit `(H, P, M)` inputs.
+- Confirm `ResolutionContentClosureV0` is finite, immutable, untrusted, bound in
+  future audit output, and never supplemented by ambient CAS, filesystem, or
+  network lookup.
 - Confirm origin assignment is exact and contribution-scoped with no wildcard
   or publisher-global reuse.
 - Confirm duplicates do not amplify and conflicts admit zero groups.
 - Confirm missing bundle or artifact bytes remain unresolved rather than being
   reconstructed from L0.
+- Confirm missing artifact bytes block artifact-grounded origin admission and
+  origin-sensitive aggregation input without erasing structural evidence.
+- Confirm first bundle profiles fit the frozen 64-lowercase-hex, 32-byte root
+  representation without selecting an algorithm, and that other widths require
+  a future ADR/L0 evolution decision.
 - Confirm origin admission remains distinct from support, aggregation, and
   settlement.
 - Confirm “origin group” and “corroboration separation” do not claim
