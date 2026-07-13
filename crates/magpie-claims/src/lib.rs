@@ -8,6 +8,7 @@
 
 pub mod policy;
 
+mod artifact_provenance_verifier;
 mod deadbolt_context;
 mod deterministic_verifier_context;
 mod replay_snapshot;
@@ -19,6 +20,15 @@ use std::collections::BTreeMap;
 
 use magpie_log::{Payload, Projection, SignedEvent, Status};
 use serde::Serialize;
+
+pub use artifact_provenance_verifier::{
+    ArtifactAcquisitionReceiptV0, ArtifactDerivationReceiptV0, ArtifactProvenanceAnchorSelectorV0,
+    ArtifactProvenanceContextTraceV0, ARTIFACT_ACQUISITION_BUNDLE_KIND_V0,
+    ARTIFACT_ACQUISITION_SCHEMA_V0, ARTIFACT_DERIVATION_BUNDLE_KIND_V0,
+    ARTIFACT_DERIVATION_SCHEMA_V0, ARTIFACT_PROVENANCE_ARTIFACT_ALGORITHM_V0,
+    ARTIFACT_PROVENANCE_CANONICALIZATION_PROFILE_V0, ARTIFACT_PROVENANCE_VERIFIER_PROFILE_V0,
+    ARTIFACT_PROVENANCE_WITNESS_ALGORITHM_V0, MAX_ARTIFACT_PROVENANCE_BUNDLE_BYTES_V0,
+};
 
 pub use deadbolt_context::{
     resolve_deadbolt_occurrence_context, DeadboltAnchorIdentity, DeadboltAnchorIndex,

@@ -9,3 +9,6 @@
 *.jsonl text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf
+
+# Exact-byte artifact provenance fixtures
+fixtures/artifact-provenance-v0/*.txt text eol=lf

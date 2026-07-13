@@ -1,0 +1,1 @@
+{"schema":"magpie-artifact-derivation-v0","derivation_id":"der-0001","transformation_profile":"uppercase-ascii-v0","parent_artifact":{"algorithm":"sha256","digest":"b6a98d9ce9a2d9149288fa3df42d377c3e42737afdcdaf714e33c0a100b51060"},"derived_artifact":{"algorithm":"sha256","digest":"1921b918b15842c7fdb115078e610263fac85f159c1d8e0ecec3d89a0faa4005"},"run_id":"run-der-0001"}

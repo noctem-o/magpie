@@ -258,15 +258,19 @@ shell execution is unavailable.
     0037 and `docs/design/artifact-provenance-origin-admission.md` define the
     replayable authority substrate and preserve the explicit `(H, P, M)`
     resolution boundary.
-15. **Proposed exact acquisition/direct-derivation protocol — pinned for human
-    ratification.** Ticket 0038 and
-    `docs/design/artifact-acquisition-derivation-bundle-v0.md` fix the two
+15. **Exact acquisition/direct-derivation protocol — landed.** Ticket 0038 and
+    `docs/design/artifact-acquisition-derivation-bundle-v0.md` ratify the two
     sibling bundle/schema identities, canonical JSON bytes, SHA-256 roots,
-    full anchor matching, and standing-inert conceptual verifier outcomes. No
-    verifier or standing behavior has landed. The next implementation slice is
-    portable fixtures plus a standing-inert verifier. Origin binding,
-    origin-admission audit, admitted-contribution audit, aggregation, policy
-    v3, refutation, contradiction debt, invalidation, supersession,
+    full anchor matching, and standing-inert verifier outcomes.
+16. **Portable artifact-provenance verification — implemented by Ticket
+    0039.** Exact acquisition and direct-derivation fixtures now exercise a
+    duplicate-aware fixed-schema parser, purpose-built canonical encoder,
+    selector-bound same-snapshot replay verification, and closed audit traces.
+    Exact matches remain audit context only: they establish neither source
+    identity, transformation correctness, truth nor standing. Production
+    `ResolutionContentClosureV0` construction is deferred; origin binding,
+    origin admission, admitted-contribution audit, aggregation, policy v3,
+    refutation, contradiction debt, invalidation, supersession,
     `EpistemicGate`, and writers remain later work.
 
 Conserve the log. Derive the rest.
