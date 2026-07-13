@@ -4,9 +4,10 @@
 
 Pin one exact documentation-only foreign-bundle protocol for one acquisition
 statement and one direct parent-to-derived statement. The contract fixes the
-two schemas, shared canonical JSON bytes, SHA-256 roots, full anchor identity,
-explicit closure inputs, standing-inert conceptual verifier outcomes, and
-normative examples that the following fixture/verifier PR must reproduce.
+two schemas, shared canonical JSON bytes, SHA-256 roots, an untrusted anchor
+selector distinct from replay-derived identity and occurrence, explicit closure
+inputs, standing-inert conceptual verifier outcomes, and normative examples
+that the following fixture/verifier PR must reproduce.
 
 ```text
 This ticket pins a protocol contract only.
@@ -182,8 +183,17 @@ insignificant whitespace. Canonical string encoding is exact:
 - encode other U+0000-U+001F as lowercase `\u00xx`;
 - emit every other Unicode scalar directly as UTF-8;
 - perform no Unicode normalization;
-- reject unnecessary escapes, escaped solidus `\/`, uppercase hexadecimal
-  escape digits, lone surrogates, and invalid UTF-8.
+- reject unnecessary escapes, escaped solidus `\/`, and uppercase hexadecimal
+  escape digits;
+- reject invalid UTF-8 before JSON parsing; and
+- reject malformed JSON escapes, lone escaped surrogates, and invalid
+  surrogate-pair structures as invalid JSON.
+
+A malformed escape, lone escaped surrogate, or invalid surrogate-pair structure
+returns `InvalidJson` at stage 3. Invalid UTF-8 returns `InvalidUtf8` at stage 3.
+A valid escaped surrogate pair parses to one Unicode scalar and then returns
+`NonCanonicalEncoding` at stage 7 because the scalar must be emitted directly
+as UTF-8. No Unicode-specific primary outcome is added.
 
 After duplicate-aware parsing and exact validation, the future verifier must
 re-encode the object and compare it with the complete supplied bytes. Any
@@ -201,9 +211,10 @@ There is no domain-separation prefix in v0. This formula applies only to this
 exact foreign-bundle protocol and does not reinterpret other roots. The output
 is exactly 64 lowercase hexadecimal characters representing 32 bytes.
 
-## Exact anchor tuple
+## Anchor selector, identity, occurrence, and exact tuple
 
-An attempt is matched against all five exact `SegmentAnchored` fields:
+`ArtifactProvenanceAnchorSelectorV0` is an untrusted five-field tuple naming
+one attempted bundle verification:
 
 ```text
 bundle_kind
@@ -213,44 +224,124 @@ canonicalization_profile
 run_id
 ```
 
-Root-only matching is forbidden. Schema selects the exact bundle kind;
+The exact Rust type and serialization remain deferred. The selector may come
+from the immutable resolution-content closure or another explicitly bounded
+request surface. It is untrusted lookup and comparison material, not proof of
+occurrence, trusted context, authority, permission to select another verifier
+profile, or a caller-created matched result.
+
+An anchor identity is the exact equality class of one five-field
+`SegmentAnchored` payload. An anchor occurrence is one replayed
+`SegmentAnchored` event carrying that identity, plus sequence position and other
+audit material:
+
+```text
+selector A
+!= replay-derived anchor identity
+!= replay-derived anchor occurrence
+
+only exact occurrence of A in the verified replay
+establishes anchored occurrence
+```
+
+Root-only matching is forbidden. Schema selects the expected bundle kind;
 reviewed code selects exact `sha256`,
 `magpie-artifact-provenance-json-v0`, and
-`magpie-artifact-provenance-verifier-v0`; bundle `run_id` selects only the
-identical anchor `run_id`. Different kind, run, algorithm, profile, case, or a
-caller-provided `verified` Boolean cannot match. A valid bundle with no exact
-same-replay anchor is outside Magpie's record.
+`magpie-artifact-provenance-verifier-v0`. Bundle content, selectors, and callers
+cannot negotiate them.
+
+After canonical equality, compare selector bundle kind, witness algorithm,
+canonicalization profile, and bundle/selector `run_id` in that order. Then
+recompute and compare the canonical-bundle root. Only after all those checks
+pass may the verifier query the accepted replay for the exact selector.
+Therefore the exact outcomes are:
+
+```text
+selector.bundle_kind != schema-selected bundle kind
+-> BundleKindMismatch
+
+selector.witness_algorithm != "sha256"
+-> WitnessAlgorithmMismatch
+
+selector.canonicalization_profile
+!= "magpie-artifact-provenance-json-v0"
+-> CanonicalizationProfileMismatch
+
+bundle.run_id != selector.run_id
+-> RunIdMismatch
+
+recomputed canonical-bundle root != selector.witness_root
+-> WitnessRootMismatch
+
+internally consistent exact selector absent from verified replay
+-> AnchorAbsent
+```
+
+`AnchorAbsent` thus means the selector is internally consistent with the parsed
+canonical bundle and fixed protocol but has no exact replay occurrence. The
+selector root has no separate grammar outcome: uppercase, wrong-length,
+non-hexadecimal, or other digest text returns `WitnessRootMismatch` after
+earlier selector fields pass. An accepted occurrence still necessarily carries
+the frozen 64-lowercase-hex root.
+
+An identity may have zero, one, or many occurrences. Zero returns
+`AnchorAbsent`; one or more satisfies one existential match. Repetition obeys:
+
+```text
+repeated identical five-field SegmentAnchored events
+-> one exact anchor identity
+-> multiple audit-visible occurrences
+-> one existential anchor match
+-> no verification amplification
+-> no standing amplification
+```
+
+Future standing-inert audit material must retain all matching occurrences in
+deterministic sequence order. Sequence, event hash, event provenance, and a
+writer-supplied transaction timestamp may be retained, but do not participate
+in identity equality or confer authority. The primary result remains one
+`MatchedAcquisition` or `MatchedDerivation`; neither newest-, first-, nor
+last-occurrence selection applies.
 
 ## Resolution-content-closure interaction
 
 This ticket does not pin `ResolutionContentClosureV0` manifest encoding. It
 pins only the future verifier's inputs.
 
-Acquisition requires bundle bytes keyed by the full expected anchor identity
-and artifact bytes keyed by the exact artifact identity in the bundle.
-Derivation requires bundle bytes keyed by the full expected anchor identity,
-parent bytes keyed by exact parent identity, and derived bytes keyed by exact
-derived identity.
+Acquisition requires bundle bytes keyed by the complete untrusted selector and
+artifact bytes keyed by the exact artifact identity in the bundle. Derivation
+requires bundle bytes keyed by the complete untrusted selector, parent bytes
+keyed by exact parent identity, and derived bytes keyed by exact derived
+identity.
 
-Closure presence is not validity. Missing objects produce explicit unavailable
-outcomes. Verification performs no ambient CAS lookup, filesystem scan,
-network access, callback, plugin, downloader, or second mutable-store read.
+Stage-1 bundle lookup uses the complete selector as its key. Absence under that
+selector returns `BundleUnavailable`. Closure presence is not validity or proof
+of replay occurrence; a closure may deliberately contain hostile bytes under a
+hostile selector for testing. Other missing objects produce explicit
+unavailable outcomes. Verification performs no ambient CAS lookup, filesystem
+scan, network access, callback, plugin, downloader, or second mutable-store
+read.
 
 ## Standing-inert verifier semantics
 
-`MatchedAcquisition` requires bundle presence, size compliance, all raw and
-canonical JSON checks, schema and field validation, the exact full anchor in
-the same verified replay, computed bundle root equality, exact `run_id`,
-artifact presence in closure, and artifact SHA-256 equality. It proves only:
+`MatchedAcquisition` requires, in the exact precedence below: bundle presence
+under the selector, size compliance, raw parsing, exact-schema and semantic
+validation, canonical equality, selector protocol-field agreement, computed
+root agreement, at least one exact selector occurrence in the same verified
+replay, artifact presence, artifact SHA-256 equality, and one matched primary
+outcome. All matching occurrences are retained in sequence order. It proves
+only:
 
 > The accepted Magpie replay contains an exact anchor for this canonical
 > acquisition statement, and the supplied artifact bytes match the statement's
 > exact SHA-256 identity.
 
-`MatchedDerivation` requires the corresponding bundle checks, distinct parent
-and derived identities, the exact full same-replay anchor, computed root and
-`run_id` equality, both artifact objects in closure, and both SHA-256 matches.
-It proves only:
+`MatchedDerivation` requires the corresponding ordered bundle checks, distinct
+parent and derived identities, selector protocol-field and computed-root
+agreement, at least one exact selector occurrence in the same verified replay,
+both artifact objects in closure, both SHA-256 matches, and one matched primary
+outcome. All matching occurrences are retained in sequence order. It proves
+only:
 
 > The accepted Magpie replay contains an exact anchor for this canonical
 > direct-lineage statement, and the supplied parent and derived bytes match the
@@ -306,28 +397,30 @@ converted to arbitrary strings, or collapsed to `verified: bool`.
 
 Primary first failure uses exactly:
 
-1. closure lookup;
+1. bundle closure lookup;
 2. bundle byte-size limit;
-3. UTF-8/BOM/JSON parse;
+3. UTF-8, BOM and JSON parsing;
 4. duplicate-key and exact-schema validation;
 5. identifier, locator and artifact-field validation;
 6. derivation self-loop validation;
 7. canonical re-encoding equality;
-8. anchor tuple selection and exact anchor matching;
-9. root recomputation and equality;
-10. referenced artifact closure lookup;
-11. referenced artifact digest verification;
-12. matched result.
+8. selector protocol-field validation, in order:
+   `BundleKindMismatch`, `WitnessAlgorithmMismatch`,
+   `CanonicalizationProfileMismatch`, `RunIdMismatch`;
+9. witness-root recomputation and equality: `WitnessRootMismatch`;
+10. exact selector lookup in the verified replay: `AnchorAbsent`;
+11. referenced artifact closure lookup;
+12. referenced artifact digest verification;
+13. matched result.
 
-Within schema and semantic validation, fields are visited in their canonical
-schema order. Duplicate detection precedes field selection and retains all
-members. Within anchor stage 8, order is bundle kind, witness algorithm,
-canonicalization profile, run ID, then anchor absence. For derivation artifact
-stages, parent precedes derived. When a nested artifact object is reached in
-top-level schema order, its `algorithm` and `digest` fields are validated before
-the next top-level field. Map iteration order never selects the first failure.
-Subordinate diagnostics may be retained, but the primary outcome follows this
-order.
+Within schema and semantic validation, fields are visited in canonical schema
+order. Duplicate detection precedes field selection and retains all members.
+For derivation artifact stages, parent precedes derived. When a nested artifact
+object is reached in top-level schema order, its `algorithm` and `digest` fields
+are validated before the next top-level field. Map iteration, replay iteration,
+closure order, and occurrence multiplicity never select or multiply the primary
+result. Subordinate diagnostics may be retained, but the primary outcome
+follows this order.
 
 ## Normative vectors
 
@@ -430,18 +523,41 @@ incorrect transformation claim, caller-provided verification, post-`H` anchor,
 and reuse under another anchor identity.
 
 The important bounded cases are: alternate semantic JSON is
-`NonCanonicalEncoding`; wrong anchor fields use their exact stage-8 mismatch;
-root mismatch is `WitnessRootMismatch`; absent same-replay occurrence is
-`AnchorAbsent`; absent closure objects use exact unavailable outcomes; and a
-hash-correct derivation can establish at most `MatchedDerivation`, never
-transformation correctness.
+`NonCanonicalEncoding`; malformed escapes and malformed surrogate structures
+are `InvalidJson`; invalid UTF-8 is `InvalidUtf8`; and a valid escaped surrogate
+pair parses but is `NonCanonicalEncoding`. Anchor cases are exact:
+
+- canonical acquisition bytes under a derivation selector kind return
+  `BundleKindMismatch` at stage 8;
+- selector witness algorithm `sha-256` returns `WitnessAlgorithmMismatch` at
+  stage 8;
+- another selector canonicalization profile returns
+  `CanonicalizationProfileMismatch` at stage 8;
+- a bundle/selector `run_id` difference returns `RunIdMismatch` at stage 8;
+- a selector root different from the recomputed root returns
+  `WitnessRootMismatch` at stage 9, before replay lookup;
+- a fully internally consistent selector with no exact accepted-replay
+  occurrence returns `AnchorAbsent` at stage 10;
+- the same bytes under another closure selector are validated against that
+  selector and the first exact stage-8 or stage-9 mismatch wins; and
+- three exact selector occurrences produce one matched primary outcome, retain
+  three ordered audit occurrences, and do not amplify verification or standing.
+
+Absent closure objects use exact unavailable outcomes. A hash-correct
+derivation can establish at most `MatchedDerivation`, never transformation
+correctness.
 
 ## Timestamp and signing decisions
 
-The v0 schemas contain no timestamp. Signed Magpie anchor time and order record
-chain inclusion only; they are not acquisition or transformation time. V0
-makes no such time claim. A time-bearing statement requires a later explicit
-schema version, and IDs or locators must not smuggle time authority.
+The v0 schemas contain no timestamp. A `SegmentAnchored` event carries a signed
+writer-supplied transaction timestamp and a verified sequence position in the
+accepted chain. Chain verification protects the recorded timestamp from
+undetected alteration but does not externally attest that the writer's clock
+was accurate. Sequence establishes accepted-chain total order. V0 makes no
+trusted wall-clock, acquisition-time, transformation-time, or valid-time claim.
+Repeated-occurrence timestamps are audit material only. A time-bearing
+statement requires a later explicit schema version, and IDs or locators must not
+smuggle time authority.
 
 The v0 schemas contain no embedded signature or self-declared signer. Integrity
 and occurrence derive from exact canonical bytes, SHA-256 root, exact
@@ -485,6 +601,22 @@ workspace tests, governed tour, release metadata, `magpie-log` packaging,
 independent golden-chain verification, diff whitespace, exact changed-path
 scope, protocol-identity searches, stale/prohibited ambiguity searches, and a
 full authority audit. Every reported pass must have actually run.
+
+Reviewer checks for the remediation are explicit:
+
+- distinguish the untrusted selector from replay-derived identity and
+  occurrence;
+- classify kind, algorithm, profile, and run mismatches before root comparison,
+  and root mismatch before `AnchorAbsent` replay lookup;
+- ensure only a fully internally consistent selector with zero occurrences can
+  return `AnchorAbsent`;
+- retain all repeated occurrences in deterministic sequence order while
+  producing one existential match and no amplification;
+- treat the writer transaction timestamp as signed audit material, not trusted
+  wall-clock, acquisition, transformation, or valid time; and
+- classify malformed escapes, lone escaped surrogates, and invalid
+  surrogate-pair structures as `InvalidJson`, invalid UTF-8 as `InvalidUtf8`,
+  and valid escaped surrogate pairs as `NonCanonicalEncoding`.
 
 ## Next slice
 
