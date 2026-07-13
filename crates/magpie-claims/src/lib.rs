@@ -9,6 +9,7 @@
 pub mod policy;
 
 mod deadbolt_context;
+mod deterministic_verifier_context;
 mod replay_snapshot;
 mod standing;
 mod standing_v1;
@@ -21,6 +22,12 @@ use serde::Serialize;
 pub use deadbolt_context::{
     resolve_deadbolt_occurrence_context, DeadboltAnchorIdentity, DeadboltAnchorIndex,
     DeadboltAnchorOccurrence, DeadboltOccurrenceContextResolution, DEADBOLT_OCCURRENCE_SCHEMA,
+};
+
+pub use deterministic_verifier_context::{
+    DeterministicVerifierContextTraceV0, DeterministicVerifierReceiptV0,
+    MACHINE_PREDICATE_SCHEMA_V0, MAX_WITNESS_BYTES_V0, SHA256_BYTES_EQUALS_PREDICATE_V0,
+    SHA256_BYTES_EQUALS_STATEMENT_PREFIX_V0, VERIFICATION_WITNESS_SCHEMA_V0,
 };
 
 pub use replay_snapshot::{replay_standing_context, StandingReplaySnapshot};

@@ -329,9 +329,9 @@ must not erase truth-bearing contradiction debt or settle factual truth.
 2. Support-context classification — landed.
 3. Narrow Deadbolt achieved-standing slice — landed.
 4. Closed contribution lanes — landed.
-5. Replayable deterministic-verifier admission contract.
-6. Standing-inert verifier-context projection and closed checker.
-7. One direct policy-v2 `Supported` rule.
+5. Replayable deterministic-verifier admission contract — landed.
+6. Standing-inert verifier-context query and closed checker — landed.
+7. One direct policy-v2 `Supported` rule — next.
 8. Only then genuine aggregation; the first v2 `Supported` rule is direct
    support and is not the support aggregation rule described in this note.
 9. Conservative provenance-derived independence. Absent, malformed,

@@ -33,9 +33,11 @@ REQUIRED_PACKAGE_FILES = {
     },
     "magpie-claims": {
         "examples/tour.rs",
+        "src/deterministic_verifier_context.rs",
         "tests/deadbolt_anchor_fixture.rs",
         "tests/deadbolt_occurrence_context.rs",
         "tests/deadbolt_occurrence_standing_v1.rs",
+        "tests/deterministic_verifier_context.rs",
         "tests/regenerable.rs",
         "tests/standing_replay_snapshot.rs",
         "tests/standing_resolution.rs",

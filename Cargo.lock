@@ -238,9 +238,11 @@ name = "magpie-claims"
 version = "0.1.0"
 dependencies = [
  "ed25519-dalek",
+ "hex",
  "magpie-log",
  "serde",
  "serde_json",
+ "sha2",
 ]
 
 [[package]]
