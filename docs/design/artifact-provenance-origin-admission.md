@@ -512,13 +512,21 @@ contains exactly two disjoint key namespaces:
 
 The ratified schema is `magpie-resolution-content-closure-v0`; its separate
 canonicalization profile is `magpie-resolution-content-closure-json-v0`; and
-its digest algorithm is exact `sha256`. The closure identity commits to the
-purpose-built canonical manifest of exact keys, object lengths and actual
-object SHA-256 values. It is not an artifact identity, bundle verification,
-trust root, authority registry, mutable CAS view, network namespace, evidence
-by itself, archive guarantee or permission to fetch additional material. The
-manifest omits raw object bytes, so its identity cannot reconstruct the
-closure.
+its digest algorithm is exact `sha256`. The exact typed
+`ResolutionContentClosureIdentityV0` contains exactly four fields in normative
+order: `schema`, `canonicalization_profile`, `digest_algorithm` and
+`manifest_sha256`. The final field is lowercase SHA-256 over the exact
+purpose-built canonical manifest. The complete four-field value, not the bare
+64-character manifest digest, is the closure identity. No second hash over the
+typed identity is introduced.
+
+That typed identity commits to exact keys, object lengths and actual object
+SHA-256 values in the manifest. It is not an artifact identity, bundle
+verification, trust root, authority registry, mutable CAS view, network
+namespace, evidence by itself, archive guarantee or permission to fetch
+additional material. The manifest omits raw object bytes, so neither the
+manifest nor its typed identity can reconstruct the closure. A caller-created
+well-shaped identity is not proof that reviewed construction occurred.
 
 A bare filename, URL, locator or storage path is not a closure key. Supplying an
 object does not verify it. Construction may retain expected key material that
@@ -526,6 +534,21 @@ disagrees with the actual supplied-object SHA-256; the manifest records both
 without equating them. Every object remains untrusted until the existing or a
 later selected verifier checks its digest or root, profile and same-replay
 anchor.
+
+For foreign-bundle objects, manifest `content_sha256` is always the closure-
+profile SHA-256 commitment to the exact supplied bytes, regardless of the
+selector's `witness_algorithm`. It is not a generic computed witness root. A
+selected verifier independently computes its profile-specific root and
+compares that result with `witness_root`. Only the current artifact-provenance
+v0 profile, after accepting exact canonical bytes, computes SHA-256 over the
+same byte string and therefore obtains a root equal to `content_sha256`.
+
+Construction also enforces separate pre- and post-collapse byte totals. The
+checked sum of every supplied entry length before exact-duplicate collapse is
+limited to 536,870,912 bytes, so every duplicate occurrence consumes the
+pre-collapse budget. The checked retained-object total after collapse has the
+same numerical v0 cap. Entry counts and supplied bytes jointly bound
+pre-collapse work; the two byte limits remain distinct stages.
 
 The deterministic input law is:
 

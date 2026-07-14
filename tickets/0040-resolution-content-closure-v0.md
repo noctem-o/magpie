@@ -14,10 +14,18 @@ That commit is the merge of PR #51. The implementation branch is:
 agent/resolution-content-closure-v0-contract
 ```
 
-The single commit and draft PR title are both:
+The original architecture commit and PR title are both:
 
 ```text
 docs: define resolution content closure v0
+```
+
+PR #52 was opened as a draft. A human later intentionally marked it ready for
+review. This review remediation preserves that ready-for-review state and adds
+one follow-up commit:
+
+```text
+docs: harden closure resource and identity bounds
 ```
 
 ## Goal
@@ -218,13 +226,30 @@ maximum bytes in one artifact object:
 maximum bytes in one foreign-bundle object:
 1,048,576
 
+maximum supplied object bytes across one closure:
+536,870,912
+
 maximum retained object bytes across one closure:
 536,870,912
 ```
 
-Entry counts are checked before exact-duplicate collapse. The retained-total
-cap is checked after exact-duplicate collapse; byte-identical objects under
-different keys count separately. Individual entry limits apply before
+These are the eight exact v0 resource maxima.
+
+Entry counts are checked before exact-duplicate collapse. Total supplied
+object bytes are the checked sum of every supplied artifact-entry and foreign-
+bundle-entry byte length before collapse. Three same-key/same-byte occurrences
+count three times; identical bytes supplied under several keys count once per
+supplied entry; an empty closure supplies zero bytes. Entries later classified
+as conflicting still contribute their full lengths according to the future
+fixed first-failure algorithm; caller order cannot exempt an entry or select a
+failure. Entry-count and total-supplied-byte checks jointly bound pre-collapse
+construction work: counts cap structural multiplicity and the byte cap bounds
+object payload presented before duplicates can reduce retention.
+
+Total retained object bytes are the checked sum after exact same-key/same-byte
+duplicate collapse; byte-identical objects retained under different keys count
+separately. The supplied-total and retained-total caps deliberately share the
+same v0 value but govern different stages. Individual entry limits apply before
 collapse. All conceptual conversion and addition use checked arithmetic and
 overflow fails closed.
 
@@ -284,6 +309,19 @@ Exact foreign-bundle-entry shape and order:
 object bytes are not embedded. Actual object length and digest remain recorded
 even when an expected key disagrees.
 
+For a foreign-bundle object, `content_sha256` is always closure-profile
+SHA-256 over the exact supplied bytes, regardless of the selector's
+`witness_algorithm`. It is not a generic computed witness root. A selected
+profile-specific verifier independently interprets the bytes, computes its
+root under its reviewed algorithm and canonicalization rules, and compares
+that result with `witness_root`.
+
+The current artifact-provenance v0 verifier uses SHA-256 over exact accepted
+canonical bundle bytes, so only after that profile's canonical acceptance does
+its computed root equal `content_sha256`. Closure construction still performs
+no comparison. Future profiles using another supported algorithm or transformed
+root construction have no implied equality with `content_sha256`.
+
 ## Canonical encoding and ordering
 
 Artifact entries sort bytewise over exact UTF-8 field bytes by:
@@ -326,22 +364,50 @@ No parser or manifest deserializer is introduced.
 ## Closure identity
 
 ```text
-lowercase_hex(
-  SHA-256(
-    exact canonical manifest bytes under
-    magpie-resolution-content-closure-json-v0
-  )
-)
+ResolutionContentClosureIdentityV0 {
+    schema:
+        "magpie-resolution-content-closure-v0"
+
+    canonicalization_profile:
+        "magpie-resolution-content-closure-json-v0"
+
+    digest_algorithm:
+        "sha256"
+
+    manifest_sha256:
+        <exactly 64 lowercase hexadecimal characters>
+}
 ```
 
-The conceptual typed identity binds the exact schema, canonicalization profile,
-digest algorithm and manifest SHA-256. The manifest does not contain its own
-digest.
+The displayed field order is normative for the future typed public and audit
+surface. The identity has exactly these four fields, with no aliases, optional
+fields, extensions, metadata maps, negotiation values or runtime selector.
+
+```text
+manifest_sha256
+= lowercase_hex(
+    SHA-256(
+      exact canonical manifest bytes under
+      magpie-resolution-content-closure-json-v0
+    )
+  )
+
+ResolutionContentClosureIdentityV0 equality
+= exact equality of all four fields
+```
+
+The complete typed identity, not the bare 64-character `manifest_sha256`, is
+the closure identity. The bare value is only its digest component. The
+manifest contains neither its own digest nor the profile and algorithm
+identity fields. No second hash over a serialized four-field identity is
+introduced.
 
 The identity is an exact commitment to one finite keyed availability universe.
 It is not a signature, trust root, provenance receipt, archive guarantee,
 external-store retention proof, key/content match, bundle verification, anchor
-occurrence, origin proof or truth proof. It cannot reconstruct raw objects.
+occurrence, origin proof or truth proof. It cannot reconstruct raw objects. A
+caller-created four-field value remains untrusted audit material and is not
+proof that reviewed construction occurred.
 
 ## Exact lookup semantics
 
@@ -393,6 +459,7 @@ TotalEntryLimitExceeded
 KeyFieldTooLarge
 ArtifactObjectTooLarge
 ForeignBundleObjectTooLarge
+TotalSuppliedBytesExceeded
 TotalRetainedBytesExceeded
 LengthOverflow
 ConflictingArtifactObject
@@ -415,11 +482,21 @@ Two independently structured temporary Python calculations read the committed
 SHA-256, sorted by the exact key tuples and independently emitted the fixed
 manifest. They agreed exactly:
 
-| vector | artifact count | bundle count | retained bytes | manifest bytes | manifest SHA-256 / closure identity |
+| vector | artifact count | bundle count | retained bytes | manifest bytes | manifest SHA-256 |
 | --- | ---: | ---: | ---: | ---: | --- |
 | empty | 0 | 0 | 0 | 99 | `95446014b15ce3e3cb63784da4898defad484c34ff29ddd09d662bd7a2b58092` |
 | acquisition | 1 | 1 | 306 | 663 | `2253d66f473c8b0f71a47f308ef4c0dffbb6f56e522b58c54bfd5519f958a224` |
 | complete existing fixture | 3 | 2 | 692 | 1,434 | `2e0f59ee647407c6e66ae7e05913788b92b0b4f85c739f4ed3bc231511a30a84` |
+
+Each listed hash is the `manifest_sha256` component. The following table gives
+the complete typed identity for every vector; its columns preserve the
+normative field order:
+
+| vector | schema | canonicalization_profile | digest_algorithm | manifest_sha256 |
+| --- | --- | --- | --- | --- |
+| empty | `magpie-resolution-content-closure-v0` | `magpie-resolution-content-closure-json-v0` | `sha256` | `95446014b15ce3e3cb63784da4898defad484c34ff29ddd09d662bd7a2b58092` |
+| acquisition | `magpie-resolution-content-closure-v0` | `magpie-resolution-content-closure-json-v0` | `sha256` | `2253d66f473c8b0f71a47f308ef4c0dffbb6f56e522b58c54bfd5519f958a224` |
+| complete existing fixture | `magpie-resolution-content-closure-v0` | `magpie-resolution-content-closure-json-v0` | `sha256` | `2e0f59ee647407c6e66ae7e05913788b92b0b4f85c739f4ed3bc231511a30a84` |
 
 Every vector starts with `0x7b`, ends with `0x7d`, has no BOM and has no
 trailing newline.
@@ -455,20 +532,29 @@ the abbreviations above are descriptive only.
 
 | case | exact contract result |
 | --- | --- |
-| Same five objects supplied in reverse order. | Same manifest and identity. |
-| Same artifact entry supplied three times. | One retained object and same identity; all three count toward supplied-entry limits. |
+| Same five objects supplied in reverse order. | Same manifest and typed identity. |
+| Same artifact entry supplied three times. | One retained object and same typed identity; all three entries and all three lengths count before collapse. |
+| 1,024 identical 64 MiB artifact entries. | `TotalSuppliedBytesExceeded`; duplicate collapse cannot rescue construction. |
+| Individually valid supplied objects total exactly 536,870,912 bytes. | May proceed past the inclusive supplied-total bound, subject to every other check. |
+| The same supplied set plus one byte. | `TotalSuppliedBytesExceeded`. |
+| Duplicates exceed 512 MiB supplied but would retain only 64 MiB. | `TotalSuppliedBytesExceeded`; post-collapse size does not rescue construction. |
+| A test-only boundary or future profile keeps supplied bytes within its cap while distinct-key retention exceeds a lower retained cap. | `TotalRetainedBytesExceeded`. This is not reachable under the equal v0 caps because retained bytes cannot exceed supplied bytes; the outcome remains a distinct required stage. |
 | Same artifact key with two different byte strings. | `ConflictingArtifactObject`; no closure. |
 | Same bundle key with two different byte strings. | `ConflictingForeignBundleObject`; no closure. |
 | Same bytes under two artifact keys. | Two retained entries; no inferred identity. |
 | Artifact key digest disagrees with supplied bytes. | Closure may construct; later verifier may report digest mismatch. |
-| Bundle root disagrees with supplied bytes. | Closure may construct; later verifier reports root mismatch. |
-| One object removed. | Different identity. |
-| One byte changed. | Different `content_sha256` and identity. |
+| Foreign-bundle selector names an unsupported witness algorithm. | Closure may construct and computes `content_sha256` using closure SHA-256; a later verifier rejects or classifies the unsupported profile. |
+| Selector `witness_root` differs from `content_sha256` under current artifact-provenance v0 fields. | Closure may construct; the current verifier later reports `WitnessRootMismatch` when its independently computed SHA-256 root differs from the selector root. |
+| A future profile computes a non-SHA-256 or transformed witness root. | `content_sha256` remains an available-object commitment only; no generic equality is inferred. |
+| One object removed. | Different manifest SHA-256 component and typed identity. |
+| One byte changed. | Different `content_sha256`, manifest SHA-256 component and typed identity. |
 | Object added to external CAS after construction. | Existing closure unchanged. |
 | Object deleted from external CAS after construction. | Existing closure unchanged. |
 | Object absent from `M1`, present in `M2`. | Two explicit resolution inputs, not ambient mutation. |
 | Closure manifest copied or serialized. | Audit material only; no raw-byte reconstruction or authority. |
-| Caller supplies closure identity. | Not accepted as trusted construction. |
+| Same bare `manifest_sha256` with different schema/profile/algorithm fields. | Different four-field values are not equal typed identities; non-v0 constants are not valid v0 identities. This is semantic domain scoping, not a collision claim. |
+| Caller supplies a well-shaped `ResolutionContentClosureIdentityV0`. | Not accepted as proof of trusted construction. |
+| Caller copies `manifest_sha256` alone. | Digest component only, not the complete typed identity. |
 | One wire report stored under many URLs. | URL multiplicity is outside closure identity and creates no corroboration. |
 
 ## Authority boundary and later origin work
@@ -541,6 +627,37 @@ audit and both independent inline vector calculations required by the ticket
 prompt. Review every authority-audit match manually. Before commit, review the
 entire diff from the exact base.
 
+### Review-remediation validation record
+
+On 2026-07-14, before the follow-up commit, the final remediation text passed:
+
+- `git diff --check`;
+- `cargo fmt --all --check`;
+- `cargo clippy --workspace --all-targets --locked -- -D warnings`;
+- `cargo test --workspace --locked` with 256 passed and zero failed;
+- `cargo run --locked --example tour -p magpie-claims`;
+- `python tools/check_release_metadata.py`, with all three inventories
+  consistent;
+- `cargo package -p magpie-log --locked`, packaging and verifying 19 files;
+- the independent golden-chain verifier, with all nine records `OK`;
+- the portable Deadbolt chain verifier, with both records `OK`;
+- the prohibited-path audit, with no output; and
+- the focused stale-wording and authority/identity searches after manual
+  review of every match.
+
+Two independently structured inline Python calculations reread all five
+committed artifact-provenance fixture objects. Both reproduced the exact object
+lengths and SHA-256 values and the unchanged empty, acquisition and complete
+manifest results: 99 / `95446014...b58092`, 663 /
+`2253d66f...58a224`, and 1,434 / `2e0f59ee...30a84`. Every manifest began with
+`0x7b`, ended with `0x7d`, had no BOM and had no trailing newline. The complete
+digests remain normative in the table above; abbreviations here are only a
+compact validation record.
+
+The required clean-tree post-commit rerun remains a publication gate and is
+reported in the PR body and final handoff; this pre-commit record does not
+claim it occurred early.
+
 ## Reviewer checklist
 
 - Confirm the branch starts exactly at
@@ -550,8 +667,9 @@ entire diff from the exact base.
 - Confirm there are exactly two disjoint untrusted object classes and key field
   order matches the landed selector.
 - Confirm construction performs no lookup, replay, callback or hydration.
-- Confirm counts occur before duplicate collapse and retained bytes after it.
-- Confirm all seven v0 resource maxima are exact.
+- Confirm counts and total supplied bytes occur before duplicate collapse, and
+  retained bytes after it.
+- Confirm all eight v0 resource maxima are exact.
 - Confirm duplicate, conflict and same-bytes/different-key cases remain
   distinct and order-independent.
 - Confirm expected key values and actual object digests remain distinct.
@@ -559,8 +677,11 @@ entire diff from the exact base.
   integer form, BOM absence and no trailing newline are exact.
 - Confirm both independent calculations reproduce the three exact lengths,
   digests, endpoint bytes and BOM results.
-- Confirm closure identity is commitment only, cannot reconstruct objects and
-  grants no trust or authority.
+- Confirm `ResolutionContentClosureIdentityV0` has exactly four fields in the
+  pinned order, the vector hashes are only `manifest_sha256` components, and
+  identity is commitment only that cannot reconstruct objects or grant trust.
+- Confirm foreign-bundle `content_sha256` is always closure SHA-256 over exact
+  supplied bytes and is not a generic profile-specific witness root.
 - Confirm lookup is exact only and `M1` never changes ambiently.
 - Confirm existing slice-based verifier APIs and 13-stage semantics are not
   claimed to change.
@@ -568,7 +689,8 @@ entire diff from the exact base.
   caller-order first-failure rule is invented.
 - Confirm origin-binding fields are absent and later origin/admission/
   aggregation layers remain future work.
-- Confirm the PR remains draft; do not merge, enable auto-merge or mark ready.
+- Confirm the PR remains open, ready for review by intentional human action,
+  unmerged, and without auto-merge.
 
 ## Exact next slice
 
