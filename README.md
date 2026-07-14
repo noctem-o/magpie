@@ -272,5 +272,14 @@ shell execution is unavailable.
     origin admission, admitted-contribution audit, aggregation, policy v3,
     refutation, contradiction debt, invalidation, supersession,
     `EpistemicGate`, and writers remain later work.
+17. **Resolution content closure v0 contract — landed.**
+    [`docs/design/resolution-content-closure-v0.md`](docs/design/resolution-content-closure-v0.md)
+    and [Ticket 0040](tickets/0040-resolution-content-closure-v0.md) now specify
+    the exact finite keyed availability universe, canonical manifest and
+    closure identity used as input `M` for deterministic resolution. No
+    production closure type or loader exists yet. The artifact-provenance
+    verifier methods still receive explicit optional byte slices. Origin
+    binding, origin admission, admitted-contribution audit, aggregation and
+    writers remain future work.
 
 Conserve the log. Derive the rest.

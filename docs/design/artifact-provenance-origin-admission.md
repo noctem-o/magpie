@@ -494,24 +494,38 @@ Callers may supply untrusted artifact and bundle bytes from content-addressed
 storage. They may not supply a trusted acquisition result, trusted origin
 binding, admitted origin result, or authority Boolean.
 
-The conceptual `ResolutionContentClosureV0` is an immutable, finite, explicitly
-identified set of untrusted artifact bytes and foreign-bundle bytes supplied to
-one resolution attempt. The exact Rust type, wire encoding, digest profile, and
-manifest schema remain deferred. A resolution content closure is not a trust
-root, authority registry, mutable CAS view, network namespace, evidence by
-itself, or permission to fetch additional material.
+Ticket 0040 and
+[`resolution-content-closure-v0.md`](resolution-content-closure-v0.md) ratify
+the exact immutable `ResolutionContentClosureV0` construction, canonical
+manifest and identity contract. That contract is not implemented: there is no
+production closure type, loader, parser or resolver integration yet.
 
-A future closure must identify every supplied object by its exact expected
-identity:
+The closure is an immutable, finite, explicitly identified set of untrusted
+artifact bytes and foreign-bundle bytes supplied to one resolution attempt. It
+contains exactly two disjoint key namespaces:
 
-- artifact objects are keyed by exact `ArtifactIdentity`; and
-- foreign bundle objects are keyed by the full matching `SegmentAnchored`
-  identity, or by an exact derived anchor identity containing `bundle_kind`,
-  `witness_root`, `witness_algorithm`, `canonicalization_profile`, and `run_id`.
+- artifact objects are keyed by exact two-field expected identity
+  (`algorithm`, `digest`); and
+- foreign-bundle objects are keyed by the full five-field
+  `ArtifactProvenanceAnchorSelectorV0` order: `bundle_kind`, `witness_root`,
+  `witness_algorithm`, `canonicalization_profile`, `run_id`.
 
-A bare filename, URL, locator, or storage path is not a closure key. Supplying
-an object does not verify it. Every object remains untrusted until its digest or
-root, profile, and same-replay anchor checks succeed.
+The ratified schema is `magpie-resolution-content-closure-v0`; its separate
+canonicalization profile is `magpie-resolution-content-closure-json-v0`; and
+its digest algorithm is exact `sha256`. The closure identity commits to the
+purpose-built canonical manifest of exact keys, object lengths and actual
+object SHA-256 values. It is not an artifact identity, bundle verification,
+trust root, authority registry, mutable CAS view, network namespace, evidence
+by itself, archive guarantee or permission to fetch additional material. The
+manifest omits raw object bytes, so its identity cannot reconstruct the
+closure.
+
+A bare filename, URL, locator or storage path is not a closure key. Supplying an
+object does not verify it. Construction may retain expected key material that
+disagrees with the actual supplied-object SHA-256; the manifest records both
+without equating them. Every object remains untrusted until the existing or a
+later selected verifier checks its digest or root, profile and same-replay
+anchor.
 
 The deterministic input law is:
 
@@ -527,10 +541,11 @@ same H + same P + same M
 
 The future output must disclose or bind the verified log-tip or prefix identity,
 every applicable policy identity, and the resolution-content-closure identity.
-No ambient CAS lookup, filesystem scan, remote fetch, callback, or network
-lookup may occur inside deterministic resolution. A separate loader may
-populate a closure before resolution; once constructed, the closure is finite
-and immutable.
+No ambient CAS lookup, filesystem scan, remote fetch, callback, network lookup,
+plugin invocation, database query, second Magpie replay, lazy population,
+cache fill or background hydration may occur in closure construction or inside
+deterministic resolution. A separate future loader may populate a closure
+before resolution; once constructed, the closure is finite and immutable.
 
 An object absent from closure `M` is unavailable for that resolution. The
 resolver emits the relevant explicit unavailable outcome and does not search
@@ -738,17 +753,22 @@ evidence.
 
 ## 14. Interaction with standing and aggregation
 
-This contract corrects the implementation sequence:
+Ticket 0040 ratifies the first step of the corrected implementation sequence:
 
 ```text
-artifact provenance and origin-admission contract
--> standing-inert foreign-bundle verification
+ResolutionContentClosureV0 contract
+-> closure implementation and hostile tests
+-> exact origin-binding bundle contract
+-> origin-binding verifier
 -> standing-inert origin-admission audit
 -> admitted-contribution audit
--> explicit aggregation policy
+-> policy-v3 contract
+-> conservative aggregation
 ```
 
-The admitted-contribution audit is a future standing-inert explanation surface.
+The closure contract is ratified but not implemented. Origin binding, origin
+admission and every later step remain future work. The admitted-contribution
+audit is a future standing-inert explanation surface.
 It will revalidate one exact policy-eligible contribution and associate it with
 its admitted origin result while preserving every unresolved prerequisite. It
 is derived deterministically from `(verified log prefix H, explicit policy
@@ -876,23 +896,22 @@ implementation promise for those standards.
 
 ## 18. Future implementation sequence
 
-1. Ratify Ticket 0038.
-2. Add portable acquisition and derivation bundle fixtures reproducing the
-   normative vectors.
-3. Add standing-inert parser, canonicalizer and verifier implementation.
-4. Add immutable closure construction or an explicit test-only closure surface
-   as separately reviewed.
-5. Pin origin-binding bundle schema and origin-admission policy.
-6. Add standing-inert origin-admission audit.
-7. Add admitted-contribution audit.
-8. Pin policy-v3 aggregation.
-9. Implement conservative aggregation.
+1. `ResolutionContentClosureV0` contract — ratified by Ticket 0040, not
+   implemented.
+2. Closure implementation and hostile tests.
+3. Exact origin-binding bundle contract.
+4. Origin-binding verifier.
+5. Standing-inert origin-admission audit.
+6. Admitted-contribution audit.
+7. Policy-v3 contract.
+8. Conservative aggregation.
 
-The immediate next PR after Ticket 0038 combines only portable fixture files,
-standing-inert verification, and hostile tests, with no standing effect. Step 8
-names a future policy slot only. Neither Ticket 0037 nor Ticket 0038 defines or
-implements policy v3, an aggregation threshold, or any achieved-standing
-change. Every step before aggregation remains standing-inert.
+The immediate next PR is step 2 only. It must pin deterministic construction
+failure precedence and implement the ratified finite, immutable availability
+boundary without adding a loader, origin-binding field, origin-admission rule,
+standing effect or writer authority. Steps 3-8 remain future work. Every step
+before policy-v3 remains standing-inert; this contract still defines no
+aggregation threshold or achieved-standing change.
 
 ## 19. Frozen surfaces and explicit non-goals
 
