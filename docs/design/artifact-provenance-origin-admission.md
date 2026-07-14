@@ -13,6 +13,12 @@ also implement no runtime capability. No artifact, acquisition, derivation,
 origin-binding, origin-admission, contribution, aggregation, or writer
 capability is implemented by these contracts.
 
+Ticket 0040 ratified the separate immutable resolution-content-closure
+contract, and Ticket 0041 implements its bounded construction, canonical
+manifest, typed identity and exact read-only lookup. That availability surface
+remains standing-inert and untrusted. No loader, orchestrator wiring or
+verifier integration exists.
+
 ## 2. Purpose
 
 Magpie can retain structurally valid evidence and exact foreign-bundle anchors.
@@ -497,8 +503,9 @@ binding, admitted origin result, or authority Boolean.
 Ticket 0040 and
 [`resolution-content-closure-v0.md`](resolution-content-closure-v0.md) ratify
 the exact immutable `ResolutionContentClosureV0` construction, canonical
-manifest and identity contract. That contract is not implemented: there is no
-production closure type, loader, parser or resolver integration yet.
+manifest and identity contract. Ticket 0041 implements production construction
+from explicit borrowed key/byte inputs and exact immutable lookup. There is no
+loader, parser, orchestrator wiring or resolver integration.
 
 The closure is an immutable, finite, explicitly identified set of untrusted
 artifact bytes and foreign-bundle bytes supplied to one resolution attempt. It
@@ -548,7 +555,7 @@ exact-duplicate collapse to 536,870,912 bytes, so every duplicate occurrence
 consumes the pre-collapse budget. Entry counts and supplied bytes jointly bound
 pre-collapse work. Because duplicate collapse can only remove occurrences, the
 derived v0 invariant is `retained object bytes <= supplied object bytes <=
-536,870,912`; v0 has no separate retained-object-byte maximum or retained-total
+536,870,912`; v0 has no independent post-collapse byte cap or post-collapse
 construction failure.
 
 The deterministic input law is:
@@ -777,22 +784,24 @@ evidence.
 
 ## 14. Interaction with standing and aggregation
 
-Ticket 0040 ratifies the first step of the corrected implementation sequence:
+Tickets 0040 and 0041 land the first two steps of the corrected implementation
+sequence:
 
 ```text
-ResolutionContentClosureV0 contract
--> closure implementation and hostile tests
--> exact origin-binding bundle contract
--> origin-binding verifier
--> standing-inert origin-admission audit
--> admitted-contribution audit
--> policy-v3 contract
--> conservative aggregation
+ResolutionContentClosureV0 contract — landed
+ResolutionContentClosureV0 implementation — landed
+exact origin-binding bundle contract — next
+origin-binding verifier
+standing-inert origin-admission audit
+admitted-contribution audit
+policy-v3 contract
+conservative aggregation
 ```
 
-The closure contract is ratified but not implemented. Origin binding, origin
-admission and every later step remain future work. The admitted-contribution
-audit is a future standing-inert explanation surface.
+Closure construction and exact lookup are implemented without a loader or
+verifier wiring. Origin binding, origin admission and every later step remain
+future work. The admitted-contribution audit is a future standing-inert
+explanation surface.
 It will revalidate one exact policy-eligible contribution and associate it with
 its admitted origin result while preserving every unresolved prerequisite. It
 is derived deterministically from `(verified log prefix H, explicit policy
@@ -920,22 +929,21 @@ implementation promise for those standards.
 
 ## 18. Future implementation sequence
 
-1. `ResolutionContentClosureV0` contract — ratified by Ticket 0040, not
-   implemented.
-2. Closure implementation and hostile tests.
-3. Exact origin-binding bundle contract.
+1. `ResolutionContentClosureV0` contract — landed by Ticket 0040.
+2. `ResolutionContentClosureV0` implementation and hostile tests — landed by
+   Ticket 0041.
+3. Exact origin-binding bundle contract — next.
 4. Origin-binding verifier.
 5. Standing-inert origin-admission audit.
 6. Admitted-contribution audit.
 7. Policy-v3 contract.
 8. Conservative aggregation.
 
-The immediate next PR is step 2 only. It must pin deterministic construction
-failure precedence and implement the ratified finite, immutable availability
-boundary without adding a loader, origin-binding field, origin-admission rule,
-standing effect or writer authority. Steps 3-8 remain future work. Every step
-before policy-v3 remains standing-inert; this contract still defines no
-aggregation threshold or achieved-standing change.
+The immediate next PR is step 3 only. It must pin the exact origin-binding
+bundle contract without adding a loader, origin-admission rule, standing effect
+or writer authority. Steps 4-8 remain future work. Every step before policy-v3
+remains standing-inert; this contract still defines no aggregation threshold or
+achieved-standing change.
 
 ## 19. Frozen surfaces and explicit non-goals
 
@@ -946,10 +954,10 @@ v0/v1/v2, existing snapshot or resolution bytes, evidence ceilings, actor
 classes, historical `content_hash` events, the release contract, workspace
 version, package inventory, `Cargo.lock`, or CI.
 
-It adds no Rust, tests, dependency, payload tag, canonical receipt bytes,
-resolution-content-closure manifest encoding, key custody, CAS implementation,
-crawler, downloader, filesystem/network access, callback, plugin, writer API,
-MCP write path, gate, aggregation,
+Outside Ticket 0041's separate closure module and hostile tests, it adds no
+dependency, payload tag, canonical receipt bytes, key custody, CAS
+implementation, crawler, downloader, filesystem/network access, callback,
+plugin, writer API, MCP write path, gate, aggregation,
 refutation, contradiction debt, invalidation, supersession, currentness,
 reputation, confidence score, probabilistic independence, identity ontology,
 automatic clustering, model integration, librarian implementation, Deadbolt

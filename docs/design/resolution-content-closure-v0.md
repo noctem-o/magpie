@@ -2,13 +2,16 @@
 
 ## 1. Status
 
-Ratified architecture contract. Ticket 0040 is landed.
+Ratified architecture contract with production construction and exact lookup.
+Ticket 0040 landed the contract; Ticket 0041 implements the first production,
+standing-inert `ResolutionContentClosureV0` construction surface.
 
-This document fixes the immutable `ResolutionContentClosureV0` boundary,
-including its construction laws, exact v0 limits, canonical manifest and
-identity. It is a documentation-only contract. No production closure type,
-loader, parser, manifest deserializer, CAS integration or resolver rewiring is
-implemented by Ticket 0040.
+This document fixes the immutable closure boundary, exact Rust surface,
+construction laws, complete first-failure precedence, exact v0 limits,
+canonical manifest and typed identity. No loader, parser, manifest
+deserializer, CAS integration, orchestrator wiring or verifier rewiring exists.
+The existing artifact-provenance verifier still receives explicit optional
+byte slices.
 
 ## 2. Purpose
 
@@ -237,16 +240,26 @@ The retained total is the checked sum of retained objects after exact
 same-key/same-byte duplicate collapse. Collapse can only remove duplicate
 occurrences; it cannot add bytes. Byte-identical objects retained under
 different keys each contribute their full length, but each retained occurrence
-already contributed to the supplied total. V0 therefore has no separate
-retained-object-byte maximum or retained-total construction failure.
+already contributed to the supplied total. V0 therefore has no independent
+post-collapse byte cap or post-collapse construction failure.
 
 A future incompatible profile may introduce a separate retained-memory budget
 when its retained cap is lower than its supplied cap. That profile must ratify
 its own limit and closed outcome rather than reserving an unreachable v0
 failure.
 
-All length conversion and addition use checked arithmetic conceptually.
-Overflow fails closed as `LengthOverflow`.
+All length conversion and addition use checked arithmetic. The Ticket 0041
+reachability audit found no ordinary v0 production input capable of reaching
+an independent length-overflow result after the earlier count and per-object
+checks. At most 1,024 artifact objects of 67,108,864 bytes and 1,024 foreign
+bundles of 1,048,576 bytes can reach the supplied-total stage, a structurally
+possible sum of approximately 65 GiB that fits in `u64`. Successful
+construction is further limited to 536,870,912 supplied bytes.
+
+Therefore impossible conversion or addition failure fails closed as
+`TotalSuppliedBytesExceeded` with a saturated `u64` audit value. Checked
+arithmetic remains mandatory. No independent `LengthOverflow` outcome exists
+in v0.
 
 The 1 MiB foreign-bundle cap is an outer closure resource bound. A selected
 profile-specific verifier retains every stricter bound. In particular, the
@@ -381,7 +394,7 @@ no trailing newline
 ```
 
 Integers use the shortest unsigned base-10 representation, with no leading
-zero except the value zero. Ticket 0040 implements no parser or manifest
+zero except the value zero. Ticket 0041 implements no parser or manifest
 deserialization API.
 
 ## 11. Ordering
@@ -487,7 +500,7 @@ constructor path.
 
 ## 13. Lookup semantics
 
-The future closure API permits only exact lookup:
+The implemented closure API permits only exact lookup:
 
 ```text
 artifact lookup:
@@ -537,42 +550,182 @@ StandingReplaySnapshot::resolve_artifact_acquisition_context_v0
 StandingReplaySnapshot::resolve_artifact_derivation_context_v0
 ```
 
-Ticket 0040 does not alter their signatures or behavior. It does not claim to
-rewire either method. Once bytes are supplied, the verifier's existing parsing,
-schema, canonical equality, selector comparison, root, replay occurrence,
-artifact and receipt semantics remain unchanged. Lookup success establishes no
-successful verifier context.
+Ticket 0041 does not alter their signatures or behavior and does not wire the
+closure into either method. Once bytes are supplied, the verifier's existing
+parsing, schema, canonical equality, selector comparison, root, replay
+occurrence, artifact and receipt semantics remain unchanged. Lookup success
+establishes no successful verifier context.
 
-## 15. Construction outcomes
+## 15. Exact production Rust surface
 
-The future construction surface must preserve this closed conceptual
-vocabulary. Exact Rust spelling may be pinned by the implementation ticket, but
-these distinctions cannot be collapsed:
+Ticket 0041 adds and re-exports these exact constants:
 
-```text
-ArtifactEntryLimitExceeded
-ForeignBundleEntryLimitExceeded
-TotalEntryLimitExceeded
-KeyFieldTooLarge
-ArtifactObjectTooLarge
-ForeignBundleObjectTooLarge
-TotalSuppliedBytesExceeded
-LengthOverflow
-ConflictingArtifactObject
-ConflictingForeignBundleObject
-Constructed
+```rust
+pub const RESOLUTION_CONTENT_CLOSURE_SCHEMA_V0: &str =
+    "magpie-resolution-content-closure-v0";
+pub const RESOLUTION_CONTENT_CLOSURE_CANONICALIZATION_PROFILE_V0: &str =
+    "magpie-resolution-content-closure-json-v0";
+pub const RESOLUTION_CONTENT_CLOSURE_DIGEST_ALGORITHM_V0: &str = "sha256";
+pub const MAX_RESOLUTION_CONTENT_CLOSURE_ARTIFACT_ENTRIES_V0: usize = 1_024;
+pub const MAX_RESOLUTION_CONTENT_CLOSURE_FOREIGN_BUNDLE_ENTRIES_V0: usize = 1_024;
+pub const MAX_RESOLUTION_CONTENT_CLOSURE_TOTAL_ENTRIES_V0: usize = 2_048;
+pub const MAX_RESOLUTION_CONTENT_CLOSURE_KEY_FIELD_BYTES_V0: usize = 1_024;
+pub const MAX_RESOLUTION_CONTENT_CLOSURE_ARTIFACT_OBJECT_BYTES_V0: usize = 67_108_864;
+pub const MAX_RESOLUTION_CONTENT_CLOSURE_FOREIGN_BUNDLE_OBJECT_BYTES_V0: usize = 1_048_576;
+pub const MAX_RESOLUTION_CONTENT_CLOSURE_SUPPLIED_OBJECT_BYTES_V0: u64 = 536_870_912;
 ```
 
-Exact same-key/same-byte duplicates collapse idempotently and are not failures.
-There is no generic `InvalidClosure`, arbitrary primary string, `Other` variant
-or permissive fallback.
+The public types are exactly:
 
-When several failures are present, the future implementation must use fixed
-category precedence and deterministic key ordering, never caller insertion
-order. The implementation ticket must pin the complete first-failure algorithm
-before code lands. This contract does not invent that algorithm prematurely.
+```rust
+pub struct ResolutionArtifactObjectKeyV0
+pub struct ResolutionArtifactObjectInputV0<'a>
+pub struct ResolutionForeignBundleObjectInputV0<'a>
+pub enum ResolutionContentClosureKeyFieldV0
+pub enum ResolutionContentClosureConstructionErrorV0
+pub struct ResolutionContentClosureIdentityV0
+pub struct ResolutionContentClosureV0
+```
 
-## 16. Normative vectors
+Artifact keys privately store `algorithm` then `digest`. Foreign-bundle input
+keys reuse the exact five-field `ArtifactProvenanceAnchorSelectorV0`. Both
+borrowed input types expose their untrusted exact key, byte slice and byte
+length, and their `Debug` output omits raw payload bytes. Key and selector
+constructors are infallible and perform no semantic validation.
+
+The key-field enum declaration order and field-failure precedence are exactly:
+
+```text
+ArtifactAlgorithm
+ArtifactDigest
+BundleKind
+WitnessRoot
+WitnessAlgorithm
+CanonicalizationProfile
+RunId
+```
+
+The public construction error is adjacently tagged with `outcome` and
+`details`, uses snake-case variant names, and contains exactly nine failures:
+
+```rust
+TotalEntryLimitExceeded {
+    supplied_entries: u64,
+    maximum_entries: u64,
+}
+ArtifactEntryLimitExceeded {
+    supplied_artifact_entries: u64,
+    maximum_entries: u64,
+}
+ForeignBundleEntryLimitExceeded {
+    supplied_foreign_bundle_entries: u64,
+    maximum_entries: u64,
+}
+KeyFieldTooLarge {
+    field: ResolutionContentClosureKeyFieldV0,
+    offending_entries: u64,
+    maximum_observed_bytes: u64,
+    maximum_bytes: u64,
+}
+ArtifactObjectTooLarge {
+    key: ResolutionArtifactObjectKeyV0,
+    maximum_observed_bytes_for_key: u64,
+    maximum_bytes: u64,
+}
+ForeignBundleObjectTooLarge {
+    selector: ArtifactProvenanceAnchorSelectorV0,
+    maximum_observed_bytes_for_key: u64,
+    maximum_bytes: u64,
+}
+TotalSuppliedBytesExceeded {
+    supplied_object_bytes: u64,
+    maximum_bytes: u64,
+}
+ConflictingArtifactObject {
+    key: ResolutionArtifactObjectKeyV0,
+}
+ConflictingForeignBundleObject {
+    selector: ArtifactProvenanceAnchorSelectorV0,
+}
+```
+
+`Ok(ResolutionContentClosureV0)` is the conceptual `Constructed` result. It is
+not an error variant. There is no independent length-overflow or retained-byte
+failure, generic invalid result, arbitrary error string or fallback variant.
+
+The only production constructor is the associated function:
+
+```rust
+pub fn construct<'a>(
+    artifact_entries: &[ResolutionArtifactObjectInputV0<'a>],
+    foreign_bundle_entries: &[ResolutionForeignBundleObjectInputV0<'a>],
+) -> Result<
+    ResolutionContentClosureV0,
+    ResolutionContentClosureConstructionErrorV0,
+>
+```
+
+It starts from explicit borrowed key/byte inputs, mutates no caller data,
+copies only successfully retained objects, and performs no lookup, replay or
+artifact-provenance verification. The closure owns two private deterministic
+`BTreeMap` values, canonical manifest bytes, the typed identity, supplied byte
+total and retained byte total. It is not serializable or deserializable and
+has no mutable accessor. Its custom `Debug` discloses identity, counts and byte
+totals but not raw objects.
+
+Read-only getters expose identity, canonical manifest bytes, both counts,
+emptiness, both byte totals, exact artifact lookup and exact five-field bundle
+lookup. Lookup returns `Option<&[u8]>`. No iterator or approximate, partial,
+fallback or hydrating lookup is part of v0.
+
+## 16. Complete first-failure algorithm
+
+The constructor applies this exact category precedence before retaining bytes:
+
+```text
+1. TotalEntryLimitExceeded
+2. ArtifactEntryLimitExceeded
+3. ForeignBundleEntryLimitExceeded
+4. KeyFieldTooLarge
+5. ArtifactObjectTooLarge
+6. ForeignBundleObjectTooLarge
+7. TotalSuppliedBytesExceeded
+8. ConflictingArtifactObject
+9. ConflictingForeignBundleObject
+10. Ok(ResolutionContentClosureV0)
+```
+
+Stages 1-3 count every occurrence before duplicate collapse. Total count wins
+over either class count. Impossible count conversion or addition returns the
+total-entry failure with saturated `u64` values.
+
+Stage 4 visits the seven field categories in enum declaration order. For the
+first category containing a value longer than 1,024 UTF-8 bytes it reports one
+aggregate result: the offending occurrence count and maximum observed byte
+length. This avoids sorting unbounded hostile strings. There is no validation,
+normalization or case folding.
+
+Stage 5 chooses the lexicographically smallest exact two-field artifact key
+among oversized artifact entries and reports the maximum oversized length
+observed for that selected key. Stage 6 applies the same law to the exact
+five-field bundle selector. These comparisons occur only after every key field
+is bounded.
+
+Stage 7 checked-sums every supplied occurrence before collapse. The inclusive
+maximum proceeds; one byte more fails. Impossible conversion or addition
+returns `TotalSuppliedBytesExceeded` with a saturated audit value.
+
+Stages 8 and 9 group by the exact class key. Same-key byte-identical entries
+are idempotent. Any differing byte slice conflicts, and the lexicographically
+smallest conflicting key wins independently of caller order. Artifact conflict
+always precedes bundle conflict. Equality is exact bytes, not length or hash.
+
+Only stage 10 copies one owned byte vector per exact key into deterministic
+maps, computes retained bytes, creates the purpose-built manifest and derives
+the four-field identity. It enforces the derived invariant `retained <=
+supplied <= 536,870,912` without adding another retained-memory limit.
+
+## 17. Normative vectors
 
 The vectors use the committed files in
 `fixtures/artifact-provenance-v0/`. Two independently structured temporary
@@ -619,7 +772,7 @@ ResolutionContentClosureIdentityV0 {
 }
 ```
 
-### 16.1 Empty closure
+### 17.1 Empty closure
 
 Exact canonical manifest bytes:
 
@@ -627,7 +780,7 @@ Exact canonical manifest bytes:
 {"schema":"magpie-resolution-content-closure-v0","artifact_objects":[],"foreign_bundle_objects":[]}
 ```
 
-### 16.2 Acquisition closure
+### 17.2 Acquisition closure
 
 Objects:
 
@@ -645,7 +798,7 @@ Exact canonical manifest bytes:
 {"schema":"magpie-resolution-content-closure-v0","artifact_objects":[{"key":{"algorithm":"sha256","digest":"51bc0fc1f19104fa6e89ce50be9aa1f57c3346c1ca51ab49f5f00e14ce8f8076"},"byte_length":15,"content_sha256":"51bc0fc1f19104fa6e89ce50be9aa1f57c3346c1ca51ab49f5f00e14ce8f8076"}],"foreign_bundle_objects":[{"key":{"bundle_kind":"magpie-artifact-acquisition-v0","witness_root":"4a5cdc953523db6bdbd8d88d3534334deb7f6f4288e434b1cfd4786b1ffb093e","witness_algorithm":"sha256","canonicalization_profile":"magpie-artifact-provenance-json-v0","run_id":"run-acq-0001"},"byte_length":291,"content_sha256":"4a5cdc953523db6bdbd8d88d3534334deb7f6f4288e434b1cfd4786b1ffb093e"}]}
 ```
 
-### 16.3 Complete existing fixture closure
+### 17.3 Complete existing fixture closure
 
 The exact sorted manifest field table is:
 
@@ -661,7 +814,7 @@ The table plus the exact schema, entry field orders, canonical encoding and
 ordering rules above is machine-checkable and reproduces the pinned 1,434-byte
 manifest and its exact digest.
 
-## 17. Hostile cases
+## 18. Hostile cases
 
 | hostile case | required result |
 | --- | --- |
@@ -690,7 +843,7 @@ manifest and its exact digest.
 | A caller copies `manifest_sha256` without the other fixed identity fields. | It has only the digest component, not the complete typed closure identity. |
 | One wire report is stored under many URLs. | URL multiplicity is outside closure identity and creates no corroboration. |
 
-## 18. Authority boundary
+## 19. Authority boundary
 
 Closure construction answers only availability. It establishes none of:
 
@@ -739,36 +892,36 @@ typed closure identity
 != origin authority
 ```
 
-## 19. Implementation sequence
+## 20. Implementation sequence
 
-The explicit next sequence is:
+The implementation ledger is:
 
 ```text
-ResolutionContentClosureV0 contract
--> closure implementation and hostile tests
--> exact origin-binding bundle contract
--> origin-binding verifier
--> standing-inert origin-admission audit
--> admitted-contribution audit
--> policy-v3 contract
--> conservative aggregation
+ResolutionContentClosureV0 contract — landed
+ResolutionContentClosureV0 implementation — landed
+exact origin-binding bundle contract — next
+origin-binding verifier
+standing-inert origin-admission audit
+admitted-contribution audit
+policy-v3 contract
+conservative aggregation
 ```
 
-Every stage before policy-v3 remains standing-inert. The immediate next slice
-is closure implementation and hostile tests only. Its ticket must pin the
-complete deterministic construction first-failure algorithm before code lands.
+Every stage before policy-v3 remains standing-inert. No later origin,
+admission, contribution, policy or aggregation behavior is implemented here.
 
-## 20. Frozen surfaces and non-goals
+## 21. Frozen surfaces and non-goals
 
-Ticket 0040 does not change or reinterpret `magpie-core-v1`, L0 payloads,
+Tickets 0040 and 0041 do not change or reinterpret `magpie-core-v1`, L0 payloads,
 `SegmentAnchored`, Deadbolt occurrence semantics,
 `ArtifactProvenanceAnchorSelectorV0`, `StandingReplaySnapshot`, artifact-
 provenance verifier behavior, policies v0/v1/v2, existing snapshot or
 resolution bytes, fixtures, golden vectors, release metadata, Cargo manifests,
 `Cargo.lock`, CI or the `v0.1.0` tag/release.
 
-It adds no Rust, tests, dependencies, fixtures, manifest parser, closure
-implementation, loader, writer, MCP surface, downloader, crawler, CAS,
+Ticket 0041 adds only the closure module, exports and hostile tests. It adds no
+dependencies, fixtures, manifest parser, loader, writer, MCP surface,
+downloader, crawler, CAS,
 database, filesystem/network access, callback, plugin, L0 change,
 origin-binding schema, origin-admission policy, contribution audit, policy v3,
 aggregation, refutation, contradiction debt, invalidation, supersession,
