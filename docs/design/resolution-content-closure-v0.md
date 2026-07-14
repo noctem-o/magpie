@@ -205,7 +205,6 @@ The exact v0 construction limits are:
 | bytes in one artifact object | 67,108,864 (64 MiB) |
 | bytes in one foreign-bundle object | 1,048,576 (1 MiB) |
 | supplied object bytes across one closure | 536,870,912 (512 MiB) |
-| retained object bytes across one closure | 536,870,912 (512 MiB) |
 
 Entry-count checks apply to supplied entries before exact-duplicate collapse.
 Individual key-field and object limits likewise apply to supplied entries.
@@ -225,11 +224,26 @@ Entry-count and total-supplied-byte checks jointly bound pre-collapse
 construction work. Entry counts cap structural multiplicity; the supplied-
 byte cap bounds total object payload presented before duplicate collapse.
 
-Total retained object bytes are the checked sum of retained objects after
-exact same-key/same-byte duplicate collapse. Byte-identical objects retained
-under different keys each contribute their full length. The supplied-total
-and retained-total limits deliberately have the same v0 value but govern
-different stages.
+For every successfully constructed v0 closure, the following derived invariant
+holds:
+
+```text
+retained object bytes
+<= supplied object bytes
+<= 536,870,912
+```
+
+The retained total is the checked sum of retained objects after exact
+same-key/same-byte duplicate collapse. Collapse can only remove duplicate
+occurrences; it cannot add bytes. Byte-identical objects retained under
+different keys each contribute their full length, but each retained occurrence
+already contributed to the supplied total. V0 therefore has no separate
+retained-object-byte maximum or retained-total construction failure.
+
+A future incompatible profile may introduce a separate retained-memory budget
+when its retained cap is lower than its supplied cap. That profile must ratify
+its own limit and closed outcome rather than reserving an unreachable v0
+failure.
 
 All length conversion and addition use checked arithmetic conceptually.
 Overflow fails closed as `LengthOverflow`.
@@ -543,7 +557,6 @@ KeyFieldTooLarge
 ArtifactObjectTooLarge
 ForeignBundleObjectTooLarge
 TotalSuppliedBytesExceeded
-TotalRetainedBytesExceeded
 LengthOverflow
 ConflictingArtifactObject
 ConflictingForeignBundleObject
@@ -658,7 +671,7 @@ manifest and its exact digest.
 | Several individually valid objects have supplied lengths summing to exactly 536,870,912 bytes. | The input may proceed past the inclusive supplied-total bound, subject to every other deterministic construction check. |
 | The same supplied set gains one additional byte. | `TotalSuppliedBytesExceeded`. |
 | Duplicate entries exceed 512 MiB supplied but would retain only one 64 MiB object. | `TotalSuppliedBytesExceeded`; the smaller post-collapse retention does not rescue construction. |
-| A test-only boundary or future profile allows supplied bytes within its cap while distinct-key retained bytes exceed its lower retained cap. | `TotalRetainedBytesExceeded`. This production case is unreachable under v0's equal 512 MiB caps because retained bytes cannot exceed supplied bytes; the separate outcome and stage remain required. |
+| Supplied bytes remain within the 512 MiB cap and distinct keys retain separate objects. | The retained total remains at most the supplied total; v0 has no independent retained-total failure. |
 | One artifact key is supplied with two different byte strings. | `ConflictingArtifactObject`; no closure is constructed. |
 | One bundle key is supplied with two different byte strings. | `ConflictingForeignBundleObject`; no closure is constructed. |
 | The same bytes are supplied under two different artifact keys. | Two entries are retained; no identity, provenance or corroboration relationship is inferred. |

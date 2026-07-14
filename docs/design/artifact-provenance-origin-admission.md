@@ -543,12 +543,13 @@ compares that result with `witness_root`. Only the current artifact-provenance
 v0 profile, after accepting exact canonical bytes, computes SHA-256 over the
 same byte string and therefore obtains a root equal to `content_sha256`.
 
-Construction also enforces separate pre- and post-collapse byte totals. The
-checked sum of every supplied entry length before exact-duplicate collapse is
-limited to 536,870,912 bytes, so every duplicate occurrence consumes the
-pre-collapse budget. The checked retained-object total after collapse has the
-same numerical v0 cap. Entry counts and supplied bytes jointly bound
-pre-collapse work; the two byte limits remain distinct stages.
+Construction limits the checked sum of every supplied entry length before
+exact-duplicate collapse to 536,870,912 bytes, so every duplicate occurrence
+consumes the pre-collapse budget. Entry counts and supplied bytes jointly bound
+pre-collapse work. Because duplicate collapse can only remove occurrences, the
+derived v0 invariant is `retained object bytes <= supplied object bytes <=
+536,870,912`; v0 has no separate retained-object-byte maximum or retained-total
+construction failure.
 
 The deterministic input law is:
 

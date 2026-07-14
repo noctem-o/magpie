@@ -22,10 +22,11 @@ docs: define resolution content closure v0
 
 PR #52 was opened as a draft. A human later intentionally marked it ready for
 review. This review remediation preserves that ready-for-review state and adds
-one follow-up commit:
+focused follow-up commits:
 
 ```text
 docs: harden closure resource and identity bounds
+docs: remove redundant retained-byte bound
 ```
 
 ## Goal
@@ -228,12 +229,9 @@ maximum bytes in one foreign-bundle object:
 
 maximum supplied object bytes across one closure:
 536,870,912
-
-maximum retained object bytes across one closure:
-536,870,912
 ```
 
-These are the eight exact v0 resource maxima.
+These are the seven exact v0 resource maxima.
 
 Entry counts are checked before exact-duplicate collapse. Total supplied
 object bytes are the checked sum of every supplied artifact-entry and foreign-
@@ -246,12 +244,24 @@ failure. Entry-count and total-supplied-byte checks jointly bound pre-collapse
 construction work: counts cap structural multiplicity and the byte cap bounds
 object payload presented before duplicates can reduce retention.
 
-Total retained object bytes are the checked sum after exact same-key/same-byte
-duplicate collapse; byte-identical objects retained under different keys count
-separately. The supplied-total and retained-total caps deliberately share the
-same v0 value but govern different stages. Individual entry limits apply before
-collapse. All conceptual conversion and addition use checked arithmetic and
-overflow fails closed.
+For every successfully constructed v0 closure:
+
+```text
+retained object bytes
+<= supplied object bytes
+<= 536,870,912
+```
+
+Retained object bytes are the checked sum after exact same-key/same-byte
+duplicate collapse. Collapse can only remove duplicate occurrences and cannot
+increase the total. Byte-identical objects retained under different keys count
+separately, but each retained occurrence already counted toward supplied
+bytes. V0 therefore has no separate retained-object-byte maximum or retained-
+total construction failure. A future incompatible profile may ratify a
+separate retained-memory budget and outcome when its retained cap is lower than
+its supplied cap. Individual entry limits apply before collapse. All
+conceptual conversion and addition use checked arithmetic and overflow fails
+closed.
 
 The closure-level 1 MiB foreign-bundle limit is an outer bound. Existing
 profile-specific limits remain stricter where specified. The current
@@ -460,7 +470,6 @@ KeyFieldTooLarge
 ArtifactObjectTooLarge
 ForeignBundleObjectTooLarge
 TotalSuppliedBytesExceeded
-TotalRetainedBytesExceeded
 LengthOverflow
 ConflictingArtifactObject
 ConflictingForeignBundleObject
@@ -538,7 +547,7 @@ the abbreviations above are descriptive only.
 | Individually valid supplied objects total exactly 536,870,912 bytes. | May proceed past the inclusive supplied-total bound, subject to every other check. |
 | The same supplied set plus one byte. | `TotalSuppliedBytesExceeded`. |
 | Duplicates exceed 512 MiB supplied but would retain only 64 MiB. | `TotalSuppliedBytesExceeded`; post-collapse size does not rescue construction. |
-| A test-only boundary or future profile keeps supplied bytes within its cap while distinct-key retention exceeds a lower retained cap. | `TotalRetainedBytesExceeded`. This is not reachable under the equal v0 caps because retained bytes cannot exceed supplied bytes; the outcome remains a distinct required stage. |
+| Supplied bytes remain within the 512 MiB cap and distinct keys retain separate objects. | Retained bytes remain at most supplied bytes; v0 has no independent retained-total failure. |
 | Same artifact key with two different byte strings. | `ConflictingArtifactObject`; no closure. |
 | Same bundle key with two different byte strings. | `ConflictingForeignBundleObject`; no closure. |
 | Same bytes under two artifact keys. | Two retained entries; no inferred identity. |
@@ -629,7 +638,8 @@ entire diff from the exact base.
 
 ### Review-remediation validation record
 
-On 2026-07-14, before the follow-up commit, the final remediation text passed:
+On 2026-07-14, before the first follow-up commit, the resource/identity/root
+remediation text passed:
 
 - `git diff --check`;
 - `cargo fmt --all --check`;
@@ -658,6 +668,13 @@ The required clean-tree post-commit rerun remains a publication gate and is
 reported in the PR body and final handoff; this pre-commit record does not
 claim it occurred early.
 
+Before the second focused correction commit on the same date, the complete
+validation bundle passed again. That correction removes the redundant retained-
+byte maximum and its unreachable retained-total outcome, preserves the 512 MiB
+supplied-byte maximum, and records the retained-size relationship as the
+derived v0 invariant above. Both independent vector calculations again
+reproduced every unchanged object and manifest result.
+
 ## Reviewer checklist
 
 - Confirm the branch starts exactly at
@@ -668,8 +685,8 @@ claim it occurred early.
   order matches the landed selector.
 - Confirm construction performs no lookup, replay, callback or hydration.
 - Confirm counts and total supplied bytes occur before duplicate collapse, and
-  retained bytes after it.
-- Confirm all eight v0 resource maxima are exact.
+  the post-collapse retained total satisfies the derived invariant.
+- Confirm all seven v0 resource maxima are exact.
 - Confirm duplicate, conflict and same-bytes/different-key cases remain
   distinct and order-independent.
 - Confirm expected key values and actual object digests remain distinct.
