@@ -12,10 +12,16 @@ institutional, organisational, or control independence.
 
 Sequencing status: replayable verifier admission, standing-inert verifier
 context, one direct policy-v2 `Supported` rule, and policy-v2 composition
-hardening are landed. The artifact-provenance and origin-admission contract is
-the next architecture slice. Genuine aggregation remains blocked until
-standing-inert foreign-bundle verification, origin-admission audit, and an
+hardening are landed. Artifact-provenance verification and immutable
+resolution-content closure construction are landed. The exact two-family
+origin-binding bundle contract is ratified by Ticket 0042, but its verifier and
+origin admission remain absent. Genuine aggregation remains blocked until the
+standing-inert origin-binding verifier, origin-admission audit and
 admitted-contribution audit exist.
+
+An origin-group value in a verified binding will still be only a claimed group
+until an explicit origin-admission policy admits it. Distinct claimed groups
+are not distinct admitted groups and create no corroboration separation.
 
 ## Purpose
 
@@ -193,6 +199,9 @@ be compared across distinct contribution identities. Its minimum first-policy
 identity includes the exact origin-admission policy identity, target claim
 identity, and `scope_ref`.
 
+Origin-binding v0 derives this namespace exactly from those three bundle
+values; it does not serialize a separate namespace object.
+
 It does not include the complete contribution identity, source evidence ID,
 justification-edge ID, artifact identity, or acquisition occurrence when that
 would isolate every contribution and defeat comparison. A later explicit
@@ -277,6 +286,11 @@ contribution identity, anchored and profile-verified acquisition/derivation/
 origin-binding bundles, an exact origin-comparison namespace, explicit
 origin-admission policy, and no unresolved binding conflict. Origin admission
 still does not create a support contribution.
+
+The exact origin-binding schemas are defined separately by
+[`origin-binding-bundle-v0.md`](origin-binding-bundle-v0.md). A future matched
+origin-binding receipt will verify only the canonical anchored grouping
+assertion. It will not trust its claimed authority or admit its claimed group.
 
 The standing-inert provenance/origin audit freezes external-object availability
 in an immutable resolution content closure. Its deterministic input is
@@ -425,28 +439,30 @@ must not erase truth-bearing contradiction debt or settle factual truth.
 
 ## Future Implementation Order
 
-1. Ratify Ticket 0037's artifact-provenance and origin-admission contract.
-2. Pin one exact versioned acquisition/derivation foreign-bundle schema and
-   verifier profile.
-3. Add portable bundle fixtures and standing-inert verification.
-4. Pin one exact origin-binding bundle schema and explicit origin-admission
-   policy.
-5. Add a standing-inert origin-admission audit.
-6. Add an admitted-contribution audit surface with no aggregation.
-7. Pin one explicit standing policy v3 aggregation rule.
-8. Implement conservative aggregation.
-9. Add direct refutation through admitted verifier context.
-10. Add contradiction debt with explicit precedence against direct refutation.
-11. Add invalidation and supersession/currentness.
-12. Add the capability-bearing `EpistemicGate` and writer-facing surfaces.
-13. Add governed acquisition tooling and librarian proposals.
+1. Artifact-provenance and origin-admission architecture — landed by Ticket
+   0037.
+2. Exact acquisition/direct-derivation protocol and standing-inert verifier —
+   landed by Tickets 0038 and 0039.
+3. Immutable resolution-content closure contract and construction — landed by
+   Tickets 0040 and 0041.
+4. Exact two-family origin-binding bundle contract — ratified by Ticket 0042.
+5. Add the standing-inert origin-binding verifier.
+6. Add a standing-inert origin-admission audit.
+7. Add an admitted-contribution audit surface with no aggregation.
+8. Pin one explicit standing policy v3 aggregation rule.
+9. Implement conservative aggregation.
+10. Add direct refutation through admitted verifier context.
+11. Add contradiction debt with explicit precedence against direct refutation.
+12. Add invalidation and supersession/currentness.
+13. Add the capability-bearing `EpistemicGate` and writer-facing surfaces.
+14. Add governed acquisition tooling and librarian proposals.
 
 The direct policy-v2 rule consumes one successful closed verifier context and
 contributes `Supported` without combining evidence. It introduces no numeric
 threshold, source count, corroboration, or independence claim. Origin admission
-is not support, one admitted group is not aggregation, and steps 2-6 must remain
-standing-inert. Step 7 is future work: this note neither defines a threshold nor
-creates policy v3.
+is not support, one admitted group is not aggregation, and steps 5-7 must
+remain standing-inert. Step 8 is future work: this note neither defines a
+threshold nor creates policy v3.
 
 ## Future Tests
 
@@ -497,6 +513,8 @@ These are future tests for later PRs. This note does not add tests.
   scalar.
 - Confirm artifact/bundle verification, origin-admission audit, and
   admitted-contribution audit all precede aggregation.
+- Confirm the binding contract is ratified while its verifier and admission
+  remain absent, and claimed group values are not admitted groups.
 - Confirm aggregation consumes an immutable audit derived from `(H, P, M)` and
   performs no ambient CAS, filesystem, callback, or network lookup.
 - Confirm origin admission is not support and one admitted group is not
