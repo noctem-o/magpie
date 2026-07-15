@@ -1,0 +1,1 @@
+{"schema":"magpie-artifact-acquisition-v0","acquisition_id":"acq-alpha-0001","acquisition_profile":"magpie-import-v0","artifact":{"algorithm":"sha256","digest":"b6a98d9ce9a2d9149288fa3df42d377c3e42737afdcdaf714e33c0a100b51060"},"observed_locator":"file:alpha.txt","run_id":"run-acq-alpha-0001"}

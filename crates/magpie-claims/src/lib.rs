@@ -11,6 +11,7 @@ pub mod policy;
 mod artifact_provenance_verifier;
 mod deadbolt_context;
 mod deterministic_verifier_context;
+mod origin_binding_verifier;
 mod replay_snapshot;
 mod resolution_content_closure;
 mod standing;
@@ -43,6 +44,15 @@ pub use deterministic_verifier_context::{
 };
 
 pub use replay_snapshot::{replay_standing_context, StandingReplaySnapshot};
+
+pub use origin_binding_verifier::{
+    ContributionIdentityV0, OriginBindingContextTraceV0, OriginBindingFamilyV0,
+    OriginBindingReceiptV0, OriginComparisonNamespaceV0, MAX_ORIGIN_BINDING_BUNDLE_BYTES_V0,
+    ORIGIN_BINDING_ACQUISITION_BUNDLE_KIND_V0, ORIGIN_BINDING_ACQUISITION_SCHEMA_V0,
+    ORIGIN_BINDING_ARTIFACT_ALGORITHM_V0, ORIGIN_BINDING_CANONICALIZATION_PROFILE_V0,
+    ORIGIN_BINDING_DERIVATION_BUNDLE_KIND_V0, ORIGIN_BINDING_DERIVATION_SCHEMA_V0,
+    ORIGIN_BINDING_VERIFIER_PROFILE_V0, ORIGIN_BINDING_WITNESS_ALGORITHM_V0,
+};
 
 pub use resolution_content_closure::{
     ResolutionArtifactObjectInputV0, ResolutionArtifactObjectKeyV0,

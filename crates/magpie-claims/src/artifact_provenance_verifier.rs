@@ -61,6 +61,9 @@ use sha2::{Digest, Sha256};
 
 use crate::deadbolt_context::{DeadboltAnchorIdentity, DeadboltAnchorOccurrence};
 use crate::replay_snapshot::StandingReplaySnapshot;
+use crate::resolution_content_closure::{
+    ResolutionArtifactObjectKeyV0, ResolutionContentClosureV0,
+};
 
 pub const ARTIFACT_ACQUISITION_BUNDLE_KIND_V0: &str = "magpie-artifact-acquisition-v0";
 
@@ -368,81 +371,7 @@ impl StandingReplaySnapshot {
         bundle_bytes: Option<&[u8]>,
         artifact_bytes: Option<&[u8]>,
     ) -> ArtifactProvenanceContextTraceV0 {
-        let supplied = match bundle_bytes {
-            Some(bytes) => bytes,
-            None => return ArtifactProvenanceContextTraceV0::BundleUnavailable,
-        };
-        if supplied.len() > MAX_ARTIFACT_PROVENANCE_BUNDLE_BYTES_V0 {
-            return ArtifactProvenanceContextTraceV0::BundleTooLarge;
-        }
-
-        let input = match decode_bundle_text(supplied) {
-            Ok(value) => value,
-            Err(trace) => return trace,
-        };
-        let envelope = match parse_acquisition_envelope(input) {
-            Ok(value) => value,
-            Err(trace) => return trace,
-        };
-        let parsed = match validate_acquisition_shape(envelope) {
-            Ok(value) => value,
-            Err(trace) => return trace,
-        };
-        if let Err(trace) = validate_acquisition_semantics(&parsed) {
-            return trace;
-        }
-
-        let canonical = encode_acquisition(&parsed);
-        if canonical != supplied {
-            return ArtifactProvenanceContextTraceV0::NonCanonicalEncoding;
-        }
-        if selector.bundle_kind() != ARTIFACT_ACQUISITION_BUNDLE_KIND_V0 {
-            return ArtifactProvenanceContextTraceV0::BundleKindMismatch;
-        }
-        if selector.witness_algorithm() != ARTIFACT_PROVENANCE_WITNESS_ALGORITHM_V0 {
-            return ArtifactProvenanceContextTraceV0::WitnessAlgorithmMismatch;
-        }
-        if selector.canonicalization_profile() != ARTIFACT_PROVENANCE_CANONICALIZATION_PROFILE_V0 {
-            return ArtifactProvenanceContextTraceV0::CanonicalizationProfileMismatch;
-        }
-        if parsed.run_id != selector.run_id() {
-            return ArtifactProvenanceContextTraceV0::RunIdMismatch;
-        }
-
-        let computed_witness_root = sha256_hex(&canonical);
-        if computed_witness_root != selector.witness_root() {
-            return ArtifactProvenanceContextTraceV0::WitnessRootMismatch;
-        }
-        let identity = selector_identity(selector);
-        let occurrences = self.anchors().occurrences(&identity);
-        if occurrences.is_empty() {
-            return ArtifactProvenanceContextTraceV0::AnchorAbsent;
-        }
-
-        let artifact = match artifact_bytes {
-            Some(bytes) => bytes,
-            None => return ArtifactProvenanceContextTraceV0::ArtifactUnavailable,
-        };
-        let computed_artifact_sha256 = sha256_hex(artifact);
-        if computed_artifact_sha256 != parsed.artifact.digest {
-            return ArtifactProvenanceContextTraceV0::ArtifactDigestMismatch;
-        }
-
-        ArtifactProvenanceContextTraceV0::MatchedAcquisition(ArtifactAcquisitionReceiptV0 {
-            verifier_profile: ARTIFACT_PROVENANCE_VERIFIER_PROFILE_V0.to_owned(),
-            selector: selector.clone(),
-            schema: parsed.schema,
-            acquisition_id: parsed.acquisition_id,
-            acquisition_profile: parsed.acquisition_profile,
-            artifact_algorithm: parsed.artifact.algorithm,
-            artifact_digest: parsed.artifact.digest,
-            observed_locator: parsed.observed_locator,
-            bundle_byte_len: supplied.len() as u64,
-            computed_witness_root,
-            artifact_byte_len: artifact.len() as u64,
-            computed_artifact_sha256,
-            occurrences: occurrences.to_vec(),
-        })
+        resolve_acquisition_with_lookup(self, selector, bundle_bytes, move |_| artifact_bytes)
     }
 
     /// Verify one direct-derivation bundle against explicit bytes and this replay.
@@ -456,96 +385,232 @@ impl StandingReplaySnapshot {
         parent_artifact_bytes: Option<&[u8]>,
         derived_artifact_bytes: Option<&[u8]>,
     ) -> ArtifactProvenanceContextTraceV0 {
-        let supplied = match bundle_bytes {
-            Some(bytes) => bytes,
-            None => return ArtifactProvenanceContextTraceV0::BundleUnavailable,
-        };
-        if supplied.len() > MAX_ARTIFACT_PROVENANCE_BUNDLE_BYTES_V0 {
-            return ArtifactProvenanceContextTraceV0::BundleTooLarge;
-        }
-
-        let input = match decode_bundle_text(supplied) {
-            Ok(value) => value,
-            Err(trace) => return trace,
-        };
-        let envelope = match parse_derivation_envelope(input) {
-            Ok(value) => value,
-            Err(trace) => return trace,
-        };
-        let parsed = match validate_derivation_shape(envelope) {
-            Ok(value) => value,
-            Err(trace) => return trace,
-        };
-        if let Err(trace) = validate_derivation_semantics(&parsed) {
-            return trace;
-        }
-        if parsed.parent_artifact == parsed.derived_artifact {
-            return ArtifactProvenanceContextTraceV0::ParentEqualsDerived;
-        }
-
-        let canonical = encode_derivation(&parsed);
-        if canonical != supplied {
-            return ArtifactProvenanceContextTraceV0::NonCanonicalEncoding;
-        }
-        if selector.bundle_kind() != ARTIFACT_DERIVATION_BUNDLE_KIND_V0 {
-            return ArtifactProvenanceContextTraceV0::BundleKindMismatch;
-        }
-        if selector.witness_algorithm() != ARTIFACT_PROVENANCE_WITNESS_ALGORITHM_V0 {
-            return ArtifactProvenanceContextTraceV0::WitnessAlgorithmMismatch;
-        }
-        if selector.canonicalization_profile() != ARTIFACT_PROVENANCE_CANONICALIZATION_PROFILE_V0 {
-            return ArtifactProvenanceContextTraceV0::CanonicalizationProfileMismatch;
-        }
-        if parsed.run_id != selector.run_id() {
-            return ArtifactProvenanceContextTraceV0::RunIdMismatch;
-        }
-
-        let computed_witness_root = sha256_hex(&canonical);
-        if computed_witness_root != selector.witness_root() {
-            return ArtifactProvenanceContextTraceV0::WitnessRootMismatch;
-        }
-        let identity = selector_identity(selector);
-        let occurrences = self.anchors().occurrences(&identity);
-        if occurrences.is_empty() {
-            return ArtifactProvenanceContextTraceV0::AnchorAbsent;
-        }
-
-        let parent = match parent_artifact_bytes {
-            Some(bytes) => bytes,
-            None => return ArtifactProvenanceContextTraceV0::ParentArtifactUnavailable,
-        };
-        let derived = match derived_artifact_bytes {
-            Some(bytes) => bytes,
-            None => return ArtifactProvenanceContextTraceV0::DerivedArtifactUnavailable,
-        };
-        let computed_parent_artifact_sha256 = sha256_hex(parent);
-        if computed_parent_artifact_sha256 != parsed.parent_artifact.digest {
-            return ArtifactProvenanceContextTraceV0::ParentArtifactDigestMismatch;
-        }
-        let computed_derived_artifact_sha256 = sha256_hex(derived);
-        if computed_derived_artifact_sha256 != parsed.derived_artifact.digest {
-            return ArtifactProvenanceContextTraceV0::DerivedArtifactDigestMismatch;
-        }
-
-        ArtifactProvenanceContextTraceV0::MatchedDerivation(ArtifactDerivationReceiptV0 {
-            verifier_profile: ARTIFACT_PROVENANCE_VERIFIER_PROFILE_V0.to_owned(),
-            selector: selector.clone(),
-            schema: parsed.schema,
-            derivation_id: parsed.derivation_id,
-            transformation_profile: parsed.transformation_profile,
-            parent_artifact_algorithm: parsed.parent_artifact.algorithm,
-            parent_artifact_digest: parsed.parent_artifact.digest,
-            derived_artifact_algorithm: parsed.derived_artifact.algorithm,
-            derived_artifact_digest: parsed.derived_artifact.digest,
-            bundle_byte_len: supplied.len() as u64,
-            computed_witness_root,
-            parent_artifact_byte_len: parent.len() as u64,
-            computed_parent_artifact_sha256,
-            derived_artifact_byte_len: derived.len() as u64,
-            computed_derived_artifact_sha256,
-            occurrences: occurrences.to_vec(),
+        resolve_derivation_with_lookup(self, selector, bundle_bytes, move |_, _| {
+            (parent_artifact_bytes, derived_artifact_bytes)
         })
     }
+}
+
+pub(crate) fn resolve_artifact_acquisition_from_closure_v0(
+    snapshot: &StandingReplaySnapshot,
+    selector: &ArtifactProvenanceAnchorSelectorV0,
+    closure: &ResolutionContentClosureV0,
+) -> ArtifactProvenanceContextTraceV0 {
+    resolve_acquisition_with_lookup(
+        snapshot,
+        selector,
+        closure.foreign_bundle(selector),
+        |artifact| {
+            let key = ResolutionArtifactObjectKeyV0::new(&artifact.algorithm, &artifact.digest);
+            closure.artifact(&key)
+        },
+    )
+}
+
+pub(crate) fn resolve_artifact_derivation_from_closure_v0(
+    snapshot: &StandingReplaySnapshot,
+    selector: &ArtifactProvenanceAnchorSelectorV0,
+    closure: &ResolutionContentClosureV0,
+) -> ArtifactProvenanceContextTraceV0 {
+    resolve_derivation_with_lookup(
+        snapshot,
+        selector,
+        closure.foreign_bundle(selector),
+        |parent, derived| {
+            let parent_key = ResolutionArtifactObjectKeyV0::new(&parent.algorithm, &parent.digest);
+            let derived_key =
+                ResolutionArtifactObjectKeyV0::new(&derived.algorithm, &derived.digest);
+            (
+                closure.artifact(&parent_key),
+                closure.artifact(&derived_key),
+            )
+        },
+    )
+}
+
+fn resolve_acquisition_with_lookup<'a>(
+    snapshot: &StandingReplaySnapshot,
+    selector: &ArtifactProvenanceAnchorSelectorV0,
+    bundle_bytes: Option<&[u8]>,
+    artifact_lookup: impl FnOnce(&ParsedArtifactIdentity) -> Option<&'a [u8]>,
+) -> ArtifactProvenanceContextTraceV0 {
+    let supplied = match bundle_bytes {
+        Some(bytes) => bytes,
+        None => return ArtifactProvenanceContextTraceV0::BundleUnavailable,
+    };
+    if supplied.len() > MAX_ARTIFACT_PROVENANCE_BUNDLE_BYTES_V0 {
+        return ArtifactProvenanceContextTraceV0::BundleTooLarge;
+    }
+
+    let input = match decode_bundle_text(supplied) {
+        Ok(value) => value,
+        Err(trace) => return trace,
+    };
+    let envelope = match parse_acquisition_envelope(input) {
+        Ok(value) => value,
+        Err(trace) => return trace,
+    };
+    let parsed = match validate_acquisition_shape(envelope) {
+        Ok(value) => value,
+        Err(trace) => return trace,
+    };
+    if let Err(trace) = validate_acquisition_semantics(&parsed) {
+        return trace;
+    }
+
+    let canonical = encode_acquisition(&parsed);
+    if canonical != supplied {
+        return ArtifactProvenanceContextTraceV0::NonCanonicalEncoding;
+    }
+    if selector.bundle_kind() != ARTIFACT_ACQUISITION_BUNDLE_KIND_V0 {
+        return ArtifactProvenanceContextTraceV0::BundleKindMismatch;
+    }
+    if selector.witness_algorithm() != ARTIFACT_PROVENANCE_WITNESS_ALGORITHM_V0 {
+        return ArtifactProvenanceContextTraceV0::WitnessAlgorithmMismatch;
+    }
+    if selector.canonicalization_profile() != ARTIFACT_PROVENANCE_CANONICALIZATION_PROFILE_V0 {
+        return ArtifactProvenanceContextTraceV0::CanonicalizationProfileMismatch;
+    }
+    if parsed.run_id != selector.run_id() {
+        return ArtifactProvenanceContextTraceV0::RunIdMismatch;
+    }
+
+    let computed_witness_root = sha256_hex(&canonical);
+    if computed_witness_root != selector.witness_root() {
+        return ArtifactProvenanceContextTraceV0::WitnessRootMismatch;
+    }
+    let identity = selector_identity(selector);
+    let occurrences = snapshot.anchors().occurrences(&identity);
+    if occurrences.is_empty() {
+        return ArtifactProvenanceContextTraceV0::AnchorAbsent;
+    }
+
+    let artifact = match artifact_lookup(&parsed.artifact) {
+        Some(bytes) => bytes,
+        None => return ArtifactProvenanceContextTraceV0::ArtifactUnavailable,
+    };
+    let computed_artifact_sha256 = sha256_hex(artifact);
+    if computed_artifact_sha256 != parsed.artifact.digest {
+        return ArtifactProvenanceContextTraceV0::ArtifactDigestMismatch;
+    }
+
+    ArtifactProvenanceContextTraceV0::MatchedAcquisition(ArtifactAcquisitionReceiptV0 {
+        verifier_profile: ARTIFACT_PROVENANCE_VERIFIER_PROFILE_V0.to_owned(),
+        selector: selector.clone(),
+        schema: parsed.schema,
+        acquisition_id: parsed.acquisition_id,
+        acquisition_profile: parsed.acquisition_profile,
+        artifact_algorithm: parsed.artifact.algorithm,
+        artifact_digest: parsed.artifact.digest,
+        observed_locator: parsed.observed_locator,
+        bundle_byte_len: supplied.len() as u64,
+        computed_witness_root,
+        artifact_byte_len: artifact.len() as u64,
+        computed_artifact_sha256,
+        occurrences: occurrences.to_vec(),
+    })
+}
+
+fn resolve_derivation_with_lookup<'a>(
+    snapshot: &StandingReplaySnapshot,
+    selector: &ArtifactProvenanceAnchorSelectorV0,
+    bundle_bytes: Option<&[u8]>,
+    artifact_lookup: impl FnOnce(
+        &ParsedArtifactIdentity,
+        &ParsedArtifactIdentity,
+    ) -> (Option<&'a [u8]>, Option<&'a [u8]>),
+) -> ArtifactProvenanceContextTraceV0 {
+    let supplied = match bundle_bytes {
+        Some(bytes) => bytes,
+        None => return ArtifactProvenanceContextTraceV0::BundleUnavailable,
+    };
+    if supplied.len() > MAX_ARTIFACT_PROVENANCE_BUNDLE_BYTES_V0 {
+        return ArtifactProvenanceContextTraceV0::BundleTooLarge;
+    }
+
+    let input = match decode_bundle_text(supplied) {
+        Ok(value) => value,
+        Err(trace) => return trace,
+    };
+    let envelope = match parse_derivation_envelope(input) {
+        Ok(value) => value,
+        Err(trace) => return trace,
+    };
+    let parsed = match validate_derivation_shape(envelope) {
+        Ok(value) => value,
+        Err(trace) => return trace,
+    };
+    if let Err(trace) = validate_derivation_semantics(&parsed) {
+        return trace;
+    }
+    if parsed.parent_artifact == parsed.derived_artifact {
+        return ArtifactProvenanceContextTraceV0::ParentEqualsDerived;
+    }
+
+    let canonical = encode_derivation(&parsed);
+    if canonical != supplied {
+        return ArtifactProvenanceContextTraceV0::NonCanonicalEncoding;
+    }
+    if selector.bundle_kind() != ARTIFACT_DERIVATION_BUNDLE_KIND_V0 {
+        return ArtifactProvenanceContextTraceV0::BundleKindMismatch;
+    }
+    if selector.witness_algorithm() != ARTIFACT_PROVENANCE_WITNESS_ALGORITHM_V0 {
+        return ArtifactProvenanceContextTraceV0::WitnessAlgorithmMismatch;
+    }
+    if selector.canonicalization_profile() != ARTIFACT_PROVENANCE_CANONICALIZATION_PROFILE_V0 {
+        return ArtifactProvenanceContextTraceV0::CanonicalizationProfileMismatch;
+    }
+    if parsed.run_id != selector.run_id() {
+        return ArtifactProvenanceContextTraceV0::RunIdMismatch;
+    }
+
+    let computed_witness_root = sha256_hex(&canonical);
+    if computed_witness_root != selector.witness_root() {
+        return ArtifactProvenanceContextTraceV0::WitnessRootMismatch;
+    }
+    let identity = selector_identity(selector);
+    let occurrences = snapshot.anchors().occurrences(&identity);
+    if occurrences.is_empty() {
+        return ArtifactProvenanceContextTraceV0::AnchorAbsent;
+    }
+
+    let (parent_bytes, derived_bytes) =
+        artifact_lookup(&parsed.parent_artifact, &parsed.derived_artifact);
+    let parent = match parent_bytes {
+        Some(bytes) => bytes,
+        None => return ArtifactProvenanceContextTraceV0::ParentArtifactUnavailable,
+    };
+    let derived = match derived_bytes {
+        Some(bytes) => bytes,
+        None => return ArtifactProvenanceContextTraceV0::DerivedArtifactUnavailable,
+    };
+    let computed_parent_artifact_sha256 = sha256_hex(parent);
+    if computed_parent_artifact_sha256 != parsed.parent_artifact.digest {
+        return ArtifactProvenanceContextTraceV0::ParentArtifactDigestMismatch;
+    }
+    let computed_derived_artifact_sha256 = sha256_hex(derived);
+    if computed_derived_artifact_sha256 != parsed.derived_artifact.digest {
+        return ArtifactProvenanceContextTraceV0::DerivedArtifactDigestMismatch;
+    }
+
+    ArtifactProvenanceContextTraceV0::MatchedDerivation(ArtifactDerivationReceiptV0 {
+        verifier_profile: ARTIFACT_PROVENANCE_VERIFIER_PROFILE_V0.to_owned(),
+        selector: selector.clone(),
+        schema: parsed.schema,
+        derivation_id: parsed.derivation_id,
+        transformation_profile: parsed.transformation_profile,
+        parent_artifact_algorithm: parsed.parent_artifact.algorithm,
+        parent_artifact_digest: parsed.parent_artifact.digest,
+        derived_artifact_algorithm: parsed.derived_artifact.algorithm,
+        derived_artifact_digest: parsed.derived_artifact.digest,
+        bundle_byte_len: supplied.len() as u64,
+        computed_witness_root,
+        parent_artifact_byte_len: parent.len() as u64,
+        computed_parent_artifact_sha256,
+        derived_artifact_byte_len: derived.len() as u64,
+        computed_derived_artifact_sha256,
+        occurrences: occurrences.to_vec(),
+    })
 }
 
 #[allow(clippy::result_large_err)] // Closed private errors reuse the exact public failure vocabulary.
