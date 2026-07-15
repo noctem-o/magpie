@@ -330,12 +330,17 @@ protocol-identifier grammar:
 target_claim_id:       1-1,024 UTF-8 bytes
 source_evidence_id:    1-1,024 UTF-8 bytes
 justification_edge_id: 1-1,024 UTF-8 bytes
-scope_ref:             0-1,024 UTF-8 bytes
+scope_ref:             1-1,024 UTF-8 bytes
 ```
 
 Comparison is exact. There is no Unicode normalization, case folding, path
 interpretation, prefix matching, wildcard or semantic rewriting. Canonical
 JSON escaping represents every permitted scalar exactly.
+
+Origin-binding replay-reference syntax must not admit a value forbidden by
+all accepted replay objects it could match. An empty `contribution.scope_ref`
+therefore fails schema-specific semantic validation as
+`invalid replay reference length`, before any replay lookup.
 
 Syntactic validity does not establish existence. The future verifier must
 still revalidate exact same-replay structure.
@@ -946,6 +951,7 @@ exists in any accepted replay or closure.
 | A bundle targets a policy ID different from the reviewed selected policy. | A verified statement may exist, but policy mismatch prevents admission. |
 | A contribution names unrelated claim, evidence and edge IDs. | Structural subject mismatch. |
 | Claim, evidence and edge exist with different scopes. | Scope mismatch. |
+| `contribution.scope_ref` is empty. | `invalid replay reference length` during semantic reference validation → no replay lookup → no matched origin-binding receipt. |
 | A direct-acquisition contribution artifact differs from the verified acquisition artifact. | Acquisition artifact differs from contribution artifact. |
 | A derivation binding's verified acquisition artifact differs from the derivation parent. | Acquisition artifact differs from derivation parent. |
 | A derivation binding's contribution artifact differs from the derivation output. | Derivation output differs from contribution artifact. |
@@ -983,6 +989,8 @@ Cargo manifests, dependencies, CI or historical Tickets 0037-0041.
 - Confirm exactly two distinguishable closed binding families exist.
 - Confirm every identity string and every top-level and nested field order is
   exact.
+- Confirm replay-reference syntax cannot admit a value forbidden by every
+  accepted replay object it could match.
 - Confirm no selector is optional or nullable in either wire schema.
 - Confirm `origin_admission_policy_id` is target data, not runtime selection.
 - Confirm `ContributionIdentityV0` is exact and same-replay structural

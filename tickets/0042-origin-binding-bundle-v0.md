@@ -288,12 +288,17 @@ Replayed references use exact UTF-8 length contracts instead:
 target_claim_id:       1-1,024 UTF-8 bytes
 source_evidence_id:    1-1,024 UTF-8 bytes
 justification_edge_id: 1-1,024 UTF-8 bytes
-scope_ref:             0-1,024 UTF-8 bytes
+scope_ref:             1-1,024 UTF-8 bytes
 ```
 
 There is no Unicode normalization, case folding, path interpretation, prefix
 matching, wildcard or semantic rewriting. Syntactic validity does not prove a
 named replay object exists.
+
+Origin-binding replay-reference syntax must not admit a value forbidden by
+all accepted replay objects it could match. An empty `contribution.scope_ref`
+therefore fails schema-specific semantic validation as
+`invalid replay reference length`, before any replay lookup.
 
 Every artifact identity is exact `algorithm = sha256` plus exactly 64
 lowercase hexadecimal digest characters. Equality covers both fields and
@@ -750,6 +755,9 @@ The design and later verifier contract must cover at least:
 20. URL, publisher, source descriptor, signature count, model confidence or
     distinct artifact digest cannot create an admitted origin without governed
     binding.
+21. Empty `contribution.scope_ref` is `invalid replay reference length` during
+    semantic reference validation → no replay lookup → no matched
+    origin-binding receipt.
 
 ## 24. Frozen surfaces and explicit non-goals
 
@@ -838,7 +846,7 @@ the exact base.
   are distinct.
 - Confirm both vectors and the hypothetical parent acquisition reproduce under
   two independently structured calculations.
-- Confirm all 20 hostile cases are explicit.
+- Confirm all 21 hostile cases are explicit.
 - Confirm no parser, verifier, admission, support, standing, aggregation,
   loader, writer or runtime claim appears.
 - Confirm every validation result reported at handoff actually ran.
