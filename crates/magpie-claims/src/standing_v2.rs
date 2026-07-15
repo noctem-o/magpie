@@ -364,13 +364,71 @@ fn successful_application(entry: &StandingTraceEntryV2) -> bool {
 mod tests {
     use super::*;
     use crate::standing_v1::StandingTraceEntryV1;
-    use magpie_log::{LogReader, LogWriter, MemStore, SigningKey};
+    use magpie_log::{LogReader, LogWriter, MemStore, Payload, Provenance, SigningKey};
+
+    const MATCHED_CLAIM_ID: &str = "claim-machine";
+    const MATCHED_SCOPE: &str = "scope:machine";
+    const MATCHED_STATEMENT: &str =
+        "sha256_bytes_equals_v0:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+    const MATCHED_CONTENT_HASH: &str =
+        "70cea2ac9ed9d373b422ef3543e45ddaf289fa4e64a8aed726fc6b13df797421";
+    const MATCHED_CLAIM_METADATA: &str = r#"{"claim_domain":"ExactMachineCheckable","machine_predicate":{"schema":"magpie-machine-predicate-v0","predicate_id":"sha256_bytes_equals_v0","expected_sha256":"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"}}"#;
+    const MATCHED_WITNESS_METADATA: &str = r#"{"verification_witness":{"schema":"magpie-verification-witness-v0","predicate_id":"sha256_bytes_equals_v0","subject_claim_id":"claim-machine","scope_ref":"scope:machine","witness_hex":"616263"}}"#;
 
     fn test_snapshot() -> StandingReplaySnapshot {
         let store = MemStore::new();
         let key = SigningKey::from_bytes(&[101; 32]);
         {
             let _writer = LogWriter::open(store.clone(), key.clone()).unwrap();
+        }
+        let reader = LogReader::open(store, key.verifying_key());
+        crate::replay_standing_context(&reader).unwrap()
+    }
+
+    fn matched_deterministic_snapshot() -> StandingReplaySnapshot {
+        let store = MemStore::new();
+        let key = SigningKey::from_bytes(&[92; 32]);
+        {
+            let mut writer = LogWriter::open(store.clone(), key.clone()).unwrap();
+            let payloads = [
+                Payload::ClaimAsserted {
+                    claim_id: MATCHED_CLAIM_ID.into(),
+                    statement: MATCHED_STATEMENT.into(),
+                    status: Status::Conjectured,
+                },
+                Payload::ClaimAssertedV2 {
+                    claim_id: MATCHED_CLAIM_ID.into(),
+                    statement: MATCHED_STATEMENT.into(),
+                    scope_ref: MATCHED_SCOPE.into(),
+                    actor_class: "AgentProposer".into(),
+                    content_hash: MATCHED_CONTENT_HASH.into(),
+                    metadata_json: MATCHED_CLAIM_METADATA.into(),
+                },
+                Payload::EvidenceRegistered {
+                    evidence_id: "evidence-a".into(),
+                    evidence_kind: "DeterministicVerification".into(),
+                    summary: "inline witness only".into(),
+                    scope_ref: MATCHED_SCOPE.into(),
+                    actor_class: "SourceImporter".into(),
+                    content_hash: String::new(),
+                    metadata_json: MATCHED_WITNESS_METADATA.into(),
+                },
+                Payload::JustificationEdgeRecorded {
+                    edge_id: "edge-a".into(),
+                    edge_kind: "supports".into(),
+                    source_id: "evidence-a".into(),
+                    target_id: MATCHED_CLAIM_ID.into(),
+                    scope_ref: MATCHED_SCOPE.into(),
+                    actor_class: "HumanRoot".into(),
+                    rationale: "candidate direct support".into(),
+                    metadata_json: "{}".into(),
+                },
+            ];
+            for payload in payloads {
+                writer
+                    .append(Provenance::new("test", "standing-v2"), payload)
+                    .unwrap();
+            }
         }
         let reader = LogReader::open(store, key.verifying_key());
         crate::replay_standing_context(&reader).unwrap()
@@ -649,6 +707,64 @@ mod tests {
         candidate.candidate_ceiling = None;
         candidate.reasons = vec![StandingTraceReason::UnknownEvidenceKind];
         assert_eq!(classify_deterministic_candidate(&candidate), None);
+    }
+
+    #[test]
+    fn inherited_governed_refuted_overrides_matched_deterministic_support() {
+        let snapshot = matched_deterministic_snapshot();
+        let baseline = snapshot
+            .standing()
+            .resolved_standing_with_trace(MATCHED_CLAIM_ID);
+        let mut inherited = snapshot.resolved_standing_with_trace_v1(MATCHED_CLAIM_ID);
+        assert_eq!(baseline.governed_standing, Some(Status::Conjectured));
+        assert_eq!(baseline.legacy_raw_standing, Some(Status::Conjectured));
+        assert_eq!(inherited.governed_standing, Some(Status::Conjectured));
+        assert_eq!(inherited.legacy_raw_standing, Some(Status::Conjectured));
+
+        // No currently landed public policy derives governed Refuted.
+        // This test pins v2 inheritance precedence without inventing
+        // a new authority-producing public surface.
+        inherited.governed_standing = Some(Status::Refuted);
+
+        let resolution = resolve_standing_v2_from_resolutions(
+            &snapshot,
+            MATCHED_CLAIM_ID,
+            baseline.clone(),
+            inherited.clone(),
+        );
+        let repeated =
+            resolve_standing_v2_from_resolutions(&snapshot, MATCHED_CLAIM_ID, baseline, inherited);
+
+        assert!(resolution.resolution_failure.is_none());
+        assert_eq!(resolution.governed_standing, Some(Status::Refuted));
+        assert_ne!(resolution.governed_standing, Some(Status::Supported));
+        assert_ne!(resolution.governed_standing, Some(Status::Settled));
+        assert_eq!(resolution.legacy_raw_standing, Some(Status::Conjectured));
+        assert!(resolution.blockers.is_empty());
+        assert_eq!(resolution.trace, repeated.trace);
+        assert_eq!(resolution.blockers, repeated.blockers);
+
+        let application = resolution
+            .trace
+            .iter()
+            .filter_map(|entry| entry.application.as_ref())
+            .find(|application| {
+                application.rule == StandingPolicyRuleV2::Sha256BytesEqualsDirectSupportV0
+            })
+            .expect("deterministic candidate must be evaluated");
+        assert_eq!(application.achieved_standing, Some(Status::Supported));
+        let StandingPolicyContextV2::DeterministicVerifierV0 {
+            trace: DeterministicVerifierContextTraceV0::Matched(receipt),
+        } = &application.context
+        else {
+            panic!("application must contain the replay-derived matched receipt")
+        };
+        assert_eq!(receipt.claim_id(), MATCHED_CLAIM_ID);
+        assert_eq!(receipt.evidence_id(), "evidence-a");
+        assert_eq!(receipt.edge_id(), "edge-a");
+        assert_eq!(receipt.scope_ref(), MATCHED_SCOPE);
+        assert_eq!(receipt.canonical_statement(), MATCHED_STATEMENT);
+        assert_eq!(receipt.claim_content_hash(), MATCHED_CONTENT_HASH);
     }
 
     #[test]

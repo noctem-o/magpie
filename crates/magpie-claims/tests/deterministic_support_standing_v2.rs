@@ -60,6 +60,7 @@ impl MachinePath {
 #[derive(Clone)]
 struct MachineFixture {
     legacy_statement: String,
+    legacy_status: Status,
     typed_statement: String,
     content_hash: String,
     claim_metadata: String,
@@ -70,6 +71,7 @@ impl MachineFixture {
     fn matched() -> Self {
         Self {
             legacy_statement: STATEMENT.into(),
+            legacy_status: Status::Conjectured,
             typed_statement: STATEMENT.into(),
             content_hash: sha256_hex(STATEMENT.as_bytes()),
             claim_metadata: claim_metadata(),
@@ -96,7 +98,7 @@ impl MachineFixture {
                     Payload::ClaimAsserted {
                         claim_id: CLAIM_ID.into(),
                         statement: self.legacy_statement.clone(),
-                        status: Status::Conjectured,
+                        status: self.legacy_status,
                     },
                 )
                 .unwrap();
@@ -279,6 +281,62 @@ fn matched_v2_application_retains_complete_verifier_receipt() {
     assert_eq!(receipt.expected_sha256(), DIGEST);
     assert_eq!(receipt.computed_sha256(), DIGEST);
     assert_eq!(receipt.witness_len(), 3);
+}
+
+#[test]
+fn legacy_raw_refuted_remains_audit_visible_and_does_not_veto_matched_v2_support() {
+    let mut fixture = MachineFixture::matched();
+    fixture.legacy_status = Status::Refuted;
+    let snapshot = fixture.snapshot();
+
+    let v0 = snapshot.standing().resolved_standing_with_trace(CLAIM_ID);
+    assert_eq!(v0.governed_standing, Some(Status::Conjectured));
+    assert_eq!(v0.legacy_raw_standing, Some(Status::Refuted));
+    assert!(v0
+        .trace
+        .iter()
+        .any(|entry| entry.reasons == [StandingTraceReason::LegacyRawStatusQuarantined]));
+    assert!(v0
+        .blockers
+        .contains(&StandingTraceReason::LegacyRawStatusQuarantined));
+
+    let v1 = snapshot.resolved_standing_with_trace_v1(CLAIM_ID);
+    assert_eq!(v1.governed_standing, Some(Status::Conjectured));
+    assert_eq!(v1.legacy_raw_standing, Some(Status::Refuted));
+    assert!(v1.trace.iter().any(|entry| {
+        entry.candidate.reasons == [StandingTraceReason::LegacyRawStatusQuarantined]
+    }));
+    assert!(v1
+        .blockers
+        .contains(&StandingTraceReason::LegacyRawStatusQuarantined));
+
+    let v2 = snapshot.resolved_standing_with_trace_v2(CLAIM_ID);
+    assert!(v2.resolution_failure.is_none());
+    assert_eq!(v2.governed_standing, Some(Status::Supported));
+    assert_ne!(v2.governed_standing, Some(Status::Settled));
+    assert_eq!(v2.legacy_raw_standing, Some(Status::Refuted));
+    assert!(v2.trace.iter().any(|entry| {
+        entry.candidate.reasons == [StandingTraceReason::LegacyRawStatusQuarantined]
+    }));
+    assert!(v2
+        .blockers
+        .contains(&StandingTraceReason::LegacyRawStatusQuarantined));
+
+    let application = v2
+        .trace
+        .iter()
+        .filter_map(|entry| entry.application.as_ref())
+        .find(|application| {
+            application.rule == StandingPolicyRuleV2::Sha256BytesEqualsDirectSupportV0
+        })
+        .expect("matched deterministic application must remain trace-visible");
+    assert_eq!(application.achieved_standing, Some(Status::Supported));
+    assert!(matches!(
+        &application.context,
+        StandingPolicyContextV2::DeterministicVerifierV0 {
+            trace: DeterministicVerifierContextTraceV0::Matched(_)
+        }
+    ));
 }
 
 #[test]
