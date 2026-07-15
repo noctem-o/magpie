@@ -301,7 +301,19 @@ shell execution is unavailable.
     admission, conflict admission fold, admitted-contribution audit, support,
     policy v3, aggregation, the ordinary claim-bearing writer,
     `EpistemicGate`, and their standing effects remain future work.
-20. **Historical review remediation contract.**
+20. **Origin-admission audit v0 contract — ratified, not implemented.**
+    [`docs/design/origin-admission-audit-v0.md`](docs/design/origin-admission-audit-v0.md)
+    and [Ticket 0046](tickets/0046-origin-admission-audit-v0-contract.md)
+    freeze the exact `magpie-origin-admission-v0` policy identity, its one
+    trusted grouping-authority path, the complete replay-derived candidate-
+    universe law, exact verified-prefix identity, deterministic duplicate and
+    conflict handling, and one standing-inert audit output. The standing-inert
+    origin-binding verifier v0 landed first through Ticket 0045; origin
+    admission and the audit resolver do not yet exist. The ordered future work
+    remains verified-prefix implementation, origin-admission audit
+    implementation, admitted-contribution audit, policy v3, conservative
+    aggregation, `EpistemicGate`, and an ordinary claim-bearing writer.
+21. **Historical review remediation contract.**
     [`docs/design/historical-review-remediation-ledger.md`](docs/design/historical-review-remediation-ledger.md)
     and [Ticket 0043](tickets/0043-historical-review-remediation-contract.md)
     ratify the remaining doctrine corrections from the PR #1-54 review audit
