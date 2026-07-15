@@ -27,15 +27,27 @@ fn signed_message(hash: &ContentHash) -> Vec<u8> {
     msg
 }
 
-/// Walk the whole stored chain, validating it, and return `(count, tip_hash)`.
-/// Shared by [`LogReader::verify_chain`] and [`LogWriter`]'s recovery on open.
-fn verify_chain_on<S: LogStore>(
-    store: &S,
-    vk: &VerifyingKey,
-) -> Result<(u64, ContentHash), LogError> {
+/// Walk the whole stored chain without retaining parsed events. Shared by
+/// [`LogReader::verify_chain`] and [`LogWriter`]'s recovery on open.
+fn verify_chain_on<S: LogStore>(store: &S, vk: &VerifyingKey) -> Result<VerifiedSummary, LogError> {
     let records = store.read_records()?;
-    let verified = parse_and_verify_records(&records, vk)?;
-    Ok((verified.events.len() as u64, verified.tip))
+    match parse_and_verify_records(&records, vk, VerificationRetention::SummaryOnly)? {
+        VerifiedRecords::Summary(summary) => Ok(summary),
+        VerifiedRecords::Snapshot(_) => {
+            unreachable!("summary-only verification returned retained events")
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum VerificationRetention {
+    SummaryOnly,
+    RetainEvents,
+}
+
+struct VerifiedSummary {
+    count: u64,
+    tip: ContentHash,
 }
 
 struct VerifiedSnapshot {
@@ -43,14 +55,25 @@ struct VerifiedSnapshot {
     tip: ContentHash,
 }
 
+enum VerifiedRecords {
+    Summary(VerifiedSummary),
+    Snapshot(VerifiedSnapshot),
+}
+
 /// Parse and verify one already-read record snapshot without consulting its
-/// store again. Events are returned only after the complete snapshot verifies.
+/// store again. Summary-only verification never allocates an event vector;
+/// retained events are returned only after the complete snapshot verifies.
 fn parse_and_verify_records(
     records: &[Vec<u8>],
     vk: &VerifyingKey,
-) -> Result<VerifiedSnapshot, LogError> {
+    retention: VerificationRetention,
+) -> Result<VerifiedRecords, LogError> {
     let mut prev = ContentHash::ZERO;
-    let mut events = Vec::with_capacity(records.len());
+    let mut count = 0u64;
+    let mut events = match retention {
+        VerificationRetention::SummaryOnly => None,
+        VerificationRetention::RetainEvents => Some(Vec::with_capacity(records.len())),
+    };
 
     for (expected_seq, record) in records.iter().enumerate() {
         let expected_seq = expected_seq as u64;
@@ -132,10 +155,22 @@ this implementation verifies {CANONICALIZATION_PROFILE:?}"
         }
 
         prev = event.hash;
-        events.push(event);
+        count += 1;
+        if let Some(events) = &mut events {
+            events.push(event);
+        }
     }
 
-    Ok(VerifiedSnapshot { events, tip: prev })
+    match events {
+        None => Ok(VerifiedRecords::Summary(VerifiedSummary {
+            count,
+            tip: prev,
+        })),
+        Some(events) => Ok(VerifiedRecords::Snapshot(VerifiedSnapshot {
+            events,
+            tip: prev,
+        })),
+    }
 }
 
 /// The **write capability**. Possessing a `LogWriter` is the authority to append.
@@ -164,12 +199,12 @@ impl<S: LogStore> LogWriter<S> {
         clock: Clock,
     ) -> Result<Self, LogError> {
         let vk = signing_key.verifying_key();
-        let (count, tip) = verify_chain_on(&store, &vk)?;
+        let verified = verify_chain_on(&store, &vk)?;
         let mut writer = Self {
             store,
             signing_key,
-            last_hash: tip,
-            next_seq: count,
+            last_hash: verified.tip,
+            next_seq: verified.count,
             clock,
         };
         if writer.next_seq == 0 {
@@ -276,7 +311,7 @@ impl<S: LogStore> LogReader<S> {
     /// Validate the entire chain: sequence, prev-links, recomputed hashes, and
     /// every signature. Returns the number of valid events; any tampering errors.
     pub fn verify_chain(&self) -> Result<u64, LogError> {
-        verify_chain_on(&self.store, &self.verifying_key).map(|(count, _)| count)
+        verify_chain_on(&self.store, &self.verifying_key).map(|verified| verified.count)
     }
 
     /// Fold one verified record snapshot into a projection. Replay reads one
@@ -288,11 +323,29 @@ impl<S: LogStore> LogReader<S> {
     /// you are back exactly where you were — the log is the source of truth.
     pub fn replay<P: Projection>(&self, projection: &mut P) -> Result<u64, LogError> {
         let records = self.store.read_records()?;
-        let verified = parse_and_verify_records(&records, &self.verifying_key)?;
+        let verified = match parse_and_verify_records(
+            &records,
+            &self.verifying_key,
+            VerificationRetention::RetainEvents,
+        )? {
+            VerifiedRecords::Snapshot(snapshot) => snapshot,
+            VerifiedRecords::Summary(_) => {
+                unreachable!("retained verification returned a summary")
+            }
+        };
+        let count = verified.events.len() as u64;
+        debug_assert_eq!(
+            verified
+                .events
+                .last()
+                .map(|event| event.hash)
+                .unwrap_or(ContentHash::ZERO),
+            verified.tip,
+        );
         for event in &verified.events {
             projection.apply(event);
         }
-        Ok(verified.events.len() as u64)
+        Ok(count)
     }
 }
 
@@ -300,4 +353,78 @@ impl<S: LogStore> LogReader<S> {
 /// is, by construction, regenerable from the log alone.
 pub trait Projection {
     fn apply(&mut self, event: &SignedEvent);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::store::MemStore;
+
+    #[test]
+    fn summary_only_verification_returns_count_and_tip_without_events() {
+        let signing_key = SigningKey::from_bytes(&[73u8; 32]);
+        let verifying_key = signing_key.verifying_key();
+        let store = MemStore::new();
+        let expected_tip = {
+            let mut timestamp = 0u64;
+            let mut writer = LogWriter::open_with_clock(
+                store.clone(),
+                signing_key,
+                Box::new(move || {
+                    timestamp += 1;
+                    timestamp
+                }),
+            )
+            .unwrap();
+            writer
+                .append(
+                    Provenance::new("test", "summary-retention"),
+                    Payload::Note {
+                        text: "first retained comparison event".into(),
+                    },
+                )
+                .unwrap();
+            writer
+                .append(
+                    Provenance::new("test", "summary-retention"),
+                    Payload::Note {
+                        text: "second retained comparison event".into(),
+                    },
+                )
+                .unwrap()
+                .hash
+        };
+        let records = store.records();
+        let expected_events: Vec<SignedEvent> = records
+            .iter()
+            .map(|record| serde_json::from_slice(record).unwrap())
+            .collect();
+
+        let summary = match parse_and_verify_records(
+            &records,
+            &verifying_key,
+            VerificationRetention::SummaryOnly,
+        )
+        .unwrap()
+        {
+            VerifiedRecords::Summary(summary) => summary,
+            VerifiedRecords::Snapshot(_) => panic!("summary-only mode retained events"),
+        };
+        assert_eq!(summary.count, 3);
+        assert_eq!(summary.tip, expected_tip);
+
+        let snapshot = match parse_and_verify_records(
+            &records,
+            &verifying_key,
+            VerificationRetention::RetainEvents,
+        )
+        .unwrap()
+        {
+            VerifiedRecords::Snapshot(snapshot) => snapshot,
+            VerifiedRecords::Summary(_) => panic!("retained mode returned only a summary"),
+        };
+        assert_eq!(snapshot.events.len() as u64, summary.count);
+        assert_eq!(snapshot.tip, summary.tip);
+        assert_eq!(snapshot.events, expected_events);
+    }
 }
