@@ -270,35 +270,37 @@ shell execution is unavailable.
     Exact matches remain audit context only: they establish neither source
     identity, transformation correctness, truth nor standing. Production
     `ResolutionContentClosureV0` construction is implemented separately by
-    Ticket 0041 but is not wired into these slice-based verifier APIs; origin
-    binding, origin admission, admitted-contribution audit, aggregation,
-    policy v3, refutation, contradiction debt, invalidation, supersession,
-    `EpistemicGate`, and ordinary claim-bearing writer surfaces remain later
-    work.
+    Ticket 0041. The public explicit-slice APIs remain unchanged; Ticket 0045
+    adds only crate-private closure-aware reuse for origin-binding composition.
+    Origin admission, admitted-contribution audit, aggregation, policy v3,
+    refutation, contradiction debt, invalidation, supersession,
+    `EpistemicGate`, and ordinary claim-bearing writer surfaces remain later.
 17. **Resolution content closure v0 contract — landed.**
     [`docs/design/resolution-content-closure-v0.md`](docs/design/resolution-content-closure-v0.md)
     and [Ticket 0040](tickets/0040-resolution-content-closure-v0.md) now specify
     the exact finite keyed availability universe, canonical manifest and
     closure identity used as input `M` for deterministic resolution. The
-    artifact-provenance verifier methods still receive explicit optional byte
-    slices. Origin
-    binding, origin admission, admitted-contribution audit, aggregation and
+    public artifact-provenance verifier methods still receive explicit optional
+    byte slices. Origin admission, admitted-contribution audit, aggregation and
     ordinary claim-bearing writer surfaces remain future work.
 18. **Resolution content closure v0 implementation — landed.** Exact bounded
     construction now collapses identical duplicates, rejects deterministic
     conflicts, owns immutable keyed bytes, and exposes exact read-only lookup.
     Its purpose-built canonical manifest and four-field typed identity
-    reproduce the pinned vectors. No loader or verifier orchestration exists;
-    artifact-provenance verification remains explicit-slice based, and no
-    origin binding, admission, aggregation, or ordinary writer facade is
-    introduced.
-19. **Origin-binding bundle v0 contract — ratified.**
+    reproduce the pinned vectors. No loader exists. Public artifact-provenance
+    verification remains explicit-slice based; Ticket 0045 reuses the same
+    reviewed pipeline through a private exact-closure composition seam.
+19. **Origin-binding verifier v0 — implemented and standing-inert.**
     [`docs/design/origin-binding-bundle-v0.md`](docs/design/origin-binding-bundle-v0.md)
-    defines two exact sibling schemas that bind one exact contribution and
-    provenance basis to one claimed origin group and authority path. No
-    origin-binding parser, verifier, authority trust, admission, support,
-    aggregation, or ordinary writer facade exists. The standing-inert
-    origin-binding verifier is next.
+    and [Ticket 0045](tickets/0045-standing-inert-origin-binding-verifier-v0.md)
+    now have strict two-family parsing, exact immutable-closure lookup,
+    canonical root and same-replay anchor verification, exact claim/evidence/
+    edge contribution revalidation, nested artifact-provenance composition,
+    artifact coherence, and private-construction audit receipts. Matched
+    receipts verify claimed governance content only. Authority trust, origin
+    admission, conflict admission fold, admitted-contribution audit, support,
+    policy v3, aggregation, the ordinary claim-bearing writer,
+    `EpistemicGate`, and their standing effects remain future work.
 20. **Historical review remediation contract.**
     [`docs/design/historical-review-remediation-ledger.md`](docs/design/historical-review-remediation-ledger.md)
     and [Ticket 0043](tickets/0043-historical-review-remediation-contract.md)
