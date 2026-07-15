@@ -8,6 +8,58 @@ Doctrine note: ticket 0019 supersedes the old HumanRatification settlement
 language. Humans settle nothing epistemically; HumanRatification is
 governance/judgment evidence capped below `Settled`.
 
+Historical remediation note: Ticket 0043 corrects two boundaries that this
+planning note previously described imprecisely.
+
+First, Magpie already has a low-level Rust write capability:
+
+```text
+possession of LogWriter plus its signing key
+= raw L0 append capability
+
+absence of an ordinary CLI, MCP, or application writer
+!= absence of a low-level Rust write surface
+```
+
+The phrases below that exclude a writer-facing surface mean that the tags plan
+adds no ordinary CLI, MCP, application writer, governed facade, or admission
+gate. They do not mean `LogWriter::append` is absent or inaccessible to a Rust
+caller holding both the writer and its signing key.
+
+The authority split is:
+
+```text
+magpie-log validates L0 structural integrity
+
+magpie-log must not absorb higher-level epistemic admission policy
+
+future EpistemicGate
+→ governs construction and admission of claim/evidence/edge writes
+→ then invokes the raw append capability
+```
+
+Ticket 0043 does not restrict `LogWriter::append`, add a capability token,
+change payload visibility, or implement that gate. The gate remains an explicit
+authority-boundary implementation prerequisite before Magpie exposes ordinary
+claim-bearing write surfaces.
+
+Second, `metadata_json` is opaque to L0 *as JSON*, but its exact string bytes
+are signed canonical event material:
+
+```text
+metadata_json bytes
+= signed L0 canonical event material
+
+committed as bytes
+!= interpreted as authority
+```
+
+Changing `metadata_json` changes the event's canonical bytes and hash. A later
+policy may strictly interpret an origin-group, witness, or other label inside
+those committed bytes, but the label is not a native typed field, cannot change
+the canonicalisation profile or rules, cannot admit itself, and creates no
+authority merely by being committed.
+
 ## Purpose
 
 This note plans the future ADR-0002 additive event tags:
@@ -36,7 +88,7 @@ enters L0.
 - No new event tags in `Payload`.
 - No `StandingView` changes.
 - No `EpistemicGate` implementation.
-- No MCP write surfaces or other writer-facing surfaces.
+- No new ordinary CLI, MCP, application, or governed writer surface.
 - No lens ingestion.
 - No scope inheritance.
 - No probabilistic fusion.
@@ -482,7 +534,8 @@ Required implications:
 - No wildcard match arms.
 - No format update without verifier update.
 - No verifier update without golden coverage.
-- No writer surface in the tag implementation PR.
+- No ordinary CLI, MCP, application, or governed writer facade in the tag
+  implementation PR; the existing raw `LogWriter` capability remains.
 
 ## Rollout order
 
@@ -496,7 +549,7 @@ Required implications:
    and every intentionally deferred behavior.
 5. Only after the format/projection/verifier surface is green, design
    `EpistemicGate` admission rules.
-6. Only after `EpistemicGate`, expose writer-facing surfaces.
+6. Only after `EpistemicGate`, expose ordinary claim-bearing writer surfaces.
 
 ## Stop conditions
 
@@ -511,7 +564,7 @@ Stop before merging the future implementation PR if:
 - `metadata_json` parsing creates a second canonicalization surface;
 - scope inheritance, probabilistic fusion, or credulous/multiple accepted
   standings are needed before ADR-0002 is amended;
-- adding tags requires writer-facing surfaces in the same PR.
+- adding tags requires ordinary claim-bearing writer surfaces in the same PR.
 
 ## Reviewer checklist
 

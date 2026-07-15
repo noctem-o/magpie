@@ -54,8 +54,8 @@ later implementation phase; it does not change runtime `StandingView` behavior.
 - No `docs/FORMAT.md` changes.
 - No golden vector changes.
 - No `tools/verify_chain.py` changes.
-- No writer-facing surfaces.
-- No MCP write paths.
+- No new ordinary CLI, MCP, application, or governed claim-bearing write path;
+  the existing low-level `LogWriter` capability remains unchanged.
 - No `EpistemicGate`.
 - No achieved-standing aggregation implementation.
 - No artifact, acquisition, derivation, origin-binding, or origin-admission
@@ -97,6 +97,31 @@ delegates to the governed result from `StandingResolution`; it is not a second
 standing engine. V0 does not turn candidate ceilings into achieved standing.
 It exposes legacy raw status separately as quarantined audit material rather
 than governed truth.
+
+Ticket 0043 ratifies the exact compatibility boundary:
+
+```text
+legacy_raw_standing
+= quarantined compatibility and audit material
+= never governed authority
+
+legacy raw Settled
+does not establish governed Settled
+
+legacy raw Refuted
+does not establish a governed veto
+
+inherited governed Refuted
+remains Refuted until an explicit versioned invalidation,
+supersession, recovery, or refutation policy changes that law
+```
+
+Policy v2 may therefore derive governed `Supported` from successful
+deterministic verification while the separately exposed legacy raw value
+remains `Refuted`. That is not revival of a governed refutation: the raw value
+was never governed standing. Conversely, `combine_v2_standing` preserves an
+inherited governed `Refuted` result. A dedicated follow-up test PR must pin both
+cases without changing current policy behavior.
 
 Current v0 resolution does not implement aggregation, corroboration-separation
 amplification, direct refutation, contradiction debt, invalidation,
@@ -180,17 +205,33 @@ content closure M)`.
 ### Origin Group
 
 An origin group is an opaque exact policy key used to prevent multiple admitted
-contribution paths from the same governed origin from counting repeatedly.
+contribution paths from the same governed origin from counting repeatedly. It
+is not a publisher identity, reputation score, truth label, or independence
+certificate. Bindings target individual contribution identities, but group
+equality is interpreted across multiple distinct contributions inside one
+exact `OriginComparisonNamespace`.
 
-Origin groups are policy material, not L0 canonical material, publisher
-identities, reputation scores, truth labels, or independence certificates.
-Bindings target individual contribution identities, but group equality is
-interpreted across multiple distinct contributions inside one exact
-`OriginComparisonNamespace`.
+For tags 6-8, the exact `metadata_json` string is length-prefixed into the
+event's canonical bytes and is signed with the event. Therefore:
 
-Earlier or future metadata such as `metadata_json.independence_group` is
-asserted advisory data only. It cannot create an origin group, change canonical
-encoding, or admit itself.
+```text
+metadata_json bytes
+= signed L0 canonical event material
+
+an origin-group or independence label inside metadata_json
+= asserted opaque content
+!= a native typed origin-assignment field
+!= admitted origin authority
+!= corroboration separation
+
+committed as bytes
+!= interpreted as authority
+```
+
+Changing `metadata_json` changes that event's canonical bytes and hash. L0 does
+not parse the string as JSON, the string cannot change the canonicalisation
+profile or rules, and a self-declared label cannot admit itself or create an
+authoritative origin group.
 
 ### Origin Comparison Namespace
 
@@ -265,8 +306,10 @@ its achieved standing.
    ceiling.
 8. Repeated weak evidence from the same group must not simulate corroboration
    separation.
-9. Support aggregation must not revive a raw `Refuted` claim without explicit
-   future invalidation or supersession rules.
+9. Legacy raw `Refuted` is quarantined audit material and is not a governed
+   veto. An inherited governed `Refuted` result remains `Refuted` until an
+   explicit versioned invalidation, supersession, recovery, or refutation
+   policy changes that law.
 10. Absence of evidence is not refutation.
 11. Human authority is governance/consent authority, not truth authority.
 12. Aggregation must not infer stronger claim domains from prose confidence.
@@ -446,16 +489,20 @@ must not erase truth-bearing contradiction debt or settle factual truth.
 3. Immutable resolution-content closure contract and construction — landed by
    Tickets 0040 and 0041.
 4. Exact two-family origin-binding bundle contract — ratified by Ticket 0042.
-5. Add the standing-inert origin-binding verifier.
-6. Add a standing-inert origin-admission audit.
-7. Add an admitted-contribution audit surface with no aggregation.
-8. Pin one explicit standing policy v3 aggregation rule.
-9. Implement conservative aggregation.
-10. Add direct refutation through admitted verifier context.
-11. Add contradiction debt with explicit precedence against direct refutation.
-12. Add invalidation and supersession/currentness.
-13. Add the capability-bearing `EpistemicGate` and writer-facing surfaces.
-14. Add governed acquisition tooling and librarian proposals.
+5. Ratify the Ticket 0043 historical-review remediation contract.
+6. Add the dedicated legacy raw-refutation regression tests.
+7. Implement verification-only count/tip mode without retained parsed events.
+8. Add the standing-inert origin-binding verifier.
+9. Add a standing-inert origin-admission audit.
+10. Add an admitted-contribution audit surface with no aggregation.
+11. Pin one explicit standing policy v3 aggregation rule.
+12. Implement conservative aggregation.
+13. Add direct refutation through admitted verifier context.
+14. Add contradiction debt with explicit precedence against direct refutation.
+15. Add invalidation and supersession/currentness.
+16. Add the capability-bearing `EpistemicGate` and ordinary claim-bearing
+    writer surfaces over the existing raw append capability.
+17. Add governed acquisition tooling and librarian proposals.
 
 The direct policy-v2 rule consumes one successful closed verifier context and
 contributes `Supported` without combining evidence. It introduces no numeric
@@ -475,7 +522,8 @@ Future PRs should add tests with names such as:
 - `model_self_report_repetition_does_not_amplify`
 - `lens_readout_repetition_does_not_amplify`
 - `human_ratification_does_not_settle_external_report`
-- `support_aggregation_does_not_revive_refuted_claim`
+- `legacy_raw_refuted_with_successful_deterministic_verification_is_supported`
+- `inherited_governed_refuted_with_successful_deterministic_verification_stays_refuted`
 - `contradicts_edge_creates_debt_not_refutation`
 - `invalidation_is_not_refutation`
 - `supersession_is_not_deletion`
@@ -511,6 +559,10 @@ These are future tests for later PRs. This note does not add tests.
 - Confirm `StandingResolution` v0 is described as the canonical governed
   explanation surface and `resolved_standing()` only as its compatibility
   scalar.
+- Confirm legacy raw `Settled` and `Refuted` remain audit-only while inherited
+  governed `Refuted` remains a governed veto.
+- Confirm `metadata_json` is committed canonical event material but its labels
+  are not authority unless a versioned policy admits them.
 - Confirm artifact/bundle verification, origin-admission audit, and
   admitted-contribution audit all precede aggregation.
 - Confirm the binding contract is ratified while its verifier and admission

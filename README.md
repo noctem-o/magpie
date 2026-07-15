@@ -173,7 +173,8 @@ occurrence identity appears in the same verified replay. Explicit snapshot-only
 v2 directly supports one exact canonical `sha256_bytes_equals_v0` proposition
 after same-snapshot deterministic verification. That direct contribution is
 `Supported`, not `Settled`, and is not aggregation. Aggregation, refutation
-application, `EpistemicGate`, and all writer-facing surfaces remain future work.
+application, `EpistemicGate`, and ordinary claim-bearing writer surfaces remain
+future work. The low-level `LogWriter` append capability already exists.
 
 ## Development workflow
 
@@ -292,8 +293,14 @@ shell execution is unavailable.
 19. **Origin-binding bundle v0 contract — ratified.**
     [`docs/design/origin-binding-bundle-v0.md`](docs/design/origin-binding-bundle-v0.md)
     defines two exact sibling schemas that bind one exact contribution and
-    provenance basis to one claimed origin group and authority path. No parser,
-    verifier, authority trust, admission, support, aggregation or writer
-    exists. The standing-inert origin-binding verifier is next.
+    provenance basis to one claimed origin group and authority path. No
+    origin-binding parser, verifier, authority trust, admission, support,
+    aggregation, or ordinary writer facade exists. The standing-inert
+    origin-binding verifier is next.
+20. **Historical review remediation contract.**
+    [`docs/design/historical-review-remediation-ledger.md`](docs/design/historical-review-remediation-ledger.md)
+    and [Ticket 0043](tickets/0043-historical-review-remediation-contract.md)
+    ratify the remaining doctrine corrections from the PR #1-54 review audit
+    and classify the bounded follow-up work. No runtime behavior changes here.
 
 Conserve the log. Derive the rest.

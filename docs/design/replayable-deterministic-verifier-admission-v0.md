@@ -322,8 +322,9 @@ The closed checker is:
 
 1. Receive only the private snapshot plus exact `claim_id`, `evidence_id`, and
    `edge_id` selected by the closed v2 lane.
-2. Re-fetch all three objects and validate supports/source/target, evidence
-   kind, claim domain, and four-way scope equality.
+2. Re-fetch the claim, evidence, and edge; validate supports/source/target
+   structure, evidence kind, claim domain, and three-way replay scope equality:
+   `claim.scope_ref == evidence.scope_ref == edge.scope_ref`.
 3. Strictly parse the claim predicate.
 4. Derive the exact canonical statement from that predicate.
 5. Compare it byte-for-byte with the replayed claim statement.
@@ -332,9 +333,11 @@ The closed checker is:
 8. Compare its lowercase hexadecimal rendering byte-for-byte with
    `claim.content_hash`.
 9. Strictly parse the evidence witness.
-10. Validate exact schema, predicate, claim, and scope bindings.
+10. Validate exact witness schema, predicate, and subject-claim bindings; then
+    compare `witness.scope_ref` with the already matched replay scope, thereby
+    completing four-way scope equality.
 11. Validate and decode strict witness hex while enforcing the fixed 4096-byte
-   decoded limit before allocation beyond that bound.
+    decoded limit before allocation beyond that bound.
 12. Compute SHA-256 over exactly the decoded witness bytes.
 13. Compare the 32 computed witness-digest bytes to the strictly decoded
     `expected_sha256`.
@@ -633,7 +636,8 @@ ClaimAssertedV2 structured machine predicate
 
 This policy slice adds no payload, tag, projection, receipt type, second
 checker, aggregation, independence, refutation, contradiction debt,
-invalidation, supersession, currentness, `EpistemicGate`, writer surface,
+invalidation, supersession, currentness, `EpistemicGate`, ordinary
+claim-bearing writer surface,
 artifact acquisition, file/shell/network/plugin/callback authority, proof
 system, formal verification, or model/lens ingestion.
 
