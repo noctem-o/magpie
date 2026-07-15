@@ -85,7 +85,7 @@ struct ChangingSnapshotStore {
 
 impl LogStore for ChangingSnapshotStore {
     fn append_record(&mut self, _bytes: &[u8]) -> Result<(), LogError> {
-        panic!("ChangingSnapshotStore is read-only in replay tests")
+        panic!("ChangingSnapshotStore is read-only in snapshot tests")
     }
 
     fn read_records(&self) -> Result<Vec<Vec<u8>>, LogError> {
@@ -96,6 +96,22 @@ impl LogStore for ChangingSnapshotStore {
         } else {
             Ok(self.second_snapshot.clone())
         }
+    }
+}
+
+struct CountingStore {
+    inner: MemStore,
+    read_count: Rc<Cell<usize>>,
+}
+
+impl LogStore for CountingStore {
+    fn append_record(&mut self, bytes: &[u8]) -> Result<(), LogError> {
+        self.inner.append_record(bytes)
+    }
+
+    fn read_records(&self) -> Result<Vec<Vec<u8>>, LogError> {
+        self.read_count.set(self.read_count.get() + 1);
+        self.inner.read_records()
     }
 }
 
@@ -149,6 +165,37 @@ fn chain_verifies_and_counts() {
 
     let reader = LogReader::open(store, key().verifying_key());
     assert_eq!(reader.verify_chain().unwrap(), 4);
+}
+
+#[test]
+fn verify_chain_uses_one_record_snapshot() {
+    let source = MemStore::new();
+    let first_snapshot = {
+        let mut w = writer(source.clone());
+        w.append(prov(), note("verified snapshot note")).unwrap();
+        source.records()
+    };
+    let mut second_snapshot = first_snapshot.clone();
+    let mut invalid: SignedEvent = serde_json::from_slice(second_snapshot.last().unwrap()).unwrap();
+    invalid.signature = Sig::new([0u8; 64]);
+    *second_snapshot.last_mut().unwrap() = serde_json::to_vec(&invalid).unwrap();
+
+    let read_count = Rc::new(Cell::new(0));
+    let reader = LogReader::open(
+        ChangingSnapshotStore {
+            first_snapshot,
+            second_snapshot,
+            read_count: Rc::clone(&read_count),
+        },
+        key().verifying_key(),
+    );
+
+    assert_eq!(reader.verify_chain().unwrap(), 2);
+    assert_eq!(
+        read_count.get(),
+        1,
+        "verification must read exactly one snapshot"
+    );
 }
 
 #[test]
@@ -224,6 +271,46 @@ fn replay_does_not_apply_valid_prefix_before_later_verification_failure() {
 }
 
 #[test]
+fn verification_and_replay_preserve_late_error_parity_and_apply_no_prefix() {
+    let store = MemStore::new();
+    {
+        let mut w = writer(store.clone());
+        w.append(prov(), note("valid prefix")).unwrap();
+        w.append(prov(), note("invalid final signature")).unwrap();
+    }
+
+    let mut records = store.records();
+    let mut invalid: SignedEvent = serde_json::from_slice(records.last().unwrap()).unwrap();
+    invalid.signature = Sig::new([0u8; 64]);
+    *records.last_mut().unwrap() = serde_json::to_vec(&invalid).unwrap();
+
+    let verification_error = LogReader::open(
+        MemStore::from_records(records.clone()),
+        key().verifying_key(),
+    )
+    .verify_chain()
+    .unwrap_err();
+    let replay_reader = LogReader::open(MemStore::from_records(records), key().verifying_key());
+    let mut projection = RecordingProjection::default();
+    let replay_error = replay_reader.replay(&mut projection).unwrap_err();
+
+    match (verification_error, replay_error) {
+        (
+            LogError::BadSignature { seq: verify_seq },
+            LogError::BadSignature { seq: replay_seq },
+        ) => {
+            assert_eq!(verify_seq, 2);
+            assert_eq!(replay_seq, verify_seq);
+        }
+        other => panic!("verification and replay errors diverged: {other:?}"),
+    }
+    assert!(
+        projection.payloads.is_empty(),
+        "replay must not apply a valid prefix before the late failure"
+    );
+}
+
+#[test]
 fn tip_is_recovered_on_reopen() {
     let store = MemStore::new();
 
@@ -247,6 +334,40 @@ fn tip_is_recovered_on_reopen() {
 
     let reader = LogReader::open(store, key().verifying_key());
     assert_eq!(reader.verify_chain().unwrap(), 4);
+}
+
+#[test]
+fn writer_recovery_verifies_once_and_recovers_exact_count_and_tip() {
+    let source = MemStore::new();
+    let expected_tip = {
+        let mut w = writer(source.clone());
+        w.append(prov(), note("first recovery event")).unwrap();
+        w.append(prov(), note("second recovery event"))
+            .unwrap()
+            .hash
+    };
+    let initial_record_count = source.records().len();
+    let read_count = Rc::new(Cell::new(0));
+    let counting_store = CountingStore {
+        inner: source.clone(),
+        read_count: Rc::clone(&read_count),
+    };
+
+    let mut recovered = writer(counting_store);
+
+    assert_eq!(read_count.get(), 1, "writer recovery must verify once");
+    assert_eq!(recovered.len(), 3);
+    assert_eq!(recovered.tip(), expected_tip);
+    assert_eq!(
+        source.records().len(),
+        initial_record_count,
+        "reopening a non-empty store must not append another genesis"
+    );
+
+    let next = recovered.append(prov(), note("after recovery")).unwrap();
+    assert_eq!(next.core.seq, 3);
+    assert_eq!(next.core.prev_hash, expected_tip);
+    assert_eq!(read_count.get(), 1, "append must not trigger a second read");
 }
 
 #[test]
