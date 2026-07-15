@@ -12,6 +12,7 @@ mod artifact_provenance_verifier;
 mod deadbolt_context;
 mod deterministic_verifier_context;
 mod replay_snapshot;
+mod resolution_content_closure;
 mod standing;
 mod standing_v1;
 mod standing_v2;
@@ -42,6 +43,21 @@ pub use deterministic_verifier_context::{
 };
 
 pub use replay_snapshot::{replay_standing_context, StandingReplaySnapshot};
+
+pub use resolution_content_closure::{
+    ResolutionArtifactObjectInputV0, ResolutionArtifactObjectKeyV0,
+    ResolutionContentClosureConstructionErrorV0, ResolutionContentClosureIdentityV0,
+    ResolutionContentClosureKeyFieldV0, ResolutionContentClosureV0,
+    ResolutionForeignBundleObjectInputV0, MAX_RESOLUTION_CONTENT_CLOSURE_ARTIFACT_ENTRIES_V0,
+    MAX_RESOLUTION_CONTENT_CLOSURE_ARTIFACT_OBJECT_BYTES_V0,
+    MAX_RESOLUTION_CONTENT_CLOSURE_FOREIGN_BUNDLE_ENTRIES_V0,
+    MAX_RESOLUTION_CONTENT_CLOSURE_FOREIGN_BUNDLE_OBJECT_BYTES_V0,
+    MAX_RESOLUTION_CONTENT_CLOSURE_KEY_FIELD_BYTES_V0,
+    MAX_RESOLUTION_CONTENT_CLOSURE_SUPPLIED_OBJECT_BYTES_V0,
+    MAX_RESOLUTION_CONTENT_CLOSURE_TOTAL_ENTRIES_V0,
+    RESOLUTION_CONTENT_CLOSURE_CANONICALIZATION_PROFILE_V0,
+    RESOLUTION_CONTENT_CLOSURE_DIGEST_ALGORITHM_V0, RESOLUTION_CONTENT_CLOSURE_SCHEMA_V0,
+};
 
 pub use standing::{
     StandingClaim, StandingCurrentness, StandingResolution, StandingTraceEntry,

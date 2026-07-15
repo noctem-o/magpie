@@ -268,18 +268,26 @@ shell execution is unavailable.
     selector-bound same-snapshot replay verification, and closed audit traces.
     Exact matches remain audit context only: they establish neither source
     identity, transformation correctness, truth nor standing. Production
-    `ResolutionContentClosureV0` construction is deferred; origin binding,
-    origin admission, admitted-contribution audit, aggregation, policy v3,
-    refutation, contradiction debt, invalidation, supersession,
+    `ResolutionContentClosureV0` construction is implemented separately by
+    Ticket 0041 but is not wired into these slice-based verifier APIs; origin
+    binding, origin admission, admitted-contribution audit, aggregation,
+    policy v3, refutation, contradiction debt, invalidation, supersession,
     `EpistemicGate`, and writers remain later work.
 17. **Resolution content closure v0 contract — landed.**
     [`docs/design/resolution-content-closure-v0.md`](docs/design/resolution-content-closure-v0.md)
     and [Ticket 0040](tickets/0040-resolution-content-closure-v0.md) now specify
     the exact finite keyed availability universe, canonical manifest and
-    closure identity used as input `M` for deterministic resolution. No
-    production closure type or loader exists yet. The artifact-provenance
-    verifier methods still receive explicit optional byte slices. Origin
+    closure identity used as input `M` for deterministic resolution. The
+    artifact-provenance verifier methods still receive explicit optional byte
+    slices. Origin
     binding, origin admission, admitted-contribution audit, aggregation and
     writers remain future work.
+18. **Resolution content closure v0 implementation — landed.** Exact bounded
+    construction now collapses identical duplicates, rejects deterministic
+    conflicts, owns immutable keyed bytes, and exposes exact read-only lookup.
+    Its purpose-built canonical manifest and four-field typed identity
+    reproduce the pinned vectors. No loader or verifier orchestration exists;
+    artifact-provenance verification remains explicit-slice based, and no
+    origin binding, admission, aggregation or writer is introduced.
 
 Conserve the log. Derive the rest.
