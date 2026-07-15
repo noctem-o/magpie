@@ -19,6 +19,13 @@ manifest, typed identity and exact read-only lookup. That availability surface
 remains standing-inert and untrusted. No loader, orchestrator wiring or
 verifier integration exists.
 
+[Ticket 0042](../../tickets/0042-origin-binding-bundle-v0.md) and
+[`origin-binding-bundle-v0.md`](origin-binding-bundle-v0.md) are this slice.
+They ratify the exact two-sibling-family origin-binding statement contract.
+They add no parser, verifier, origin admission, authority trust, standing or
+writer capability. Origin-binding verification and origin admission remain
+future work.
+
 ## 2. Purpose
 
 Magpie can retain structurally valid evidence and exact foreign-bundle anchors.
@@ -166,10 +173,13 @@ Consequences:
 - Acquisition, derivation, and origin-binding statements use distinguishable,
   explicitly versioned foreign bundle families.
 - Each supported family has an explicit canonicalization and verifier profile.
-- Ticket 0038 now pins exact bundle-kind strings, wire schemas, SHA-256
+- Ticket 0038 pins exact bundle-kind strings, wire schemas, SHA-256
   artifact/root algorithms, canonical bytes, and one standing-inert verifier
-  profile for the proposed first acquisition/direct-derivation sibling
-  families. Origin-binding identities and policy remain deferred.
+  profile for the acquisition/direct-derivation sibling families.
+- Ticket 0042 separately pins exact direct-acquisition-binding and
+  direct-derivation-binding sibling schemas. Neither origin-binding schema
+  changes the referenced provenance schemas or makes a provenance selector
+  optional.
 - A bare `bundle_kind` string grants no authority.
 - `SegmentAnchored` proves only that an exact foreign bundle identity occurred
   in the accepted Magpie chain at one chain position.
@@ -300,6 +310,12 @@ policy includes:
 - the exact target claim identity; and
 - the exact `scope_ref`.
 
+The exact origin-binding v0 contract serializes no namespace object. It derives
+`OriginComparisonNamespaceV0` from the bundle's
+`origin_admission_policy_id`, `contribution.target_claim_id` and
+`contribution.scope_ref`. This avoids duplicated claim or scope fields that
+could disagree.
+
 A later explicit aggregation policy may further partition comparison through a
 separately defined aggregation-lane identity, such as direction or an
 evidence-policy cell. This contract does not define those future lane fields.
@@ -357,21 +373,20 @@ when those inputs select different namespaces.
 ### 6.8 Origin-binding statement
 
 A governed origin-binding statement assigns one exact contribution identity to
-one opaque origin group inside one exact origin-comparison namespace under one
-explicit policy and authority path. A future statement must bind at minimum:
+one opaque origin group inside one derived origin-comparison namespace under
+one claimed target policy and authority path.
 
-- a versioned schema and verifier profile;
-- the exact contribution identity;
-- the exact origin-comparison namespace;
-- relevant exact artifact and acquisition references;
-- the origin-group key;
-- the exact governance scope;
-- the authority identity or authority reference; and
-- an exact run or decision identity.
+[`origin-binding-bundle-v0.md`](origin-binding-bundle-v0.md) now ratifies two
+closed sibling shapes: direct-acquisition binding and direct-derivation
+binding. Both carry complete `ContributionIdentityV0`, exact provenance
+selectors, `origin_admission_policy_id`, `origin_group`, claimed
+`authority.kind`/`authority.reference`, and exact binding `run_id`. The
+namespace is derived rather than serialized. V0 contains no rationale,
+arbitrary metadata, optional selector or trust Boolean.
 
-The bundle may retain rationale for audit. Prose rationale is not machine
-authority. An origin-binding statement governs grouping; it does not make
-evidence or claims true and does not create a support contribution.
+Exact canonical and anchored verification will establish only a verified
+governance assertion. It will not trust the claimed authority, admit the
+origin group, make evidence or claims true, or create support.
 
 ### 6.9 Admitted origin result
 
@@ -790,8 +805,8 @@ sequence:
 ```text
 ResolutionContentClosureV0 contract — landed
 ResolutionContentClosureV0 implementation — landed
-exact origin-binding bundle contract — next
-origin-binding verifier
+exact origin-binding bundle contract — this slice
+origin-binding verifier — next
 standing-inert origin-admission audit
 admitted-contribution audit
 policy-v3 contract
@@ -799,8 +814,9 @@ conservative aggregation
 ```
 
 Closure construction and exact lookup are implemented without a loader or
-verifier wiring. Origin binding, origin admission and every later step remain
-future work. The admitted-contribution audit is a future standing-inert
+verifier wiring. The origin-binding wire contract is ratified by Ticket 0042;
+its verifier, origin admission and every later step remain future work. The
+admitted-contribution audit is a future standing-inert
 explanation surface.
 It will revalidate one exact policy-eligible contribution and associate it with
 its admitted origin result while preserving every unresolved prerequisite. It
@@ -932,18 +948,19 @@ implementation promise for those standards.
 1. `ResolutionContentClosureV0` contract — landed by Ticket 0040.
 2. `ResolutionContentClosureV0` implementation and hostile tests — landed by
    Ticket 0041.
-3. Exact origin-binding bundle contract — next.
-4. Origin-binding verifier.
+3. Exact two-family origin-binding bundle contract — this slice, ratified by
+   Ticket 0042.
+4. Standing-inert origin-binding verifier — next.
 5. Standing-inert origin-admission audit.
 6. Admitted-contribution audit.
 7. Policy-v3 contract.
 8. Conservative aggregation.
 
-The immediate next PR is step 3 only. It must pin the exact origin-binding
-bundle contract without adding a loader, origin-admission rule, standing effect
-or writer authority. Steps 4-8 remain future work. Every step before policy-v3
-remains standing-inert; this contract still defines no aggregation threshold or
-achieved-standing change.
+The immediate next PR is step 4 only. It must verify the exact origin-binding
+contract without adding a loader, origin-admission rule, standing effect or
+writer authority. Steps 5-8 remain future work. Every step before policy-v3
+remains standing-inert; this contract still defines no aggregation threshold
+or achieved-standing change.
 
 ## 19. Frozen surfaces and explicit non-goals
 
@@ -966,9 +983,14 @@ canonicalization/verifier profiles, SHA-256 selection, and canonical bytes apply
 only to its acquisition/direct-derivation v0 contract and do not add runtime
 behavior.
 
+Ticket 0042 adds only the exact origin-binding documentation contract. It adds
+no parser, fixture, verifier, receipt, origin-admission policy, trusted-
+authority table, conflict fold, support rule, standing rule or runtime wiring.
+
 ## 20. Reviewer checklist
 
-- Confirm the note remains a proposed docs-only contract.
+- Confirm the origin-binding slice remains a ratified docs-only contract with
+  no runtime capability.
 - Confirm Magpie event `Provenance` is not external source provenance.
 - Confirm existing `content_hash` values are not retroactively verified
   artifact identities.
@@ -977,6 +999,8 @@ behavior.
 - Confirm `ContributionIdentity` is the exact binding subject while
   `OriginComparisonNamespace` is the policy/claim/scope namespace for comparing
   group keys across distinct contributions.
+- Confirm the v0 namespace is derived from policy/claim/scope rather than
+  serialized, and the two binding families remain closed and distinguishable.
 - Confirm the same group in one namespace means same-origin material, different
   groups in one namespace may provide only corroboration separation, and keys
   in different namespaces are incomparable.

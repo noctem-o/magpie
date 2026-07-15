@@ -8,8 +8,16 @@ Ratified exact protocol contract. Ticket 0038 is landed.
 the exact portable fixtures and the standing-inert parser, canonicalizer and
 snapshot-only verifier in
 `crates/magpie-claims/src/artifact_provenance_verifier.rs`. It does not
-implement the production resolution-content-closure construction boundary, an
-origin-binding or admission rule, a standing rule, or runtime authority.
+implement an origin-binding or admission rule, a standing rule, or runtime
+authority. Tickets 0040 and 0041 separately landed the production
+`ResolutionContentClosureV0` contract and construction boundary without wiring
+it into these explicit-slice verifier APIs.
+
+[Ticket 0042](../../tickets/0042-origin-binding-bundle-v0.md) and
+[`origin-binding-bundle-v0.md`](origin-binding-bundle-v0.md) ratify a separate
+two-sibling-family origin-binding statement contract. That contract does not
+change either acquisition/direct-derivation schema, canonical vector, root or
+verifier semantic defined here.
 
 ## 2. Purpose
 
@@ -42,8 +50,11 @@ and direct-derivation bundle identities, schemas, canonical bytes, root
 construction, anchor matching, and standing-inert verifier outcomes for the
 first implementation family.
 
-This selection does not pin an origin-binding family. It does not change the
-deterministic resolution boundary:
+This selection remains the unchanged provenance basis referenced by the
+separate direct-acquisition and direct-derivation origin-binding families in
+[`origin-binding-bundle-v0.md`](origin-binding-bundle-v0.md). Origin binding
+does not extend either schema here and does not change the deterministic
+resolution boundary:
 
 ```text
 deterministic provenance/origin resolution input
@@ -55,7 +66,9 @@ same H + same P + same M
 -> same derived result
 ```
 
-The exact `ResolutionContentClosureV0` manifest encoding remains deferred.
+The exact `ResolutionContentClosureV0` contract and implementation are landed
+separately. No closure-to-verifier wiring, origin-binding verifier or origin
+admission exists in this document.
 
 ## 4. Selected identities
 
@@ -850,19 +863,19 @@ export may use DSSE/in-toto under a separately reviewed contract.
 
 ## 22. Future implementation sequence
 
-1. Ratify and merge Ticket 0039.
-2. Design the immutable production `ResolutionContentClosureV0` construction
-   boundary.
-3. Pin the origin-binding bundle schema.
-4. Pin explicit origin-admission policy.
-5. Implement standing-inert origin-admission audit.
-6. Implement admitted-contribution audit.
-7. Pin policy-v3 aggregation.
-8. Implement conservative aggregation.
+1. Artifact-provenance verifier and portable fixtures — landed by Ticket 0039.
+2. Immutable production `ResolutionContentClosureV0` contract and
+   construction — landed by Tickets 0040 and 0041.
+3. Exact two-family origin-binding bundle contract — ratified by Ticket 0042.
+4. Standing-inert origin-binding verifier — next.
+5. Standing-inert origin-admission audit.
+6. Admitted-contribution audit.
+7. Policy-v3 contract.
+8. Conservative aggregation.
 
-Step 2 is the next separately reviewed slice. Ticket 0039 implements no closure
-manifest, origin binding, origin admission, contribution audit, aggregation or
-standing effect.
+The acquisition/direct-derivation protocol remains unchanged. Steps 4-8 are
+future work; this document implements no origin binding, origin admission,
+contribution audit, aggregation or standing effect.
 
 ## 23. Frozen surfaces and explicit non-goals
 

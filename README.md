@@ -289,5 +289,11 @@ shell execution is unavailable.
     reproduce the pinned vectors. No loader or verifier orchestration exists;
     artifact-provenance verification remains explicit-slice based, and no
     origin binding, admission, aggregation or writer is introduced.
+19. **Origin-binding bundle v0 contract — ratified.**
+    [`docs/design/origin-binding-bundle-v0.md`](docs/design/origin-binding-bundle-v0.md)
+    defines two exact sibling schemas that bind one exact contribution and
+    provenance basis to one claimed origin group and authority path. No parser,
+    verifier, authority trust, admission, support, aggregation or writer
+    exists. The standing-inert origin-binding verifier is next.
 
 Conserve the log. Derive the rest.
