@@ -507,9 +507,10 @@ must not erase truth-bearing contradiction debt or settle factual truth.
 The direct policy-v2 rule consumes one successful closed verifier context and
 contributes `Supported` without combining evidence. It introduces no numeric
 threshold, source count, corroboration, or independence claim. Origin admission
-is not support, one admitted group is not aggregation, and steps 5-7 must
-remain standing-inert. Step 8 is future work: this note neither defines a
-threshold nor creates policy v3.
+is not support, and one admitted group is not aggregation. Steps 8-10 must
+remain standing-inert. Step 11 is future work: this note neither defines a
+threshold nor creates policy v3. Step 12 remains the later conservative
+aggregation implementation.
 
 ## Future Tests
 
