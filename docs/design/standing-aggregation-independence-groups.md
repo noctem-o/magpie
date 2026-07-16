@@ -14,14 +14,15 @@ Sequencing status: replayable verifier admission, standing-inert verifier
 context, one direct policy-v2 `Supported` rule, and policy-v2 composition
 hardening are landed. Artifact-provenance verification and immutable
 resolution-content closure construction are landed. The exact two-family
-origin-binding bundle contract is ratified by Ticket 0042, but its verifier and
-origin admission remain absent. Genuine aggregation remains blocked until the
-standing-inert origin-binding verifier, origin-admission audit and
-admitted-contribution audit exist.
+origin-binding verifier is implemented by Ticket 0045. The complete
+standing-inert origin-admission audit is implemented by Ticket 0048. The
+admitted-contribution audit is ratified by Ticket 0049, but its runtime
+implementation is absent. Standing policy v3 and conservative aggregation
+remain future work.
 
-An origin-group value in a verified binding will still be only a claimed group
-until an explicit origin-admission policy admits it. Distinct claimed groups
-are not distinct admitted groups and create no corroboration separation.
+An origin-group value in a verified binding remains only a claimed group until
+the implemented origin-admission policy admits it. Distinct claimed groups are
+not distinct admitted groups and create no corroboration separation.
 
 ## Purpose
 
@@ -58,8 +59,8 @@ later implementation phase; it does not change runtime `StandingView` behavior.
   the existing low-level `LogWriter` capability remains unchanged.
 - No `EpistemicGate`.
 - No achieved-standing aggregation implementation.
-- No artifact, acquisition, derivation, origin-binding, or origin-admission
-  implementation.
+- No admitted-contribution runtime, support-contribution, standing-policy-v3,
+  or aggregation implementation.
 - No contradiction debt implementation.
 - No invalidation implementation.
 - No supersession implementation.
@@ -331,9 +332,16 @@ origin-admission policy, and no unresolved binding conflict. Origin admission
 still does not create a support contribution.
 
 The exact origin-binding schemas are defined separately by
-[`origin-binding-bundle-v0.md`](origin-binding-bundle-v0.md). A future matched
-origin-binding receipt will verify only the canonical anchored grouping
-assertion. It will not trust its claimed authority or admit its claimed group.
+[`origin-binding-bundle-v0.md`](origin-binding-bundle-v0.md). The implemented
+matched origin-binding receipt verifies only the canonical anchored grouping
+assertion. It does not trust its claimed authority or admit its claimed group.
+
+The implemented `OriginAdmissionAuditV0` separately applies the exact compiled
+origin-admission policy and may assign one exact contribution to one opaque
+group. That assignment remains standing-inert and is not a support
+contribution. Ticket 0049 ratifies the next standing-inert audit that will
+associate exact graph-policy eligibility and exact evidence artifact identity
+with that admitted-origin result; its runtime resolver remains absent.
 
 The standing-inert provenance/origin audit freezes external-object availability
 in an immutable resolution content closure. Its deterministic input is
@@ -489,12 +497,13 @@ must not erase truth-bearing contradiction debt or settle factual truth.
 3. Immutable resolution-content closure contract and construction — landed by
    Tickets 0040 and 0041.
 4. Exact two-family origin-binding bundle contract — ratified by Ticket 0042.
-5. Ratify the Ticket 0043 historical-review remediation contract.
-6. Add the dedicated legacy raw-refutation regression tests.
-7. Implement verification-only count/tip mode without retained parsed events.
-8. Add the standing-inert origin-binding verifier.
-9. Add a standing-inert origin-admission audit.
-10. Add an admitted-contribution audit surface with no aggregation.
+5. Historical-review remediation contract — ratified by Ticket 0043.
+6. Standing-inert origin-binding verifier — implemented by Ticket 0045.
+7. Exact origin-admission replay substrate — implemented by Ticket 0047.
+8. Standing-inert origin-admission audit — implemented by Ticket 0048.
+9. Admitted-contribution audit contract — ratified by Ticket 0049; runtime
+   implementation absent.
+10. Implement the standing-inert admitted-contribution audit.
 11. Pin one explicit standing policy v3 aggregation rule.
 12. Implement conservative aggregation.
 13. Add direct refutation through admitted verifier context.
@@ -507,10 +516,12 @@ must not erase truth-bearing contradiction debt or settle factual truth.
 The direct policy-v2 rule consumes one successful closed verifier context and
 contributes `Supported` without combining evidence. It introduces no numeric
 threshold, source count, corroboration, or independence claim. Origin admission
-is not support, and one admitted group is not aggregation. Steps 8-10 must
-remain standing-inert. Step 11 is future work: this note neither defines a
-threshold nor creates policy v3. Step 12 remains the later conservative
-aggregation implementation.
+is not support, and one admitted group is not aggregation. The implemented
+origin-binding and origin-admission layers and the ratified admitted-
+contribution layer are standing-inert. Step 10 is the next runtime slice. Step
+11 remains future policy work: this note neither defines a threshold nor
+creates policy v3. Step 12 remains the later conservative aggregation
+implementation.
 
 ## Future Tests
 
@@ -566,8 +577,11 @@ These are future tests for later PRs. This note does not add tests.
   are not authority unless a versioned policy admits them.
 - Confirm artifact/bundle verification, origin-admission audit, and
   admitted-contribution audit all precede aggregation.
-- Confirm the binding contract is ratified while its verifier and admission
-  remain absent, and claimed group values are not admitted groups.
+- Confirm the origin-binding verifier and origin-admission audit are
+  implemented, while the Ticket 0049 admitted-contribution audit is ratified
+  but its runtime implementation remains absent.
+- Confirm a verified binding's claimed group is not an admitted group until
+  the origin-admission policy admits the exact contribution assignment.
 - Confirm aggregation consumes an immutable audit derived from `(H, P, M)` and
   performs no ambient CAS, filesystem, callback, or network lookup.
 - Confirm origin admission is not support and one admitted group is not
