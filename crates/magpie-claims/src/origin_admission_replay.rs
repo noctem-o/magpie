@@ -70,11 +70,13 @@ use serde::Serialize;
 
 use crate::artifact_provenance_verifier::ArtifactProvenanceAnchorSelectorV0;
 use crate::deadbolt_context::DeadboltAnchorOccurrence;
+use crate::origin_admission_audit::{resolve_origin_admission_audit_v0, OriginAdmissionAuditV0};
 use crate::origin_binding_verifier::{
     ORIGIN_BINDING_ACQUISITION_BUNDLE_KIND_V0, ORIGIN_BINDING_CANONICALIZATION_PROFILE_V0,
     ORIGIN_BINDING_DERIVATION_BUNDLE_KIND_V0, ORIGIN_BINDING_WITNESS_ALGORITHM_V0,
 };
 use crate::replay_snapshot::{replay_standing_context_with_summary, StandingReplaySnapshot};
+use crate::resolution_content_closure::ResolutionContentClosureV0;
 
 /// Exact identity of the completely verified log prefix used for one replay.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -119,7 +121,13 @@ impl OriginAdmissionReplayContextV0 {
         &self.verified_prefix_identity
     }
 
-    #[allow(dead_code)] // Consumed by the separately reviewed future audit slice.
+    pub fn resolve_origin_admission_audit_v0(
+        &self,
+        closure: &ResolutionContentClosureV0,
+    ) -> OriginAdmissionAuditV0 {
+        resolve_origin_admission_audit_v0(self, closure)
+    }
+
     pub(crate) fn origin_binding_candidates_v0(&self) -> Vec<OriginBindingCandidateV0> {
         self.snapshot
             .anchors()
@@ -166,7 +174,6 @@ pub(crate) struct OriginBindingCandidateV0 {
     occurrences: Vec<DeadboltAnchorOccurrence>,
 }
 
-#[allow(dead_code)] // Getters are the intended seam for the future audit slice.
 impl OriginBindingCandidateV0 {
     pub(crate) fn selector(&self) -> &ArtifactProvenanceAnchorSelectorV0 {
         &self.selector

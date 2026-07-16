@@ -272,17 +272,19 @@ shell execution is unavailable.
     `ResolutionContentClosureV0` construction is implemented separately by
     Ticket 0041. The public explicit-slice APIs remain unchanged; Ticket 0045
     adds only crate-private closure-aware reuse for origin-binding composition.
-    Origin admission, admitted-contribution audit, aggregation, policy v3,
-    refutation, contradiction debt, invalidation, supersession,
-    `EpistemicGate`, and ordinary claim-bearing writer surfaces remain later.
+    Origin admission is implemented separately by Ticket 0048. Admitted-
+    contribution audit, aggregation, policy v3, refutation, contradiction
+    debt, invalidation, supersession, `EpistemicGate`, and ordinary claim-
+    bearing writer surfaces remain later.
 17. **Resolution content closure v0 contract — landed.**
     [`docs/design/resolution-content-closure-v0.md`](docs/design/resolution-content-closure-v0.md)
     and [Ticket 0040](tickets/0040-resolution-content-closure-v0.md) now specify
     the exact finite keyed availability universe, canonical manifest and
     closure identity used as input `M` for deterministic resolution. The
     public artifact-provenance verifier methods still receive explicit optional
-    byte slices. Origin admission, admitted-contribution audit, aggregation and
-    ordinary claim-bearing writer surfaces remain future work.
+    byte slices. Origin admission is implemented separately by Ticket 0048;
+    admitted-contribution audit, aggregation and ordinary claim-bearing writer
+    surfaces remain future work.
 18. **Resolution content closure v0 implementation — landed.** Exact bounded
     construction now collapses identical duplicates, rejects deterministic
     conflicts, owns immutable keyed bytes, and exposes exact read-only lookup.
@@ -297,36 +299,40 @@ shell execution is unavailable.
     canonical root and same-replay anchor verification, exact claim/evidence/
     edge contribution revalidation, nested artifact-provenance composition,
     artifact coherence, and private-construction audit receipts. Matched
-    receipts verify claimed governance content only. Authority trust, origin
-    admission, conflict admission fold, admitted-contribution audit, support,
-    policy v3, aggregation, the ordinary claim-bearing writer,
-    `EpistemicGate`, and their standing effects remain future work.
-20. **Origin-admission audit v0 contract — ratified, not implemented.**
+    receipts verify claimed governance content only. The compiled authority
+    classification and standing-inert origin-admission fold are implemented
+    separately by Ticket 0048. Admitted-contribution audit, support, policy
+    v3, aggregation, the ordinary claim-bearing writer, `EpistemicGate`, and
+    their standing effects remain future work.
+20. **Origin-admission audit v0 — implemented by Ticket 0048.**
     [`docs/design/origin-admission-audit-v0.md`](docs/design/origin-admission-audit-v0.md)
     and [Ticket 0046](tickets/0046-origin-admission-audit-v0-contract.md)
-    freeze the exact `magpie-origin-admission-v0` policy identity, its one
-    trusted grouping-authority path, the complete replay-derived candidate-
-    universe law, exact verified-prefix identity, deterministic duplicate and
-    conflict handling, and one standing-inert audit output. The standing-inert
-    origin-binding verifier v0 landed first through Ticket 0045, and Ticket
-    0047 implements the separately versioned replay substrate described below;
-    origin admission and the audit resolver do not yet exist. The ordered
-    future work remains origin-admission audit implementation, admitted-
-    contribution audit, policy v3, conservative aggregation, `EpistemicGate`,
-    and an ordinary claim-bearing writer.
-21. **Origin-admission replay substrate v0 — implemented.** One-read verified
+    freeze the contract; [Ticket 0048](tickets/0048-origin-admission-audit-v0-implementation.md)
+    implements complete same-replay candidate auditing over exact verified-
+    prefix and closure identities. The fixed `magpie-origin-admission-v0`
+    policy selects one exact trusted authority pair, globally fails admission
+    closed when any candidate binding bytes are unavailable, classifies every
+    candidate deterministically, collapses duplicate trusted assignments
+    without amplification, detects trusted conflicts, scopes eligible
+    unresolved blockers to one exact contribution and namespace, and emits
+    deterministic standing-inert audit bytes. It establishes origin-group
+    assignment only. It creates no support, aggregation, statistical
+    independence or standing. Admitted-contribution audit, support
+    contribution, standing policy v3, conservative aggregation, statistical
+    independence, `EpistemicGate`, an ordinary claim-bearing writer, loader,
+    CAS, and filesystem or network ingestion remain future work.
+21. **Origin-admission replay substrate v0 — implemented by Ticket 0047.**
+    One-read verified
     replay now returns an exact event-count and chain-tip summary while
     preserving the existing replay API. A separately versioned origin-
     admission replay context co-derives that exact prefix identity with the
     unchanged standing and anchor projections, then provides crate-private,
     complete deterministic enumeration of supported acquisition and derivation
     origin-binding anchor candidates. Exact repeated anchor occurrences remain
-    attached without candidate or authority amplification. Binding-byte
-    completeness, origin-admission candidate audit, trusted-authority
-    classification, scoped unresolved eligibility, duplicate collapse,
-    conflict detection, `OriginAdmissionAuditV0`, admitted-contribution audit,
-    policy v3, aggregation, `EpistemicGate`, and an ordinary claim-bearing
-    writer remain future work. No runtime origin admission exists.
+    attached without candidate or authority amplification. Ticket 0048 consumes
+    this exact same-replay carrier for the complete standing-inert
+    `OriginAdmissionAuditV0`; the substrate itself still grants no origin
+    admission or standing authority.
 22. **Historical review remediation contract.**
     [`docs/design/historical-review-remediation-ledger.md`](docs/design/historical-review-remediation-ledger.md)
     and [Ticket 0043](tickets/0043-historical-review-remediation-contract.md)
