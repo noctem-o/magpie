@@ -139,11 +139,11 @@ The positive authority law is:
 ```text
 one exact internally derived AdmittedContributionV0
 +
-complete upstream identity, compiled-policy, admitted-candidate trace,
-alignment and completion/disposition validation
+complete upstream identity, compiled-policy, candidate-universe uniqueness,
+admitted-candidate trace, alignment and completion/disposition validation
 +
-exact per-contribution lane, inherited identity, origin-group and
-supporting-selector validation
+exact per-contribution lane, inherited replay-reference, artifact,
+namespace, origin-group and supporting-selector validation
 +
 compiled policy magpie-support-contribution-v0
 ->
@@ -227,16 +227,18 @@ The remaining gap is a deterministic, standing-inert layer that:
 2. validates every exact upstream identity in fixed first-failure order;
 3. validates the two fixed compiled support-policy cells independently of
    admitted contribution count;
-4. validates every `Admitted` candidate's enclosing replay-derived trace
+4. rejects duplicate edge IDs across the complete candidate-audit universe;
+5. validates every `Admitted` candidate's enclosing replay-derived trace
    against its nested admitted value;
-5. proves trace-aligned candidate admissions and top-level admissions are
+6. proves trace-aligned candidate admissions and top-level admissions are
    identical maps;
-6. validates that upstream completion agrees with every candidate disposition;
-7. validates every remaining inherited contribution invariant, including the
-   copied artifact digest, origin-group key and supporting selectors;
-8. maps each aligned admitted contribution one-to-one into a typed support
+7. validates that upstream completion agrees with every candidate disposition;
+8. validates every remaining inherited contribution invariant, including all
+   four replay references, the copied artifact digest, origin-group key and
+   supporting selectors;
+9. maps each aligned admitted contribution one-to-one into a typed support
    contribution; and
-9. produces deterministic global completion or rejection without partial
+10. produces deterministic global completion or rejection without partial
    output.
 
 The layer must not reopen graph structure, artifact verification, origin
@@ -453,12 +455,12 @@ origin-decision lookup
 The support-contribution layer must consume that result, not implement a
 second admitted-contribution engine.
 
-Candidate audits are consulted only to verify that every candidate `Admitted`
-result is exactly aligned first with its enclosing replay-derived trace and
-then with the top-level admitted output, and that every candidate disposition
-agrees with upstream completion. Policy-ineligible, origin-incomplete,
-decision-absent, conflicted and unresolved candidates are not support-source
-entries.
+Candidate audits are consulted only to verify that the complete candidate
+universe contains unique edge IDs, that every candidate `Admitted` result is
+exactly aligned first with its enclosing replay-derived trace and then with the
+top-level admitted output, and that every candidate disposition agrees with
+upstream completion. Policy-ineligible, origin-incomplete, decision-absent,
+conflicted and unresolved candidates are not support-source entries.
 
 ## Upstream identity validation
 
@@ -518,8 +520,9 @@ NoPrivilegedContext
 These are global composition checks. They are not properties of one particular
 `AdmittedContributionV0`.
 
-They must execute before admitted-candidate trace consistency, candidate-map
-insertion, duplicate detection, admitted-set alignment, upstream
+They must execute before duplicate candidate edge-ID validation,
+admitted-candidate trace consistency, candidate-map insertion,
+contribution-identity duplicate detection, admitted-set alignment, upstream
 completion/disposition consistency, per-contribution invariants, upstream
 completion mapping or support projection. They must execute even when:
 
@@ -538,9 +541,71 @@ implementation must not attach a synthetic contribution identity, manufacture
 an empty or sentinel contribution, or wrap the failure in
 `ContributionInvariantMismatch`.
 
+## Candidate-universe edge-ID uniqueness
+
+Immediately after the two fixed compiled-policy checks, validate the exact
+`edge_id` of every candidate audit, regardless of disposition.
+
+The complete candidate universe must satisfy:
+
+```text
+every candidate audit has a globally unique exact edge_id
+```
+
+This check includes candidates whose dispositions are:
+
+```text
+PolicyIneligible
+OriginAdmissionIncomplete
+OriginDecisionAbsent
+OriginNotAdmitted
+Admitted
+```
+
+It must execute before admitted-candidate trace consistency, candidate
+admitted-map insertion, contribution-identity duplicate checks,
+candidate/top-level alignment, completion/disposition validation,
+per-contribution invariants, completion mapping or projection.
+
+The future implementation must derive duplicate detection structurally and
+deterministically. If more than one edge ID is duplicated, it reports the
+lexically first exact duplicated edge ID, independent of caller or vector
+order.
+
+It must not:
+
+```text
+repair
+deduplicate
+prefer one candidate
+silently collapse entries
+limit the check to Admitted candidates
+```
+
+Any duplicate produces:
+
+```rust
+DuplicateCandidateEdgeId {
+    edge_id: String,
+}
+```
+
+This is a global candidate-universe composition failure. It carries no
+synthetic `ContributionIdentityV0`.
+
+The failure law is:
+
+```text
+duplicate candidate edge ID
+->
+UpstreamCompositionRejected
+->
+zero support contributions
+```
+
 ## Admitted-candidate trace consistency
 
-Immediately after the two fixed compiled-policy checks, and before candidate
+Immediately after duplicate candidate edge-ID validation, and before candidate
 admitted-map insertion, duplicate candidate-admission detection, top-level
 alignment, completion/disposition validation, per-contribution invariants,
 completion mapping or projection, validate every candidate whose disposition
@@ -797,6 +862,7 @@ AdmittedContributionV0
 × candidate ceiling Supported
 × support_ceiling cell Supported
 × support-context requirement NoPrivilegedContext
+× four exact replay references with byte length 1..=1024
 × sha256 artifact identity with an exact lowercase-hex-64 digest
 ->
 SupportContributionV0
@@ -812,6 +878,8 @@ exact ExternalSource × ExternalReport support cell
 exact Supported ceiling
 +
 exact NoPrivilegedContext classification
++
+four exact inherited replay references with byte length 1..=1024
 +
 exact sha256 contribution artifact with a 64-character lowercase
 hexadecimal digest
@@ -864,37 +932,76 @@ order:
 5. candidate_ceiling
    == Supported
 
-6. contribution.artifact_algorithm
+6. contribution.target_claim_id
+   satisfies the exact origin-binding replay-reference grammar
+
+7. contribution.source_evidence_id
+   satisfies the exact origin-binding replay-reference grammar
+
+8. contribution.justification_edge_id
+   satisfies the exact origin-binding replay-reference grammar
+
+9. contribution.scope_ref
+   satisfies the exact origin-binding replay-reference grammar
+
+10. contribution.artifact_algorithm
    == sha256
 
-7. contribution.artifact_digest
-   is exactly 64 lowercase hexadecimal ASCII characters
+11. contribution.artifact_digest
+    is exactly 64 lowercase hexadecimal ASCII characters
 
-8. namespace.origin_admission_policy_id
-   == magpie-origin-admission-v0
+12. namespace.origin_admission_policy_id
+    == magpie-origin-admission-v0
 
-9. namespace.target_claim_id
-   == contribution.target_claim_id
+13. namespace.target_claim_id
+    == contribution.target_claim_id
 
-10. namespace.scope_ref
-   == contribution.scope_ref
+14. namespace.scope_ref
+    == contribution.scope_ref
 
-11. origin_group
+15. origin_group
     satisfies the exact origin-binding protocol-identifier grammar
 
-12. supporting_origin_candidate_selectors
+16. supporting_origin_candidate_selectors
     is non-empty
 
-13. every supporting selector
+17. every supporting selector
     satisfies the exact origin-binding selector grammar
 
-14. supporting selector vector
+18. supporting selector vector
     is strictly increasing under exact derived Ord
 ```
 
 Any invariant failure rejects the complete support-contribution audit
 globally. The future implementation must not emit a partial support set from
 an internally inconsistent admitted set.
+
+The exact replay-reference grammar is:
+
+```text
+byte length:
+1..=1024
+
+no other normalization or alphabet restriction
+```
+
+Validation is over the exact UTF-8 bytes through string byte length. Empty
+values and values longer than 1,024 bytes are invalid. The implementation must
+not trim, normalize, truncate, reinterpret or repair any reference.
+
+The support-contribution implementation must apply this grammar separately to
+these exact inherited fields:
+
+```text
+ContributionIdentityV0.target_claim_id
+ContributionIdentityV0.source_evidence_id
+ContributionIdentityV0.justification_edge_id
+ContributionIdentityV0.scope_ref
+```
+
+The namespace target and scope equalities remain mandatory after the
+corresponding contribution references have been validated. Equality does not
+replace validity, and validity does not replace equality.
 
 The exact artifact-digest grammar is:
 
@@ -986,10 +1093,16 @@ run_id
 ```
 
 The future implementation must reuse the existing origin-binding grammars
-through exactly these three narrow crate-private seams in
+through exactly these four narrow crate-private seams in
 `crates/magpie-claims/src/origin_binding_verifier.rs`:
 
 ```rust
+pub(crate) fn valid_origin_binding_replay_reference_v0(
+    value: &str,
+) -> bool {
+    !value.is_empty() && value.len() <= 1_024
+}
+
 pub(crate) fn valid_origin_group_v0(value: &str) -> bool {
     valid_identifier(value)
 }
@@ -1019,6 +1132,12 @@ pub(crate) fn valid_origin_binding_selector_v0(
 Their exact delegation is:
 
 ```text
+valid_origin_binding_replay_reference_v0
+-> exact existing replay-reference byte-length grammar
+
+existing validate_replay_reference
+-> valid_origin_binding_replay_reference_v0
+
 valid_origin_group_v0
 -> existing valid_identifier
 
@@ -1031,10 +1150,27 @@ valid_origin_binding_selector_v0
  + existing valid_identifier
 ```
 
-The support-audit implementation must call these helpers. All three must remain
-crate-private, add no public API, accept no configurable grammar, expected
-kind, profile, algorithm, length or alphabet, and change no origin-binding
-behaviour, output or canonical bytes.
+The later runtime PR must make the existing private
+`validate_replay_reference` delegate to
+`valid_origin_binding_replay_reference_v0`, so the replay-reference grammar has
+one implementation source. The support-audit implementation must call the
+replay-reference helper for all four inherited fields and must call the other
+three helpers for their exact inherited values.
+
+All four helpers must remain crate-private and expose:
+
+```text
+no public API
+no configurable maximum
+no caller-selected grammar
+no normalization
+no alternate validation profile
+no test-only public switch
+```
+
+They must accept no configurable expected kind, profile, algorithm, length or
+alphabet and must change no origin-binding behaviour, output or canonical
+bytes.
 
 The future implementation must not expose a generic public identifier
 validator, caller-selected validation profile, runtime grammar registry, new
@@ -1064,23 +1200,25 @@ Freeze this exact global composition-validation order:
 
 8. compiled support-context cell
 
-9. admitted-candidate trace consistency
+9. duplicate candidate edge ID
 
-10. duplicate candidate-admission identity
+10. admitted-candidate trace consistency
 
-11. duplicate top-level-admission identity
+11. duplicate candidate-admission identity
 
-12. admitted key-set equality
+12. duplicate top-level-admission identity
 
-13. complete admitted-value equality
+13. admitted key-set equality
 
-14. upstream completion/disposition consistency
+14. complete admitted-value equality
 
-15. per-contribution invariants
+15. upstream completion/disposition consistency
 
-16. upstream completion mapping
+16. per-contribution invariants
 
-17. support-contribution projection
+17. upstream completion mapping
+
+18. support-contribution projection
 ```
 
 An internally inconsistent upstream audit is rejected even if its completion
@@ -1094,6 +1232,10 @@ precedes
 compiled-policy failure
 
 compiled-policy failure
+precedes
+duplicate candidate edge-ID failure
+
+duplicate candidate edge-ID failure
 precedes
 candidate trace failure
 
@@ -1119,8 +1261,9 @@ projection
 ```
 
 Upstream completion is mapped only after all identity, compiled-policy,
-candidate-trace, alignment, completion/disposition and per-contribution checks
-succeed. No partial support-contribution vector may survive any failure.
+candidate-universe uniqueness, candidate-trace, alignment,
+completion/disposition and per-contribution checks succeed. No partial
+support-contribution vector may survive any failure.
 
 The future top-level completion is:
 
@@ -1142,8 +1285,9 @@ pub enum SupportContributionAuditCompletionV0 {
 Laws:
 
 ```text
-identity, compiled-policy cells, admitted-candidate trace, alignment,
-completion/disposition and invariants valid
+identity, compiled-policy cells, candidate edge-ID uniqueness,
+admitted-candidate trace, alignment, completion/disposition and invariants
+valid
 +
 upstream completion Complete
 ->
@@ -1151,8 +1295,9 @@ Complete
 ```
 
 ```text
-identity, compiled-policy cells, admitted-candidate trace, alignment,
-completion/disposition and invariants valid
+identity, compiled-policy cells, candidate edge-ID uniqueness,
+admitted-candidate trace, alignment, completion/disposition and invariants
+valid
 +
 upstream OriginAdmissionIncomplete
 ->
@@ -1162,8 +1307,9 @@ zero support contributions
 ```
 
 ```text
-any upstream identity, compiled-policy, admitted-candidate trace, alignment,
-completion/disposition or invariant failure
+any upstream identity, compiled-policy, candidate edge-ID uniqueness,
+admitted-candidate trace, alignment, completion/disposition or invariant
+failure
 ->
 UpstreamCompositionRejected
 ->
@@ -1262,6 +1408,10 @@ pub enum SupportContributionCompositionFailureV0 {
 
     SupportContextRequirementMismatch,
 
+    DuplicateCandidateEdgeId {
+        edge_id: String,
+    },
+
     AdmittedCandidateTraceMismatch {
         edge_id: String,
     },
@@ -1297,8 +1447,8 @@ pub enum SupportContributionCompositionFailureV0 {
 }
 ```
 
-The two global policy-cell failures carry no `ContributionIdentityV0`.
-Their exact semantics are:
+The two global policy-cell failures and the candidate-universe uniqueness
+failure carry no `ContributionIdentityV0`. Their exact semantics are:
 
 ```text
 SupportCeilingPolicyMismatch:
@@ -1312,7 +1462,16 @@ the compiled support_context_requirement(
     ExternalSource,
     ExternalReport,
 ) cell is not exactly NoPrivilegedContext
+
+DuplicateCandidateEdgeId:
+the complete candidate-audit universe contains more than one candidate with
+the exact reported edge_id
 ```
+
+`DuplicateCandidateEdgeId` reports the lexically first exact duplicated edge
+ID, independent of caller or vector order. It is checked across all candidate
+audits before admitted-candidate trace validation or candidate admitted-map
+insertion.
 
 `AdmittedCandidateTraceMismatch` reports the exact `edge_id` of the first
 malformed admitted candidate in exact candidate edge-ID order. It carries no
@@ -1356,6 +1515,10 @@ pub enum SupportContributionInvariantReasonV0 {
     EvidenceKindMismatch,
     ClaimDomainMismatch,
     CandidateCeilingMismatch,
+    InvalidTargetClaimReference,
+    InvalidSourceEvidenceReference,
+    InvalidJustificationEdgeReference,
+    InvalidScopeReference,
     ArtifactAlgorithmMismatch,
     InvalidArtifactDigest,
     NamespacePolicyMismatch,
@@ -1374,13 +1537,29 @@ Semantics:
 CandidateCeilingMismatch:
 the admitted value does not carry exact Supported
 
-InvalidOriginGroup:
-the exact inherited origin_group does not satisfy the existing
-origin-binding protocol-identifier grammar
+InvalidTargetClaimReference:
+the inherited contribution target_claim_id does not satisfy the exact
+origin-binding replay-reference grammar
+
+InvalidSourceEvidenceReference:
+the inherited contribution source_evidence_id does not satisfy the exact
+origin-binding replay-reference grammar
+
+InvalidJustificationEdgeReference:
+the inherited contribution justification_edge_id does not satisfy the exact
+origin-binding replay-reference grammar
+
+InvalidScopeReference:
+the inherited contribution scope_ref does not satisfy the exact origin-binding
+replay-reference grammar
 
 InvalidArtifactDigest:
 the inherited contribution artifact digest is not exactly 64 lowercase
 hexadecimal ASCII characters
+
+InvalidOriginGroup:
+the exact inherited origin_group does not satisfy the existing
+origin-binding protocol-identifier grammar
 
 MissingSupportingOriginSelector:
 the inherited supporting selector vector is empty
@@ -1394,7 +1573,7 @@ the non-empty, individually valid supporting selector vector is not strictly
 increasing under ArtifactProvenanceAnchorSelectorV0::Ord
 ```
 
-This closed vocabulary contains fourteen contribution-specific reasons. Fixed
+This closed vocabulary contains eighteen contribution-specific reasons. Fixed
 compiled-policy drift is represented only by the two global composition
 failures and must fail closed rather than silently widening or weakening the
 contract.
@@ -1534,6 +1713,10 @@ Freeze:
 candidate admitted map:
 exact ContributionIdentityV0 order
 
+duplicate candidate edge ID:
+lexically first exact duplicated edge ID across all candidate audits,
+independent of caller or vector order
+
 admitted-candidate trace mismatch:
 first malformed admitted candidate in exact edge-ID order
 
@@ -1560,12 +1743,14 @@ completion/disposition mismatch:
 first inconsistent candidate in exact edge-ID order
 ```
 
-When more than one duplicate candidate identity, duplicate top-level identity,
-complete-value mismatch or contribution-invariant mismatch exists, the global
-failure reports the first affected contribution in exact
-`ContributionIdentityV0` order. Within that contribution, invariant reasons
-use the exact fourteen-step first-failure order. Individual selector validity
-is checked before selector-vector canonicality.
+When more than one duplicated edge ID exists, the global failure reports the
+lexically first exact duplicated edge ID. When more than one duplicate
+candidate identity, duplicate top-level identity, complete-value mismatch or
+contribution-invariant mismatch exists, the global failure reports the first
+affected contribution in exact `ContributionIdentityV0` order. Within that
+contribution, invariant reasons use the exact eighteen-step first-failure
+order. Individual selector validity is checked before selector-vector
+canonicality.
 
 No caller order, event insertion order, group lexical preference or write
 recency selects an outcome.
@@ -1948,6 +2133,37 @@ closure-identity mismatch
 ->
 global rejection
 
+two admitted candidates with the same edge ID
+but different source evidence IDs and distinct full contribution identities
+->
+DuplicateCandidateEdgeId
+->
+zero support contributions
+
+duplicate edge IDs among non-Admitted candidates
+->
+DuplicateCandidateEdgeId
+
+one admitted and one non-Admitted candidate sharing an edge ID
+->
+DuplicateCandidateEdgeId
+
+multiple duplicated edge IDs
+->
+lexically first exact duplicated edge ID reported
+
+duplicate edge ID plus admitted-candidate trace mismatch
+->
+DuplicateCandidateEdgeId wins by precedence
+
+duplicate edge ID
+->
+detected before candidate admitted-map insertion
+
+valid unique candidate edge IDs
+->
+normal composition continues
+
 otherwise aligned admitted candidate
 +
 separately mutate:
@@ -2002,6 +2218,97 @@ global rejection
 every per-contribution invariant drift
 ->
 global rejection
+
+empty contribution.target_claim_id
+->
+InvalidTargetClaimReference
+
+1,025-byte contribution.target_claim_id
+->
+InvalidTargetClaimReference
+
+1-byte contribution.target_claim_id
+->
+valid replay-reference boundary
+
+1,024-byte contribution.target_claim_id
+->
+valid replay-reference boundary
+
+empty contribution.source_evidence_id
+->
+InvalidSourceEvidenceReference
+
+1,025-byte contribution.source_evidence_id
+->
+InvalidSourceEvidenceReference
+
+1-byte contribution.source_evidence_id
+->
+valid replay-reference boundary
+
+1,024-byte contribution.source_evidence_id
+->
+valid replay-reference boundary
+
+empty contribution.justification_edge_id
+->
+InvalidJustificationEdgeReference
+
+1,025-byte contribution.justification_edge_id
+->
+InvalidJustificationEdgeReference
+
+1-byte contribution.justification_edge_id
+->
+valid replay-reference boundary
+
+1,024-byte contribution.justification_edge_id
+->
+valid replay-reference boundary
+
+empty contribution.scope_ref
+->
+InvalidScopeReference
+
+1,025-byte contribution.scope_ref
+->
+InvalidScopeReference
+
+1-byte contribution.scope_ref
+->
+valid replay-reference boundary
+
+1,024-byte contribution.scope_ref
+->
+valid replay-reference boundary
+
+equal malformed contribution and namespace target or scope values
+->
+corresponding invalid-reference reason
+->
+rejected despite equality
+
+non-ASCII UTF-8 replay reference within the byte bound
+->
+valid
+
+multibyte UTF-8 replay reference exceeding 1,024 bytes
+->
+corresponding invalid-reference reason
+
+invalid replay reference plus artifact algorithm, artifact digest or namespace
+equality failure
+->
+invalid replay-reference reason wins by precedence
+
+invalid replay reference
+->
+zero support contributions
+
+invalid replay reference
+->
+no trimming, truncation, normalization or repair
 
 empty group
 ->
@@ -2300,18 +2607,20 @@ three exact compiled constants
 five standing-inert public audit types
 one exact context resolver method
 the smallest private composition helper needed for hostile tests
-three exact crate-private origin-binding grammar reuse helpers:
+four exact crate-private origin-binding grammar reuse helpers:
+- valid_origin_binding_replay_reference_v0
 - valid_origin_group_v0
 - valid_origin_binding_artifact_digest_v0
 - valid_origin_binding_selector_v0
 new support-contribution fixtures and tests
 ```
 
-These three crate-private helpers are the only permitted origin-binding module
-changes. They must delegate exactly as frozen above and must not change
-origin-binding behaviour, output, canonical bytes or public API. The later
-implementation must not otherwise mutate existing origin-binding,
-admitted-contribution or standing surfaces.
+These four crate-private helpers and the required delegation of the existing
+private `validate_replay_reference` implementation are the only permitted
+origin-binding module changes. They must delegate exactly as frozen above and
+must not change origin-binding behaviour, output, canonical bytes or public
+API. The later implementation must not otherwise mutate existing
+origin-binding, admitted-contribution or standing surfaces.
 
 ## Explicit non-goals
 
@@ -2366,17 +2675,18 @@ order:
 3. internally derive one admitted-contribution audit;
 4. validate the six upstream audit identities;
 5. validate the two fixed compiled support-policy cells;
-6. validate every `Admitted` candidate's enclosing trace against its nested
+6. validate unique edge IDs across every candidate audit;
+7. validate every `Admitted` candidate's enclosing trace against its nested
    `AdmittedContributionV0`;
-7. build candidate and top-level admitted maps and reject duplicate identities;
-8. validate exact admitted key-set and complete-value equality;
-9. validate upstream completion/disposition consistency;
-10. apply the fourteen per-contribution invariants;
-11. map upstream completion only after every composition and invariant check
+8. build candidate and top-level admitted maps and reject duplicate identities;
+9. validate exact admitted key-set and complete-value equality;
+10. validate upstream completion/disposition consistency;
+11. apply the eighteen per-contribution invariants;
+12. map upstream completion only after every composition and invariant check
     succeeds;
-12. project aligned admissions one-to-one in exact contribution order;
-13. serialize the typed top-level audit directly; and
-14. add fixtures, hostile tests and compile-fail tests.
+13. project aligned admissions one-to-one in exact contribution order;
+14. serialize the typed top-level audit directly; and
+15. add fixtures, hostile tests and compile-fail tests.
 
 After that runtime PR:
 
@@ -2408,12 +2718,17 @@ No later stage is ratified or implemented by Ticket 0051.
   `AdmittedContributionV0`, ordered by exact contribution identity.
 - Confirm graph, artifact and origin admission are not reopened.
 - Confirm upstream identity validation uses the exact six-step order.
-- Confirm the exact seventeen-stage composition-validation order.
+- Confirm the exact eighteen-stage composition-validation order.
 - Confirm the support-ceiling and support-context cells are global checks.
 - Confirm the global policy cells are checked for empty admitted sets.
 - Confirm the global policy cells are checked before completion mapping.
 - Confirm policy drift outranks origin incompleteness.
 - Confirm the two global policy failures carry no contribution identity.
+- Confirm duplicate edge IDs are rejected across all candidate dispositions.
+- Confirm duplicate candidate-edge rejection reports the lexically first exact
+  duplicated edge ID independent of caller or vector order.
+- Confirm duplicate candidate-edge rejection carries no contribution identity,
+  precedes candidate trace validation and produces zero support contributions.
 - Confirm every `Admitted` candidate's enclosing trace agrees with its nested
   `AdmittedContributionV0` across all eight exact fields.
 - Confirm candidate trace validation occurs before candidate-map insertion.
@@ -2433,6 +2748,12 @@ No later stage is ratified or implemented by Ticket 0051.
 - Confirm the only positive lane is exact
   `ExternalSource × ExternalReport × Supported × NoPrivilegedContext × sha256`.
 - Confirm `NoPrivilegedContext` grants no standalone admission or support.
+- Confirm all four inherited replay references use the exact UTF-8 byte-length
+  grammar `1..=1024` with no normalization or alphabet restriction.
+- Confirm replay-reference validation precedes artifact and namespace-equality
+  checks, while namespace target/scope equality remains mandatory.
+- Confirm invalid replay references reject the complete audit with zero support
+  contributions.
 - Confirm the artifact digest is exactly 64 lowercase hexadecimal ASCII
   characters.
 - Confirm artifact-digest grammar reuses the one exact crate-private
@@ -2450,12 +2771,14 @@ No later stage is ratified or implemented by Ticket 0051.
   and duplicate-free.
 - Confirm malformed selector vectors are never sorted, deduplicated or
   repaired.
-- Confirm the implementation permits exactly the three crate-private reuse
-  helpers `valid_origin_group_v0`,
+- Confirm the implementation permits exactly the four crate-private reuse
+  helpers `valid_origin_binding_replay_reference_v0`, `valid_origin_group_v0`,
   `valid_origin_binding_artifact_digest_v0` and
   `valid_origin_binding_selector_v0`.
-- Confirm the invariant vocabulary contains fourteen contribution-specific
-  reasons in the exact fourteen-step first-failure order.
+- Confirm the existing private `validate_replay_reference` implementation
+  delegates to `valid_origin_binding_replay_reference_v0`.
+- Confirm the invariant vocabulary contains eighteen contribution-specific
+  reasons in the exact eighteen-step first-failure order.
 - Confirm any composition or invariant failure produces zero support
   contributions globally.
 - Confirm complete-empty remains valid only when global policy validation
