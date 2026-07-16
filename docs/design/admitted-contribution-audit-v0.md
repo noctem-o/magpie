@@ -4,11 +4,13 @@
 
 Ratified contract.
 
-Runtime implementation absent.
+Runtime implemented by Ticket 0050.
 
 Standing unchanged.
 
-Ticket 0049 freezes the future standing-inert bridge:
+Support contribution absent.
+
+Ticket 0049 freezes, and Ticket 0050 implements, the standing-inert bridge:
 
 ```text
 verified replay structure
@@ -22,9 +24,13 @@ compiled admitted-contribution policy
 deterministic admitted-contribution audit
 ```
 
-This document defines the complete future implementation boundary. It adds no
-Rust, fixture, runtime resolver, support contribution, aggregation or standing
-change.
+This document preserves the complete ratified and implemented boundary. The
+runtime resolver, public audit types, fixtures and tests are landed. They add
+no support contribution, aggregation or standing change.
+
+`AdmittedContributionV0` remains standing-inert. Ticket 0051 defines the next
+positive-input boundary in
+[`support-contribution-audit-v0.md`](support-contribution-audit-v0.md).
 
 ## Purpose
 
@@ -106,11 +112,11 @@ same H + same Pₒ + same P꜀ + same M
 byte-identical admitted-contribution audit
 ```
 
-No ambient state participates. The future audit must perform no second replay,
+No ambient state participates. The implemented audit performs no second replay,
 filesystem scan, CAS lookup, network request, callback, plugin invocation,
 environment lookup, mutable-registry lookup or caller-directed search.
 
-The future resolver must internally derive `OriginAdmissionAuditV0` from the
+The implemented resolver internally derives `OriginAdmissionAuditV0` from the
 same private-construction `OriginAdmissionReplayContextV0` and the same
 `ResolutionContentClosureV0`. A caller-provided origin-admission audit is audit
 output, not authority.
@@ -133,7 +139,7 @@ That result establishes only the exact proposition named above. It establishes
 no truth, source reputation, statistical independence, support, aggregation or
 standing.
 
-## Current substrate and remaining gap
+## Current substrate and landed runtime
 
 The accepted `StandingReplaySnapshot` contains the unchanged `StandingView`,
 whose retained graph tables include:
@@ -195,8 +201,7 @@ complete four-field closure identity and the compiled
 `magpie-origin-admission-v0` policy. It produces at most one terminal decision
 for one exact `ContributionIdentityV0 + OriginComparisonNamespaceV0` key.
 
-The remaining gap is not another origin-binding or origin-admission policy. It
-is the deterministic graph-facing audit that:
+Ticket 0050 implements the deterministic graph-facing audit that:
 
 1. enumerates every retained justification edge;
 2. applies the exact first admitted-contribution lane;
@@ -208,7 +213,7 @@ is the deterministic graph-facing audit that:
 
 ## Exact deterministic inputs
 
-The future public resolver receives exactly:
+The implemented public resolver receives exactly:
 
 ```text
 self:
@@ -228,7 +233,7 @@ P꜀:
 magpie-admitted-contribution-v0
 ```
 
-The audit must retain:
+The implemented audit retains:
 
 ```text
 self.verified_prefix_identity()
@@ -255,7 +260,7 @@ policy identity or lookup mechanism.
 
 ## Exact compiled policy identities
 
-The future implementation freezes exactly:
+The implemented runtime uses exactly:
 
 ```text
 admitted-contribution policy:
@@ -306,10 +311,10 @@ Every retained edge produces exactly one
 `AdmittedContributionCandidateAuditV0`, including unsupported, malformed,
 incomplete and unfavourable edges.
 
-Enumeration must read the accepted snapshot's actual replay-derived
-justification-edge table. The future implementation may add the smallest
-crate-private read seam required to share this table without changing
-`StandingView` fields, getters or bytes.
+Enumeration reads the accepted snapshot's actual replay-derived
+justification-edge table. Ticket 0050 adds only the smallest crate-private read
+seam required to share this table without changing `StandingView` fields,
+getters or bytes.
 
 The candidate universe must not begin from:
 
@@ -386,7 +391,7 @@ requires a separate versioned policy decision.
 
 ## Deterministic candidate evaluation
 
-Every edge candidate must stop at the first failed check in exactly this order:
+Every edge candidate stops at the first failed check in exactly this order:
 
 ```text
 1. target StandingClaim exists
@@ -406,10 +411,9 @@ Every edge candidate must stop at the first failed check in exactly this order:
 15. only OriginAdmitted produces AdmittedContributionV0
 ```
 
-The future implementation must reuse the existing reviewed claim-domain parser
-and support-candidate evaluation logic through the smallest private shared seam
-whenever that logic supplies the exact result required here. The seam must
-preserve every existing standing v0, v1 and v2 byte and behaviour.
+The implementation reuses the existing reviewed claim-domain parser and
+support-candidate evaluation logic through the smallest private shared seam.
+The seam preserves every existing standing v0, v1 and v2 byte and behaviour.
 
 The implementation must not add a duplicate public standing engine, a second
 looser claim-domain parser or a different closed evidence-kind vocabulary.
@@ -474,7 +478,7 @@ artifact algorithm
 must be exactly sha256
 ```
 
-The future candidate contribution is derived exactly as:
+The candidate contribution is derived exactly as:
 
 ```text
 ContributionIdentityV0 {
@@ -574,7 +578,7 @@ evidence is true, relevant, reputable, fresh or independent.
 
 ## Origin-admission composition
 
-Reserve exactly this future public entry point:
+The implemented public entry point is exactly:
 
 ```rust
 impl OriginAdmissionReplayContextV0 {
@@ -585,7 +589,7 @@ impl OriginAdmissionReplayContextV0 {
 }
 ```
 
-The method must internally call:
+The implemented method internally calls:
 
 ```rust
 self.resolve_origin_admission_audit_v0(closure)
@@ -634,7 +638,7 @@ closure or policy may be paired with this graph.
 
 ## Global completion law
 
-Freeze the future completion vocabulary:
+The implemented completion vocabulary remains:
 
 ```rust
 pub enum AdmittedContributionAuditCompletionV0 {
@@ -711,8 +715,8 @@ pub enum AdmittedContributionCandidateDispositionV0 {
 }
 ```
 
-For a graph-policy-eligible candidate and a complete origin audit, the future
-resolver must locate a decision only by:
+For a graph-policy-eligible candidate and a complete origin audit, the
+implemented resolver locates a decision only by:
 
 ```text
 ContributionIdentityV0
@@ -823,7 +827,7 @@ standing has changed
 
 ## Public audit surface
 
-Freeze these six future public types:
+The runtime exposes exactly these six public types:
 
 ```text
 AdmittedContributionAuditCompletionV0
@@ -834,7 +838,7 @@ AdmittedContributionV0
 AdmittedContributionAuditV0
 ```
 
-All future public structs must have:
+All public structs have:
 
 ```text
 private fields
@@ -849,7 +853,7 @@ no Default
 no public constructor
 ```
 
-All future closed enums must have:
+All closed enums have:
 
 ```text
 Clone
@@ -963,10 +967,9 @@ unavailable binding selectors:
 exact selector order inherited from OriginAdmissionAuditV0
 ```
 
-The future implementation must derive admitted-contribution order
-structurally, such as through a `BTreeMap` keyed by exact
-`ContributionIdentityV0`, rather than repairing an order-sensitive fold after
-the fact.
+The implementation derives admitted-contribution order structurally through a
+`BTreeMap` keyed by exact `ContributionIdentityV0`; it does not repair an
+order-sensitive fold after the fact.
 
 No caller order, closure insertion order, anchor occurrence multiplicity,
 origin-group lexical preference or write recency selects an outcome.
@@ -1034,7 +1037,7 @@ achieved status.
 
 ## Authority and serialization boundary
 
-Every value in the future admitted-contribution audit is derived audit output.
+Every value in the admitted-contribution audit is derived audit output.
 No serialized, cloned or caller-assembled value may substitute for the replay
 context and closure.
 
@@ -1058,10 +1061,10 @@ Private construction prevents a caller from transposing:
 - one policy output onto another policy; or
 - one serialized audit onto live replay authority.
 
-The future implementation must include compile-fail documentation proving:
+Ticket 0050 includes compile-fail documentation proving:
 
 - no public struct literal construction;
-- no `Deserialize` for any future public audit type;
+- no `Deserialize` for any public audit type;
 - no resolver on `StandingView`;
 - no complete resolver on a standalone `StandingReplaySnapshot`;
 - no caller candidate list;
@@ -1069,9 +1072,9 @@ The future implementation must include compile-fail documentation proving:
 - no caller policy or authority input; and
 - no serialized or cloned audit substitution.
 
-## Required implementation fixtures
+## Implemented fixtures
 
-The future implementation PR must add literal canonical fixtures for at least:
+Ticket 0050 adds literal canonical fixtures for:
 
 ```text
 admitted external-source contribution
@@ -1087,13 +1090,12 @@ globally incomplete origin-admission universe
 two distinct contributions assigned to the same admitted origin group
 ```
 
-The final fixture must contain two distinct `AdmittedContributionV0` values.
+The final fixture contains two distinct `AdmittedContributionV0` values.
+Ticket 0049 itself added no fixture files, canonical byte lengths or hashes.
 
-Ticket 0049 adds no fixture files, canonical byte lengths or hashes.
+## Implemented hostile tests
 
-## Required hostile tests
-
-The future implementation must prove:
+Ticket 0050 proves:
 
 ```text
 valid ExternalSource × ExternalReport supports edge
@@ -1209,7 +1211,7 @@ support and refutation ceilings unchanged
 origin-admission audit bytes unchanged
 ```
 
-Tests must also pin the exact first-failure order and verify that candidate
+Tests also pin the exact first-failure order and verify that candidate
 optional fields become non-null only at the specified stages.
 
 ## Frozen surfaces
@@ -1252,8 +1254,8 @@ release metadata
 Deadbolt
 ```
 
-The future implementation may add only the six standing-inert audit types, the
-exact compiled constants, the new context method, and the smallest private
+Ticket 0050 adds only the six standing-inert audit types, the exact compiled
+constants, the context method, fixtures and tests, and the smallest private
 shared seams required to preserve existing semantics.
 
 It must not mutate the existing origin-admission audit or any standing surface.
@@ -1297,9 +1299,9 @@ This contract does not define or implement:
 - new L0 payload; or
 - Deadbolt changes.
 
-## Future implementation sequence
+## Implemented sequence and next boundary
 
-The next runtime PR must implement this contract mechanically in this order:
+Ticket 0050 implements this contract in this order:
 
 1. add the six private-construction public audit types and exact constants;
 2. expose the smallest crate-private shared claim-domain/candidate evaluation
@@ -1316,21 +1318,25 @@ The next runtime PR must implement this contract mechanically in this order:
 10. add the required literal fixtures, hostile tests and compile-fail boundary
     tests.
 
-After that runtime PR, the remaining sequence is:
+The remaining sequence is:
 
 ```text
-support-contribution contract
+support-contribution contract ratified by Ticket 0051
+->
+support-contribution audit runtime
 ->
 standing policy v3 contract
 ->
 conservative aggregation
 ```
 
-No later stage is ratified or implemented by Ticket 0049.
+Ticket 0049 did not ratify or implement a later stage. Ticket 0051 separately
+ratifies only the next positive-input boundary.
 
 ## Reviewer checklist
 
-- Confirm status is ratified contract, runtime absent and standing unchanged.
+- Confirm status is ratified contract, runtime implemented by Ticket 0050,
+  support contribution absent and standing unchanged.
 - Confirm the deterministic input is exactly `H + Pₒ + P꜀ + M`.
 - Confirm both policies are compiled exact identities with no runtime selector.
 - Confirm every retained justification edge produces exactly one audit in
@@ -1346,8 +1352,8 @@ No later stage is ratified or implemented by Ticket 0049.
   through exact equality with the verified admitted-origin contribution
   artifact.
 - Confirm contribution and namespace matching are complete and exact.
-- Confirm the future resolver internally derives origin admission from the same
-  context and closure.
+- Confirm the implemented resolver internally derives origin admission from
+  the same context and closure.
 - Confirm a caller-provided or serialized origin audit cannot substitute.
 - Confirm global incomplete origin admission yields zero admitted
   contributions while preserving all candidate audits.
