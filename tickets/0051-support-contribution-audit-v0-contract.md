@@ -328,7 +328,9 @@ candidate audits that are merely policy-eligible
 
 Ticket 0050 already owns graph structure, policy-lane admission, artifact
 identity binding and origin-decision lookup. Candidate audits are consulted
-only to verify exact alignment with top-level admitted output and exact
+only to verify exact alignment first between every `Admitted` candidate's
+enclosing replay-derived trace and its nested admitted value, then between
+trace-aligned candidate admissions and top-level admitted output, plus exact
 completion/disposition consistency.
 
 ## 11. Upstream identity checks
@@ -380,11 +382,12 @@ support_context_requirement(
 NoPrivilegedContext
 ```
 
-These global composition checks must run before duplicate detection,
-admitted-set alignment, upstream completion/disposition consistency,
-per-contribution invariants, upstream completion mapping or support projection.
-They must run for complete-empty and origin-incomplete admitted audits and when
-both admitted maps are empty.
+These global composition checks must run before admitted-candidate trace
+consistency, candidate-map insertion, duplicate detection, admitted-set
+alignment, upstream completion/disposition consistency, per-contribution
+invariants, upstream completion mapping or support projection. They must run
+for complete-empty and origin-incomplete admitted audits and when both admitted
+maps are empty.
 
 ## 12. Exact composition-validation order
 
@@ -392,35 +395,165 @@ Freeze:
 
 ```text
 1. upstream schema
+
 2. upstream canonicalization profile
+
 3. upstream admitted policy
+
 4. upstream origin policy
+
 5. verified-prefix identity
+
 6. closure identity
+
 7. compiled support-ceiling cell
+
 8. compiled support-context cell
-9. duplicate candidate-admission identity
-10. duplicate top-level-admission identity
-11. admitted key-set equality
-12. complete admitted-value equality
-13. upstream completion/disposition consistency
-14. per-contribution invariants
-15. upstream completion mapping
-16. support-contribution projection
+
+9. admitted-candidate trace consistency
+
+10. duplicate candidate-admission identity
+
+11. duplicate top-level-admission identity
+
+12. admitted key-set equality
+
+13. complete admitted-value equality
+
+14. upstream completion/disposition consistency
+
+15. per-contribution invariants
+
+16. upstream completion mapping
+
+17. support-contribution projection
 ```
 
 An internally inconsistent upstream audit is rejected even when its completion
 also reports incomplete origin admission.
 
-Compiled policy-cell failure outranks duplicate or alignment failure occurring
-later in the sequence. All composition failure outranks availability
-incompleteness. Malformed inherited output or compiled policy drift must not be
-hidden behind an availability result.
+Normative precedence is:
+
+```text
+upstream identity failure
+precedes
+compiled-policy failure
+
+compiled-policy failure
+precedes
+candidate trace failure
+
+candidate trace failure
+precedes
+duplicate and admitted-map alignment failure
+
+admitted-map alignment failure
+precedes
+completion/disposition failure
+
+completion/disposition failure
+precedes
+per-contribution invariant failure
+
+all composition and invariant failure
+precedes
+completion mapping
+
+completion mapping
+precedes
+projection
+```
 
 Upstream completion is mapped only after all identity, compiled-policy,
-alignment, completion/disposition and per-contribution checks succeed.
+candidate-trace, alignment, completion/disposition and per-contribution checks
+succeed. No partial support-contribution vector may survive any failure.
 
-## 13. Candidate/top-level alignment law
+## 13. Admitted-candidate trace and candidate/top-level alignment laws
+
+Immediately after the two fixed compiled-policy checks, and before candidate
+admitted-map insertion, duplicate candidate-admission detection, top-level
+alignment, completion/disposition validation, per-contribution invariants,
+completion mapping or projection, validate every candidate whose disposition
+is exactly:
+
+```text
+Admitted {
+    admitted_contribution
+}
+```
+
+For each such candidate, validate these exact equalities in this exact field
+order:
+
+```text
+1. candidate.edge_id
+   ==
+   admitted_contribution.contribution.justification_edge_id
+
+2. candidate.source_evidence_id
+   ==
+   admitted_contribution.contribution.source_evidence_id
+
+3. candidate.target_claim_id
+   ==
+   admitted_contribution.contribution.target_claim_id
+
+4. candidate.evidence_kind
+   ==
+   Some(admitted_contribution.evidence_kind)
+
+5. candidate.claim_domain
+   ==
+   Some(admitted_contribution.claim_domain)
+
+6. candidate.candidate_ceiling
+   ==
+   Some(admitted_contribution.candidate_ceiling)
+
+7. candidate.candidate_contribution
+   ==
+   Some(admitted_contribution.contribution)
+
+8. candidate.candidate_namespace
+   ==
+   Some(admitted_contribution.namespace)
+```
+
+All comparisons are exact typed or exact byte-string equality. The future
+implementation must not normalize strings, infer missing optional fields,
+prefer either representation, repair the candidate or construct a replacement
+candidate.
+
+Only candidates with an exact `Admitted` disposition are subject to this
+specific trace-to-admitted check. The first malformed admitted candidate in
+exact candidate edge-ID order produces:
+
+```rust
+AdmittedCandidateTraceMismatch {
+    edge_id: String,
+}
+```
+
+The `edge_id` identifies the malformed candidate. The fixed eight-field
+checking order remains normative even though the serialized failure does not
+identify the mismatched field.
+
+Only after one admitted candidate passes all eight checks may its nested
+`AdmittedContributionV0` enter:
+
+```text
+candidate_admitted:
+BTreeMap<ContributionIdentityV0, AdmittedContributionV0>
+```
+
+After this stage:
+
+```text
+candidate map membership
+means
+the nested admitted value is exactly aligned with its enclosing
+replay-derived candidate trace
+```
 
 Build privately:
 
@@ -432,7 +565,7 @@ top_level_admitted:
 BTreeMap<ContributionIdentityV0, AdmittedContributionV0>
 ```
 
-The candidate map includes only:
+The candidate map includes only exact, trace-aligned:
 
 ```text
 AdmittedContributionCandidateDispositionV0::Admitted
@@ -559,7 +692,7 @@ AdmittedContributionV0
 × candidate ceiling Supported
 × support_ceiling cell Supported
 × support-context requirement NoPrivilegedContext
-× sha256 artifact identity
+× sha256 artifact identity with an exact lowercase-hex-64 digest
 ->
 SupportContributionV0
 ```
@@ -575,7 +708,8 @@ exact Supported ceiling
 +
 exact NoPrivilegedContext classification
 +
-exact sha256 contribution artifact
+exact sha256 contribution artifact with a 64-character lowercase
+hexadecimal digest
 ->
 SupportContributionV0
 ```
@@ -616,24 +750,48 @@ order:
 6. contribution.artifact_algorithm
    == sha256
 
-7. namespace.origin_admission_policy_id
+7. contribution.artifact_digest
+   is exactly 64 lowercase hexadecimal ASCII characters
+
+8. namespace.origin_admission_policy_id
    == magpie-origin-admission-v0
 
-8. namespace.target_claim_id
+9. namespace.target_claim_id
    == contribution.target_claim_id
 
-9. namespace.scope_ref
+10. namespace.scope_ref
    == contribution.scope_ref
 
-10. origin_group
+11. origin_group
     satisfies the exact origin-binding protocol-identifier grammar
 
-11. supporting_origin_candidate_selectors
+12. supporting_origin_candidate_selectors
     is non-empty
+
+13. every supporting selector
+    satisfies the exact origin-binding selector grammar
+
+14. supporting selector vector
+    is strictly increasing under exact derived Ord
 ```
 
 Any invariant failure rejects the complete support audit globally. The future
 resolver emits no partial support set.
+
+Exact artifact-digest grammar:
+
+```text
+byte length:
+64
+
+every byte:
+0..9
+or
+a..f
+```
+
+Uppercase, a prefix or `0x` marker, whitespace, trimming, normalization,
+Unicode, case conversion and repair are forbidden.
 
 Exact origin-group grammar:
 
@@ -653,20 +811,118 @@ or
 Validation uses the exact inherited bytes. No trimming, normalization, Unicode
 folding, case conversion, aliasing or repair is permitted.
 
-The later runtime implementation must add and use exactly one narrow
-crate-private reuse seam in
+Every inherited supporting selector must satisfy this exact structural
+origin-binding grammar:
+
+```text
+bundle_kind:
+exactly one of
+magpie-origin-binding-acquisition-v0
+magpie-origin-binding-derivation-v0
+
+witness_root:
+exactly 64 lowercase hexadecimal ASCII characters
+
+witness_algorithm:
+exactly sha256 through
+ORIGIN_BINDING_WITNESS_ALGORITHM_V0
+
+canonicalization_profile:
+exactly magpie-origin-binding-json-v0 through
+ORIGIN_BINDING_CANONICALIZATION_PROFILE_V0
+
+run_id:
+byte length 1..=128
+first byte ASCII alphanumeric
+remaining bytes ASCII alphanumeric or . _ : / -
+```
+
+This validation is structural and protocol-exact. It does not re-read bundle
+bytes, recompute the bundle witness root, look up an anchor, reopen origin
+admission, rerun the origin-binding verifier or confer standalone authority on
+the selector.
+
+After the vector is known to be non-empty and every selector is individually
+valid, require:
+
+```text
+supporting_origin_candidate_selectors
+is strictly increasing under
+ArtifactProvenanceAnchorSelectorV0::Ord
+```
+
+Strictly increasing means exact canonical `BTreeSet`-derived order plus no
+duplicate exact selectors. The future implementation must not sort,
+deduplicate, repair order or select a preferred duplicate.
+
+The landed origin-admission fold produces supporting selectors from a
+`BTreeSet`. The exact derived `ArtifactProvenanceAnchorSelectorV0::Ord` field
+order is:
+
+```text
+bundle_kind
+witness_root
+witness_algorithm
+canonicalization_profile
+run_id
+```
+
+The later runtime implementation must add and use exactly these three narrow
+crate-private reuse seams in
 `crates/magpie-claims/src/origin_binding_verifier.rs`:
 
 ```rust
 pub(crate) fn valid_origin_group_v0(value: &str) -> bool {
     valid_identifier(value)
 }
+
+pub(crate) fn valid_origin_binding_artifact_digest_v0(
+    value: &str,
+) -> bool {
+    is_lowercase_hex_64(value)
+}
+
+pub(crate) fn valid_origin_binding_selector_v0(
+    selector: &ArtifactProvenanceAnchorSelectorV0,
+) -> bool {
+    let bundle_kind = selector.bundle_kind();
+
+    (bundle_kind == ORIGIN_BINDING_ACQUISITION_BUNDLE_KIND_V0
+        || bundle_kind == ORIGIN_BINDING_DERIVATION_BUNDLE_KIND_V0)
+        && is_lowercase_hex_64(selector.witness_root())
+        && selector.witness_algorithm()
+            == ORIGIN_BINDING_WITNESS_ALGORITHM_V0
+        && selector.canonicalization_profile()
+            == ORIGIN_BINDING_CANONICALIZATION_PROFILE_V0
+        && valid_identifier(selector.run_id())
+}
 ```
 
-The helper reuses the existing exact grammar, remains crate-private, exposes no
-configurable grammar or public API, and changes no origin-binding output or
-canonical bytes. The implementation must not expose `valid_identifier`
-generically or duplicate its grammar in the support module.
+Their exact delegation is:
+
+```text
+valid_origin_group_v0
+-> existing valid_identifier
+
+valid_origin_binding_artifact_digest_v0
+-> existing is_lowercase_hex_64
+
+valid_origin_binding_selector_v0
+-> existing origin-binding constants
+ + existing is_lowercase_hex_64
+ + existing valid_identifier
+```
+
+All three helpers remain crate-private, add no public API, accept no
+configurable grammar, expected kind, profile, algorithm, length or alphabet,
+and change no origin-binding behaviour, output or canonical bytes.
+
+The future implementation must not expose a generic public identifier
+validator, caller-selected validation profile, runtime grammar registry, new
+policy input, test-only public switch, closure lookup, anchor lookup or bundle
+re-verification. It must not reuse `valid_provenance_selector`, because that
+helper validates the inner artifact-provenance acquisition and derivation
+selector kinds rather than the two outer origin-binding selector kinds.
 
 ## 16. Completion law
 
@@ -690,8 +946,8 @@ pub enum SupportContributionAuditCompletionV0 {
 Laws:
 
 ```text
-identity, compiled-policy cells, alignment, completion/disposition and
-invariants valid
+identity, compiled-policy cells, admitted-candidate trace, alignment,
+completion/disposition and invariants valid
 +
 upstream completion Complete
 ->
@@ -699,8 +955,8 @@ Complete
 ```
 
 ```text
-identity, compiled-policy cells, alignment, completion/disposition and
-invariants valid
+identity, compiled-policy cells, admitted-candidate trace, alignment,
+completion/disposition and invariants valid
 +
 upstream OriginAdmissionIncomplete
 ->
@@ -710,8 +966,8 @@ zero support contributions
 ```
 
 ```text
-any upstream identity, compiled-policy, alignment, completion/disposition or
-invariant failure
+any upstream identity, compiled-policy, admitted-candidate trace, alignment,
+completion/disposition or invariant failure
 ->
 UpstreamCompositionRejected
 ->
@@ -802,6 +1058,10 @@ pub enum SupportContributionCompositionFailureV0 {
 
     SupportContextRequirementMismatch,
 
+    AdmittedCandidateTraceMismatch {
+        edge_id: String,
+    },
+
     DuplicateCandidateAdmission {
         contribution: ContributionIdentityV0,
     },
@@ -846,6 +1106,11 @@ future implementation must not attach a synthetic contribution identity,
 manufacture an empty or sentinel contribution, or wrap either failure in
 `ContributionInvariantMismatch`.
 
+`AdmittedCandidateTraceMismatch` reports the exact `edge_id` of the first
+malformed admitted candidate in exact candidate edge-ID order. It carries no
+free-form field name or generic reason; the fixed eight-field comparison order
+is normative.
+
 `UpstreamCompletionDispositionMismatch` reports the exact `edge_id` of the
 first candidate whose disposition is inconsistent with the upstream
 completion. Candidate selection uses exact edge-ID order.
@@ -868,11 +1133,14 @@ pub enum SupportContributionInvariantReasonV0 {
     ClaimDomainMismatch,
     CandidateCeilingMismatch,
     ArtifactAlgorithmMismatch,
+    InvalidArtifactDigest,
     NamespacePolicyMismatch,
     NamespaceTargetMismatch,
     NamespaceScopeMismatch,
     InvalidOriginGroup,
     MissingSupportingOriginSelector,
+    InvalidSupportingOriginSelector,
+    NonCanonicalSupportingOriginSelectorOrder,
 }
 ```
 
@@ -885,9 +1153,24 @@ the admitted value does not carry exact Supported
 InvalidOriginGroup:
 the exact inherited origin_group does not satisfy the existing
 origin-binding protocol-identifier grammar
+
+InvalidArtifactDigest:
+the inherited contribution artifact digest is not exactly 64 lowercase
+hexadecimal ASCII characters
+
+MissingSupportingOriginSelector:
+the inherited supporting selector vector is empty
+
+InvalidSupportingOriginSelector:
+at least one inherited supporting selector fails the exact structural
+origin-binding selector grammar
+
+NonCanonicalSupportingOriginSelectorOrder:
+the non-empty, individually valid supporting selector vector is not strictly
+increasing under ArtifactProvenanceAnchorSelectorV0::Ord
 ```
 
-The closed invariant vocabulary contains eleven contribution-specific reasons.
+The closed invariant vocabulary contains fourteen contribution-specific reasons.
 Fixed compiled-policy drift is represented only by the two global composition
 failures and fails closed.
 
@@ -1029,6 +1312,9 @@ Freeze:
 candidate admitted map:
 exact ContributionIdentityV0 order
 
+admitted-candidate trace mismatch:
+first malformed admitted candidate in exact edge-ID order
+
 top-level admitted map:
 exact ContributionIdentityV0 order
 
@@ -1042,7 +1328,8 @@ support_contributions:
 exact ContributionIdentityV0 order
 
 supporting origin selectors:
-exact order inherited from AdmittedContributionV0
+exact order inherited from AdmittedContributionV0, accepted only when
+strictly increasing under ArtifactProvenanceAnchorSelectorV0::Ord
 
 unavailable binding selectors:
 exact order inherited from AdmittedContributionAuditV0
@@ -1054,7 +1341,8 @@ first inconsistent candidate in exact edge-ID order
 When more than one duplicate candidate identity, duplicate top-level identity,
 complete-value mismatch or invariant mismatch exists, the failure reports the
 first affected contribution in exact `ContributionIdentityV0` order. Within
-that contribution, the exact eleven-step invariant order selects the reason.
+that contribution, the exact fourteen-step invariant order selects the reason.
+Individual selector validity is checked before selector-vector canonicality.
 
 No caller order, event insertion order, group preference or write recency
 selects an outcome.
@@ -1195,6 +1483,9 @@ two distinct admissions in different groups
 Malformed inherited-audit composition cases may use the smallest private pure
 helper. The public resolver must not accept malformed caller-created audits.
 
+No additional normative fixture file is required for malformed composition
+cases.
+
 Because the production policy cells are fixed, the future implementation may
 test policy drift through that smallest private pure composition helper. It
 must not add a public policy override, public test switch, runtime policy
@@ -1317,6 +1608,37 @@ verified-prefix mismatch
 closure-identity mismatch
 -> global rejection
 
+otherwise aligned admitted candidate
++
+separately mutate:
+- edge_id
+- source_evidence_id
+- target_claim_id
+- evidence_kind
+- claim_domain
+- candidate_ceiling
+- candidate_contribution
+- candidate_namespace
+->
+UpstreamCompositionRejected {
+    failure:
+        AdmittedCandidateTraceMismatch {
+            edge_id: exact candidate edge ID
+        }
+}
+
+two malformed admitted candidates
+->
+first edge in exact edge-ID order reported
+
+candidate trace mismatch
+->
+detected before duplicate candidate-map insertion
+
+candidate trace mismatch
+->
+zero support contributions
+
 duplicate candidate admission
 -> global rejection
 
@@ -1358,6 +1680,151 @@ group containing whitespace or unsupported punctuation
 
 allowed . _ : / - characters after the first byte
 -> valid
+
+empty artifact digest
+->
+InvalidArtifactDigest
+
+63-character lowercase hexadecimal artifact digest
+->
+InvalidArtifactDigest
+
+65-character lowercase hexadecimal artifact digest
+->
+InvalidArtifactDigest
+
+64-character uppercase hexadecimal artifact digest
+->
+InvalidArtifactDigest
+
+64-character mixed-case artifact digest
+->
+InvalidArtifactDigest
+
+64-character non-hexadecimal artifact digest
+->
+InvalidArtifactDigest
+
+artifact digest with 0x prefix
+->
+InvalidArtifactDigest
+
+artifact digest with whitespace
+->
+InvalidArtifactDigest
+
+exactly 64 lowercase hexadecimal ASCII characters
+->
+valid artifact digest
+
+supporting selector with unknown bundle kind
+->
+InvalidSupportingOriginSelector
+
+supporting selector with artifact-provenance acquisition bundle kind
+instead of origin-binding acquisition kind
+->
+InvalidSupportingOriginSelector
+
+supporting selector with empty witness root
+->
+InvalidSupportingOriginSelector
+
+supporting selector with 63-character witness root
+->
+InvalidSupportingOriginSelector
+
+supporting selector with 65-character witness root
+->
+InvalidSupportingOriginSelector
+
+supporting selector with uppercase witness root
+->
+InvalidSupportingOriginSelector
+
+supporting selector with non-hexadecimal witness root
+->
+InvalidSupportingOriginSelector
+
+supporting selector with wrong witness algorithm
+->
+InvalidSupportingOriginSelector
+
+supporting selector with wrong canonicalization profile
+->
+InvalidSupportingOriginSelector
+
+supporting selector with empty run ID
+->
+InvalidSupportingOriginSelector
+
+supporting selector with 129-byte run ID
+->
+InvalidSupportingOriginSelector
+
+supporting selector with run ID beginning with punctuation
+->
+InvalidSupportingOriginSelector
+
+supporting selector with run ID containing whitespace
+->
+InvalidSupportingOriginSelector
+
+supporting selector with run ID containing unsupported punctuation
+->
+InvalidSupportingOriginSelector
+
+supporting selector with non-ASCII run ID
+->
+InvalidSupportingOriginSelector
+
+magpie-origin-binding-acquisition-v0 selector
+->
+valid
+
+magpie-origin-binding-derivation-v0 selector
+->
+valid
+
+supporting selector run ID at 1 byte
+->
+valid
+
+supporting selector run ID at 128 bytes
+->
+valid
+
+supporting selector run ID with allowed internal . _ : / - characters
+->
+valid
+
+empty supporting selector vector
+->
+MissingSupportingOriginSelector
+
+one valid supporting selector
+->
+valid
+
+two valid supporting selectors in strict Ord order
+->
+valid
+
+duplicate exact supporting selector
+->
+NonCanonicalSupportingOriginSelectorOrder
+
+two valid supporting selectors in reverse Ord order
+->
+NonCanonicalSupportingOriginSelectorOrder
+
+individually invalid selector in an otherwise ordered vector
+->
+InvalidSupportingOriginSelector
+
+invalid-selector failure
+->
+precedes order failure
 
 composition rejection
 -> zero support contributions
@@ -1469,14 +1936,17 @@ three exact compiled constants
 five standing-inert public audit types
 one exact context resolver method
 the smallest private composition helper needed for hostile tests
-one crate-private valid_origin_group_v0 helper that delegates to the existing
-origin-binding valid_identifier grammar
+three exact crate-private origin-binding grammar reuse helpers:
+- valid_origin_group_v0
+- valid_origin_binding_artifact_digest_v0
+- valid_origin_binding_selector_v0
 new support-contribution fixtures and tests
 ```
 
-The crate-private helper is the only permitted origin-binding module change.
-It must not change origin-binding output, canonical bytes or public API. The
-later implementation must not otherwise mutate existing origin-binding,
+These three crate-private helpers are the only permitted origin-binding module
+changes. They must delegate exactly as frozen above and must not change
+origin-binding behaviour, output, canonical bytes or public API. The later
+implementation must not otherwise mutate existing origin-binding,
 admitted-contribution or standing surfaces.
 
 ## 30. Explicit non-goals
@@ -1524,21 +1994,24 @@ Do not define or implement:
 
 ## 31. Future sequence
 
-The next runtime PR must:
+The next runtime PR must implement this contract in this exact order:
 
-1. add constants and public audit types;
+1. add exact constants and five public audit types;
 2. add the exact context resolver;
-3. derive one admitted audit internally;
-4. validate six upstream identities;
-5. validate two fixed compiled policy cells;
-6. build admitted maps and reject duplicates;
-7. validate key-set and complete-value equality;
-8. validate upstream completion/disposition consistency;
-9. apply the eleven contribution invariants;
-10. map upstream completion;
-11. project support contributions;
-12. serialize the typed audit; and
-13. add fixtures, hostile tests and compile-fail tests.
+3. internally derive one admitted-contribution audit;
+4. validate the six upstream audit identities;
+5. validate the two fixed compiled support-policy cells;
+6. validate every `Admitted` candidate's enclosing trace against its nested
+   `AdmittedContributionV0`;
+7. build candidate and top-level admitted maps and reject duplicate identities;
+8. validate exact admitted key-set and complete-value equality;
+9. validate upstream completion/disposition consistency;
+10. apply the fourteen per-contribution invariants;
+11. map upstream completion only after every composition and invariant check
+    succeeds;
+12. project aligned admissions one-to-one in exact contribution order;
+13. serialize the typed top-level audit directly; and
+14. add fixtures, hostile tests and compile-fail tests.
 
 After that:
 
@@ -1697,7 +2170,7 @@ or change standing.
    admitted set in exact contribution order.
 8. Confirm graph, artifact and origin admission are not reopened.
 9. Confirm exact six-step upstream identity validation.
-10. Confirm exact sixteen-step composition-validation order.
+10. Confirm exact seventeen-stage composition-validation order.
 11. Confirm the support-ceiling and support-context cells are global checks.
 12. Confirm the global policy cells are checked for empty admitted sets.
 13. Confirm the global policy cells are checked before completion mapping.
@@ -1717,10 +2190,12 @@ or change standing.
 23. Confirm the one exact v0 lane and `NoPrivilegedContext` meaning.
 24. Confirm `origin_group` is validated under the exact existing
     protocol-identifier grammar.
-25. Confirm the implementation reuses one crate-private
-    `valid_origin_group_v0` helper.
-26. Confirm the invariant vocabulary contains eleven contribution-specific
-    reasons in the exact eleven-step first-failure order.
+25. Confirm the implementation permits exactly the three crate-private reuse
+    helpers `valid_origin_group_v0`,
+    `valid_origin_binding_artifact_digest_v0` and
+    `valid_origin_binding_selector_v0`.
+26. Confirm the invariant vocabulary contains fourteen contribution-specific
+    reasons in the exact fourteen-step first-failure order.
 27. Confirm composition failure precedes upstream incompleteness.
 28. Confirm complete-empty remains valid only when global policy validation
     succeeds.
@@ -1740,6 +2215,27 @@ or change standing.
 39. Confirm no support-contribution runtime, policy v3, aggregation, standing,
     writer, loader, CAS, filesystem/network, L0, Cargo, dependency, fixture or
     Deadbolt change appears.
+40. Confirm every `Admitted` candidate's enclosing trace agrees with its nested
+    `AdmittedContributionV0` across all eight exact fields.
+41. Confirm candidate trace validation occurs before candidate-map insertion.
+42. Confirm candidate trace mismatch reports the first exact edge ID.
+43. Confirm the artifact digest is exactly 64 lowercase hexadecimal ASCII
+    characters.
+44. Confirm artifact-digest grammar reuses the exact crate-private
+    `valid_origin_binding_artifact_digest_v0` helper.
+45. Confirm every supporting selector is structurally valid.
+46. Confirm selector bundle kind is one of the two exact origin-binding kinds.
+47. Confirm selector witness root is exact lowercase hexadecimal-64.
+48. Confirm selector witness algorithm and canonicalization profile use the
+    exact fixed origin-binding constants.
+49. Confirm selector run ID uses the exact protocol-identifier grammar.
+50. Confirm supporting selectors are non-empty.
+51. Confirm supporting selectors are strictly ordered under exact derived
+    `Ord` and duplicate-free.
+52. Confirm malformed selector vectors are never sorted, deduplicated or
+    repaired.
+53. Confirm the global composition sequence contains seventeen exact stages.
+54. Confirm the invariant vocabulary contains fourteen exact reasons.
 
 ## 36. Precise contract claim
 
