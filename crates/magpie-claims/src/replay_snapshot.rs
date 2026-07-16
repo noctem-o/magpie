@@ -1,4 +1,4 @@
-use magpie_log::{LogError, LogReader, LogStore, Projection, SignedEvent};
+use magpie_log::{LogError, LogReader, LogStore, Projection, SignedEvent, VerifiedReplaySummary};
 use serde::Serialize;
 
 use crate::deadbolt_context::DeadboltAnchorIndex;
@@ -86,12 +86,21 @@ impl Projection for StandingContextProjection {
 pub fn replay_standing_context<S: LogStore>(
     reader: &LogReader<S>,
 ) -> Result<StandingReplaySnapshot, LogError> {
-    let mut projection = StandingContextProjection::default();
-    let event_count = reader.replay(&mut projection)?;
+    replay_standing_context_with_summary(reader).map(|(snapshot, _summary)| snapshot)
+}
 
-    Ok(StandingReplaySnapshot {
-        standing: projection.standing,
-        anchors: projection.anchors,
-        event_count,
-    })
+pub(crate) fn replay_standing_context_with_summary<S: LogStore>(
+    reader: &LogReader<S>,
+) -> Result<(StandingReplaySnapshot, VerifiedReplaySummary), LogError> {
+    let mut projection = StandingContextProjection::default();
+    let summary = reader.replay_with_summary(&mut projection)?;
+
+    Ok((
+        StandingReplaySnapshot {
+            standing: projection.standing,
+            anchors: projection.anchors,
+            event_count: summary.event_count(),
+        },
+        summary,
+    ))
 }

@@ -60,6 +60,53 @@ enum VerifiedRecords {
     Snapshot(VerifiedSnapshot),
 }
 
+/// Exact count and chain tip returned by one completely verified replay.
+///
+/// The fields are private and the type has no public constructor:
+///
+/// ```compile_fail
+/// use magpie_log::{ContentHash, VerifiedReplaySummary};
+/// let _summary = VerifiedReplaySummary {
+///     event_count: 0,
+///     tip: ContentHash::ZERO,
+/// };
+/// ```
+///
+/// Serialized material cannot be deserialized into a replay summary:
+///
+/// ```compile_fail
+/// use magpie_log::VerifiedReplaySummary;
+/// let _: VerifiedReplaySummary = serde_json::from_str("{}").unwrap();
+/// ```
+///
+/// A copied summary cannot authorize applying another record set:
+///
+/// ```compile_fail
+/// use magpie_log::{LogReader, LogStore, Projection, VerifiedReplaySummary};
+/// fn substitute<S: LogStore, P: Projection>(
+///     reader: &LogReader<S>,
+///     projection: &mut P,
+///     summary: VerifiedReplaySummary,
+/// ) {
+///     let _ = reader.replay_with_summary(projection, summary);
+/// }
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VerifiedReplaySummary {
+    event_count: u64,
+    tip: ContentHash,
+}
+
+impl VerifiedReplaySummary {
+    pub fn event_count(&self) -> u64 {
+        self.event_count
+    }
+
+    pub fn tip(&self) -> ContentHash {
+        self.tip
+    }
+}
+
 /// Parse and verify one already-read record snapshot without consulting its
 /// store again. Summary-only verification never allocates an event vector;
 /// retained events are returned only after the complete snapshot verifies.
@@ -314,14 +361,17 @@ impl<S: LogStore> LogReader<S> {
         verify_chain_on(&self.store, &self.verifying_key).map(|verified| verified.count)
     }
 
-    /// Fold one verified record snapshot into a projection. Replay reads one
-    /// snapshot, verifies that exact snapshot completely, then folds those same
-    /// parsed events. If snapshot parsing or verification fails, no event is
-    /// applied. Trust in the supplied verifying key remains external.
+    /// Fold one verified record snapshot into a projection and return its exact
+    /// verified event count and chain tip.
     ///
-    /// This is how every derived view is (re)built: drop the view, `replay`, and
-    /// you are back exactly where you were — the log is the source of truth.
-    pub fn replay<P: Projection>(&self, projection: &mut P) -> Result<u64, LogError> {
+    /// Replay reads one snapshot, verifies that exact snapshot completely, then
+    /// folds those same retained parsed events. If snapshot parsing or
+    /// verification fails, no event is applied and no summary is returned.
+    /// Trust in the supplied verifying key remains external.
+    pub fn replay_with_summary<P: Projection>(
+        &self,
+        projection: &mut P,
+    ) -> Result<VerifiedReplaySummary, LogError> {
         let records = self.store.read_records()?;
         let verified = match parse_and_verify_records(
             &records,
@@ -333,7 +383,7 @@ impl<S: LogStore> LogReader<S> {
                 unreachable!("retained verification returned a summary")
             }
         };
-        let count = verified.events.len() as u64;
+        let event_count = verified.events.len() as u64;
         debug_assert_eq!(
             verified
                 .events
@@ -345,7 +395,22 @@ impl<S: LogStore> LogReader<S> {
         for event in &verified.events {
             projection.apply(event);
         }
-        Ok(count)
+        Ok(VerifiedReplaySummary {
+            event_count,
+            tip: verified.tip,
+        })
+    }
+
+    /// Fold one verified record snapshot into a projection. Replay reads one
+    /// snapshot, verifies that exact snapshot completely, then folds those same
+    /// parsed events. If snapshot parsing or verification fails, no event is
+    /// applied. Trust in the supplied verifying key remains external.
+    ///
+    /// This is how every derived view is (re)built: drop the view, `replay`, and
+    /// you are back exactly where you were — the log is the source of truth.
+    pub fn replay<P: Projection>(&self, projection: &mut P) -> Result<u64, LogError> {
+        self.replay_with_summary(projection)
+            .map(|summary| summary.event_count())
     }
 }
 

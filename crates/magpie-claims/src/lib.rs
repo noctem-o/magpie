@@ -11,6 +11,7 @@ pub mod policy;
 mod artifact_provenance_verifier;
 mod deadbolt_context;
 mod deterministic_verifier_context;
+mod origin_admission_replay;
 mod origin_binding_verifier;
 mod replay_snapshot;
 mod resolution_content_closure;
@@ -44,6 +45,10 @@ pub use deterministic_verifier_context::{
 };
 
 pub use replay_snapshot::{replay_standing_context, StandingReplaySnapshot};
+
+pub use origin_admission_replay::{
+    replay_origin_admission_context_v0, OriginAdmissionReplayContextV0, VerifiedLogPrefixIdentityV0,
+};
 
 pub use origin_binding_verifier::{
     ContributionIdentityV0, OriginBindingContextTraceV0, OriginBindingFamilyV0,
