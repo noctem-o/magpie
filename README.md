@@ -308,12 +308,26 @@ shell execution is unavailable.
     trusted grouping-authority path, the complete replay-derived candidate-
     universe law, exact verified-prefix identity, deterministic duplicate and
     conflict handling, and one standing-inert audit output. The standing-inert
-    origin-binding verifier v0 landed first through Ticket 0045; origin
-    admission and the audit resolver do not yet exist. The ordered future work
-    remains verified-prefix implementation, origin-admission audit
-    implementation, admitted-contribution audit, policy v3, conservative
-    aggregation, `EpistemicGate`, and an ordinary claim-bearing writer.
-21. **Historical review remediation contract.**
+    origin-binding verifier v0 landed first through Ticket 0045, and Ticket
+    0047 implements the separately versioned replay substrate described below;
+    origin admission and the audit resolver do not yet exist. The ordered
+    future work remains origin-admission audit implementation, admitted-
+    contribution audit, policy v3, conservative aggregation, `EpistemicGate`,
+    and an ordinary claim-bearing writer.
+21. **Origin-admission replay substrate v0 — implemented.** One-read verified
+    replay now returns an exact event-count and chain-tip summary while
+    preserving the existing replay API. A separately versioned origin-
+    admission replay context co-derives that exact prefix identity with the
+    unchanged standing and anchor projections, then provides crate-private,
+    complete deterministic enumeration of supported acquisition and derivation
+    origin-binding anchor candidates. Exact repeated anchor occurrences remain
+    attached without candidate or authority amplification. Binding-byte
+    completeness, origin-admission candidate audit, trusted-authority
+    classification, scoped unresolved eligibility, duplicate collapse,
+    conflict detection, `OriginAdmissionAuditV0`, admitted-contribution audit,
+    policy v3, aggregation, `EpistemicGate`, and an ordinary claim-bearing
+    writer remain future work. No runtime origin admission exists.
+22. **Historical review remediation contract.**
     [`docs/design/historical-review-remediation-ledger.md`](docs/design/historical-review-remediation-ledger.md)
     and [Ticket 0043](tickets/0043-historical-review-remediation-contract.md)
     ratify the remaining doctrine corrections from the PR #1-54 review audit

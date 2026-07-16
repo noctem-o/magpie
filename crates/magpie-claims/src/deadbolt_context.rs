@@ -86,6 +86,14 @@ impl DeadboltAnchorIndex {
         self.occurrences(identity).first()
     }
 
+    pub(crate) fn entries(
+        &self,
+    ) -> impl Iterator<Item = (&DeadboltAnchorIdentity, &[DeadboltAnchorOccurrence])> {
+        self.occurrences_by_identity
+            .iter()
+            .map(|(identity, occurrences)| (identity, occurrences.as_slice()))
+    }
+
     /// Deterministic derived bytes for replay-equivalence checks.
     ///
     /// These bytes are not L0 canonical encoding and carry no standing.

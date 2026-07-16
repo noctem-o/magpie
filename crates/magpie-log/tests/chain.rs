@@ -242,6 +242,81 @@ fn replay_uses_one_verified_snapshot_when_store_changes_on_read() {
 }
 
 #[test]
+fn replay_with_summary_uses_one_snapshot_and_returns_exact_count_tip_and_sequence() {
+    let source = MemStore::new();
+    let (first_snapshot, expected_tip) = {
+        let mut w = writer(source.clone());
+        w.append(prov(), note("summary first")).unwrap();
+        let final_event = w.append(prov(), note("summary second")).unwrap();
+        (source.records(), final_event.hash)
+    };
+    let mut second_snapshot = first_snapshot.clone();
+    let mut invalid: SignedEvent = serde_json::from_slice(second_snapshot.last().unwrap()).unwrap();
+    invalid.signature = Sig::new([0u8; 64]);
+    *second_snapshot.last_mut().unwrap() = serde_json::to_vec(&invalid).unwrap();
+
+    let read_count = Rc::new(Cell::new(0));
+    let reader = LogReader::open(
+        ChangingSnapshotStore {
+            first_snapshot,
+            second_snapshot,
+            read_count: Rc::clone(&read_count),
+        },
+        key().verifying_key(),
+    );
+    let mut projection = RecordingProjection::default();
+
+    let summary = reader.replay_with_summary(&mut projection).unwrap();
+
+    assert_eq!(read_count.get(), 1);
+    assert_eq!(summary.event_count(), 3);
+    assert_eq!(summary.tip(), expected_tip);
+    assert_eq!(projection.payloads.len(), 3);
+    assert!(matches!(projection.payloads[0], Payload::Genesis { .. }));
+    assert_eq!(projection.payloads[1], note("summary first"));
+    assert_eq!(projection.payloads[2], note("summary second"));
+}
+
+#[test]
+fn replay_and_replay_with_summary_are_equivalent_without_extra_reads() {
+    let source = MemStore::new();
+    let expected_tip = {
+        let mut w = writer(source.clone());
+        w.append(prov(), note("equivalent first")).unwrap();
+        w.append(prov(), note("equivalent second")).unwrap().hash
+    };
+    let replay_reads = Rc::new(Cell::new(0));
+    let summary_reads = Rc::new(Cell::new(0));
+    let replay_reader = LogReader::open(
+        CountingStore {
+            inner: source.clone(),
+            read_count: Rc::clone(&replay_reads),
+        },
+        key().verifying_key(),
+    );
+    let summary_reader = LogReader::open(
+        CountingStore {
+            inner: source,
+            read_count: Rc::clone(&summary_reads),
+        },
+        key().verifying_key(),
+    );
+    let mut replay_projection = RecordingProjection::default();
+    let mut summary_projection = RecordingProjection::default();
+
+    let replay_count = replay_reader.replay(&mut replay_projection).unwrap();
+    let summary = summary_reader
+        .replay_with_summary(&mut summary_projection)
+        .unwrap();
+
+    assert_eq!(replay_count, summary.event_count());
+    assert_eq!(summary.tip(), expected_tip);
+    assert_eq!(replay_projection.payloads, summary_projection.payloads);
+    assert_eq!(replay_reads.get(), 1);
+    assert_eq!(summary_reads.get(), 1);
+}
+
+#[test]
 fn replay_does_not_apply_valid_prefix_before_later_verification_failure() {
     let store = MemStore::new();
     {
@@ -268,6 +343,90 @@ fn replay_does_not_apply_valid_prefix_before_later_verification_failure() {
         projection.payloads.is_empty(),
         "no valid-prefix event may be applied before the full snapshot verifies"
     );
+}
+
+#[test]
+fn replay_with_summary_returns_no_summary_and_applies_nothing_on_late_failure() {
+    let store = MemStore::new();
+    {
+        let mut w = writer(store.clone());
+        w.append(prov(), note("valid summary prefix")).unwrap();
+        w.append(prov(), note("invalid summary suffix")).unwrap();
+    }
+
+    let mut records = store.records();
+    let mut invalid: SignedEvent = serde_json::from_slice(records.last().unwrap()).unwrap();
+    invalid.signature = Sig::new([0u8; 64]);
+    *records.last_mut().unwrap() = serde_json::to_vec(&invalid).unwrap();
+
+    let reader = LogReader::open(MemStore::from_records(records), key().verifying_key());
+    let mut projection = RecordingProjection::default();
+    let result = reader.replay_with_summary(&mut projection);
+
+    assert!(matches!(result, Err(LogError::BadSignature { seq: 2 })));
+    assert!(projection.payloads.is_empty());
+}
+
+#[test]
+fn replay_and_replay_with_summary_preserve_hostile_error_parity() {
+    let store = MemStore::new();
+    {
+        let mut w = writer(store.clone());
+        w.append(prov(), note("hostile parity prefix")).unwrap();
+        w.append(prov(), note("hostile parity suffix")).unwrap();
+    }
+    let mut records = store.records();
+    let mut invalid: SignedEvent = serde_json::from_slice(records.last().unwrap()).unwrap();
+    invalid.signature = Sig::new([0u8; 64]);
+    *records.last_mut().unwrap() = serde_json::to_vec(&invalid).unwrap();
+
+    let replay_reads = Rc::new(Cell::new(0));
+    let summary_reads = Rc::new(Cell::new(0));
+    let replay_reader = LogReader::open(
+        CountingStore {
+            inner: MemStore::from_records(records.clone()),
+            read_count: Rc::clone(&replay_reads),
+        },
+        key().verifying_key(),
+    );
+    let summary_reader = LogReader::open(
+        CountingStore {
+            inner: MemStore::from_records(records),
+            read_count: Rc::clone(&summary_reads),
+        },
+        key().verifying_key(),
+    );
+    let mut replay_projection = RecordingProjection::default();
+    let mut summary_projection = RecordingProjection::default();
+
+    let replay_error = replay_reader.replay(&mut replay_projection).unwrap_err();
+    let summary_error = summary_reader
+        .replay_with_summary(&mut summary_projection)
+        .unwrap_err();
+
+    match (replay_error, summary_error) {
+        (
+            LogError::BadSignature { seq: replay_seq },
+            LogError::BadSignature { seq: summary_seq },
+        ) => assert_eq!((replay_seq, summary_seq), (2, 2)),
+        other => panic!("replay error surfaces diverged: {other:?}"),
+    }
+    assert!(replay_projection.payloads.is_empty());
+    assert!(summary_projection.payloads.is_empty());
+    assert_eq!(replay_reads.get(), 1);
+    assert_eq!(summary_reads.get(), 1);
+}
+
+#[test]
+fn replay_with_summary_preserves_empty_store_identity() {
+    let reader = LogReader::open(MemStore::new(), key().verifying_key());
+    let mut projection = RecordingProjection::default();
+
+    let summary = reader.replay_with_summary(&mut projection).unwrap();
+
+    assert_eq!(summary.event_count(), 0);
+    assert_eq!(summary.tip(), ContentHash::ZERO);
+    assert!(projection.payloads.is_empty());
 }
 
 #[test]
