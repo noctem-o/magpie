@@ -1624,3 +1624,170 @@ fn public_constants_and_every_unmatched_trace_tag_are_exact() {
         assert_eq!(value["outcome"], expected_tag);
     }
 }
+
+#[test]
+fn public_trace_bytes_remain_pinned_across_private_evaluator_refactor() {
+    let binding = acquisition_binding_selector();
+    let acquisition = acquisition_selector();
+    let acquisition_snapshot = snapshot(
+        &ReplaySpec::acquisition(),
+        &[binding.clone(), acquisition.clone()],
+    );
+    let derivation_binding = derivation_binding_selector();
+    let parent_acquisition = parent_acquisition_selector();
+    let derivation = derivation_selector();
+    let derivation_snapshot = snapshot(
+        &ReplaySpec::derivation(),
+        &[
+            derivation_binding.clone(),
+            parent_acquisition.clone(),
+            derivation.clone(),
+        ],
+    );
+
+    let wrong_root_selector = selector(
+        ORIGIN_BINDING_ACQUISITION_BUNDLE_KIND_V0,
+        &"0".repeat(64),
+        ORIGIN_BINDING_WITNESS_ALGORITHM_V0,
+        ORIGIN_BINDING_CANONICALIZATION_PROFILE_V0,
+        "run-origin-binding-acq-0001",
+    );
+    let mut target_absent = ReplaySpec::acquisition();
+    target_absent.include_claim = false;
+    let binding_only = closure(&[], &[(&binding, ACQUISITION_BINDING)]);
+    let acquisition_bundle_only = closure(
+        &[],
+        &[
+            (&binding, ACQUISITION_BINDING),
+            (&acquisition, ACQUISITION_BUNDLE),
+        ],
+    );
+    let malformed_nested = closure(
+        &[(ACQUISITION_DIGEST, ACQUISITION_ARTIFACT)],
+        &[(&binding, ACQUISITION_BINDING), (&acquisition, b"{")],
+    );
+    let digest_mismatch = closure(
+        &[(ACQUISITION_DIGEST, b"wrong artifact")],
+        &[
+            (&binding, ACQUISITION_BINDING),
+            (&acquisition, ACQUISITION_BUNDLE),
+        ],
+    );
+    let coherence_binding_bytes =
+        replace_once(ACQUISITION_BINDING, ACQUISITION_DIGEST, DERIVED_DIGEST);
+    let coherence_binding = selector_for_bundle(
+        ORIGIN_BINDING_ACQUISITION_BUNDLE_KIND_V0,
+        "run-origin-binding-acq-0001",
+        &coherence_binding_bytes,
+    );
+    let coherence_snapshot = snapshot(
+        &ReplaySpec::acquisition(),
+        &[coherence_binding.clone(), acquisition.clone()],
+    );
+    let coherence_closure = closure(
+        &[(ACQUISITION_DIGEST, ACQUISITION_ARTIFACT)],
+        &[
+            (&coherence_binding, &coherence_binding_bytes),
+            (&acquisition, ACQUISITION_BUNDLE),
+        ],
+    );
+
+    let traces = [
+        (
+            "matched_acquisition",
+            outcome(&acquisition_snapshot, &binding, &acquisition_closure()),
+            3365,
+            "7276c9d33671123e3dfb53a88ffb8ac9bc6c572a5ca500de9f9151052657d178",
+        ),
+        (
+            "matched_derivation",
+            outcome(
+                &derivation_snapshot,
+                &derivation_binding,
+                &derivation_closure(),
+            ),
+            5184,
+            "9b5907b9349100618ffe969e6fb7a9a6bae5feb89e2167691133ead778058492",
+        ),
+        (
+            "binding_bundle_unavailable",
+            outcome(&acquisition_snapshot, &binding, &closure(&[], &[])),
+            40,
+            "0cb46ca223e0ca6384a844a9a62b3cdf7b1a24346df57c19b6f20241bb2b5aba",
+        ),
+        (
+            "malformed_binding",
+            outcome(
+                &acquisition_snapshot,
+                &binding,
+                &closure(&[], &[(&binding, b"{")]),
+            ),
+            26,
+            "3967aa23f8172bce1d40a4508e6f10f800b0163d1e2788223c6b35951f50abe6",
+        ),
+        (
+            "binding_root_mismatch",
+            outcome(
+                &snapshot(&ReplaySpec::acquisition(), &[]),
+                &wrong_root_selector,
+                &closure(&[], &[(&wrong_root_selector, ACQUISITION_BINDING)]),
+            ),
+            43,
+            "a3a75ac579aecf7686c0b2ca527d2b60e90be21fbf9204dd2c1ffd08eb92d05e",
+        ),
+        (
+            "replay_structure_mismatch",
+            outcome(
+                &snapshot(&target_absent, &[binding.clone(), acquisition.clone()]),
+                &binding,
+                &acquisition_closure(),
+            ),
+            33,
+            "a56dbea879ce8100f5a6b46c35b6df94c1b10d927f909a79cd90f699d33971c4",
+        ),
+        (
+            "nested_acquisition_bundle_unavailable",
+            outcome(&acquisition_snapshot, &binding, &binding_only),
+            102,
+            "2d7091908057c02ddc393a831fd8d64d3008d1b6069b9be56c280e85d62606f1",
+        ),
+        (
+            "acquisition_artifact_unavailable",
+            outcome(&acquisition_snapshot, &binding, &acquisition_bundle_only),
+            104,
+            "d839b29d487a7632da555632ebeb332514576ce4069dd5c8a4591177fdd8c70e",
+        ),
+        (
+            "nested_malformed_provenance",
+            outcome(&acquisition_snapshot, &binding, &malformed_nested),
+            96,
+            "ac66a8184b8cfa88280c528d8e142d679b89d9d4fd4e7feec3e53b4898baa4c9",
+        ),
+        (
+            "artifact_digest_mismatch",
+            outcome(&acquisition_snapshot, &binding, &digest_mismatch),
+            108,
+            "e186eb56197666c9c53ff2e213103645bd308f614bdde94986cb1088df425208",
+        ),
+        (
+            "artifact_coherence_failure",
+            outcome(&coherence_snapshot, &coherence_binding, &coherence_closure),
+            69,
+            "6f06897a73fe5818e57c5dd4ec40970158a62bc6dd2c5e175f2d72363428a191",
+        ),
+    ];
+
+    for (name, trace, expected_len, expected_sha256) in traces {
+        let bytes = trace.canonical_bytes();
+        assert_eq!(
+            bytes.len(),
+            expected_len,
+            "{name} public trace length changed"
+        );
+        assert_eq!(
+            sha256_hex(&bytes),
+            expected_sha256,
+            "{name} public trace bytes changed"
+        );
+    }
+}

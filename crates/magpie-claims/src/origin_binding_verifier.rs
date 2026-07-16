@@ -385,6 +385,114 @@ impl OriginBindingContextTraceV0 {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum OriginBindingEvaluationClassV0 {
+    BindingBytesUnavailable,
+    DefinitivelyRejected,
+    AvailabilityOnly,
+    Matched,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ValidatedOriginBindingSubjectV0 {
+    contribution: ContributionIdentityV0,
+    namespace: OriginComparisonNamespaceV0,
+    claimed_policy_id: String,
+    claimed_origin_group: String,
+    authority_kind: String,
+    authority_reference: String,
+}
+
+impl ValidatedOriginBindingSubjectV0 {
+    pub(crate) fn contribution(&self) -> &ContributionIdentityV0 {
+        &self.contribution
+    }
+
+    pub(crate) fn namespace(&self) -> &OriginComparisonNamespaceV0 {
+        &self.namespace
+    }
+
+    pub(crate) fn claimed_policy_id(&self) -> &str {
+        &self.claimed_policy_id
+    }
+
+    pub(crate) fn claimed_origin_group(&self) -> &str {
+        &self.claimed_origin_group
+    }
+
+    pub(crate) fn authority_kind(&self) -> &str {
+        &self.authority_kind
+    }
+
+    pub(crate) fn authority_reference(&self) -> &str {
+        &self.authority_reference
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct OriginBindingEvaluationV0 {
+    trace: OriginBindingContextTraceV0,
+    class: OriginBindingEvaluationClassV0,
+    validated_subject: Option<ValidatedOriginBindingSubjectV0>,
+}
+
+impl OriginBindingEvaluationV0 {
+    fn binding_bytes_unavailable() -> Self {
+        Self {
+            trace: OriginBindingContextTraceV0::BindingBundleUnavailable,
+            class: OriginBindingEvaluationClassV0::BindingBytesUnavailable,
+            validated_subject: None,
+        }
+    }
+
+    fn definitively_rejected(
+        trace: OriginBindingContextTraceV0,
+        validated_subject: Option<ValidatedOriginBindingSubjectV0>,
+    ) -> Self {
+        Self {
+            trace,
+            class: OriginBindingEvaluationClassV0::DefinitivelyRejected,
+            validated_subject,
+        }
+    }
+
+    fn availability_only(
+        trace: OriginBindingContextTraceV0,
+        validated_subject: ValidatedOriginBindingSubjectV0,
+    ) -> Self {
+        Self {
+            trace,
+            class: OriginBindingEvaluationClassV0::AvailabilityOnly,
+            validated_subject: Some(validated_subject),
+        }
+    }
+
+    fn matched(
+        trace: OriginBindingContextTraceV0,
+        validated_subject: ValidatedOriginBindingSubjectV0,
+    ) -> Self {
+        Self {
+            trace,
+            class: OriginBindingEvaluationClassV0::Matched,
+            validated_subject: Some(validated_subject),
+        }
+    }
+
+    pub(crate) fn into_parts(
+        self,
+    ) -> (
+        OriginBindingContextTraceV0,
+        OriginBindingEvaluationClassV0,
+        Option<ValidatedOriginBindingSubjectV0>,
+    ) {
+        (self.trace, self.class, self.validated_subject)
+    }
+
+    fn into_trace(self) -> OriginBindingContextTraceV0 {
+        self.trace
+    }
+}
+
 impl StandingReplaySnapshot {
     /// Resolve one exact origin-binding assertion from this replay and closure.
     pub fn resolve_origin_binding_context_v0(
@@ -392,198 +500,320 @@ impl StandingReplaySnapshot {
         binding_selector: &ArtifactProvenanceAnchorSelectorV0,
         closure: &ResolutionContentClosureV0,
     ) -> OriginBindingContextTraceV0 {
-        let supplied = match closure.foreign_bundle(binding_selector) {
-            Some(bytes) => bytes,
-            None => return OriginBindingContextTraceV0::BindingBundleUnavailable,
-        };
-        if supplied.len() > MAX_ORIGIN_BINDING_BUNDLE_BYTES_V0 {
-            return OriginBindingContextTraceV0::BindingBundleTooLarge;
-        }
+        evaluate_origin_binding_context_v0(self, binding_selector, closure).into_trace()
+    }
+}
 
-        let text = match decode_bundle_text(supplied) {
-            Ok(value) => value,
-            Err(trace) => return trace,
-        };
-        let envelope = match parse_binding_envelope(text) {
-            Ok(value) => value,
-            Err(trace) => return trace,
-        };
-        let parsed = match validate_binding_shape(envelope) {
-            Ok(value) => value,
-            Err(trace) => return trace,
-        };
-        if let Err(trace) = validate_binding_semantics(&parsed) {
-            return trace;
-        }
+pub(crate) fn evaluate_origin_binding_context_v0(
+    snapshot: &StandingReplaySnapshot,
+    binding_selector: &ArtifactProvenanceAnchorSelectorV0,
+    closure: &ResolutionContentClosureV0,
+) -> OriginBindingEvaluationV0 {
+    let supplied = match closure.foreign_bundle(binding_selector) {
+        Some(bytes) => bytes,
+        None => return OriginBindingEvaluationV0::binding_bytes_unavailable(),
+    };
+    if supplied.len() > MAX_ORIGIN_BINDING_BUNDLE_BYTES_V0 {
+        return OriginBindingEvaluationV0::definitively_rejected(
+            OriginBindingContextTraceV0::BindingBundleTooLarge,
+            None,
+        );
+    }
 
-        let canonical = encode_binding(&parsed);
-        if canonical != supplied {
-            return OriginBindingContextTraceV0::NonCanonicalEncoding;
-        }
+    let text = match decode_bundle_text(supplied) {
+        Ok(value) => value,
+        Err(trace) => return OriginBindingEvaluationV0::definitively_rejected(trace, None),
+    };
+    let envelope = match parse_binding_envelope(text) {
+        Ok(value) => value,
+        Err(trace) => return OriginBindingEvaluationV0::definitively_rejected(trace, None),
+    };
+    let parsed = match validate_binding_shape(envelope) {
+        Ok(value) => value,
+        Err(trace) => return OriginBindingEvaluationV0::definitively_rejected(trace, None),
+    };
+    if let Err(trace) = validate_binding_semantics(&parsed) {
+        return OriginBindingEvaluationV0::definitively_rejected(trace, None);
+    }
 
-        let expected_kind = match parsed.family {
-            OriginBindingFamilyV0::Acquisition => ORIGIN_BINDING_ACQUISITION_BUNDLE_KIND_V0,
-            OriginBindingFamilyV0::Derivation => ORIGIN_BINDING_DERIVATION_BUNDLE_KIND_V0,
-        };
-        if binding_selector.bundle_kind() != expected_kind {
-            return OriginBindingContextTraceV0::BindingBundleKindMismatch;
-        }
-        if binding_selector.witness_algorithm() != ORIGIN_BINDING_WITNESS_ALGORITHM_V0 {
-            return OriginBindingContextTraceV0::BindingWitnessAlgorithmMismatch;
-        }
-        if binding_selector.canonicalization_profile() != ORIGIN_BINDING_CANONICALIZATION_PROFILE_V0
-        {
-            return OriginBindingContextTraceV0::BindingCanonicalizationProfileMismatch;
-        }
-        if binding_selector.run_id() != parsed.run_id {
-            return OriginBindingContextTraceV0::BindingRunIdMismatch;
-        }
+    let canonical = encode_binding(&parsed);
+    if canonical != supplied {
+        return OriginBindingEvaluationV0::definitively_rejected(
+            OriginBindingContextTraceV0::NonCanonicalEncoding,
+            None,
+        );
+    }
 
-        let computed_witness_root = sha256_hex(&canonical);
-        if binding_selector.witness_root() != computed_witness_root {
-            return OriginBindingContextTraceV0::BindingWitnessRootMismatch;
-        }
-        let identity = selector_identity(binding_selector);
-        let occurrences = self.anchors().occurrences(&identity);
-        if occurrences.is_empty() {
-            return OriginBindingContextTraceV0::BindingAnchorAbsent;
-        }
+    let expected_kind = match parsed.family {
+        OriginBindingFamilyV0::Acquisition => ORIGIN_BINDING_ACQUISITION_BUNDLE_KIND_V0,
+        OriginBindingFamilyV0::Derivation => ORIGIN_BINDING_DERIVATION_BUNDLE_KIND_V0,
+    };
+    if binding_selector.bundle_kind() != expected_kind {
+        return OriginBindingEvaluationV0::definitively_rejected(
+            OriginBindingContextTraceV0::BindingBundleKindMismatch,
+            None,
+        );
+    }
+    if binding_selector.witness_algorithm() != ORIGIN_BINDING_WITNESS_ALGORITHM_V0 {
+        return OriginBindingEvaluationV0::definitively_rejected(
+            OriginBindingContextTraceV0::BindingWitnessAlgorithmMismatch,
+            None,
+        );
+    }
+    if binding_selector.canonicalization_profile() != ORIGIN_BINDING_CANONICALIZATION_PROFILE_V0 {
+        return OriginBindingEvaluationV0::definitively_rejected(
+            OriginBindingContextTraceV0::BindingCanonicalizationProfileMismatch,
+            None,
+        );
+    }
+    if binding_selector.run_id() != parsed.run_id {
+        return OriginBindingEvaluationV0::definitively_rejected(
+            OriginBindingContextTraceV0::BindingRunIdMismatch,
+            None,
+        );
+    }
 
-        let target = match self
-            .standing()
-            .typed_claim(&parsed.contribution.target_claim_id)
-        {
-            Some(value) => value,
-            None => return OriginBindingContextTraceV0::TargetClaimAbsent,
-        };
-        let evidence = match self
-            .standing()
-            .typed_evidence(&parsed.contribution.source_evidence_id)
-        {
-            Some(value) => value,
-            None => return OriginBindingContextTraceV0::SourceEvidenceAbsent,
-        };
-        let edge = match self
-            .standing()
-            .justification_edge(&parsed.contribution.justification_edge_id)
-        {
-            Some(value) => value,
-            None => return OriginBindingContextTraceV0::JustificationEdgeAbsent,
-        };
-        if edge.source_id != parsed.contribution.source_evidence_id {
-            return OriginBindingContextTraceV0::EdgeSourceMismatch;
-        }
-        if edge.target_id != parsed.contribution.target_claim_id {
-            return OriginBindingContextTraceV0::EdgeTargetMismatch;
-        }
-        if target.scope_ref != parsed.contribution.scope_ref
-            || evidence.scope_ref != parsed.contribution.scope_ref
-            || edge.scope_ref != parsed.contribution.scope_ref
-        {
-            return OriginBindingContextTraceV0::ScopeMismatch;
-        }
+    let computed_witness_root = sha256_hex(&canonical);
+    if binding_selector.witness_root() != computed_witness_root {
+        return OriginBindingEvaluationV0::definitively_rejected(
+            OriginBindingContextTraceV0::BindingWitnessRootMismatch,
+            None,
+        );
+    }
+    let identity = selector_identity(binding_selector);
+    let occurrences = snapshot.anchors().occurrences(&identity);
+    if occurrences.is_empty() {
+        return OriginBindingEvaluationV0::definitively_rejected(
+            OriginBindingContextTraceV0::BindingAnchorAbsent,
+            None,
+        );
+    }
 
-        let acquisition_receipt = match resolve_artifact_acquisition_from_closure_v0(
-            self,
-            &parsed.acquisition_selector,
-            closure,
-        ) {
-            ArtifactProvenanceContextTraceV0::MatchedAcquisition(receipt) => receipt,
-            trace => {
-                return OriginBindingContextTraceV0::AcquisitionPrerequisiteUnresolved { trace }
-            }
-        };
+    let target = match snapshot
+        .standing()
+        .typed_claim(&parsed.contribution.target_claim_id)
+    {
+        Some(value) => value,
+        None => {
+            return OriginBindingEvaluationV0::definitively_rejected(
+                OriginBindingContextTraceV0::TargetClaimAbsent,
+                None,
+            )
+        }
+    };
+    let evidence = match snapshot
+        .standing()
+        .typed_evidence(&parsed.contribution.source_evidence_id)
+    {
+        Some(value) => value,
+        None => {
+            return OriginBindingEvaluationV0::definitively_rejected(
+                OriginBindingContextTraceV0::SourceEvidenceAbsent,
+                None,
+            )
+        }
+    };
+    let edge = match snapshot
+        .standing()
+        .justification_edge(&parsed.contribution.justification_edge_id)
+    {
+        Some(value) => value,
+        None => {
+            return OriginBindingEvaluationV0::definitively_rejected(
+                OriginBindingContextTraceV0::JustificationEdgeAbsent,
+                None,
+            )
+        }
+    };
+    if edge.source_id != parsed.contribution.source_evidence_id {
+        return OriginBindingEvaluationV0::definitively_rejected(
+            OriginBindingContextTraceV0::EdgeSourceMismatch,
+            None,
+        );
+    }
+    if edge.target_id != parsed.contribution.target_claim_id {
+        return OriginBindingEvaluationV0::definitively_rejected(
+            OriginBindingContextTraceV0::EdgeTargetMismatch,
+            None,
+        );
+    }
+    if target.scope_ref != parsed.contribution.scope_ref
+        || evidence.scope_ref != parsed.contribution.scope_ref
+        || edge.scope_ref != parsed.contribution.scope_ref
+    {
+        return OriginBindingEvaluationV0::definitively_rejected(
+            OriginBindingContextTraceV0::ScopeMismatch,
+            None,
+        );
+    }
 
-        let contribution = ContributionIdentityV0 {
+    let validated_subject = ValidatedOriginBindingSubjectV0 {
+        contribution: ContributionIdentityV0 {
             target_claim_id: parsed.contribution.target_claim_id.clone(),
             source_evidence_id: parsed.contribution.source_evidence_id.clone(),
             justification_edge_id: parsed.contribution.justification_edge_id.clone(),
             scope_ref: parsed.contribution.scope_ref.clone(),
             artifact_algorithm: parsed.contribution.artifact.algorithm.clone(),
             artifact_digest: parsed.contribution.artifact.digest.clone(),
-        };
-        let comparison_namespace = OriginComparisonNamespaceV0 {
+        },
+        namespace: OriginComparisonNamespaceV0 {
             origin_admission_policy_id: parsed.origin_admission_policy_id.clone(),
             target_claim_id: parsed.contribution.target_claim_id.clone(),
             scope_ref: parsed.contribution.scope_ref.clone(),
-        };
+        },
+        claimed_policy_id: parsed.origin_admission_policy_id.clone(),
+        claimed_origin_group: parsed.origin_group.clone(),
+        authority_kind: parsed.authority.kind.clone(),
+        authority_reference: parsed.authority.reference.clone(),
+    };
 
-        let provenance = match &parsed.derivation_selector {
-            None => {
-                if acquisition_receipt.artifact_algorithm()
-                    != parsed.contribution.artifact.algorithm
-                    || acquisition_receipt.artifact_digest() != parsed.contribution.artifact.digest
-                {
-                    return OriginBindingContextTraceV0::AcquisitionArtifactDiffersFromContributionArtifact;
-                }
-                OriginBindingProvenanceV0::Acquisition {
-                    acquisition_receipt,
-                }
-            }
-            Some(derivation_selector) => {
-                let derivation_receipt = match resolve_artifact_derivation_from_closure_v0(
-                    self,
-                    derivation_selector,
-                    closure,
-                ) {
-                    ArtifactProvenanceContextTraceV0::MatchedDerivation(receipt) => receipt,
-                    trace => {
-                        return OriginBindingContextTraceV0::DerivationPrerequisiteUnresolved {
-                            trace,
-                        }
-                    }
-                };
-                if acquisition_receipt.artifact_algorithm()
-                    != derivation_receipt.parent_artifact_algorithm()
-                    || acquisition_receipt.artifact_digest()
-                        != derivation_receipt.parent_artifact_digest()
-                {
-                    return OriginBindingContextTraceV0::AcquisitionArtifactDiffersFromDerivationParent;
-                }
-                if derivation_receipt.derived_artifact_algorithm()
-                    != parsed.contribution.artifact.algorithm
-                    || derivation_receipt.derived_artifact_digest()
-                        != parsed.contribution.artifact.digest
-                {
-                    return OriginBindingContextTraceV0::DerivationOutputDiffersFromContributionArtifact;
-                }
-                OriginBindingProvenanceV0::Derivation {
-                    derivation_selector: derivation_selector.clone(),
-                    acquisition_receipt,
-                    derivation_receipt: Box::new(derivation_receipt),
-                }
-            }
-        };
+    let acquisition_receipt = match resolve_artifact_acquisition_from_closure_v0(
+        snapshot,
+        &parsed.acquisition_selector,
+        closure,
+    ) {
+        ArtifactProvenanceContextTraceV0::MatchedAcquisition(receipt) => receipt,
+        trace => {
+            let availability_only = artifact_provenance_trace_is_availability_only(&trace);
+            let public_trace =
+                OriginBindingContextTraceV0::AcquisitionPrerequisiteUnresolved { trace };
+            return if availability_only {
+                OriginBindingEvaluationV0::availability_only(public_trace, validated_subject)
+            } else {
+                OriginBindingEvaluationV0::definitively_rejected(
+                    public_trace,
+                    Some(validated_subject),
+                )
+            };
+        }
+    };
 
-        let receipt = OriginBindingReceiptV0 {
-            verifier_profile: ORIGIN_BINDING_VERIFIER_PROFILE_V0.to_owned(),
-            binding_selector: binding_selector.clone(),
-            family: parsed.family,
-            schema: parsed.schema,
-            binding_id: parsed.binding_id,
-            origin_admission_policy_id: parsed.origin_admission_policy_id,
-            contribution,
-            comparison_namespace,
-            acquisition_selector: parsed.acquisition_selector,
-            provenance,
-            origin_group: parsed.origin_group,
-            authority_kind: parsed.authority.kind,
-            authority_reference: parsed.authority.reference,
-            binding_run_id: parsed.run_id,
-            bundle_byte_len: supplied.len() as u64,
-            computed_witness_root,
-            occurrences: occurrences.to_vec(),
-        };
-
-        match receipt.family {
-            OriginBindingFamilyV0::Acquisition => {
-                OriginBindingContextTraceV0::MatchedAcquisition(receipt)
+    let provenance = match &parsed.derivation_selector {
+        None => {
+            if acquisition_receipt.artifact_algorithm() != parsed.contribution.artifact.algorithm
+                || acquisition_receipt.artifact_digest() != parsed.contribution.artifact.digest
+            {
+                return OriginBindingEvaluationV0::definitively_rejected(
+                    OriginBindingContextTraceV0::AcquisitionArtifactDiffersFromContributionArtifact,
+                    Some(validated_subject),
+                );
             }
-            OriginBindingFamilyV0::Derivation => {
-                OriginBindingContextTraceV0::MatchedDerivation(receipt)
+            OriginBindingProvenanceV0::Acquisition {
+                acquisition_receipt,
             }
         }
-    }
+        Some(derivation_selector) => {
+            let derivation_receipt = match resolve_artifact_derivation_from_closure_v0(
+                snapshot,
+                derivation_selector,
+                closure,
+            ) {
+                ArtifactProvenanceContextTraceV0::MatchedDerivation(receipt) => receipt,
+                trace => {
+                    let availability_only = artifact_provenance_trace_is_availability_only(&trace);
+                    let public_trace =
+                        OriginBindingContextTraceV0::DerivationPrerequisiteUnresolved { trace };
+                    return if availability_only {
+                        OriginBindingEvaluationV0::availability_only(
+                            public_trace,
+                            validated_subject,
+                        )
+                    } else {
+                        OriginBindingEvaluationV0::definitively_rejected(
+                            public_trace,
+                            Some(validated_subject),
+                        )
+                    };
+                }
+            };
+            if acquisition_receipt.artifact_algorithm()
+                != derivation_receipt.parent_artifact_algorithm()
+                || acquisition_receipt.artifact_digest()
+                    != derivation_receipt.parent_artifact_digest()
+            {
+                return OriginBindingEvaluationV0::definitively_rejected(
+                    OriginBindingContextTraceV0::AcquisitionArtifactDiffersFromDerivationParent,
+                    Some(validated_subject),
+                );
+            }
+            if derivation_receipt.derived_artifact_algorithm()
+                != parsed.contribution.artifact.algorithm
+                || derivation_receipt.derived_artifact_digest()
+                    != parsed.contribution.artifact.digest
+            {
+                return OriginBindingEvaluationV0::definitively_rejected(
+                    OriginBindingContextTraceV0::DerivationOutputDiffersFromContributionArtifact,
+                    Some(validated_subject),
+                );
+            }
+            OriginBindingProvenanceV0::Derivation {
+                derivation_selector: derivation_selector.clone(),
+                acquisition_receipt,
+                derivation_receipt: Box::new(derivation_receipt),
+            }
+        }
+    };
+
+    let receipt = OriginBindingReceiptV0 {
+        verifier_profile: ORIGIN_BINDING_VERIFIER_PROFILE_V0.to_owned(),
+        binding_selector: binding_selector.clone(),
+        family: parsed.family,
+        schema: parsed.schema,
+        binding_id: parsed.binding_id,
+        origin_admission_policy_id: parsed.origin_admission_policy_id,
+        contribution: validated_subject.contribution.clone(),
+        comparison_namespace: validated_subject.namespace.clone(),
+        acquisition_selector: parsed.acquisition_selector,
+        provenance,
+        origin_group: parsed.origin_group,
+        authority_kind: parsed.authority.kind,
+        authority_reference: parsed.authority.reference,
+        binding_run_id: parsed.run_id,
+        bundle_byte_len: supplied.len() as u64,
+        computed_witness_root,
+        occurrences: occurrences.to_vec(),
+    };
+
+    assert_eq!(receipt.contribution(), validated_subject.contribution());
+    assert_eq!(
+        receipt.comparison_namespace(),
+        validated_subject.namespace()
+    );
+    assert_eq!(
+        receipt.origin_admission_policy_id(),
+        validated_subject.claimed_policy_id()
+    );
+    assert_eq!(
+        receipt.origin_group(),
+        validated_subject.claimed_origin_group()
+    );
+    assert_eq!(receipt.authority_kind(), validated_subject.authority_kind());
+    assert_eq!(
+        receipt.authority_reference(),
+        validated_subject.authority_reference()
+    );
+
+    let trace = match receipt.family {
+        OriginBindingFamilyV0::Acquisition => {
+            OriginBindingContextTraceV0::MatchedAcquisition(receipt)
+        }
+        OriginBindingFamilyV0::Derivation => {
+            OriginBindingContextTraceV0::MatchedDerivation(receipt)
+        }
+    };
+    OriginBindingEvaluationV0::matched(trace, validated_subject)
+}
+
+fn artifact_provenance_trace_is_availability_only(
+    trace: &ArtifactProvenanceContextTraceV0,
+) -> bool {
+    matches!(
+        trace,
+        ArtifactProvenanceContextTraceV0::BundleUnavailable
+            | ArtifactProvenanceContextTraceV0::ArtifactUnavailable
+            | ArtifactProvenanceContextTraceV0::ParentArtifactUnavailable
+            | ArtifactProvenanceContextTraceV0::DerivedArtifactUnavailable
+    )
 }
 
 fn selector_identity(selector: &ArtifactProvenanceAnchorSelectorV0) -> DeadboltAnchorIdentity {
@@ -1705,4 +1935,463 @@ fn push_json_string(out: &mut Vec<u8>, value: &str) {
         }
     }
     out.push(b'"');
+}
+
+#[cfg(test)]
+mod evaluation_regression_tests {
+    use super::*;
+    use crate::replay_standing_context;
+    use crate::resolution_content_closure::{
+        ResolutionArtifactObjectInputV0, ResolutionArtifactObjectKeyV0,
+        ResolutionForeignBundleObjectInputV0,
+    };
+    use magpie_log::{LogReader, LogWriter, MemStore, Payload, Provenance, SigningKey, Status};
+
+    const ACQUISITION_BINDING: &[u8] =
+        include_bytes!("../../../fixtures/origin-binding-v0/acquisition-binding.json");
+    const DERIVATION_BINDING: &[u8] =
+        include_bytes!("../../../fixtures/origin-binding-v0/derivation-binding.json");
+    const PARENT_ACQUISITION_BUNDLE: &[u8] = include_bytes!(
+        "../../../fixtures/origin-binding-v0/derivation-parent-acquisition-bundle.json"
+    );
+    const ACQUISITION_BUNDLE: &[u8] =
+        include_bytes!("../../../fixtures/artifact-provenance-v0/acquisition-bundle.json");
+    const DERIVATION_BUNDLE: &[u8] =
+        include_bytes!("../../../fixtures/artifact-provenance-v0/derivation-bundle.json");
+    const ACQUISITION_ARTIFACT: &[u8] =
+        include_bytes!("../../../fixtures/artifact-provenance-v0/acquisition-artifact.txt");
+    const DERIVATION_PARENT: &[u8] =
+        include_bytes!("../../../fixtures/artifact-provenance-v0/derivation-parent.txt");
+    const DERIVATION_DERIVED: &[u8] =
+        include_bytes!("../../../fixtures/artifact-provenance-v0/derivation-derived.txt");
+
+    const ACQUISITION_BINDING_ROOT: &str =
+        "4f4bbaab87c1cfdc4dfe3b8c0d8b11a04bdc637de1e8e1481001b09543f0a4d7";
+    const DERIVATION_BINDING_ROOT: &str =
+        "24aa77f2f601e70f6d5d6044f0b1274394f164276df07296be16ab59953a5a29";
+    const ACQUISITION_ROOT: &str =
+        "4a5cdc953523db6bdbd8d88d3534334deb7f6f4288e434b1cfd4786b1ffb093e";
+    const PARENT_ACQUISITION_ROOT: &str =
+        "94593dd609cb44b07c2f3dd5a72226ff4c02ad4b9f4378a84d4432c433a1f7ce";
+    const DERIVATION_ROOT: &str =
+        "472e857153fe8c901b6c0d7d1b15bd876450b57b4743222a2fab91eb60bc76dd";
+    const ACQUISITION_DIGEST: &str =
+        "51bc0fc1f19104fa6e89ce50be9aa1f57c3346c1ca51ab49f5f00e14ce8f8076";
+    const PARENT_DIGEST: &str = "b6a98d9ce9a2d9149288fa3df42d377c3e42737afdcdaf714e33c0a100b51060";
+    const DERIVED_DIGEST: &str = "1921b918b15842c7fdb115078e610263fac85f159c1d8e0ecec3d89a0faa4005";
+    const SCOPE: &str = "scope:origin-example";
+    const SEED: [u8; 32] = [45; 32];
+
+    fn selector(
+        kind: &str,
+        root: &str,
+        algorithm: &str,
+        profile: &str,
+        run_id: &str,
+    ) -> ArtifactProvenanceAnchorSelectorV0 {
+        ArtifactProvenanceAnchorSelectorV0::new(kind, root, algorithm, profile, run_id)
+    }
+
+    fn acquisition_binding_selector() -> ArtifactProvenanceAnchorSelectorV0 {
+        selector(
+            ORIGIN_BINDING_ACQUISITION_BUNDLE_KIND_V0,
+            ACQUISITION_BINDING_ROOT,
+            ORIGIN_BINDING_WITNESS_ALGORITHM_V0,
+            ORIGIN_BINDING_CANONICALIZATION_PROFILE_V0,
+            "run-origin-binding-acq-0001",
+        )
+    }
+
+    fn derivation_binding_selector() -> ArtifactProvenanceAnchorSelectorV0 {
+        selector(
+            ORIGIN_BINDING_DERIVATION_BUNDLE_KIND_V0,
+            DERIVATION_BINDING_ROOT,
+            ORIGIN_BINDING_WITNESS_ALGORITHM_V0,
+            ORIGIN_BINDING_CANONICALIZATION_PROFILE_V0,
+            "run-origin-binding-der-0001",
+        )
+    }
+
+    fn acquisition_selector() -> ArtifactProvenanceAnchorSelectorV0 {
+        selector(
+            ARTIFACT_ACQUISITION_BUNDLE_KIND_V0,
+            ACQUISITION_ROOT,
+            ARTIFACT_PROVENANCE_WITNESS_ALGORITHM_V0,
+            ARTIFACT_PROVENANCE_CANONICALIZATION_PROFILE_V0,
+            "run-acq-0001",
+        )
+    }
+
+    fn parent_acquisition_selector() -> ArtifactProvenanceAnchorSelectorV0 {
+        selector(
+            ARTIFACT_ACQUISITION_BUNDLE_KIND_V0,
+            PARENT_ACQUISITION_ROOT,
+            ARTIFACT_PROVENANCE_WITNESS_ALGORITHM_V0,
+            ARTIFACT_PROVENANCE_CANONICALIZATION_PROFILE_V0,
+            "run-acq-alpha-0001",
+        )
+    }
+
+    fn derivation_selector() -> ArtifactProvenanceAnchorSelectorV0 {
+        selector(
+            ARTIFACT_DERIVATION_BUNDLE_KIND_V0,
+            DERIVATION_ROOT,
+            ARTIFACT_PROVENANCE_WITNESS_ALGORITHM_V0,
+            ARTIFACT_PROVENANCE_CANONICALIZATION_PROFILE_V0,
+            "run-der-0001",
+        )
+    }
+
+    fn replace_once(bytes: &[u8], from: &str, to: &str) -> Vec<u8> {
+        let text = std::str::from_utf8(bytes).unwrap();
+        assert_eq!(text.matches(from).count(), 1);
+        text.replacen(from, to, 1).into_bytes()
+    }
+
+    fn selector_for_bundle(
+        kind: &str,
+        run_id: &str,
+        bytes: &[u8],
+    ) -> ArtifactProvenanceAnchorSelectorV0 {
+        selector(
+            kind,
+            &sha256_hex(bytes),
+            ORIGIN_BINDING_WITNESS_ALGORITHM_V0,
+            ORIGIN_BINDING_CANONICALIZATION_PROFILE_V0,
+            run_id,
+        )
+    }
+
+    fn closure(
+        artifacts: &[(&str, &[u8])],
+        bundles: &[(&ArtifactProvenanceAnchorSelectorV0, &[u8])],
+    ) -> ResolutionContentClosureV0 {
+        let artifact_inputs = artifacts
+            .iter()
+            .map(|(digest, bytes)| {
+                ResolutionArtifactObjectInputV0::new(
+                    ResolutionArtifactObjectKeyV0::new("sha256", *digest),
+                    bytes,
+                )
+            })
+            .collect::<Vec<_>>();
+        let bundle_inputs = bundles
+            .iter()
+            .map(|(selector, bytes)| {
+                ResolutionForeignBundleObjectInputV0::new((*selector).clone(), bytes)
+            })
+            .collect::<Vec<_>>();
+        ResolutionContentClosureV0::construct(&artifact_inputs, &bundle_inputs).unwrap()
+    }
+
+    fn snapshot(
+        evidence_id: &str,
+        edge_id: &str,
+        include_claim: bool,
+        anchors: &[ArtifactProvenanceAnchorSelectorV0],
+    ) -> StandingReplaySnapshot {
+        let store = MemStore::new();
+        {
+            let mut timestamp = 0_u64;
+            let mut writer = LogWriter::open_with_clock(
+                store.clone(),
+                SigningKey::from_bytes(&SEED),
+                Box::new(move || {
+                    timestamp += 1;
+                    timestamp
+                }),
+            )
+            .unwrap();
+            writer
+                .append(
+                    Provenance::new("origin-binding-test", "legacy-control"),
+                    Payload::ClaimAsserted {
+                        claim_id: "claim-origin-0001".into(),
+                        statement: "one origin-bound claim".into(),
+                        status: Status::Conjectured,
+                    },
+                )
+                .unwrap();
+            if include_claim {
+                writer
+                    .append(
+                        Provenance::new("origin-binding-test", "claim"),
+                        Payload::ClaimAssertedV2 {
+                            claim_id: "claim-origin-0001".into(),
+                            statement: "one origin-bound claim".into(),
+                            scope_ref: SCOPE.into(),
+                            actor_class: "AgentProposer".into(),
+                            content_hash: String::new(),
+                            metadata_json: r#"{"claim_domain":"ExternalReport"}"#.into(),
+                        },
+                    )
+                    .unwrap();
+            }
+            writer
+                .append(
+                    Provenance::new("origin-binding-test", "evidence"),
+                    Payload::EvidenceRegistered {
+                        evidence_id: evidence_id.into(),
+                        evidence_kind: "ExternalSource".into(),
+                        summary: "one source observation".into(),
+                        scope_ref: SCOPE.into(),
+                        actor_class: "SourceImporter".into(),
+                        content_hash: String::new(),
+                        metadata_json: "{}".into(),
+                    },
+                )
+                .unwrap();
+            writer
+                .append(
+                    Provenance::new("origin-binding-test", "edge"),
+                    Payload::JustificationEdgeRecorded {
+                        edge_id: edge_id.into(),
+                        edge_kind: "supports".into(),
+                        source_id: evidence_id.into(),
+                        target_id: "claim-origin-0001".into(),
+                        scope_ref: SCOPE.into(),
+                        actor_class: "HumanRoot".into(),
+                        rationale: "candidate relationship only".into(),
+                        metadata_json: "{}".into(),
+                    },
+                )
+                .unwrap();
+            for anchor in anchors {
+                writer
+                    .append(
+                        Provenance::new("origin-binding-test", "same-replay-anchor"),
+                        Payload::SegmentAnchored {
+                            bundle_kind: anchor.bundle_kind().into(),
+                            witness_root: anchor.witness_root().into(),
+                            witness_algorithm: anchor.witness_algorithm().into(),
+                            canonicalization_profile: anchor.canonicalization_profile().into(),
+                            run_id: anchor.run_id().into(),
+                        },
+                    )
+                    .unwrap();
+            }
+        }
+        let reader = LogReader::open(store, SigningKey::from_bytes(&SEED).verifying_key());
+        replay_standing_context(&reader).unwrap()
+    }
+
+    fn assert_public_private_equivalence(
+        snapshot: &StandingReplaySnapshot,
+        selector: &ArtifactProvenanceAnchorSelectorV0,
+        closure: &ResolutionContentClosureV0,
+        class: OriginBindingEvaluationClassV0,
+        has_validated_subject: bool,
+        expected_len: usize,
+        expected_sha256: &str,
+    ) {
+        let evaluation = evaluate_origin_binding_context_v0(snapshot, selector, closure);
+        let public = snapshot.resolve_origin_binding_context_v0(selector, closure);
+        let (private_trace, actual_class, validated_subject) = evaluation.into_parts();
+        assert_eq!(public, private_trace);
+        assert_eq!(public.canonical_bytes(), private_trace.canonical_bytes());
+        assert_eq!(actual_class, class);
+        assert_eq!(validated_subject.is_some(), has_validated_subject);
+        let bytes = public.canonical_bytes();
+        assert_eq!(bytes.len(), expected_len);
+        assert_eq!(sha256_hex(&bytes), expected_sha256);
+    }
+
+    #[test]
+    fn public_resolver_matches_private_evaluator_and_preserves_pinned_trace_bytes() {
+        let binding = acquisition_binding_selector();
+        let acquisition = acquisition_selector();
+        let acquisition_snapshot = snapshot(
+            "evidence-origin-acq-0001",
+            "edge-origin-acq-0001",
+            true,
+            &[binding.clone(), acquisition.clone()],
+        );
+        let acquisition_closure = closure(
+            &[(ACQUISITION_DIGEST, ACQUISITION_ARTIFACT)],
+            &[
+                (&binding, ACQUISITION_BINDING),
+                (&acquisition, ACQUISITION_BUNDLE),
+            ],
+        );
+        assert_public_private_equivalence(
+            &acquisition_snapshot,
+            &binding,
+            &acquisition_closure,
+            OriginBindingEvaluationClassV0::Matched,
+            true,
+            3_365,
+            "7276c9d33671123e3dfb53a88ffb8ac9bc6c572a5ca500de9f9151052657d178",
+        );
+
+        let derivation_binding = derivation_binding_selector();
+        let parent_acquisition = parent_acquisition_selector();
+        let derivation = derivation_selector();
+        let derivation_snapshot = snapshot(
+            "evidence-origin-der-0001",
+            "edge-origin-der-0001",
+            true,
+            &[
+                derivation_binding.clone(),
+                parent_acquisition.clone(),
+                derivation.clone(),
+            ],
+        );
+        let derivation_closure = closure(
+            &[
+                (PARENT_DIGEST, DERIVATION_PARENT),
+                (DERIVED_DIGEST, DERIVATION_DERIVED),
+            ],
+            &[
+                (&derivation_binding, DERIVATION_BINDING),
+                (&parent_acquisition, PARENT_ACQUISITION_BUNDLE),
+                (&derivation, DERIVATION_BUNDLE),
+            ],
+        );
+        assert_public_private_equivalence(
+            &derivation_snapshot,
+            &derivation_binding,
+            &derivation_closure,
+            OriginBindingEvaluationClassV0::Matched,
+            true,
+            5_184,
+            "9b5907b9349100618ffe969e6fb7a9a6bae5feb89e2167691133ead778058492",
+        );
+
+        assert_public_private_equivalence(
+            &acquisition_snapshot,
+            &binding,
+            &closure(&[], &[]),
+            OriginBindingEvaluationClassV0::BindingBytesUnavailable,
+            false,
+            40,
+            "0cb46ca223e0ca6384a844a9a62b3cdf7b1a24346df57c19b6f20241bb2b5aba",
+        );
+        assert_public_private_equivalence(
+            &acquisition_snapshot,
+            &binding,
+            &closure(&[], &[(&binding, b"{")]),
+            OriginBindingEvaluationClassV0::DefinitivelyRejected,
+            false,
+            26,
+            "3967aa23f8172bce1d40a4508e6f10f800b0163d1e2788223c6b35951f50abe6",
+        );
+
+        let wrong_root = selector(
+            ORIGIN_BINDING_ACQUISITION_BUNDLE_KIND_V0,
+            &"0".repeat(64),
+            ORIGIN_BINDING_WITNESS_ALGORITHM_V0,
+            ORIGIN_BINDING_CANONICALIZATION_PROFILE_V0,
+            "run-origin-binding-acq-0001",
+        );
+        assert_public_private_equivalence(
+            &snapshot(
+                "evidence-origin-acq-0001",
+                "edge-origin-acq-0001",
+                true,
+                &[],
+            ),
+            &wrong_root,
+            &closure(&[], &[(&wrong_root, ACQUISITION_BINDING)]),
+            OriginBindingEvaluationClassV0::DefinitivelyRejected,
+            false,
+            43,
+            "a3a75ac579aecf7686c0b2ca527d2b60e90be21fbf9204dd2c1ffd08eb92d05e",
+        );
+
+        assert_public_private_equivalence(
+            &snapshot(
+                "evidence-origin-acq-0001",
+                "edge-origin-acq-0001",
+                false,
+                &[binding.clone(), acquisition.clone()],
+            ),
+            &binding,
+            &acquisition_closure,
+            OriginBindingEvaluationClassV0::DefinitivelyRejected,
+            false,
+            33,
+            "a56dbea879ce8100f5a6b46c35b6df94c1b10d927f909a79cd90f699d33971c4",
+        );
+
+        assert_public_private_equivalence(
+            &acquisition_snapshot,
+            &binding,
+            &closure(&[], &[(&binding, ACQUISITION_BINDING)]),
+            OriginBindingEvaluationClassV0::AvailabilityOnly,
+            true,
+            102,
+            "2d7091908057c02ddc393a831fd8d64d3008d1b6069b9be56c280e85d62606f1",
+        );
+        assert_public_private_equivalence(
+            &acquisition_snapshot,
+            &binding,
+            &closure(
+                &[],
+                &[
+                    (&binding, ACQUISITION_BINDING),
+                    (&acquisition, ACQUISITION_BUNDLE),
+                ],
+            ),
+            OriginBindingEvaluationClassV0::AvailabilityOnly,
+            true,
+            104,
+            "d839b29d487a7632da555632ebeb332514576ce4069dd5c8a4591177fdd8c70e",
+        );
+        assert_public_private_equivalence(
+            &acquisition_snapshot,
+            &binding,
+            &closure(
+                &[(ACQUISITION_DIGEST, ACQUISITION_ARTIFACT)],
+                &[(&binding, ACQUISITION_BINDING), (&acquisition, b"{")],
+            ),
+            OriginBindingEvaluationClassV0::DefinitivelyRejected,
+            true,
+            96,
+            "ac66a8184b8cfa88280c528d8e142d679b89d9d4fd4e7feec3e53b4898baa4c9",
+        );
+        assert_public_private_equivalence(
+            &acquisition_snapshot,
+            &binding,
+            &closure(
+                &[(ACQUISITION_DIGEST, b"wrong artifact")],
+                &[
+                    (&binding, ACQUISITION_BINDING),
+                    (&acquisition, ACQUISITION_BUNDLE),
+                ],
+            ),
+            OriginBindingEvaluationClassV0::DefinitivelyRejected,
+            true,
+            108,
+            "e186eb56197666c9c53ff2e213103645bd308f614bdde94986cb1088df425208",
+        );
+
+        let coherence_bytes = replace_once(ACQUISITION_BINDING, ACQUISITION_DIGEST, DERIVED_DIGEST);
+        let coherence_binding = selector_for_bundle(
+            ORIGIN_BINDING_ACQUISITION_BUNDLE_KIND_V0,
+            "run-origin-binding-acq-0001",
+            &coherence_bytes,
+        );
+        let coherence_snapshot = snapshot(
+            "evidence-origin-acq-0001",
+            "edge-origin-acq-0001",
+            true,
+            &[coherence_binding.clone(), acquisition.clone()],
+        );
+        let coherence_closure = closure(
+            &[(ACQUISITION_DIGEST, ACQUISITION_ARTIFACT)],
+            &[
+                (&coherence_binding, &coherence_bytes),
+                (&acquisition, ACQUISITION_BUNDLE),
+            ],
+        );
+        assert_public_private_equivalence(
+            &coherence_snapshot,
+            &coherence_binding,
+            &coherence_closure,
+            OriginBindingEvaluationClassV0::DefinitivelyRejected,
+            true,
+            69,
+            "6f06897a73fe5818e57c5dd4ec40970158a62bc6dd2c5e175f2d72363428a191",
+        );
+    }
 }
