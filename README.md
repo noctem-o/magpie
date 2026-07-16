@@ -272,10 +272,10 @@ shell execution is unavailable.
     `ResolutionContentClosureV0` construction is implemented separately by
     Ticket 0041. The public explicit-slice APIs remain unchanged; Ticket 0045
     adds only crate-private closure-aware reuse for origin-binding composition.
-    Origin admission is implemented separately by Ticket 0048. Admitted-
-    contribution audit, aggregation, policy v3, refutation, contradiction
-    debt, invalidation, supersession, `EpistemicGate`, and ordinary claim-
-    bearing writer surfaces remain later.
+    Origin admission is implemented separately by Ticket 0048. Runtime
+    admitted-contribution audit, aggregation, policy v3, refutation,
+    contradiction debt, invalidation, supersession, `EpistemicGate`, and
+    ordinary claim-bearing writer surfaces remain later.
 17. **Resolution content closure v0 contract — landed.**
     [`docs/design/resolution-content-closure-v0.md`](docs/design/resolution-content-closure-v0.md)
     and [Ticket 0040](tickets/0040-resolution-content-closure-v0.md) now specify
@@ -283,8 +283,8 @@ shell execution is unavailable.
     closure identity used as input `M` for deterministic resolution. The
     public artifact-provenance verifier methods still receive explicit optional
     byte slices. Origin admission is implemented separately by Ticket 0048;
-    admitted-contribution audit, aggregation and ordinary claim-bearing writer
-    surfaces remain future work.
+    runtime admitted-contribution audit, aggregation and ordinary claim-bearing
+    writer surfaces remain future work.
 18. **Resolution content closure v0 implementation — landed.** Exact bounded
     construction now collapses identical duplicates, rejects deterministic
     conflicts, owns immutable keyed bytes, and exposes exact read-only lookup.
@@ -301,9 +301,9 @@ shell execution is unavailable.
     artifact coherence, and private-construction audit receipts. Matched
     receipts verify claimed governance content only. The compiled authority
     classification and standing-inert origin-admission fold are implemented
-    separately by Ticket 0048. Admitted-contribution audit, support, policy
-    v3, aggregation, the ordinary claim-bearing writer, `EpistemicGate`, and
-    their standing effects remain future work.
+    separately by Ticket 0048. Runtime admitted-contribution audit, support,
+    policy v3, aggregation, the ordinary claim-bearing writer,
+    `EpistemicGate`, and their standing effects remain future work.
 20. **Origin-admission audit v0 — implemented by Ticket 0048.**
     [`docs/design/origin-admission-audit-v0.md`](docs/design/origin-admission-audit-v0.md)
     and [Ticket 0046](tickets/0046-origin-admission-audit-v0-contract.md)
@@ -317,7 +317,7 @@ shell execution is unavailable.
     unresolved blockers to one exact contribution and namespace, and emits
     deterministic standing-inert audit bytes. It establishes origin-group
     assignment only. It creates no support, aggregation, statistical
-    independence or standing. Admitted-contribution audit, support
+    independence or standing. Runtime admitted-contribution audit, support
     contribution, standing policy v3, conservative aggregation, statistical
     independence, `EpistemicGate`, an ordinary claim-bearing writer, loader,
     CAS, and filesystem or network ingestion remain future work.
@@ -333,7 +333,22 @@ shell execution is unavailable.
     this exact same-replay carrier for the complete standing-inert
     `OriginAdmissionAuditV0`; the substrate itself still grants no origin
     admission or standing authority.
-22. **Historical review remediation contract.**
+22. **Admitted-contribution audit v0 contract — ratified, not implemented.**
+    [`docs/design/admitted-contribution-audit-v0.md`](docs/design/admitted-contribution-audit-v0.md)
+    and [Ticket 0049](tickets/0049-admitted-contribution-audit-v0-contract.md)
+    freeze the complete replay-derived justification-edge candidate universe,
+    the one exact `ExternalSource × ExternalReport` lane, the bridge from
+    asserted evidence `content_hash` to the exact verified artifact identity,
+    and internal same-context composition with `OriginAdmissionAuditV0`. The
+    future audit must fail downstream admission closed when origin admission is
+    globally incomplete, expose exact candidate and admitted-contribution
+    surfaces, preserve distinct contributions assigned to one origin group,
+    and emit deterministic standing-inert bytes. No runtime admitted-
+    contribution audit exists. Support contribution, standing policy v3,
+    conservative aggregation, statistical independence, `EpistemicGate`, an
+    ordinary claim-bearing writer, loader, CAS, and filesystem or network
+    ingestion remain future work.
+23. **Historical review remediation contract.**
     [`docs/design/historical-review-remediation-ledger.md`](docs/design/historical-review-remediation-ledger.md)
     and [Ticket 0043](tickets/0043-historical-review-remediation-contract.md)
     ratify the remaining doctrine corrections from the PR #1-54 review audit
