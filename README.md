@@ -333,21 +333,24 @@ shell execution is unavailable.
     this exact same-replay carrier for the complete standing-inert
     `OriginAdmissionAuditV0`; the substrate itself still grants no origin
     admission or standing authority.
-22. **Admitted-contribution audit v0 contract — ratified, not implemented.**
+22. **Admitted-contribution audit v0 — implemented by Ticket 0050.**
     [`docs/design/admitted-contribution-audit-v0.md`](docs/design/admitted-contribution-audit-v0.md)
     and [Ticket 0049](tickets/0049-admitted-contribution-audit-v0-contract.md)
-    freeze the complete replay-derived justification-edge candidate universe,
-    the one exact `ExternalSource × ExternalReport` lane, the bridge from
-    asserted evidence `content_hash` to the exact verified artifact identity,
-    and internal same-context composition with `OriginAdmissionAuditV0`. The
-    future audit must fail downstream admission closed when origin admission is
-    globally incomplete, expose exact candidate and admitted-contribution
-    surfaces, preserve distinct contributions assigned to one origin group,
-    and emit deterministic standing-inert bytes. No runtime admitted-
-    contribution audit exists. Support contribution, standing policy v3,
+    freeze the contract implemented by
+    [Ticket 0050](tickets/0050-admitted-contribution-audit-v0-implementation.md).
+    Runtime now audits every replay-derived justification edge in exact edge-ID
+    order, preserves exact first-failure reasons, selects one exact
+    `ExternalSource × ExternalReport` lane, binds asserted evidence
+    `content_hash` to the exact verified artifact identity, derives
+    `OriginAdmissionAuditV0` internally from the same context and closure, and
+    fails all downstream admission closed when origin admission is globally
+    incomplete. Exact conflict, unresolved, absent and admitted dispositions
+    serialize as deterministic standing-inert audit bytes, while distinct
+    contributions assigned to one origin group remain distinct. The
+    support-contribution contract, support contribution, standing policy v3,
     conservative aggregation, statistical independence, `EpistemicGate`, an
     ordinary claim-bearing writer, loader, CAS, and filesystem or network
-    ingestion remain future work.
+    ingestion remain future work. No support or standing changed.
 23. **Historical review remediation contract.**
     [`docs/design/historical-review-remediation-ledger.md`](docs/design/historical-review-remediation-ledger.md)
     and [Ticket 0043](tickets/0043-historical-review-remediation-contract.md)

@@ -8,6 +8,7 @@
 
 pub mod policy;
 
+mod admitted_contribution_audit;
 mod artifact_provenance_verifier;
 mod deadbolt_context;
 mod deterministic_verifier_context;
@@ -24,6 +25,15 @@ use std::collections::BTreeMap;
 
 use magpie_log::{Payload, Projection, SignedEvent, Status};
 use serde::Serialize;
+
+pub use admitted_contribution_audit::{
+    AdmittedContributionAuditCompletionV0, AdmittedContributionAuditV0,
+    AdmittedContributionCandidateAuditV0, AdmittedContributionCandidateDispositionV0,
+    AdmittedContributionCandidateReasonV0, AdmittedContributionV0,
+    ADMITTED_CONTRIBUTION_ARTIFACT_ALGORITHM_V0,
+    ADMITTED_CONTRIBUTION_AUDIT_CANONICALIZATION_PROFILE_V0, ADMITTED_CONTRIBUTION_AUDIT_SCHEMA_V0,
+    ADMITTED_CONTRIBUTION_POLICY_ID_V0,
+};
 
 pub use artifact_provenance_verifier::{
     ArtifactAcquisitionReceiptV0, ArtifactDerivationReceiptV0, ArtifactProvenanceAnchorSelectorV0,

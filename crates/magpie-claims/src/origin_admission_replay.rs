@@ -68,6 +68,9 @@
 use magpie_log::{LogError, LogReader, LogStore, VerifiedReplaySummary};
 use serde::Serialize;
 
+use crate::admitted_contribution_audit::{
+    resolve_admitted_contribution_audit_v0, AdmittedContributionAuditV0,
+};
 use crate::artifact_provenance_verifier::ArtifactProvenanceAnchorSelectorV0;
 use crate::deadbolt_context::DeadboltAnchorOccurrence;
 use crate::origin_admission_audit::{resolve_origin_admission_audit_v0, OriginAdmissionAuditV0};
@@ -126,6 +129,13 @@ impl OriginAdmissionReplayContextV0 {
         closure: &ResolutionContentClosureV0,
     ) -> OriginAdmissionAuditV0 {
         resolve_origin_admission_audit_v0(self, closure)
+    }
+
+    pub fn resolve_admitted_contribution_audit_v0(
+        &self,
+        closure: &ResolutionContentClosureV0,
+    ) -> AdmittedContributionAuditV0 {
+        resolve_admitted_contribution_audit_v0(self, closure)
     }
 
     pub(crate) fn origin_binding_candidates_v0(&self) -> Vec<OriginBindingCandidateV0> {
