@@ -523,8 +523,7 @@ must not erase truth-bearing contradiction debt or settle factual truth.
 6. Standing-inert origin-binding verifier — implemented by Ticket 0045.
 7. Exact origin-admission replay substrate — implemented by Ticket 0047.
 8. Standing-inert origin-admission audit — implemented by Ticket 0048.
-9. Admitted-contribution audit contract — ratified by Ticket 0049; runtime
-   implemented separately by Ticket 0050.
+9. Admitted-contribution audit contract — ratified by Ticket 0049.
 10. Admitted-contribution audit runtime — implemented by Ticket 0050.
 11. Ratify the support-contribution audit v0 contract.
 12. Implement the support-contribution audit v0.
