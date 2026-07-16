@@ -137,6 +137,47 @@ pub struct TypedJustificationEdge {
     pub metadata_json: String,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SupportCandidateStructureFailureV0 {
+    MissingTargetClaim,
+    MissingTypedTargetClaim,
+    UnsupportedEdgeKindForV0,
+    MalformedMetadata,
+    MissingClaimDomain,
+    WrongTypeClaimDomain,
+    DuplicateMetadataKey,
+    UnknownClaimDomain,
+    MissingSourceEvidence,
+    ScopeMismatch,
+    UnknownEvidenceKind,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SupportCandidateStructureEvaluationV0<'a> {
+    failure: Option<SupportCandidateStructureFailureV0>,
+    evidence: Option<&'a TypedEvidenceNode>,
+    claim_domain: Option<ClaimDomain>,
+    evidence_kind: Option<EvidenceKind>,
+}
+
+impl<'a> SupportCandidateStructureEvaluationV0<'a> {
+    pub(crate) fn failure(&self) -> Option<SupportCandidateStructureFailureV0> {
+        self.failure
+    }
+
+    pub(crate) fn evidence(&self) -> Option<&'a TypedEvidenceNode> {
+        self.evidence
+    }
+
+    pub(crate) fn claim_domain(&self) -> Option<ClaimDomain> {
+        self.claim_domain
+    }
+
+    pub(crate) fn evidence_kind(&self) -> Option<EvidenceKind> {
+        self.evidence_kind
+    }
+}
+
 /// ADR-0002 standing, derived from the verified append-only log.
 ///
 /// This projection folds legacy v0 claim events and the additive ADR-0002 typed
@@ -261,7 +302,7 @@ impl StandingView {
         }
 
         if let Some(Err(reason)) = claim_domain {
-            blockers.insert(reason);
+            blockers.insert(standing_reason_for_structure_failure(reason));
         }
 
         let mut relevant_edge_count = 0usize;
@@ -270,8 +311,7 @@ impl StandingView {
                 continue;
             }
             relevant_edge_count += 1;
-            let entry =
-                self.resolve_support_candidate(claim_id, edge_id, edge, typed_target, claim_domain);
+            let entry = self.resolve_support_candidate(claim_id, edge_id, edge, claim_domain);
             for reason in &entry.reasons {
                 if reason.is_blocker() {
                     blockers.insert(*reason);
@@ -294,7 +334,11 @@ impl StandingView {
                     StandingTraceReason::MissingTypedTargetClaim,
                 );
             } else if let Some(Err(reason)) = claim_domain {
-                push_claim_trace(&mut trace, claim_id, reason);
+                push_claim_trace(
+                    &mut trace,
+                    claim_id,
+                    standing_reason_for_structure_failure(reason),
+                );
             }
         }
 
@@ -314,8 +358,7 @@ impl StandingView {
         claim_id: &str,
         edge_id: &str,
         edge: &TypedJustificationEdge,
-        typed_target: Option<&TypedClaimNode>,
-        claim_domain: Option<Result<ClaimDomain, StandingTraceReason>>,
+        claim_domain: Option<Result<ClaimDomain, SupportCandidateStructureFailureV0>>,
     ) -> StandingTraceEntry {
         let mut entry = StandingTraceEntry {
             edge_id: Some(edge_id.to_owned()),
@@ -329,53 +372,22 @@ impl StandingView {
             reasons: Vec::new(),
         };
 
-        if !self.claims.contains_key(claim_id) {
-            entry.reasons.push(StandingTraceReason::MissingTargetClaim);
+        let evaluation = self.evaluate_support_candidate_structure_v0(claim_id, edge);
+        entry.evidence_kind = evaluation
+            .evidence()
+            .map(|evidence| evidence.evidence_kind.clone());
+        if let Some(failure) = evaluation.failure() {
+            entry
+                .reasons
+                .push(standing_reason_for_structure_failure(failure));
             return entry;
         }
-        let Some(target) = typed_target else {
-            entry
-                .reasons
-                .push(StandingTraceReason::MissingTypedTargetClaim);
-            return entry;
-        };
-        if edge.edge_kind != "supports" {
-            entry
-                .reasons
-                .push(StandingTraceReason::UnsupportedEdgeKindForV0);
-            return entry;
-        }
-        let Some(domain_result) = claim_domain else {
-            entry
-                .reasons
-                .push(StandingTraceReason::MissingTypedTargetClaim);
-            return entry;
-        };
-        let domain = match domain_result {
-            Ok(domain) => domain,
-            Err(reason) => {
-                entry.reasons.push(reason);
-                return entry;
-            }
-        };
-        let Some(evidence) = self.typed_evidence.get(&edge.source_id) else {
-            entry
-                .reasons
-                .push(StandingTraceReason::MissingSourceEvidence);
-            return entry;
-        };
-        entry.evidence_kind = Some(evidence.evidence_kind.clone());
-        if evidence.scope_ref != edge.scope_ref || edge.scope_ref != target.scope_ref {
-            entry.reasons.push(StandingTraceReason::ScopeMismatch);
-            return entry;
-        }
-        let kind = match EvidenceKind::try_from(evidence.evidence_kind.as_str()) {
-            Ok(kind) => kind,
-            Err(_) => {
-                entry.reasons.push(StandingTraceReason::UnknownEvidenceKind);
-                return entry;
-            }
-        };
+        let domain = evaluation
+            .claim_domain()
+            .expect("successful structural evaluation has a claim domain");
+        let kind = evaluation
+            .evidence_kind()
+            .expect("successful structural evaluation has an evidence kind");
 
         entry.candidate_ceiling = support_ceiling(kind, domain);
         let context_requirement = support_context_requirement(kind, domain);
@@ -407,6 +419,82 @@ impl StandingView {
             .reasons
             .push(StandingTraceReason::CeilingIsCandidateOnly);
         entry
+    }
+
+    pub(crate) fn evaluate_support_candidate_structure_v0<'a>(
+        &'a self,
+        target_claim_id: &str,
+        edge: &TypedJustificationEdge,
+    ) -> SupportCandidateStructureEvaluationV0<'a> {
+        if !self.claims.contains_key(target_claim_id) {
+            return SupportCandidateStructureEvaluationV0 {
+                failure: Some(SupportCandidateStructureFailureV0::MissingTargetClaim),
+                evidence: None,
+                claim_domain: None,
+                evidence_kind: None,
+            };
+        }
+        let Some(target) = self.typed_claims.get(target_claim_id) else {
+            return SupportCandidateStructureEvaluationV0 {
+                failure: Some(SupportCandidateStructureFailureV0::MissingTypedTargetClaim),
+                evidence: None,
+                claim_domain: None,
+                evidence_kind: None,
+            };
+        };
+        if edge.edge_kind != "supports" {
+            return SupportCandidateStructureEvaluationV0 {
+                failure: Some(SupportCandidateStructureFailureV0::UnsupportedEdgeKindForV0),
+                evidence: None,
+                claim_domain: None,
+                evidence_kind: None,
+            };
+        }
+        let domain = match parse_claim_domain(&target.metadata_json) {
+            Ok(domain) => domain,
+            Err(failure) => {
+                return SupportCandidateStructureEvaluationV0 {
+                    failure: Some(failure),
+                    evidence: None,
+                    claim_domain: None,
+                    evidence_kind: None,
+                }
+            }
+        };
+        let Some(evidence) = self.typed_evidence.get(&edge.source_id) else {
+            return SupportCandidateStructureEvaluationV0 {
+                failure: Some(SupportCandidateStructureFailureV0::MissingSourceEvidence),
+                evidence: None,
+                claim_domain: Some(domain),
+                evidence_kind: None,
+            };
+        };
+        if evidence.scope_ref != edge.scope_ref || edge.scope_ref != target.scope_ref {
+            return SupportCandidateStructureEvaluationV0 {
+                failure: Some(SupportCandidateStructureFailureV0::ScopeMismatch),
+                evidence: Some(evidence),
+                claim_domain: Some(domain),
+                evidence_kind: None,
+            };
+        }
+        let kind = match EvidenceKind::try_from(evidence.evidence_kind.as_str()) {
+            Ok(kind) => kind,
+            Err(_) => {
+                return SupportCandidateStructureEvaluationV0 {
+                    failure: Some(SupportCandidateStructureFailureV0::UnknownEvidenceKind),
+                    evidence: Some(evidence),
+                    claim_domain: Some(domain),
+                    evidence_kind: None,
+                }
+            }
+        };
+
+        SupportCandidateStructureEvaluationV0 {
+            failure: None,
+            evidence: Some(evidence),
+            claim_domain: Some(domain),
+            evidence_kind: Some(kind),
+        }
     }
 }
 
@@ -502,31 +590,72 @@ impl<'de> Deserialize<'de> for ClaimDomainMetadata {
     }
 }
 
-fn parse_claim_domain(metadata_json: &str) -> Result<ClaimDomain, StandingTraceReason> {
+fn parse_claim_domain(
+    metadata_json: &str,
+) -> Result<ClaimDomain, SupportCandidateStructureFailureV0> {
     let mut deserializer = serde_json::Deserializer::from_str(metadata_json);
     let metadata = ClaimDomainMetadata::deserialize(&mut deserializer)
-        .map_err(|_| StandingTraceReason::MalformedMetadata)?;
+        .map_err(|_| SupportCandidateStructureFailureV0::MalformedMetadata)?;
     deserializer
         .end()
-        .map_err(|_| StandingTraceReason::MalformedMetadata)?;
+        .map_err(|_| SupportCandidateStructureFailureV0::MalformedMetadata)?;
 
     match metadata.issue {
         Some(ClaimDomainMetadataIssue::Missing) => {
-            return Err(StandingTraceReason::MissingClaimDomain)
+            return Err(SupportCandidateStructureFailureV0::MissingClaimDomain)
         }
         Some(ClaimDomainMetadataIssue::WrongType) => {
-            return Err(StandingTraceReason::WrongTypeClaimDomain)
+            return Err(SupportCandidateStructureFailureV0::WrongTypeClaimDomain)
         }
         Some(ClaimDomainMetadataIssue::DuplicateKey) => {
-            return Err(StandingTraceReason::DuplicateMetadataKey)
+            return Err(SupportCandidateStructureFailureV0::DuplicateMetadataKey)
         }
         None => {}
     }
 
     let raw = metadata
         .claim_domain
-        .ok_or(StandingTraceReason::MissingClaimDomain)?;
-    ClaimDomain::try_from(raw.as_str()).map_err(|_| StandingTraceReason::UnknownClaimDomain)
+        .ok_or(SupportCandidateStructureFailureV0::MissingClaimDomain)?;
+    ClaimDomain::try_from(raw.as_str())
+        .map_err(|_| SupportCandidateStructureFailureV0::UnknownClaimDomain)
+}
+
+fn standing_reason_for_structure_failure(
+    failure: SupportCandidateStructureFailureV0,
+) -> StandingTraceReason {
+    match failure {
+        SupportCandidateStructureFailureV0::MissingTargetClaim => {
+            StandingTraceReason::MissingTargetClaim
+        }
+        SupportCandidateStructureFailureV0::MissingTypedTargetClaim => {
+            StandingTraceReason::MissingTypedTargetClaim
+        }
+        SupportCandidateStructureFailureV0::UnsupportedEdgeKindForV0 => {
+            StandingTraceReason::UnsupportedEdgeKindForV0
+        }
+        SupportCandidateStructureFailureV0::MalformedMetadata => {
+            StandingTraceReason::MalformedMetadata
+        }
+        SupportCandidateStructureFailureV0::MissingClaimDomain => {
+            StandingTraceReason::MissingClaimDomain
+        }
+        SupportCandidateStructureFailureV0::WrongTypeClaimDomain => {
+            StandingTraceReason::WrongTypeClaimDomain
+        }
+        SupportCandidateStructureFailureV0::DuplicateMetadataKey => {
+            StandingTraceReason::DuplicateMetadataKey
+        }
+        SupportCandidateStructureFailureV0::UnknownClaimDomain => {
+            StandingTraceReason::UnknownClaimDomain
+        }
+        SupportCandidateStructureFailureV0::MissingSourceEvidence => {
+            StandingTraceReason::MissingSourceEvidence
+        }
+        SupportCandidateStructureFailureV0::ScopeMismatch => StandingTraceReason::ScopeMismatch,
+        SupportCandidateStructureFailureV0::UnknownEvidenceKind => {
+            StandingTraceReason::UnknownEvidenceKind
+        }
+    }
 }
 
 impl Projection for StandingView {
@@ -691,6 +820,65 @@ mod tests {
             Some(Status::Supported),
             SupportContextRequirement::NoPrivilegedContext
         ));
+    }
+
+    #[test]
+    fn shared_structure_evaluator_retains_unknown_raw_evidence_kind_fail_closed() {
+        let mut view = StandingView::new();
+        view.claims.insert(
+            "claim".into(),
+            StandingClaim {
+                statement: "claim".into(),
+                asserted_initial_status: Status::Conjectured,
+                standing: Status::Conjectured,
+                legacy_evidence: Vec::new(),
+                legacy_transitions: 0,
+            },
+        );
+        view.typed_claims.insert(
+            "claim".into(),
+            TypedClaimNode {
+                statement: "claim".into(),
+                scope_ref: "scope".into(),
+                actor_class: "AgentProposer".into(),
+                content_hash: String::new(),
+                metadata_json: r#"{"claim_domain":"ExternalReport"}"#.into(),
+            },
+        );
+        view.typed_evidence.insert(
+            "evidence".into(),
+            TypedEvidenceNode {
+                evidence_kind: "UnknownEvidenceKind".into(),
+                summary: "synthetic private evaluator input".into(),
+                scope_ref: "scope".into(),
+                actor_class: "SourceImporter".into(),
+                content_hash: "a".repeat(64),
+                metadata_json: "{}".into(),
+            },
+        );
+        let edge = TypedJustificationEdge {
+            edge_kind: "supports".into(),
+            source_id: "evidence".into(),
+            target_id: "claim".into(),
+            scope_ref: "scope".into(),
+            actor_class: "HumanRoot".into(),
+            rationale: "candidate only".into(),
+            metadata_json: "{}".into(),
+        };
+
+        let evaluation = view.evaluate_support_candidate_structure_v0("claim", &edge);
+        assert_eq!(
+            evaluation.failure(),
+            Some(SupportCandidateStructureFailureV0::UnknownEvidenceKind)
+        );
+        assert_eq!(
+            evaluation
+                .evidence()
+                .map(|evidence| evidence.evidence_kind.as_str()),
+            Some("UnknownEvidenceKind")
+        );
+        assert_eq!(evaluation.claim_domain(), Some(ClaimDomain::ExternalReport));
+        assert_eq!(evaluation.evidence_kind(), None);
     }
 
     fn anchor() -> Payload {

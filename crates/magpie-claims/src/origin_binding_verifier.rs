@@ -87,6 +87,7 @@ use crate::artifact_provenance_verifier::{
     ARTIFACT_PROVENANCE_WITNESS_ALGORITHM_V0,
 };
 use crate::deadbolt_context::{DeadboltAnchorIdentity, DeadboltAnchorOccurrence};
+use crate::origin_admission_audit::ORIGIN_ADMISSION_POLICY_ID_V0;
 use crate::replay_snapshot::StandingReplaySnapshot;
 use crate::resolution_content_closure::ResolutionContentClosureV0;
 
@@ -120,6 +121,23 @@ pub struct ContributionIdentityV0 {
 }
 
 impl ContributionIdentityV0 {
+    pub(crate) fn from_admitted_contribution_graph_v0(
+        target_claim_id: &str,
+        source_evidence_id: &str,
+        justification_edge_id: &str,
+        scope_ref: &str,
+        artifact_digest: &str,
+    ) -> Self {
+        Self {
+            target_claim_id: target_claim_id.to_owned(),
+            source_evidence_id: source_evidence_id.to_owned(),
+            justification_edge_id: justification_edge_id.to_owned(),
+            scope_ref: scope_ref.to_owned(),
+            artifact_algorithm: ORIGIN_BINDING_ARTIFACT_ALGORITHM_V0.to_owned(),
+            artifact_digest: artifact_digest.to_owned(),
+        }
+    }
+
     pub fn target_claim_id(&self) -> &str {
         &self.target_claim_id
     }
@@ -154,6 +172,14 @@ pub struct OriginComparisonNamespaceV0 {
 }
 
 impl OriginComparisonNamespaceV0 {
+    pub(crate) fn for_admitted_contribution_v0(target_claim_id: &str, scope_ref: &str) -> Self {
+        Self {
+            origin_admission_policy_id: ORIGIN_ADMISSION_POLICY_ID_V0.to_owned(),
+            target_claim_id: target_claim_id.to_owned(),
+            scope_ref: scope_ref.to_owned(),
+        }
+    }
+
     pub fn origin_admission_policy_id(&self) -> &str {
         &self.origin_admission_policy_id
     }
