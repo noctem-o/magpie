@@ -328,7 +328,8 @@ candidate audits that are merely policy-eligible
 
 Ticket 0050 already owns graph structure, policy-lane admission, artifact
 identity binding and origin-decision lookup. Candidate audits are consulted
-only to verify exact alignment with top-level admitted output.
+only to verify exact alignment with top-level admitted output and exact
+completion/disposition consistency.
 
 ## 11. Upstream identity checks
 
@@ -380,9 +381,10 @@ NoPrivilegedContext
 ```
 
 These global composition checks must run before duplicate detection,
-admitted-set alignment, per-contribution invariants, upstream completion
-mapping or support projection. They must run for complete-empty and
-origin-incomplete admitted audits and when both admitted maps are empty.
+admitted-set alignment, upstream completion/disposition consistency,
+per-contribution invariants, upstream completion mapping or support projection.
+They must run for complete-empty and origin-incomplete admitted audits and when
+both admitted maps are empty.
 
 ## 12. Exact composition-validation order
 
@@ -401,9 +403,10 @@ Freeze:
 10. duplicate top-level-admission identity
 11. admitted key-set equality
 12. complete admitted-value equality
-13. per-contribution invariants
-14. upstream completion mapping
-15. support-contribution projection
+13. upstream completion/disposition consistency
+14. per-contribution invariants
+15. upstream completion mapping
+16. support-contribution projection
 ```
 
 An internally inconsistent upstream audit is rejected even when its completion
@@ -415,7 +418,7 @@ incompleteness. Malformed inherited output or compiled policy drift must not be
 hidden behind an availability result.
 
 Upstream completion is mapped only after all identity, compiled-policy,
-alignment and per-contribution checks succeed.
+alignment, completion/disposition and per-contribution checks succeed.
 
 ## 13. Candidate/top-level alignment law
 
@@ -486,6 +489,62 @@ global composition rejection
 
 No first, last, newest, oldest, lexical, top-level-preferred or
 candidate-preferred rule exists. No mismatch is locally repaired.
+
+### Upstream completion/disposition consistency
+
+After exact admitted key-set and complete-value equality succeed, validate the
+upstream completion against every candidate disposition.
+
+Freeze:
+
+```text
+AdmittedContributionAuditCompletionV0::Complete
+->
+no candidate disposition may be OriginAdmissionIncomplete
+```
+
+```text
+AdmittedContributionAuditCompletionV0::OriginAdmissionIncomplete
+->
+every candidate disposition must be either:
+- PolicyIneligible
+- OriginAdmissionIncomplete
+```
+
+An incomplete upstream audit must contain no:
+
+```text
+OriginDecisionAbsent
+OriginNotAdmitted
+Admitted
+```
+
+A complete upstream audit may contain `PolicyIneligible`,
+`OriginDecisionAbsent`, `OriginNotAdmitted` and `Admitted`, but never
+`OriginAdmissionIncomplete`.
+
+An incomplete audit containing only `PolicyIneligible` candidates is valid.
+The future implementation must not require at least one
+`OriginAdmissionIncomplete` candidate.
+
+Failure laws:
+
+```text
+Complete + OriginAdmissionIncomplete candidate
+-> UpstreamCompositionRejected
+
+OriginAdmissionIncomplete + OriginDecisionAbsent candidate
+-> UpstreamCompositionRejected
+
+OriginAdmissionIncomplete + OriginNotAdmitted candidate
+-> UpstreamCompositionRejected
+
+OriginAdmissionIncomplete + aligned Admitted candidate/top-level value
+-> UpstreamCompositionRejected
+```
+
+The failure reports the first inconsistent candidate in exact candidate
+edge-ID order. It adds no public enum and no free-form reason.
 
 ## 14. Exact v0 support lane
 
@@ -566,12 +625,48 @@ order:
 9. namespace.scope_ref
    == contribution.scope_ref
 
-10. supporting_origin_candidate_selectors
+10. origin_group
+    satisfies the exact origin-binding protocol-identifier grammar
+
+11. supporting_origin_candidate_selectors
     is non-empty
 ```
 
 Any invariant failure rejects the complete support audit globally. The future
 resolver emits no partial support set.
+
+Exact origin-group grammar:
+
+```text
+byte length:
+1..=128
+
+first byte:
+ASCII alphanumeric
+
+remaining bytes:
+ASCII alphanumeric
+or
+. _ : / -
+```
+
+Validation uses the exact inherited bytes. No trimming, normalization, Unicode
+folding, case conversion, aliasing or repair is permitted.
+
+The later runtime implementation must add and use exactly one narrow
+crate-private reuse seam in
+`crates/magpie-claims/src/origin_binding_verifier.rs`:
+
+```rust
+pub(crate) fn valid_origin_group_v0(value: &str) -> bool {
+    valid_identifier(value)
+}
+```
+
+The helper reuses the existing exact grammar, remains crate-private, exposes no
+configurable grammar or public API, and changes no origin-binding output or
+canonical bytes. The implementation must not expose `valid_identifier`
+generically or duplicate its grammar in the support module.
 
 ## 16. Completion law
 
@@ -595,7 +690,8 @@ pub enum SupportContributionAuditCompletionV0 {
 Laws:
 
 ```text
-identity, compiled-policy cells, alignment and invariants valid
+identity, compiled-policy cells, alignment, completion/disposition and
+invariants valid
 +
 upstream completion Complete
 ->
@@ -603,7 +699,8 @@ Complete
 ```
 
 ```text
-identity, compiled-policy cells, alignment and invariants valid
+identity, compiled-policy cells, alignment, completion/disposition and
+invariants valid
 +
 upstream OriginAdmissionIncomplete
 ->
@@ -613,7 +710,8 @@ zero support contributions
 ```
 
 ```text
-any upstream identity, compiled-policy, alignment or invariant failure
+any upstream identity, compiled-policy, alignment, completion/disposition or
+invariant failure
 ->
 UpstreamCompositionRejected
 ->
@@ -724,6 +822,10 @@ pub enum SupportContributionCompositionFailureV0 {
         contribution: ContributionIdentityV0,
     },
 
+    UpstreamCompletionDispositionMismatch {
+        edge_id: String,
+    },
+
     ContributionInvariantMismatch {
         contribution: ContributionIdentityV0,
         reason: SupportContributionInvariantReasonV0,
@@ -743,6 +845,10 @@ These two global composition failures carry no `ContributionIdentityV0`. The
 future implementation must not attach a synthetic contribution identity,
 manufacture an empty or sentinel contribution, or wrap either failure in
 `ContributionInvariantMismatch`.
+
+`UpstreamCompletionDispositionMismatch` reports the exact `edge_id` of the
+first candidate whose disposition is inconsistent with the upstream
+completion. Candidate selection uses exact edge-ID order.
 
 `candidate_only` and `top_level_only` use exact
 `ContributionIdentityV0` order.
@@ -765,6 +871,7 @@ pub enum SupportContributionInvariantReasonV0 {
     NamespacePolicyMismatch,
     NamespaceTargetMismatch,
     NamespaceScopeMismatch,
+    InvalidOriginGroup,
     MissingSupportingOriginSelector,
 }
 ```
@@ -774,9 +881,13 @@ Exact semantics:
 ```text
 CandidateCeilingMismatch:
 the admitted value does not carry exact Supported
+
+InvalidOriginGroup:
+the exact inherited origin_group does not satisfy the existing
+origin-binding protocol-identifier grammar
 ```
 
-The closed invariant vocabulary contains ten contribution-specific reasons.
+The closed invariant vocabulary contains eleven contribution-specific reasons.
 Fixed compiled-policy drift is represented only by the two global composition
 failures and fails closed.
 
@@ -935,12 +1046,15 @@ exact order inherited from AdmittedContributionV0
 
 unavailable binding selectors:
 exact order inherited from AdmittedContributionAuditV0
+
+completion/disposition mismatch:
+first inconsistent candidate in exact edge-ID order
 ```
 
 When more than one duplicate candidate identity, duplicate top-level identity,
 complete-value mismatch or invariant mismatch exists, the failure reports the
 first affected contribution in exact `ContributionIdentityV0` order. Within
-that contribution, the exact ten-step invariant order selects the reason.
+that contribution, the exact eleven-step invariant order selects the reason.
 
 No caller order, event insertion order, group preference or write recency
 selects an outcome.
@@ -1078,13 +1192,16 @@ two distinct admissions in different groups
 -> no corroboration or threshold claim
 ```
 
-Composition rejection may use the smallest private pure helper. The public
-resolver must not accept malformed caller-created audits.
+Malformed inherited-audit composition cases may use the smallest private pure
+helper. The public resolver must not accept malformed caller-created audits.
 
 Because the production policy cells are fixed, the future implementation may
 test policy drift through that smallest private pure composition helper. It
 must not add a public policy override, public test switch, runtime policy
 parameter, mock policy registry or caller-selected cell.
+
+The helper must not add public constructors, audit inputs, grammar parameters
+or test switches.
 
 This contract PR adds no fixture or hash.
 
@@ -1142,6 +1259,39 @@ AdmittedContributionIncomplete
 ->
 zero output
 
+Complete
++
+OriginAdmissionIncomplete candidate
+->
+global composition rejection
+
+OriginAdmissionIncomplete
++
+OriginDecisionAbsent candidate
+->
+global composition rejection
+
+OriginAdmissionIncomplete
++
+OriginNotAdmitted candidate
+->
+global composition rejection
+
+OriginAdmissionIncomplete
++
+aligned Admitted candidate and top-level value
+->
+global composition rejection
+
+multiple inconsistent candidates
+->
+first edge in exact edge-ID order reported
+
+valid incomplete audit containing only PolicyIneligible
+and OriginAdmissionIncomplete dispositions
+->
+accepted completion mapping
+
 same-origin distinct admitted contributions
 -> two support contributions
 
@@ -1184,6 +1334,30 @@ same identity with differing admitted value
 
 every per-contribution invariant drift
 -> global rejection
+
+empty group
+-> InvalidOriginGroup
+
+129-byte group
+-> InvalidOriginGroup
+
+non-ASCII group
+-> InvalidOriginGroup
+
+group beginning with punctuation
+-> InvalidOriginGroup
+
+group containing whitespace or unsupported punctuation
+-> InvalidOriginGroup
+
+1-byte ASCII-alphanumeric group
+-> valid
+
+128-byte valid group
+-> valid
+
+allowed . _ : / - characters after the first byte
+-> valid
 
 composition rejection
 -> zero support contributions
@@ -1295,10 +1469,15 @@ three exact compiled constants
 five standing-inert public audit types
 one exact context resolver method
 the smallest private composition helper needed for hostile tests
+one crate-private valid_origin_group_v0 helper that delegates to the existing
+origin-binding valid_identifier grammar
 new support-contribution fixtures and tests
 ```
 
-It must not mutate existing admitted-contribution or standing surfaces.
+The crate-private helper is the only permitted origin-binding module change.
+It must not change origin-binding output, canonical bytes or public API. The
+later implementation must not otherwise mutate existing origin-binding,
+admitted-contribution or standing surfaces.
 
 ## 30. Explicit non-goals
 
@@ -1347,19 +1526,19 @@ Do not define or implement:
 
 The next runtime PR must:
 
-1. add the exact constants and public audit types;
+1. add constants and public audit types;
 2. add the exact context resolver;
-3. internally derive one admitted audit;
-4. validate the six upstream identities;
-5. validate the two fixed compiled support-policy cells independently of
-   admitted contribution count;
-6. build candidate and top-level admitted maps and reject duplicates;
-7. validate exact key-set and complete-value alignment;
-8. apply the ten per-contribution invariants;
-9. map upstream completion only after all composition checks pass;
-10. project aligned admissions one-to-one;
-11. serialize the typed top-level audit; and
-12. add fixtures, hostile tests and compile-fail tests.
+3. derive one admitted audit internally;
+4. validate six upstream identities;
+5. validate two fixed compiled policy cells;
+6. build admitted maps and reject duplicates;
+7. validate key-set and complete-value equality;
+8. validate upstream completion/disposition consistency;
+9. apply the eleven contribution invariants;
+10. map upstream completion;
+11. project support contributions;
+12. serialize the typed audit; and
+13. add fixtures, hostile tests and compile-fail tests.
 
 After that:
 
@@ -1518,7 +1697,7 @@ or change standing.
    admitted set in exact contribution order.
 8. Confirm graph, artifact and origin admission are not reopened.
 9. Confirm exact six-step upstream identity validation.
-10. Confirm exact fifteen-step composition-validation order.
+10. Confirm exact sixteen-step composition-validation order.
 11. Confirm the support-ceiling and support-context cells are global checks.
 12. Confirm the global policy cells are checked for empty admitted sets.
 13. Confirm the global policy cells are checked before completion mapping.
@@ -1528,26 +1707,37 @@ or change standing.
     rejection.
 17. Confirm identical keys and complete values are required.
 18. Confirm no representation wins or repairs mismatch.
-19. Confirm the one exact v0 lane and `NoPrivilegedContext` meaning.
-20. Confirm the invariant vocabulary contains ten contribution-specific
-    reasons in the exact ten-step first-failure order.
-21. Confirm composition failure precedes upstream incompleteness.
-22. Confirm complete-empty remains valid only when global policy validation
+19. Confirm upstream completion agrees with every candidate disposition.
+20. Confirm the first inconsistent edge is deterministic in exact edge-ID
+    order.
+21. Confirm incomplete audits cannot contain terminal origin decisions or
+    admissions.
+22. Confirm complete audits cannot contain `OriginAdmissionIncomplete`
+    candidates.
+23. Confirm the one exact v0 lane and `NoPrivilegedContext` meaning.
+24. Confirm `origin_group` is validated under the exact existing
+    protocol-identifier grammar.
+25. Confirm the implementation reuses one crate-private
+    `valid_origin_group_v0` helper.
+26. Confirm the invariant vocabulary contains eleven contribution-specific
+    reasons in the exact eleven-step first-failure order.
+27. Confirm composition failure precedes upstream incompleteness.
+28. Confirm complete-empty remains valid only when global policy validation
     succeeds.
-23. Confirm all completion variants and zero-output failure laws.
-24. Confirm the closed composition and invariant failure vocabularies.
-25. Confirm all five future public types, traits, enum tagging and field order.
-26. Confirm only the top-level audit exposes `canonical_bytes()`.
-27. Confirm deterministic ordering and direct typed JSON serialization.
-28. Confirm distinct same-origin admitted contributions remain distinct
+29. Confirm all completion variants and zero-output failure laws.
+30. Confirm the closed composition and invariant failure vocabularies.
+31. Confirm all five future public types, traits, enum tagging and field order.
+32. Confirm only the top-level audit exposes `canonical_bytes()`.
+33. Confirm deterministic ordering and direct typed JSON serialization.
+34. Confirm distinct same-origin admitted contributions remain distinct
     support inputs.
-29. Confirm no group count, collapse, lane, threshold or corroboration result.
-30. Confirm the v0 source endpoint is evidence, not a source claim with
+35. Confirm no group count, collapse, lane, threshold or corroboration result.
+36. Confirm the v0 source endpoint is evidence, not a source claim with
     standing.
-31. Confirm required fixtures and hostile/compile-fail tests are reserved for
+37. Confirm required fixtures and hostile/compile-fail tests are reserved for
     the runtime PR.
-32. Confirm every frozen surface remains unchanged.
-33. Confirm no support-contribution runtime, policy v3, aggregation, standing,
+38. Confirm every frozen surface remains unchanged.
+39. Confirm no support-contribution runtime, policy v3, aggregation, standing,
     writer, loader, CAS, filesystem/network, L0, Cargo, dependency, fixture or
     Deadbolt change appears.
 
