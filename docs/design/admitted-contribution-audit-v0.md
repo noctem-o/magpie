@@ -1252,9 +1252,9 @@ release metadata
 Deadbolt
 ```
 
-The future runtime PR may add only the six new standing-inert audit types, the
-new method on `OriginAdmissionReplayContextV0` and the smallest private shared
-seams needed to preserve existing parser and candidate semantics.
+The future implementation may add only the six standing-inert audit types, the
+exact compiled constants, the new context method, and the smallest private
+shared seams required to preserve existing semantics.
 
 It must not mutate the existing origin-admission audit or any standing surface.
 

@@ -504,14 +504,15 @@ must not erase truth-bearing contradiction debt or settle factual truth.
 9. Admitted-contribution audit contract — ratified by Ticket 0049; runtime
    implementation absent.
 10. Implement the standing-inert admitted-contribution audit.
-11. Pin one explicit standing policy v3 aggregation rule.
-12. Implement conservative aggregation.
-13. Add direct refutation through admitted verifier context.
-14. Add contradiction debt with explicit precedence against direct refutation.
-15. Add invalidation and supersession/currentness.
-16. Add the capability-bearing `EpistemicGate` and ordinary claim-bearing
+11. Ratify the support-contribution contract.
+12. Pin one explicit standing policy v3 aggregation rule.
+13. Implement conservative aggregation.
+14. Add direct refutation through admitted verifier context.
+15. Add contradiction debt with explicit precedence against direct refutation.
+16. Add invalidation and supersession/currentness.
+17. Add the capability-bearing `EpistemicGate` and ordinary claim-bearing
     writer surfaces over the existing raw append capability.
-17. Add governed acquisition tooling and librarian proposals.
+18. Add governed acquisition tooling and librarian proposals.
 
 The direct policy-v2 rule consumes one successful closed verifier context and
 contributes `Supported` without combining evidence. It introduces no numeric
@@ -519,9 +520,10 @@ threshold, source count, corroboration, or independence claim. Origin admission
 is not support, and one admitted group is not aggregation. The implemented
 origin-binding and origin-admission layers and the ratified admitted-
 contribution layer are standing-inert. Step 10 is the next runtime slice. Step
-11 remains future policy work: this note neither defines a threshold nor
-creates policy v3. Step 12 remains the later conservative aggregation
-implementation.
+11 must freeze the contribution-to-support boundary before policy v3 may
+consume it. Step 12 remains future policy work: this note neither defines a
+threshold nor creates policy v3. Step 13 remains the later conservative
+aggregation implementation.
 
 ## Future Tests
 

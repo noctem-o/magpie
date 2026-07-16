@@ -918,8 +918,8 @@ Deadbolt
 ```
 
 The future implementation may add only the six standing-inert audit types, the
-new context method and the smallest private shared seams required to preserve
-existing semantics.
+exact compiled constants, the new context method, and the smallest private
+shared seams required to preserve existing semantics.
 
 ## 24. Explicit non-goals
 
