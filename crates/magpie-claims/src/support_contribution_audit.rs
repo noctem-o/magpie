@@ -21,6 +21,177 @@
 //!
 //! Declaration order of every field and variant below is canonical byte
 //! order. Do not reorder.
+//!
+//! Support contributions cannot be constructed with struct literals:
+//!
+//! ```compile_fail
+//! use magpie_claims::SupportContributionV0;
+//! let _contribution = SupportContributionV0 {};
+//! ```
+//!
+//! Support audits cannot be constructed with struct literals:
+//!
+//! ```compile_fail
+//! use magpie_claims::SupportContributionAuditV0;
+//! let _audit = SupportContributionAuditV0 {};
+//! ```
+//!
+//! Completion values cannot be deserialized:
+//!
+//! ```compile_fail
+//! use magpie_claims::SupportContributionAuditCompletionV0;
+//! let _: SupportContributionAuditCompletionV0 = serde_json::from_str("{}").unwrap();
+//! ```
+//!
+//! Composition failures cannot be deserialized:
+//!
+//! ```compile_fail
+//! use magpie_claims::SupportContributionCompositionFailureV0;
+//! let _: SupportContributionCompositionFailureV0 = serde_json::from_str("{}").unwrap();
+//! ```
+//!
+//! Invariant reasons cannot be deserialized:
+//!
+//! ```compile_fail
+//! use magpie_claims::SupportContributionInvariantReasonV0;
+//! let _: SupportContributionInvariantReasonV0 = serde_json::from_str("{}").unwrap();
+//! ```
+//!
+//! Support contributions cannot be deserialized:
+//!
+//! ```compile_fail
+//! use magpie_claims::SupportContributionV0;
+//! let _: SupportContributionV0 = serde_json::from_str("{}").unwrap();
+//! ```
+//!
+//! Support audits cannot be deserialized:
+//!
+//! ```compile_fail
+//! use magpie_claims::SupportContributionAuditV0;
+//! let _: SupportContributionAuditV0 = serde_json::from_str("{}").unwrap();
+//! ```
+//!
+//! No resolver accepts a caller-created admitted audit:
+//!
+//! ```compile_fail
+//! use magpie_claims::{
+//!     AdmittedContributionAuditV0, OriginAdmissionReplayContextV0,
+//!     ResolutionContentClosureV0,
+//! };
+//! fn resolve(
+//!     context: &OriginAdmissionReplayContextV0,
+//!     closure: &ResolutionContentClosureV0,
+//!     audit: AdmittedContributionAuditV0,
+//! ) {
+//!     let _ = context.resolve_support_contribution_audit_v0(closure, audit);
+//! }
+//! ```
+//!
+//! No resolver accepts a caller-created admitted-contribution list:
+//!
+//! ```compile_fail
+//! use magpie_claims::{
+//!     AdmittedContributionV0, OriginAdmissionReplayContextV0,
+//!     ResolutionContentClosureV0,
+//! };
+//! fn resolve(
+//!     context: &OriginAdmissionReplayContextV0,
+//!     closure: &ResolutionContentClosureV0,
+//!     admitted: Vec<AdmittedContributionV0>,
+//! ) {
+//!     let _ = context.resolve_support_contribution_audit_v0(closure, admitted);
+//! }
+//! ```
+//!
+//! No resolver accepts a caller-selected claim ID:
+//!
+//! ```compile_fail
+//! use magpie_claims::{
+//!     OriginAdmissionReplayContextV0, ResolutionContentClosureV0,
+//! };
+//! fn resolve(
+//!     context: &OriginAdmissionReplayContextV0,
+//!     closure: &ResolutionContentClosureV0,
+//!     claim_id: &str,
+//! ) {
+//!     let _ = context.resolve_support_contribution_audit_v0(closure, claim_id);
+//! }
+//! ```
+//!
+//! No resolver accepts a caller-selected origin group:
+//!
+//! ```compile_fail
+//! use magpie_claims::{
+//!     OriginAdmissionReplayContextV0, ResolutionContentClosureV0,
+//! };
+//! fn resolve(
+//!     context: &OriginAdmissionReplayContextV0,
+//!     closure: &ResolutionContentClosureV0,
+//!     origin_group: &str,
+//! ) {
+//!     let _ = context.resolve_support_contribution_audit_v0(closure, origin_group);
+//! }
+//! ```
+//!
+//! No resolver accepts a caller-selected policy ID:
+//!
+//! ```compile_fail
+//! use magpie_claims::{
+//!     OriginAdmissionReplayContextV0, ResolutionContentClosureV0,
+//! };
+//! fn resolve(
+//!     context: &OriginAdmissionReplayContextV0,
+//!     closure: &ResolutionContentClosureV0,
+//!     policy_id: &str,
+//! ) {
+//!     let _ = context.resolve_support_contribution_audit_v0(closure, policy_id);
+//! }
+//! ```
+//!
+//! Serialized or cloned audit output cannot substitute for replay authority:
+//!
+//! ```compile_fail
+//! use magpie_claims::{
+//!     OriginAdmissionReplayContextV0, ResolutionContentClosureV0,
+//!     SupportContributionAuditV0,
+//! };
+//! fn resolve(
+//!     context: &OriginAdmissionReplayContextV0,
+//!     closure: &ResolutionContentClosureV0,
+//!     audit: SupportContributionAuditV0,
+//! ) {
+//!     let bytes = audit.canonical_bytes();
+//!     let _ = context.resolve_support_contribution_audit_v0(
+//!         closure,
+//!         audit.clone(),
+//!         bytes,
+//!     );
+//! }
+//! ```
+//!
+//! A standalone standing view has no support-contribution resolver:
+//!
+//! ```compile_fail
+//! use magpie_claims::{ResolutionContentClosureV0, StandingView};
+//! fn resolve(view: &StandingView, closure: &ResolutionContentClosureV0) {
+//!     let _ = view.resolve_support_contribution_audit_v0(closure);
+//! }
+//! ```
+//!
+//! A standalone standing replay snapshot has no complete support-contribution
+//! resolver:
+//!
+//! ```compile_fail
+//! use magpie_claims::{
+//!     ResolutionContentClosureV0, StandingReplaySnapshot,
+//! };
+//! fn resolve(
+//!     snapshot: &StandingReplaySnapshot,
+//!     closure: &ResolutionContentClosureV0,
+//! ) {
+//!     let _ = snapshot.resolve_support_contribution_audit_v0(closure);
+//! }
+//! ```
 
 use std::collections::{BTreeMap, BTreeSet};
 
