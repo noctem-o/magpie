@@ -1846,10 +1846,48 @@ fn valid_identifier(value: &str) -> bool {
 
 #[allow(clippy::result_large_err)]
 fn validate_replay_reference(value: &str) -> Result<(), OriginBindingContextTraceV0> {
-    if value.is_empty() || value.len() > 1_024 {
+    if !valid_origin_binding_replay_reference_v0(value) {
         return Err(OriginBindingContextTraceV0::InvalidReplayReferenceLength);
     }
     Ok(())
+}
+
+/// Exact origin-binding replay-reference grammar (`1..=1024` bytes), shared
+/// with the support-contribution audit's inherited-reference checks.
+pub(crate) fn valid_origin_binding_replay_reference_v0(value: &str) -> bool {
+    !value.is_empty() && value.len() <= 1_024
+}
+
+/// Exact origin-binding protocol-identifier grammar for origin groups.
+// Consumed by the support-contribution composer in the next commit; `expect`
+// (not `allow`) forces this attribute out when that use lands.
+#[expect(dead_code)]
+pub(crate) fn valid_origin_group_v0(value: &str) -> bool {
+    valid_identifier(value)
+}
+
+/// Exact origin-binding artifact-digest grammar (64 lowercase hex bytes).
+#[expect(dead_code)]
+pub(crate) fn valid_origin_binding_artifact_digest_v0(value: &str) -> bool {
+    is_lowercase_hex_64(value)
+}
+
+/// Exact structural grammar for the two outer origin-binding selector kinds.
+///
+/// This validation is structural and protocol-exact. It does not re-read
+/// bundle bytes, recompute the witness root, or confer standalone authority.
+#[expect(dead_code)]
+pub(crate) fn valid_origin_binding_selector_v0(
+    selector: &ArtifactProvenanceAnchorSelectorV0,
+) -> bool {
+    let bundle_kind = selector.bundle_kind();
+
+    (bundle_kind == ORIGIN_BINDING_ACQUISITION_BUNDLE_KIND_V0
+        || bundle_kind == ORIGIN_BINDING_DERIVATION_BUNDLE_KIND_V0)
+        && is_lowercase_hex_64(selector.witness_root())
+        && selector.witness_algorithm() == ORIGIN_BINDING_WITNESS_ALGORITHM_V0
+        && selector.canonicalization_profile() == ORIGIN_BINDING_CANONICALIZATION_PROFILE_V0
+        && valid_identifier(selector.run_id())
 }
 
 #[allow(clippy::result_large_err)]
