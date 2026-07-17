@@ -80,6 +80,9 @@ use crate::origin_binding_verifier::{
 };
 use crate::replay_snapshot::{replay_standing_context_with_summary, StandingReplaySnapshot};
 use crate::resolution_content_closure::ResolutionContentClosureV0;
+use crate::support_contribution_audit::{
+    resolve_support_contribution_audit_v0, SupportContributionAuditV0,
+};
 
 /// Exact identity of the completely verified log prefix used for one replay.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -136,6 +139,13 @@ impl OriginAdmissionReplayContextV0 {
         closure: &ResolutionContentClosureV0,
     ) -> AdmittedContributionAuditV0 {
         resolve_admitted_contribution_audit_v0(self, closure)
+    }
+
+    pub fn resolve_support_contribution_audit_v0(
+        &self,
+        closure: &ResolutionContentClosureV0,
+    ) -> SupportContributionAuditV0 {
+        resolve_support_contribution_audit_v0(self, closure)
     }
 
     pub(crate) fn origin_binding_candidates_v0(&self) -> Vec<OriginBindingCandidateV0> {

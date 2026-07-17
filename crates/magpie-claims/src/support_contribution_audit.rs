@@ -22,13 +22,34 @@
 //! Declaration order of every field and variant below is canonical byte
 //! order. Do not reorder.
 
+use std::collections::{BTreeMap, BTreeSet};
+
 use magpie_log::Status;
 use serde::Serialize;
 
+use crate::admitted_contribution_audit::{
+    AdmittedContributionAuditCompletionV0, AdmittedContributionAuditV0,
+    AdmittedContributionCandidateAuditV0, AdmittedContributionCandidateDispositionV0,
+    AdmittedContributionCandidateReasonV0, AdmittedContributionV0,
+    ADMITTED_CONTRIBUTION_ARTIFACT_ALGORITHM_V0,
+    ADMITTED_CONTRIBUTION_AUDIT_CANONICALIZATION_PROFILE_V0, ADMITTED_CONTRIBUTION_AUDIT_SCHEMA_V0,
+    ADMITTED_CONTRIBUTION_POLICY_ID_V0,
+};
 use crate::artifact_provenance_verifier::ArtifactProvenanceAnchorSelectorV0;
-use crate::origin_admission_replay::VerifiedLogPrefixIdentityV0;
-use crate::origin_binding_verifier::{ContributionIdentityV0, OriginComparisonNamespaceV0};
-use crate::resolution_content_closure::ResolutionContentClosureIdentityV0;
+use crate::origin_admission_audit::{OriginAdmissionDecisionV0, ORIGIN_ADMISSION_POLICY_ID_V0};
+use crate::origin_admission_replay::{OriginAdmissionReplayContextV0, VerifiedLogPrefixIdentityV0};
+use crate::origin_binding_verifier::{
+    valid_origin_binding_artifact_digest_v0, valid_origin_binding_replay_reference_v0,
+    valid_origin_binding_selector_v0, valid_origin_group_v0, ContributionIdentityV0,
+    OriginComparisonNamespaceV0,
+};
+use crate::policy::{
+    support_ceiling, support_context_requirement, ClaimDomain, EvidenceKind,
+    SupportContextRequirement,
+};
+use crate::resolution_content_closure::{
+    ResolutionContentClosureIdentityV0, ResolutionContentClosureV0,
+};
 
 pub const SUPPORT_CONTRIBUTION_AUDIT_SCHEMA_V0: &str = "magpie-support-contribution-audit-v0";
 
@@ -270,6 +291,1528 @@ impl SupportContributionAuditV0 {
 
     pub fn canonical_bytes(&self) -> Vec<u8> {
         serde_json::to_vec(self).expect("support-contribution audits are always serializable")
+    }
+}
+
+/// Expected top-level authority for one composition.
+///
+/// Carries the current replay-prefix and closure identities plus the two
+/// fixed compiled support-policy cells. The production resolver fills the
+/// cells from the compiled policy; hostile tests may stage drifted cells only
+/// through this crate-private view. There is no public policy override,
+/// runtime policy parameter, mock registry, or caller-selected cell.
+#[derive(Clone, Debug)]
+pub(crate) struct ExpectedIdentitiesV0 {
+    verified_prefix_identity: VerifiedLogPrefixIdentityV0,
+    closure_identity: ResolutionContentClosureIdentityV0,
+    support_ceiling_cell: Option<Status>,
+    support_context_requirement_cell: SupportContextRequirement,
+}
+
+/// Crate-private plain-data view of one inherited admitted-contribution
+/// audit. The production resolver builds this view through the admitted
+/// audit's public getters only; hostile tests stage it directly. This is the
+/// single input to the single composition path.
+#[derive(Clone, Debug)]
+pub(crate) struct AdmittedAuditCompositionInputV0 {
+    schema: String,
+    canonicalization_profile: String,
+    policy_id: String,
+    origin_admission_policy_id: String,
+    verified_prefix_identity: VerifiedLogPrefixIdentityV0,
+    closure_identity: ResolutionContentClosureIdentityV0,
+    completion: AdmittedContributionAuditCompletionV0,
+    candidate_audits: Vec<AdmittedCandidateCompositionInputV0>,
+    admitted_contributions: Vec<AdmittedContributionV0>,
+}
+
+impl AdmittedAuditCompositionInputV0 {
+    fn from_audit(audit: &AdmittedContributionAuditV0) -> Self {
+        Self {
+            schema: audit.schema().to_owned(),
+            canonicalization_profile: audit.canonicalization_profile().to_owned(),
+            policy_id: audit.policy_id().to_owned(),
+            origin_admission_policy_id: audit.origin_admission_policy_id().to_owned(),
+            verified_prefix_identity: audit.verified_prefix_identity().clone(),
+            closure_identity: audit.closure_identity().clone(),
+            completion: audit.completion().clone(),
+            candidate_audits: audit
+                .candidate_audits()
+                .iter()
+                .map(AdmittedCandidateCompositionInputV0::from_candidate)
+                .collect(),
+            admitted_contributions: audit.admitted_contributions().to_vec(),
+        }
+    }
+}
+
+/// Crate-private plain-data view of one inherited candidate audit.
+#[derive(Clone, Debug)]
+pub(crate) struct AdmittedCandidateCompositionInputV0 {
+    edge_id: String,
+    source_evidence_id: String,
+    target_claim_id: String,
+    evidence_kind: Option<String>,
+    claim_domain: Option<String>,
+    candidate_ceiling: Option<Status>,
+    candidate_contribution: Option<ContributionIdentityV0>,
+    candidate_namespace: Option<OriginComparisonNamespaceV0>,
+    disposition: AdmittedCandidateDispositionInputV0,
+}
+
+impl AdmittedCandidateCompositionInputV0 {
+    fn from_candidate(candidate: &AdmittedContributionCandidateAuditV0) -> Self {
+        Self {
+            edge_id: candidate.edge_id().to_owned(),
+            source_evidence_id: candidate.source_evidence_id().to_owned(),
+            target_claim_id: candidate.target_claim_id().to_owned(),
+            evidence_kind: candidate.evidence_kind().map(str::to_owned),
+            claim_domain: candidate.claim_domain().map(str::to_owned),
+            candidate_ceiling: candidate.candidate_ceiling(),
+            candidate_contribution: candidate.candidate_contribution().cloned(),
+            candidate_namespace: candidate.candidate_namespace().cloned(),
+            disposition: AdmittedCandidateDispositionInputV0::from_disposition(
+                candidate.disposition(),
+            ),
+        }
+    }
+}
+
+/// Crate-private candidate disposition holding whole public upstream values.
+///
+/// The composition laws classify by variant; the `reason` and `decision`
+/// payloads are carried for input fidelity (the view mirrors the upstream
+/// audit exactly) even though no stage reads them.
+#[derive(Clone, Debug)]
+pub(crate) enum AdmittedCandidateDispositionInputV0 {
+    PolicyIneligible {
+        #[allow(dead_code)]
+        reason: AdmittedContributionCandidateReasonV0,
+    },
+
+    OriginAdmissionIncomplete,
+
+    OriginDecisionAbsent,
+
+    OriginNotAdmitted {
+        #[allow(dead_code)]
+        decision: OriginAdmissionDecisionV0,
+    },
+
+    Admitted {
+        admitted_contribution: AdmittedContributionV0,
+    },
+}
+
+impl AdmittedCandidateDispositionInputV0 {
+    fn from_disposition(disposition: &AdmittedContributionCandidateDispositionV0) -> Self {
+        match disposition {
+            AdmittedContributionCandidateDispositionV0::PolicyIneligible { reason } => {
+                Self::PolicyIneligible {
+                    reason: reason.clone(),
+                }
+            }
+            AdmittedContributionCandidateDispositionV0::OriginAdmissionIncomplete => {
+                Self::OriginAdmissionIncomplete
+            }
+            AdmittedContributionCandidateDispositionV0::OriginDecisionAbsent => {
+                Self::OriginDecisionAbsent
+            }
+            AdmittedContributionCandidateDispositionV0::OriginNotAdmitted { decision } => {
+                Self::OriginNotAdmitted {
+                    decision: decision.clone(),
+                }
+            }
+            AdmittedContributionCandidateDispositionV0::Admitted {
+                admitted_contribution,
+            } => Self::Admitted {
+                admitted_contribution: admitted_contribution.clone(),
+            },
+        }
+    }
+}
+
+/// The single composition path: validate one inherited admitted-contribution
+/// audit against the expected identities in the frozen eighteen-stage order,
+/// then map upstream completion and project aligned admissions one-to-one.
+///
+/// Returns the first composition failure in stage order. The caller
+/// (production resolver or hostile test) decides how to present it; the
+/// composer never normalizes, repairs, sorts, deduplicates, or prefers any
+/// inherited representation.
+#[allow(clippy::result_large_err)]
+pub(crate) fn compose_support_contribution_audit_v0(
+    expected: &ExpectedIdentitiesV0,
+    input: AdmittedAuditCompositionInputV0,
+) -> Result<SupportContributionAuditV0, SupportContributionCompositionFailureV0> {
+    use SupportContributionCompositionFailureV0 as Failure;
+
+    // Stages 1-6: exact upstream identity validation. Any mismatch is a
+    // global composition rejection, never reinterpreted or repaired.
+    if input.schema != ADMITTED_CONTRIBUTION_AUDIT_SCHEMA_V0 {
+        return Err(Failure::UpstreamSchemaMismatch);
+    }
+    if input.canonicalization_profile != ADMITTED_CONTRIBUTION_AUDIT_CANONICALIZATION_PROFILE_V0 {
+        return Err(Failure::UpstreamCanonicalizationProfileMismatch);
+    }
+    if input.policy_id != ADMITTED_CONTRIBUTION_POLICY_ID_V0 {
+        return Err(Failure::UpstreamAdmittedPolicyMismatch);
+    }
+    if input.origin_admission_policy_id != ORIGIN_ADMISSION_POLICY_ID_V0 {
+        return Err(Failure::UpstreamOriginPolicyMismatch);
+    }
+    if input.verified_prefix_identity != expected.verified_prefix_identity {
+        return Err(Failure::VerifiedPrefixIdentityMismatch);
+    }
+    if input.closure_identity != expected.closure_identity {
+        return Err(Failure::ClosureIdentityMismatch);
+    }
+
+    // Stages 7-8: fixed compiled support-policy cells, checked exactly once,
+    // independently of admitted contribution count.
+    if expected.support_ceiling_cell != Some(Status::Supported) {
+        return Err(Failure::SupportCeilingPolicyMismatch);
+    }
+    if expected.support_context_requirement_cell != SupportContextRequirement::NoPrivilegedContext {
+        return Err(Failure::SupportContextRequirementMismatch);
+    }
+
+    // Stage 9: globally unique exact edge IDs across the complete candidate
+    // universe, regardless of disposition. The lexical-first duplicate is
+    // reported independent of caller or vector order.
+    let mut edge_id_counts: BTreeMap<&str, usize> = BTreeMap::new();
+    for candidate in &input.candidate_audits {
+        *edge_id_counts
+            .entry(candidate.edge_id.as_str())
+            .or_default() += 1;
+    }
+    if let Some((&edge_id, _)) = edge_id_counts.iter().find(|(_, count)| **count > 1) {
+        return Err(Failure::DuplicateCandidateEdgeId {
+            edge_id: edge_id.to_owned(),
+        });
+    }
+
+    // Edge IDs are unique from here on. All "first candidate" selections below
+    // iterate in exact edge-ID order, independent of vector order.
+    let candidate_order: BTreeMap<&str, usize> = input
+        .candidate_audits
+        .iter()
+        .enumerate()
+        .map(|(index, candidate)| (candidate.edge_id.as_str(), index))
+        .collect();
+
+    // Stage 10: every exactly `Admitted` candidate must align with its nested
+    // admitted value across all eight exact fields, checked in the frozen
+    // field order. All trace checks complete before any map insertion.
+    for (edge_id, &index) in &candidate_order {
+        let candidate = &input.candidate_audits[index];
+        let AdmittedCandidateDispositionInputV0::Admitted {
+            admitted_contribution,
+        } = &candidate.disposition
+        else {
+            continue;
+        };
+        let contribution = admitted_contribution.contribution();
+        let trace_aligned = candidate.edge_id == contribution.justification_edge_id()
+            && candidate.source_evidence_id == contribution.source_evidence_id()
+            && candidate.target_claim_id == contribution.target_claim_id()
+            && candidate.evidence_kind.as_deref() == Some(admitted_contribution.evidence_kind())
+            && candidate.claim_domain.as_deref() == Some(admitted_contribution.claim_domain())
+            && candidate.candidate_ceiling == Some(admitted_contribution.candidate_ceiling())
+            && candidate.candidate_contribution.as_ref() == Some(contribution)
+            && candidate.candidate_namespace.as_ref() == Some(admitted_contribution.namespace());
+        if !trace_aligned {
+            return Err(Failure::AdmittedCandidateTraceMismatch {
+                edge_id: (*edge_id).to_owned(),
+            });
+        }
+    }
+
+    // Stage 11: duplicate exact contribution identities among candidate
+    // admissions. The first affected identity in exact
+    // `ContributionIdentityV0` order is reported.
+    let mut candidate_identity_counts: BTreeMap<ContributionIdentityV0, usize> = BTreeMap::new();
+    for candidate in &input.candidate_audits {
+        if let AdmittedCandidateDispositionInputV0::Admitted {
+            admitted_contribution,
+        } = &candidate.disposition
+        {
+            *candidate_identity_counts
+                .entry(admitted_contribution.contribution().clone())
+                .or_default() += 1;
+        }
+    }
+    if let Some((identity, _)) = candidate_identity_counts
+        .iter()
+        .find(|(_, count)| **count > 1)
+    {
+        return Err(Failure::DuplicateCandidateAdmission {
+            contribution: identity.clone(),
+        });
+    }
+    let candidate_admitted: BTreeMap<ContributionIdentityV0, AdmittedContributionV0> = input
+        .candidate_audits
+        .iter()
+        .filter_map(|candidate| match &candidate.disposition {
+            AdmittedCandidateDispositionInputV0::Admitted {
+                admitted_contribution,
+            } => Some((
+                admitted_contribution.contribution().clone(),
+                admitted_contribution.clone(),
+            )),
+            _ => None,
+        })
+        .collect();
+
+    // Stage 12: duplicate exact contribution identities among top-level
+    // admissions, first affected identity in exact order.
+    let mut top_level_identity_counts: BTreeMap<ContributionIdentityV0, usize> = BTreeMap::new();
+    for admitted in &input.admitted_contributions {
+        *top_level_identity_counts
+            .entry(admitted.contribution().clone())
+            .or_default() += 1;
+    }
+    if let Some((identity, _)) = top_level_identity_counts
+        .iter()
+        .find(|(_, count)| **count > 1)
+    {
+        return Err(Failure::DuplicateTopLevelAdmission {
+            contribution: identity.clone(),
+        });
+    }
+    let top_level_admitted: BTreeMap<ContributionIdentityV0, AdmittedContributionV0> = input
+        .admitted_contributions
+        .iter()
+        .map(|admitted| (admitted.contribution().clone(), admitted.clone()))
+        .collect();
+
+    // Stage 13: admitted key-set equality. Difference vectors use exact
+    // `ContributionIdentityV0` order.
+    let candidate_keys: BTreeSet<&ContributionIdentityV0> = candidate_admitted.keys().collect();
+    let top_level_keys: BTreeSet<&ContributionIdentityV0> = top_level_admitted.keys().collect();
+    if candidate_keys != top_level_keys {
+        return Err(Failure::AdmittedSetMismatch {
+            candidate_only: candidate_keys
+                .difference(&top_level_keys)
+                .map(|key| (*key).clone())
+                .collect(),
+            top_level_only: top_level_keys
+                .difference(&candidate_keys)
+                .map(|key| (*key).clone())
+                .collect(),
+        });
+    }
+
+    // Stage 14: complete admitted-value equality for every key, first
+    // mismatch in exact `ContributionIdentityV0` order.
+    for (identity, candidate_value) in &candidate_admitted {
+        let top_level_value = top_level_admitted
+            .get(identity)
+            .expect("admitted key sets are equal at stage 14");
+        if candidate_value != top_level_value {
+            return Err(Failure::AdmittedValueMismatch {
+                contribution: identity.clone(),
+            });
+        }
+    }
+
+    // Stage 15, shape first: an incomplete upstream completion requires a
+    // non-empty unavailable-selector vector. The upstream constructor
+    // produces `Complete` whenever that vector is empty, so an empty-vector
+    // incomplete completion is unrepresentable from honest upstream output.
+    // It is never normalized to `Complete`, never mapped, never repaired.
+    if let AdmittedContributionAuditCompletionV0::OriginAdmissionIncomplete {
+        unavailable_binding_selectors,
+    } = &input.completion
+    {
+        if unavailable_binding_selectors.is_empty() {
+            return Err(Failure::EmptyUnavailableBindingSelectors);
+        }
+    }
+
+    // Stage 15, disposition agreement: the upstream completion must agree
+    // with every candidate disposition, first inconsistent candidate in
+    // exact edge-ID order.
+    for (edge_id, &index) in &candidate_order {
+        let candidate = &input.candidate_audits[index];
+        let inconsistent = match (&input.completion, &candidate.disposition) {
+            (
+                AdmittedContributionAuditCompletionV0::Complete,
+                AdmittedCandidateDispositionInputV0::OriginAdmissionIncomplete,
+            ) => true,
+            (
+                AdmittedContributionAuditCompletionV0::OriginAdmissionIncomplete { .. },
+                AdmittedCandidateDispositionInputV0::PolicyIneligible { .. }
+                | AdmittedCandidateDispositionInputV0::OriginAdmissionIncomplete,
+            ) => false,
+            (AdmittedContributionAuditCompletionV0::Complete, _) => false,
+            (AdmittedContributionAuditCompletionV0::OriginAdmissionIncomplete { .. }, _) => true,
+        };
+        if inconsistent {
+            return Err(Failure::UpstreamCompletionDispositionMismatch {
+                edge_id: (*edge_id).to_owned(),
+            });
+        }
+    }
+
+    // Stage 16: the eighteen per-contribution invariants in exact
+    // first-failure order, first affected contribution in exact
+    // `ContributionIdentityV0` order.
+    for (identity, admitted) in &candidate_admitted {
+        if let Some(reason) = first_invariant_failure(admitted) {
+            return Err(Failure::ContributionInvariantMismatch {
+                contribution: identity.clone(),
+                reason,
+            });
+        }
+    }
+
+    // Stage 17: upstream completion mapping, only after every composition
+    // and invariant check has succeeded. No partial support vector survives.
+    // Stage 18: one-to-one projection in exact contribution order.
+    let (completion, support_contributions) = match input.completion {
+        AdmittedContributionAuditCompletionV0::Complete => (
+            SupportContributionAuditCompletionV0::Complete,
+            candidate_admitted
+                .values()
+                .map(project_support_contribution_v0)
+                .collect(),
+        ),
+        AdmittedContributionAuditCompletionV0::OriginAdmissionIncomplete {
+            unavailable_binding_selectors,
+        } => (
+            SupportContributionAuditCompletionV0::AdmittedContributionIncomplete {
+                unavailable_binding_selectors,
+            },
+            Vec::new(),
+        ),
+    };
+
+    Ok(audit_shell(
+        &expected.verified_prefix_identity,
+        &expected.closure_identity,
+    )
+    .with_output(completion, support_contributions))
+}
+
+/// The eighteen per-contribution invariants in the frozen first-failure
+/// order. Grammar checks delegate to the four crate-private origin-binding
+/// seams so each grammar has exactly one implementation source.
+fn first_invariant_failure(
+    admitted: &AdmittedContributionV0,
+) -> Option<SupportContributionInvariantReasonV0> {
+    use SupportContributionInvariantReasonV0 as Reason;
+
+    if admitted.policy_id() != ADMITTED_CONTRIBUTION_POLICY_ID_V0 {
+        return Some(Reason::AdmittedPolicyMismatch);
+    }
+    if admitted.origin_admission_policy_id() != ORIGIN_ADMISSION_POLICY_ID_V0 {
+        return Some(Reason::OriginPolicyMismatch);
+    }
+    if admitted.evidence_kind() != EvidenceKind::ExternalSource.as_str() {
+        return Some(Reason::EvidenceKindMismatch);
+    }
+    if admitted.claim_domain() != ClaimDomain::ExternalReport.as_str() {
+        return Some(Reason::ClaimDomainMismatch);
+    }
+    if admitted.candidate_ceiling() != Status::Supported {
+        return Some(Reason::CandidateCeilingMismatch);
+    }
+
+    let contribution = admitted.contribution();
+    if !valid_origin_binding_replay_reference_v0(contribution.target_claim_id()) {
+        return Some(Reason::InvalidTargetClaimReference);
+    }
+    if !valid_origin_binding_replay_reference_v0(contribution.source_evidence_id()) {
+        return Some(Reason::InvalidSourceEvidenceReference);
+    }
+    if !valid_origin_binding_replay_reference_v0(contribution.justification_edge_id()) {
+        return Some(Reason::InvalidJustificationEdgeReference);
+    }
+    if !valid_origin_binding_replay_reference_v0(contribution.scope_ref()) {
+        return Some(Reason::InvalidScopeReference);
+    }
+    if contribution.artifact_algorithm() != ADMITTED_CONTRIBUTION_ARTIFACT_ALGORITHM_V0 {
+        return Some(Reason::ArtifactAlgorithmMismatch);
+    }
+    if !valid_origin_binding_artifact_digest_v0(contribution.artifact_digest()) {
+        return Some(Reason::InvalidArtifactDigest);
+    }
+
+    let namespace = admitted.namespace();
+    if namespace.origin_admission_policy_id() != ORIGIN_ADMISSION_POLICY_ID_V0 {
+        return Some(Reason::NamespacePolicyMismatch);
+    }
+    if namespace.target_claim_id() != contribution.target_claim_id() {
+        return Some(Reason::NamespaceTargetMismatch);
+    }
+    if namespace.scope_ref() != contribution.scope_ref() {
+        return Some(Reason::NamespaceScopeMismatch);
+    }
+
+    if !valid_origin_group_v0(admitted.origin_group()) {
+        return Some(Reason::InvalidOriginGroup);
+    }
+
+    let selectors = admitted.supporting_origin_candidate_selectors();
+    if selectors.is_empty() {
+        return Some(Reason::MissingSupportingOriginSelector);
+    }
+    if selectors
+        .iter()
+        .any(|selector| !valid_origin_binding_selector_v0(selector))
+    {
+        return Some(Reason::InvalidSupportingOriginSelector);
+    }
+    if selectors.windows(2).any(|pair| pair[0] >= pair[1]) {
+        return Some(Reason::NonCanonicalSupportingOriginSelectorOrder);
+    }
+
+    None
+}
+
+/// Project one aligned, invariant-valid admitted contribution one-to-one.
+/// The admitted `candidate_ceiling` becomes the support `support_ceiling`
+/// only after the exact compiled ceiling and context cells were revalidated
+/// globally (stages 7-8).
+fn project_support_contribution_v0(admitted: &AdmittedContributionV0) -> SupportContributionV0 {
+    SupportContributionV0 {
+        policy_id: SUPPORT_CONTRIBUTION_POLICY_ID_V0.to_owned(),
+        admitted_contribution_policy_id: ADMITTED_CONTRIBUTION_POLICY_ID_V0.to_owned(),
+        origin_admission_policy_id: ORIGIN_ADMISSION_POLICY_ID_V0.to_owned(),
+        contribution: admitted.contribution().clone(),
+        namespace: admitted.namespace().clone(),
+        origin_group: admitted.origin_group().to_owned(),
+        evidence_kind: admitted.evidence_kind().to_owned(),
+        claim_domain: admitted.claim_domain().to_owned(),
+        support_ceiling: admitted.candidate_ceiling(),
+        supporting_origin_candidate_selectors: admitted
+            .supporting_origin_candidate_selectors()
+            .to_vec(),
+    }
+}
+
+/// Top-level audit shell binding the expected current identities. A rejected
+/// audit never copies a mismatched upstream identity into the new top-level
+/// authority surface.
+fn audit_shell(
+    verified_prefix_identity: &VerifiedLogPrefixIdentityV0,
+    closure_identity: &ResolutionContentClosureIdentityV0,
+) -> SupportContributionAuditV0 {
+    SupportContributionAuditV0 {
+        schema: SUPPORT_CONTRIBUTION_AUDIT_SCHEMA_V0.to_owned(),
+        canonicalization_profile: SUPPORT_CONTRIBUTION_AUDIT_CANONICALIZATION_PROFILE_V0.to_owned(),
+        policy_id: SUPPORT_CONTRIBUTION_POLICY_ID_V0.to_owned(),
+        admitted_contribution_policy_id: ADMITTED_CONTRIBUTION_POLICY_ID_V0.to_owned(),
+        origin_admission_policy_id: ORIGIN_ADMISSION_POLICY_ID_V0.to_owned(),
+        verified_prefix_identity: verified_prefix_identity.clone(),
+        closure_identity: closure_identity.clone(),
+        completion: SupportContributionAuditCompletionV0::Complete,
+        support_contributions: Vec::new(),
+    }
+}
+
+impl SupportContributionAuditV0 {
+    fn with_output(
+        mut self,
+        completion: SupportContributionAuditCompletionV0,
+        support_contributions: Vec<SupportContributionV0>,
+    ) -> Self {
+        self.completion = completion;
+        self.support_contributions = support_contributions;
+        self
+    }
+}
+
+/// Resolve the deterministic support-contribution audit for this exact replay
+/// context and closure.
+///
+/// The admitted-contribution audit is derived internally from the same
+/// context and closure, decomposed through its public getters, and composed
+/// through the single crate-private composition path. The resolver never
+/// panics on composed output; every composition failure becomes a rejected
+/// audit with zero support contributions.
+pub(crate) fn resolve_support_contribution_audit_v0(
+    context: &OriginAdmissionReplayContextV0,
+    closure: &ResolutionContentClosureV0,
+) -> SupportContributionAuditV0 {
+    let admitted_audit = context.resolve_admitted_contribution_audit_v0(closure);
+    let expected = ExpectedIdentitiesV0 {
+        verified_prefix_identity: context.verified_prefix_identity().clone(),
+        closure_identity: closure.identity().clone(),
+        support_ceiling_cell: support_ceiling(
+            EvidenceKind::ExternalSource,
+            ClaimDomain::ExternalReport,
+        ),
+        support_context_requirement_cell: support_context_requirement(
+            EvidenceKind::ExternalSource,
+            ClaimDomain::ExternalReport,
+        ),
+    };
+    let input = AdmittedAuditCompositionInputV0::from_audit(&admitted_audit);
+
+    match compose_support_contribution_audit_v0(&expected, input) {
+        Ok(audit) => audit,
+        Err(failure) => audit_shell(
+            &expected.verified_prefix_identity,
+            &expected.closure_identity,
+        )
+        .with_output(
+            SupportContributionAuditCompletionV0::UpstreamCompositionRejected { failure },
+            Vec::new(),
+        ),
+    }
+}
+
+#[cfg(test)]
+mod composition_tests {
+    use super::*;
+    use crate::admitted_contribution_audit::{
+        stage_admitted_contribution_v0_for_tests, stage_contribution_identity_v0_for_tests,
+        stage_namespace_v0_for_tests,
+    };
+    use crate::origin_admission_replay::replay_origin_admission_context_v0;
+    use crate::origin_binding_verifier::{
+        ORIGIN_BINDING_ACQUISITION_BUNDLE_KIND_V0, ORIGIN_BINDING_CANONICALIZATION_PROFILE_V0,
+        ORIGIN_BINDING_WITNESS_ALGORITHM_V0,
+    };
+    use crate::resolution_content_closure::{
+        ResolutionArtifactObjectInputV0, ResolutionArtifactObjectKeyV0,
+    };
+    use magpie_log::{LogReader, LogWriter, MemStore, Payload, Provenance, SigningKey};
+
+    const SEED: [u8; 32] = [60; 32];
+
+    fn replay_identity(notes: usize) -> VerifiedLogPrefixIdentityV0 {
+        let store = MemStore::new();
+        {
+            let mut timestamp = 0u64;
+            let mut writer = LogWriter::open_with_clock(
+                store.clone(),
+                SigningKey::from_bytes(&SEED),
+                Box::new(move || {
+                    timestamp += 1;
+                    timestamp
+                }),
+            )
+            .unwrap();
+            for index in 0..notes {
+                writer
+                    .append(
+                        Provenance::new("support-composition-test", "identity"),
+                        Payload::Note {
+                            text: format!("identity note {index}"),
+                        },
+                    )
+                    .unwrap();
+            }
+        }
+        let reader = LogReader::open(store, SigningKey::from_bytes(&SEED).verifying_key());
+        replay_origin_admission_context_v0(&reader)
+            .unwrap()
+            .verified_prefix_identity()
+            .clone()
+    }
+
+    fn closure_identity() -> ResolutionContentClosureIdentityV0 {
+        ResolutionContentClosureV0::construct(&[], &[])
+            .unwrap()
+            .identity()
+            .clone()
+    }
+
+    fn different_closure_identity() -> ResolutionContentClosureIdentityV0 {
+        let artifact = ResolutionArtifactObjectInputV0::new(
+            ResolutionArtifactObjectKeyV0::new("sha256", "a".repeat(64)),
+            b"different closure",
+        );
+        ResolutionContentClosureV0::construct(&[artifact], &[])
+            .unwrap()
+            .identity()
+            .clone()
+    }
+
+    fn expected() -> ExpectedIdentitiesV0 {
+        ExpectedIdentitiesV0 {
+            verified_prefix_identity: replay_identity(0),
+            closure_identity: closure_identity(),
+            support_ceiling_cell: support_ceiling(
+                EvidenceKind::ExternalSource,
+                ClaimDomain::ExternalReport,
+            ),
+            support_context_requirement_cell: support_context_requirement(
+                EvidenceKind::ExternalSource,
+                ClaimDomain::ExternalReport,
+            ),
+        }
+    }
+
+    fn honest_input(expected: &ExpectedIdentitiesV0) -> AdmittedAuditCompositionInputV0 {
+        AdmittedAuditCompositionInputV0 {
+            schema: ADMITTED_CONTRIBUTION_AUDIT_SCHEMA_V0.to_owned(),
+            canonicalization_profile: ADMITTED_CONTRIBUTION_AUDIT_CANONICALIZATION_PROFILE_V0
+                .to_owned(),
+            policy_id: ADMITTED_CONTRIBUTION_POLICY_ID_V0.to_owned(),
+            origin_admission_policy_id: ORIGIN_ADMISSION_POLICY_ID_V0.to_owned(),
+            verified_prefix_identity: expected.verified_prefix_identity.clone(),
+            closure_identity: expected.closure_identity.clone(),
+            completion: AdmittedContributionAuditCompletionV0::Complete,
+            candidate_audits: Vec::new(),
+            admitted_contributions: Vec::new(),
+        }
+    }
+
+    fn valid_selector(run_id: &str) -> ArtifactProvenanceAnchorSelectorV0 {
+        ArtifactProvenanceAnchorSelectorV0::new(
+            ORIGIN_BINDING_ACQUISITION_BUNDLE_KIND_V0,
+            "a".repeat(64),
+            ORIGIN_BINDING_WITNESS_ALGORITHM_V0,
+            ORIGIN_BINDING_CANONICALIZATION_PROFILE_V0,
+            run_id,
+        )
+    }
+
+    fn staged_admitted(edge_id: &str, origin_group: &str) -> AdmittedContributionV0 {
+        staged_admitted_with_selectors(edge_id, origin_group, vec![valid_selector("run-alpha")])
+    }
+
+    fn staged_admitted_with_selectors(
+        edge_id: &str,
+        origin_group: &str,
+        selectors: Vec<ArtifactProvenanceAnchorSelectorV0>,
+    ) -> AdmittedContributionV0 {
+        stage_admitted_contribution_v0_for_tests(
+            ADMITTED_CONTRIBUTION_POLICY_ID_V0,
+            ORIGIN_ADMISSION_POLICY_ID_V0,
+            stage_contribution_identity_v0_for_tests(
+                "claim-shared",
+                "evidence-shared",
+                edge_id,
+                "scope:shared",
+                &"c".repeat(64),
+            ),
+            stage_namespace_v0_for_tests("claim-shared", "scope:shared"),
+            origin_group,
+            EvidenceKind::ExternalSource.as_str(),
+            ClaimDomain::ExternalReport.as_str(),
+            Status::Supported,
+            selectors,
+        )
+    }
+
+    fn aligned_candidate(
+        edge_id: &str,
+        admitted: &AdmittedContributionV0,
+    ) -> AdmittedCandidateCompositionInputV0 {
+        AdmittedCandidateCompositionInputV0 {
+            edge_id: edge_id.to_owned(),
+            source_evidence_id: admitted.contribution().source_evidence_id().to_owned(),
+            target_claim_id: admitted.contribution().target_claim_id().to_owned(),
+            evidence_kind: Some(admitted.evidence_kind().to_owned()),
+            claim_domain: Some(admitted.claim_domain().to_owned()),
+            candidate_ceiling: Some(admitted.candidate_ceiling()),
+            candidate_contribution: Some(admitted.contribution().clone()),
+            candidate_namespace: Some(admitted.namespace().clone()),
+            disposition: AdmittedCandidateDispositionInputV0::Admitted {
+                admitted_contribution: admitted.clone(),
+            },
+        }
+    }
+
+    fn bare_candidate(
+        edge_id: &str,
+        disposition: AdmittedCandidateDispositionInputV0,
+    ) -> AdmittedCandidateCompositionInputV0 {
+        AdmittedCandidateCompositionInputV0 {
+            edge_id: edge_id.to_owned(),
+            source_evidence_id: "evidence-x".to_owned(),
+            target_claim_id: "claim-x".to_owned(),
+            evidence_kind: None,
+            claim_domain: None,
+            candidate_ceiling: None,
+            candidate_contribution: None,
+            candidate_namespace: None,
+            disposition,
+        }
+    }
+
+    fn policy_ineligible_candidate(edge_id: &str) -> AdmittedCandidateCompositionInputV0 {
+        bare_candidate(
+            edge_id,
+            AdmittedCandidateDispositionInputV0::PolicyIneligible {
+                reason: AdmittedContributionCandidateReasonV0::MissingEvidenceContentHash,
+            },
+        )
+    }
+
+    fn origin_incomplete_candidate(edge_id: &str) -> AdmittedCandidateCompositionInputV0 {
+        bare_candidate(
+            edge_id,
+            AdmittedCandidateDispositionInputV0::OriginAdmissionIncomplete,
+        )
+    }
+
+    fn decision_absent_candidate(edge_id: &str) -> AdmittedCandidateCompositionInputV0 {
+        bare_candidate(
+            edge_id,
+            AdmittedCandidateDispositionInputV0::OriginDecisionAbsent,
+        )
+    }
+
+    fn not_admitted_candidate(
+        edge_id: &str,
+        admitted: &AdmittedContributionV0,
+    ) -> AdmittedCandidateCompositionInputV0 {
+        bare_candidate(
+            edge_id,
+            AdmittedCandidateDispositionInputV0::OriginNotAdmitted {
+                decision: OriginAdmissionDecisionV0::EligibleBindingUnresolved {
+                    policy_id: ORIGIN_ADMISSION_POLICY_ID_V0.to_owned(),
+                    contribution: admitted.contribution().clone(),
+                    namespace: admitted.namespace().clone(),
+                    matched_candidate_selectors: Vec::new(),
+                    unresolved_candidate_selectors: vec![valid_selector("run-unresolved")],
+                },
+            },
+        )
+    }
+
+    fn one_admitted_input(expected: &ExpectedIdentitiesV0) -> AdmittedAuditCompositionInputV0 {
+        let admitted = staged_admitted("edge-a", "origin-group-alpha");
+        let mut input = honest_input(expected);
+        input.candidate_audits = vec![aligned_candidate("edge-a", &admitted)];
+        input.admitted_contributions = vec![admitted];
+        input
+    }
+
+    fn compose_failure(
+        expected: &ExpectedIdentitiesV0,
+        input: AdmittedAuditCompositionInputV0,
+    ) -> SupportContributionCompositionFailureV0 {
+        compose_support_contribution_audit_v0(expected, input).expect_err("composition must fail")
+    }
+
+    use SupportContributionCompositionFailureV0 as Failure;
+
+    mod identity_and_policy_cells {
+        use super::*;
+
+        #[test]
+        fn each_upstream_identity_mismatch_is_its_exact_failure() {
+            let expected = expected();
+
+            let mut input = honest_input(&expected);
+            input.schema = "other-schema".into();
+            assert_eq!(
+                compose_failure(&expected, input),
+                Failure::UpstreamSchemaMismatch
+            );
+
+            let mut input = honest_input(&expected);
+            input.canonicalization_profile = "other-profile".into();
+            assert_eq!(
+                compose_failure(&expected, input),
+                Failure::UpstreamCanonicalizationProfileMismatch
+            );
+
+            let mut input = honest_input(&expected);
+            input.policy_id = "other-policy".into();
+            assert_eq!(
+                compose_failure(&expected, input),
+                Failure::UpstreamAdmittedPolicyMismatch
+            );
+
+            let mut input = honest_input(&expected);
+            input.origin_admission_policy_id = "other-origin-policy".into();
+            assert_eq!(
+                compose_failure(&expected, input),
+                Failure::UpstreamOriginPolicyMismatch
+            );
+
+            let mut input = honest_input(&expected);
+            input.verified_prefix_identity = replay_identity(1);
+            assert_eq!(
+                compose_failure(&expected, input),
+                Failure::VerifiedPrefixIdentityMismatch
+            );
+
+            let mut input = honest_input(&expected);
+            input.closure_identity = different_closure_identity();
+            assert_eq!(
+                compose_failure(&expected, input),
+                Failure::ClosureIdentityMismatch
+            );
+        }
+
+        #[test]
+        fn compiled_cells_are_checked_even_when_both_admitted_maps_are_empty() {
+            let mut drifted = expected();
+            drifted.support_ceiling_cell = Some(Status::Settled);
+            assert_eq!(
+                compose_failure(&drifted, honest_input(&drifted)),
+                Failure::SupportCeilingPolicyMismatch
+            );
+
+            let mut drifted = expected();
+            drifted.support_ceiling_cell = None;
+            assert_eq!(
+                compose_failure(&drifted, honest_input(&drifted)),
+                Failure::SupportCeilingPolicyMismatch
+            );
+
+            let mut drifted = expected();
+            drifted.support_context_requirement_cell = SupportContextRequirement::HumanAdmission;
+            assert_eq!(
+                compose_failure(&drifted, honest_input(&drifted)),
+                Failure::SupportContextRequirementMismatch
+            );
+        }
+
+        #[test]
+        fn policy_cell_rejection_precedes_completion_mapping() {
+            let mut drifted = expected();
+            drifted.support_ceiling_cell = Some(Status::Conjectured);
+            let mut input = honest_input(&drifted);
+            input.completion = AdmittedContributionAuditCompletionV0::OriginAdmissionIncomplete {
+                unavailable_binding_selectors: vec![valid_selector("run-absent")],
+            };
+            input.candidate_audits = vec![origin_incomplete_candidate("edge-a")];
+            assert_eq!(
+                compose_failure(&drifted, input),
+                Failure::SupportCeilingPolicyMismatch
+            );
+        }
+
+        #[test]
+        fn valid_complete_empty_maps_to_complete_with_zero_contributions() {
+            let expected = expected();
+            let audit = compose_support_contribution_audit_v0(&expected, honest_input(&expected))
+                .expect("complete-empty composition is valid");
+            assert_eq!(
+                audit.completion(),
+                &SupportContributionAuditCompletionV0::Complete
+            );
+            assert!(audit.support_contributions().is_empty());
+            assert_eq!(
+                audit.verified_prefix_identity(),
+                &expected.verified_prefix_identity
+            );
+            assert_eq!(audit.closure_identity(), &expected.closure_identity);
+        }
+
+        #[test]
+        fn origin_incomplete_maps_to_incomplete_inheriting_exact_selector_order() {
+            let expected = expected();
+            let mut input = honest_input(&expected);
+            let selectors = vec![valid_selector("run-beta"), valid_selector("run-alpha")];
+            input.completion = AdmittedContributionAuditCompletionV0::OriginAdmissionIncomplete {
+                unavailable_binding_selectors: selectors.clone(),
+            };
+            input.candidate_audits = vec![
+                origin_incomplete_candidate("edge-a"),
+                policy_ineligible_candidate("edge-b"),
+            ];
+            let audit = compose_support_contribution_audit_v0(&expected, input)
+                .expect("valid incomplete composition maps to incomplete");
+            match audit.completion() {
+                SupportContributionAuditCompletionV0::AdmittedContributionIncomplete {
+                    unavailable_binding_selectors,
+                } => assert_eq!(unavailable_binding_selectors, &selectors),
+                other => panic!("expected incomplete completion, got {other:?}"),
+            }
+            assert!(audit.support_contributions().is_empty());
+        }
+
+        #[test]
+        fn origin_incomplete_does_not_hide_support_context_drift() {
+            let mut drifted = expected();
+            drifted.support_context_requirement_cell =
+                SupportContextRequirement::DeterministicVerifierContext;
+            let mut input = honest_input(&drifted);
+            input.completion = AdmittedContributionAuditCompletionV0::OriginAdmissionIncomplete {
+                unavailable_binding_selectors: vec![valid_selector("run-absent")],
+            };
+            assert_eq!(
+                compose_failure(&drifted, input),
+                Failure::SupportContextRequirementMismatch
+            );
+        }
+    }
+
+    mod edge_id_uniqueness {
+        use super::*;
+
+        #[test]
+        fn two_admitted_candidates_sharing_an_edge_id_are_rejected() {
+            let expected = expected();
+            let admitted_a = staged_admitted("edge-a", "origin-group-alpha");
+            let admitted_b = stage_admitted_contribution_v0_for_tests(
+                ADMITTED_CONTRIBUTION_POLICY_ID_V0,
+                ORIGIN_ADMISSION_POLICY_ID_V0,
+                stage_contribution_identity_v0_for_tests(
+                    "claim-other",
+                    "evidence-other",
+                    "edge-a",
+                    "scope:other",
+                    &"d".repeat(64),
+                ),
+                stage_namespace_v0_for_tests("claim-other", "scope:other"),
+                "origin-group-beta",
+                EvidenceKind::ExternalSource.as_str(),
+                ClaimDomain::ExternalReport.as_str(),
+                Status::Supported,
+                vec![valid_selector("run-beta")],
+            );
+            assert_ne!(admitted_a.contribution(), admitted_b.contribution());
+            let mut input = honest_input(&expected);
+            input.candidate_audits = vec![
+                aligned_candidate("edge-a", &admitted_a),
+                aligned_candidate("edge-a", &admitted_b),
+            ];
+            input.admitted_contributions = vec![admitted_a, admitted_b];
+            assert_eq!(
+                compose_failure(&expected, input),
+                Failure::DuplicateCandidateEdgeId {
+                    edge_id: "edge-a".into()
+                }
+            );
+        }
+
+        #[test]
+        fn duplicate_edge_ids_among_non_admitted_candidates_are_rejected() {
+            let expected = expected();
+            let mut input = honest_input(&expected);
+            input.candidate_audits = vec![
+                policy_ineligible_candidate("edge-a"),
+                decision_absent_candidate("edge-a"),
+            ];
+            assert_eq!(
+                compose_failure(&expected, input),
+                Failure::DuplicateCandidateEdgeId {
+                    edge_id: "edge-a".into()
+                }
+            );
+        }
+
+        #[test]
+        fn one_admitted_and_one_non_admitted_sharing_an_edge_id_are_rejected() {
+            let expected = expected();
+            let admitted = staged_admitted("edge-a", "origin-group-alpha");
+            let mut input = honest_input(&expected);
+            input.candidate_audits = vec![
+                aligned_candidate("edge-a", &admitted),
+                policy_ineligible_candidate("edge-a"),
+            ];
+            input.admitted_contributions = vec![admitted];
+            assert_eq!(
+                compose_failure(&expected, input),
+                Failure::DuplicateCandidateEdgeId {
+                    edge_id: "edge-a".into()
+                }
+            );
+        }
+
+        #[test]
+        fn multiple_duplicated_edge_ids_report_the_lexically_first() {
+            let expected = expected();
+            let mut input = honest_input(&expected);
+            input.candidate_audits = vec![
+                policy_ineligible_candidate("edge-z"),
+                policy_ineligible_candidate("edge-a"),
+                policy_ineligible_candidate("edge-z"),
+                policy_ineligible_candidate("edge-a"),
+            ];
+            assert_eq!(
+                compose_failure(&expected, input),
+                Failure::DuplicateCandidateEdgeId {
+                    edge_id: "edge-a".into()
+                }
+            );
+        }
+
+        #[test]
+        fn duplicate_edge_id_outranks_trace_mismatch() {
+            let expected = expected();
+            let admitted = staged_admitted("edge-a", "origin-group-alpha");
+            let mut trace_broken = aligned_candidate("edge-b", &admitted);
+            trace_broken.edge_id = "edge-b".into();
+            let mut input = honest_input(&expected);
+            input.candidate_audits = vec![
+                trace_broken,
+                policy_ineligible_candidate("edge-c"),
+                policy_ineligible_candidate("edge-c"),
+            ];
+            input.admitted_contributions = vec![admitted];
+            assert_eq!(
+                compose_failure(&expected, input),
+                Failure::DuplicateCandidateEdgeId {
+                    edge_id: "edge-c".into()
+                }
+            );
+        }
+
+        #[test]
+        fn duplicate_edge_id_is_detected_before_candidate_map_insertion() {
+            let expected = expected();
+            let admitted = staged_admitted("edge-a", "origin-group-alpha");
+            let mut input = honest_input(&expected);
+            input.candidate_audits = vec![
+                aligned_candidate("edge-a", &admitted),
+                aligned_candidate("edge-a", &admitted),
+            ];
+            input.admitted_contributions = vec![admitted];
+            assert_eq!(
+                compose_failure(&expected, input),
+                Failure::DuplicateCandidateEdgeId {
+                    edge_id: "edge-a".into()
+                }
+            );
+        }
+    }
+
+    mod admitted_candidate_trace {
+        use super::*;
+
+        fn trace_broken_input(
+            mutate: impl FnOnce(&mut AdmittedCandidateCompositionInputV0),
+        ) -> (ExpectedIdentitiesV0, AdmittedAuditCompositionInputV0) {
+            let expected = expected();
+            let admitted = staged_admitted("edge-a", "origin-group-alpha");
+            let mut candidate = aligned_candidate("edge-a", &admitted);
+            mutate(&mut candidate);
+            let mut input = honest_input(&expected);
+            input.candidate_audits = vec![candidate];
+            input.admitted_contributions = vec![admitted];
+            (expected, input)
+        }
+
+        #[test]
+        fn each_of_the_eight_trace_fields_is_checked() {
+            let admitted = staged_admitted("edge-a", "origin-group-alpha");
+
+            // Field 1 is special: mutating it changes the candidate's own
+            // edge ID, which is also the reported identity.
+            let (expected, input) =
+                trace_broken_input(|candidate| candidate.edge_id = "edge-drifted".into());
+            assert_eq!(
+                compose_failure(&expected, input),
+                Failure::AdmittedCandidateTraceMismatch {
+                    edge_id: "edge-drifted".into()
+                }
+            );
+
+            let cases: Vec<fn(&mut AdmittedCandidateCompositionInputV0)> = vec![
+                |candidate| candidate.source_evidence_id = "evidence-drifted".into(),
+                |candidate| candidate.target_claim_id = "claim-drifted".into(),
+                |candidate| candidate.evidence_kind = Some("ExecutionEvidence".into()),
+                |candidate| candidate.claim_domain = Some("Interpretation".into()),
+                |candidate| candidate.candidate_ceiling = Some(Status::Settled),
+                |candidate| {
+                    candidate.candidate_contribution =
+                        Some(stage_contribution_identity_v0_for_tests(
+                            "claim-shared",
+                            "evidence-shared",
+                            "edge-a",
+                            "scope:shared",
+                            &"e".repeat(64),
+                        ))
+                },
+                |candidate| {
+                    candidate.candidate_namespace = Some(stage_namespace_v0_for_tests(
+                        "claim-drifted",
+                        "scope:shared",
+                    ))
+                },
+            ];
+            for mutate in cases {
+                let (expected, input) = trace_broken_input(mutate);
+                assert_eq!(
+                    compose_failure(&expected, input),
+                    Failure::AdmittedCandidateTraceMismatch {
+                        edge_id: "edge-a".into()
+                    }
+                );
+            }
+
+            let mut missing = aligned_candidate("edge-a", &admitted);
+            missing.candidate_contribution = None;
+            let (expected, input) = trace_broken_input(|candidate| *candidate = missing);
+            assert_eq!(
+                compose_failure(&expected, input),
+                Failure::AdmittedCandidateTraceMismatch {
+                    edge_id: "edge-a".into()
+                }
+            );
+        }
+
+        #[test]
+        fn first_malformed_candidate_is_reported_in_exact_edge_id_order() {
+            let expected = expected();
+            let admitted_a = staged_admitted("edge-a", "origin-group-alpha");
+            let admitted_b = staged_admitted("edge-b", "origin-group-alpha");
+            let mut broken_a = aligned_candidate("edge-a", &admitted_a);
+            broken_a.source_evidence_id = "drifted".into();
+            let mut broken_b = aligned_candidate("edge-b", &admitted_b);
+            broken_b.source_evidence_id = "drifted".into();
+            let mut input = honest_input(&expected);
+            // Vector order must not select the outcome.
+            input.candidate_audits = vec![broken_b, broken_a];
+            input.admitted_contributions = vec![admitted_a, admitted_b];
+            assert_eq!(
+                compose_failure(&expected, input),
+                Failure::AdmittedCandidateTraceMismatch {
+                    edge_id: "edge-a".into()
+                }
+            );
+        }
+
+        #[test]
+        fn trace_mismatch_is_detected_before_top_level_duplicate_detection() {
+            // A trace-mismatched admitted candidate plus a duplicated
+            // top-level identity: stage 10 precedes every map stage.
+            let expected = expected();
+            let admitted = staged_admitted("edge-a", "origin-group-alpha");
+            let mut broken = aligned_candidate("edge-a", &admitted);
+            broken.claim_domain = Some("Interpretation".into());
+            let mut input = honest_input(&expected);
+            input.candidate_audits = vec![broken];
+            input.admitted_contributions = vec![admitted.clone(), admitted];
+            assert_eq!(
+                compose_failure(&expected, input),
+                Failure::AdmittedCandidateTraceMismatch {
+                    edge_id: "edge-a".into()
+                }
+            );
+        }
+    }
+
+    mod admitted_alignment {
+        use super::*;
+
+        #[test]
+        fn repeated_candidate_identity_is_globally_rejected_before_insertion() {
+            // `DuplicateCandidateAdmission` guards stage 11, but a repeated
+            // candidate identity cannot reach it through valid earlier
+            // stages: trace alignment binds each candidate edge ID to the
+            // identity's `justification_edge_id`, so two trace-aligned
+            // candidates carrying one identity necessarily share an edge ID
+            // (stage 9), and carrying it under a second edge ID is a trace
+            // mismatch (stage 10). The stage-11 check remains as
+            // defense-in-depth; both constructible routes reject globally.
+            let expected = expected();
+            let admitted = staged_admitted("edge-a", "origin-group-alpha");
+
+            let mut same_edge = honest_input(&expected);
+            same_edge.candidate_audits = vec![
+                aligned_candidate("edge-a", &admitted),
+                aligned_candidate("edge-a", &admitted),
+            ];
+            same_edge.admitted_contributions = vec![admitted.clone()];
+            assert_eq!(
+                compose_failure(&expected, same_edge),
+                Failure::DuplicateCandidateEdgeId {
+                    edge_id: "edge-a".into()
+                }
+            );
+
+            let mut cross_edge = honest_input(&expected);
+            cross_edge.candidate_audits = vec![
+                aligned_candidate("edge-a", &admitted),
+                aligned_candidate("edge-b", &admitted),
+            ];
+            cross_edge.admitted_contributions = vec![admitted.clone()];
+            assert_eq!(
+                compose_failure(&expected, cross_edge),
+                Failure::AdmittedCandidateTraceMismatch {
+                    edge_id: "edge-b".into()
+                }
+            );
+        }
+
+        #[test]
+        fn duplicate_top_level_admission_is_rejected() {
+            let expected = expected();
+            let admitted = staged_admitted("edge-a", "origin-group-alpha");
+            let mut input = honest_input(&expected);
+            input.candidate_audits = vec![aligned_candidate("edge-a", &admitted)];
+            input.admitted_contributions = vec![admitted.clone(), admitted];
+            assert!(matches!(
+                compose_failure(&expected, input),
+                Failure::DuplicateTopLevelAdmission { .. }
+            ));
+        }
+
+        #[test]
+        fn candidate_only_identity_reports_exact_set_difference() {
+            let expected = expected();
+            let admitted = staged_admitted("edge-a", "origin-group-alpha");
+            let mut input = honest_input(&expected);
+            input.candidate_audits = vec![aligned_candidate("edge-a", &admitted)];
+            match compose_failure(&expected, input) {
+                Failure::AdmittedSetMismatch {
+                    candidate_only,
+                    top_level_only,
+                } => {
+                    assert_eq!(candidate_only, vec![admitted.contribution().clone()]);
+                    assert!(top_level_only.is_empty());
+                }
+                other => panic!("expected admitted set mismatch, got {other:?}"),
+            }
+        }
+
+        #[test]
+        fn top_level_only_identity_reports_exact_set_difference() {
+            let expected = expected();
+            let admitted = staged_admitted("edge-a", "origin-group-alpha");
+            let mut input = honest_input(&expected);
+            input.admitted_contributions = vec![admitted.clone()];
+            match compose_failure(&expected, input) {
+                Failure::AdmittedSetMismatch {
+                    candidate_only,
+                    top_level_only,
+                } => {
+                    assert!(candidate_only.is_empty());
+                    assert_eq!(top_level_only, vec![admitted.contribution().clone()]);
+                }
+                other => panic!("expected admitted set mismatch, got {other:?}"),
+            }
+        }
+
+        #[test]
+        fn same_identity_with_different_value_reports_first_in_identity_order() {
+            let expected = expected();
+            let admitted_a = staged_admitted("edge-a", "origin-group-alpha");
+            let admitted_b = staged_admitted("edge-b", "origin-group-alpha");
+            let drifted_b = stage_admitted_contribution_v0_for_tests(
+                ADMITTED_CONTRIBUTION_POLICY_ID_V0,
+                ORIGIN_ADMISSION_POLICY_ID_V0,
+                admitted_b.contribution().clone(),
+                admitted_b.namespace().clone(),
+                "origin-group-drifted",
+                EvidenceKind::ExternalSource.as_str(),
+                ClaimDomain::ExternalReport.as_str(),
+                Status::Supported,
+                vec![valid_selector("run-alpha")],
+            );
+            let drifted_a = stage_admitted_contribution_v0_for_tests(
+                ADMITTED_CONTRIBUTION_POLICY_ID_V0,
+                ORIGIN_ADMISSION_POLICY_ID_V0,
+                admitted_a.contribution().clone(),
+                admitted_a.namespace().clone(),
+                "origin-group-drifted",
+                EvidenceKind::ExternalSource.as_str(),
+                ClaimDomain::ExternalReport.as_str(),
+                Status::Supported,
+                vec![valid_selector("run-alpha")],
+            );
+            let mut input = honest_input(&expected);
+            input.candidate_audits = vec![
+                aligned_candidate("edge-a", &admitted_a),
+                aligned_candidate("edge-b", &admitted_b),
+            ];
+            input.admitted_contributions = vec![drifted_a, drifted_b];
+            let expected_first = std::cmp::min(
+                admitted_a.contribution().clone(),
+                admitted_b.contribution().clone(),
+            );
+            assert_eq!(
+                compose_failure(&expected, input),
+                Failure::AdmittedValueMismatch {
+                    contribution: expected_first
+                }
+            );
+        }
+    }
+
+    mod completion_shape_and_disposition {
+        use super::*;
+
+        fn incomplete_input(
+            expected: &ExpectedIdentitiesV0,
+            selectors: Vec<ArtifactProvenanceAnchorSelectorV0>,
+            candidates: Vec<AdmittedCandidateCompositionInputV0>,
+        ) -> AdmittedAuditCompositionInputV0 {
+            let mut input = honest_input(expected);
+            input.completion = AdmittedContributionAuditCompletionV0::OriginAdmissionIncomplete {
+                unavailable_binding_selectors: selectors,
+            };
+            input.candidate_audits = candidates;
+            input
+        }
+
+        #[test]
+        fn complete_forbids_origin_incomplete_candidates() {
+            let expected = expected();
+            let mut input = honest_input(&expected);
+            input.candidate_audits = vec![origin_incomplete_candidate("edge-a")];
+            assert_eq!(
+                compose_failure(&expected, input),
+                Failure::UpstreamCompletionDispositionMismatch {
+                    edge_id: "edge-a".into()
+                }
+            );
+        }
+
+        #[test]
+        fn incomplete_forbids_terminal_dispositions_and_admissions() {
+            let admitted = staged_admitted("edge-c", "origin-group-alpha");
+            for candidate in [
+                decision_absent_candidate("edge-a"),
+                not_admitted_candidate("edge-b", &admitted),
+                aligned_candidate("edge-c", &admitted),
+            ] {
+                let expected = expected();
+                let edge_id = candidate.edge_id.clone();
+                let mut input = incomplete_input(
+                    &expected,
+                    vec![valid_selector("run-absent")],
+                    vec![candidate],
+                );
+                if edge_id == "edge-c" {
+                    input.admitted_contributions = vec![admitted.clone()];
+                }
+                assert_eq!(
+                    compose_failure(&expected, input),
+                    Failure::UpstreamCompletionDispositionMismatch { edge_id }
+                );
+            }
+        }
+
+        #[test]
+        fn first_inconsistent_candidate_is_reported_in_exact_edge_id_order() {
+            let expected = expected();
+            let input = incomplete_input(
+                &expected,
+                vec![valid_selector("run-absent")],
+                vec![
+                    decision_absent_candidate("edge-b"),
+                    decision_absent_candidate("edge-a"),
+                ],
+            );
+            assert_eq!(
+                compose_failure(&expected, input),
+                Failure::UpstreamCompletionDispositionMismatch {
+                    edge_id: "edge-a".into()
+                }
+            );
+        }
+
+        #[test]
+        fn incomplete_with_only_permitted_dispositions_is_accepted() {
+            let expected = expected();
+            let input = incomplete_input(
+                &expected,
+                vec![valid_selector("run-absent")],
+                vec![
+                    origin_incomplete_candidate("edge-a"),
+                    policy_ineligible_candidate("edge-b"),
+                ],
+            );
+            let audit = compose_support_contribution_audit_v0(&expected, input)
+                .expect("permitted dispositions map to incomplete");
+            assert!(matches!(
+                audit.completion(),
+                SupportContributionAuditCompletionV0::AdmittedContributionIncomplete { .. }
+            ));
+        }
+
+        #[test]
+        fn empty_vector_incomplete_is_rejected_even_with_only_policy_ineligible() {
+            let expected = expected();
+            let input = incomplete_input(
+                &expected,
+                Vec::new(),
+                vec![policy_ineligible_candidate("edge-a")],
+            );
+            assert_eq!(
+                compose_failure(&expected, input),
+                Failure::EmptyUnavailableBindingSelectors
+            );
+        }
+
+        #[test]
+        fn empty_vector_incomplete_is_rejected_with_an_empty_candidate_universe() {
+            let expected = expected();
+            let input = incomplete_input(&expected, Vec::new(), Vec::new());
+            assert_eq!(
+                compose_failure(&expected, input),
+                Failure::EmptyUnavailableBindingSelectors
+            );
+        }
+
+        #[test]
+        fn empty_vector_incomplete_outranks_any_disposition_violation() {
+            let admitted = staged_admitted("edge-a", "origin-group-alpha");
+            let expected = expected();
+            let input = incomplete_input(
+                &expected,
+                Vec::new(),
+                vec![not_admitted_candidate("edge-a", &admitted)],
+            );
+            assert_eq!(
+                compose_failure(&expected, input),
+                Failure::EmptyUnavailableBindingSelectors
+            );
+        }
+
+        #[test]
+        fn non_empty_vector_incomplete_with_only_policy_ineligible_is_accepted() {
+            let expected = expected();
+            let input = incomplete_input(
+                &expected,
+                vec![valid_selector("run-absent")],
+                vec![policy_ineligible_candidate("edge-a")],
+            );
+            let audit = compose_support_contribution_audit_v0(&expected, input)
+                .expect("non-empty incomplete with policy-ineligible candidates is valid");
+            assert!(matches!(
+                audit.completion(),
+                SupportContributionAuditCompletionV0::AdmittedContributionIncomplete { .. }
+            ));
+            assert!(audit.support_contributions().is_empty());
+        }
+    }
+
+    mod projection {
+        use super::*;
+
+        #[test]
+        fn one_aligned_admitted_contribution_projects_one_support_contribution() {
+            let expected = expected();
+            let admitted = staged_admitted("edge-a", "origin-group-alpha");
+            let audit =
+                compose_support_contribution_audit_v0(&expected, one_admitted_input(&expected))
+                    .expect("one aligned admitted contribution composes");
+            assert_eq!(
+                audit.completion(),
+                &SupportContributionAuditCompletionV0::Complete
+            );
+            assert_eq!(audit.support_contributions().len(), 1);
+
+            let support = &audit.support_contributions()[0];
+            assert_eq!(support.policy_id(), SUPPORT_CONTRIBUTION_POLICY_ID_V0);
+            assert_eq!(
+                support.admitted_contribution_policy_id(),
+                ADMITTED_CONTRIBUTION_POLICY_ID_V0
+            );
+            assert_eq!(
+                support.origin_admission_policy_id(),
+                ORIGIN_ADMISSION_POLICY_ID_V0
+            );
+            assert_eq!(support.contribution(), admitted.contribution());
+            assert_eq!(support.namespace(), admitted.namespace());
+            assert_eq!(support.origin_group(), "origin-group-alpha");
+            assert_eq!(
+                support.evidence_kind(),
+                EvidenceKind::ExternalSource.as_str()
+            );
+            assert_eq!(support.claim_domain(), ClaimDomain::ExternalReport.as_str());
+            assert_eq!(support.support_ceiling(), Status::Supported);
+            assert_eq!(
+                support.supporting_origin_candidate_selectors(),
+                admitted.supporting_origin_candidate_selectors()
+            );
+        }
     }
 }
 

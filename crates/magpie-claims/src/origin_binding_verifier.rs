@@ -1859,15 +1859,11 @@ pub(crate) fn valid_origin_binding_replay_reference_v0(value: &str) -> bool {
 }
 
 /// Exact origin-binding protocol-identifier grammar for origin groups.
-// Consumed by the support-contribution composer in the next commit; `expect`
-// (not `allow`) forces this attribute out when that use lands.
-#[expect(dead_code)]
 pub(crate) fn valid_origin_group_v0(value: &str) -> bool {
     valid_identifier(value)
 }
 
 /// Exact origin-binding artifact-digest grammar (64 lowercase hex bytes).
-#[expect(dead_code)]
 pub(crate) fn valid_origin_binding_artifact_digest_v0(value: &str) -> bool {
     is_lowercase_hex_64(value)
 }
@@ -1876,7 +1872,6 @@ pub(crate) fn valid_origin_binding_artifact_digest_v0(value: &str) -> bool {
 ///
 /// This validation is structural and protocol-exact. It does not re-read
 /// bundle bytes, recompute the witness root, or confer standalone authority.
-#[expect(dead_code)]
 pub(crate) fn valid_origin_binding_selector_v0(
     selector: &ArtifactProvenanceAnchorSelectorV0,
 ) -> bool {
