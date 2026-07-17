@@ -781,13 +781,32 @@ candidate preferred
 
 No mismatch is locally repaired.
 
-## Upstream completion/disposition consistency
+## Upstream completion shape and completion/disposition consistency
 
 After exact admitted key-set and complete-value equality succeed, the future
-implementation must validate the upstream completion against every candidate
+implementation must first validate the shape of the inherited completion value
+itself, then validate the upstream completion against every candidate
 disposition.
 
-Freeze these exact laws:
+Freeze this exact shape law:
+
+```text
+AdmittedContributionAuditCompletionV0::OriginAdmissionIncomplete
+requires a non-empty unavailable_binding_selectors vector
+```
+
+The upstream constructor produces `Complete` whenever the
+unavailable-selector vector is empty, so an inherited incomplete completion
+carrying an empty vector is unrepresentable from honest upstream output. It
+is malformed inherited output, and malformed inherited output is rejected,
+never interpreted. The empty-vector value is never normalized to `Complete`,
+never mapped to `AdmittedContributionIncomplete` and never repaired.
+
+The shape check executes before any candidate-agreement comparison within
+this stage. An empty-vector incomplete completion plus any disposition
+violation reports `EmptyUnavailableBindingSelectors`.
+
+Freeze these exact disposition laws:
 
 ```text
 AdmittedContributionAuditCompletionV0::Complete
@@ -824,7 +843,10 @@ but never `OriginAdmissionIncomplete`.
 
 An incomplete upstream audit containing only `PolicyIneligible` candidates is
 valid. The consistency check must not require at least one
-`OriginAdmissionIncomplete` candidate.
+`OriginAdmissionIncomplete` candidate. The shape check distinguishes shape
+from content: an empty selector vector is impossible-by-construction, while
+a non-empty selector vector with only `PolicyIneligible` candidates is
+legitimate and maps to `AdmittedContributionIncomplete`.
 
 Failure laws:
 
@@ -1212,7 +1234,7 @@ Freeze this exact global composition-validation order:
 
 14. complete admitted-value equality
 
-15. upstream completion/disposition consistency
+15. upstream completion shape and completion/disposition consistency
 
 16. per-contribution invariants
 
@@ -1259,6 +1281,11 @@ completion mapping
 precedes
 projection
 ```
+
+The empty-unavailable-selector shape failure joins the completion/disposition
+failure class. It is reported within stage 15 before any candidate-agreement
+comparison, and it still precedes per-contribution invariant failure,
+completion mapping and projection.
 
 Upstream completion is mapped only after all identity, compiled-policy,
 candidate-universe uniqueness, candidate-trace, alignment,
@@ -1312,6 +1339,17 @@ admitted-candidate trace, alignment, completion/disposition or invariant
 failure
 ->
 UpstreamCompositionRejected
+->
+zero support contributions
+```
+
+```text
+upstream OriginAdmissionIncomplete
++ empty unavailable_binding_selectors
+->
+UpstreamCompositionRejected {
+    EmptyUnavailableBindingSelectors
+}
 ->
 zero support contributions
 ```
@@ -1440,6 +1478,8 @@ pub enum SupportContributionCompositionFailureV0 {
         edge_id: String,
     },
 
+    EmptyUnavailableBindingSelectors,
+
     ContributionInvariantMismatch {
         contribution: ContributionIdentityV0,
         reason: SupportContributionInvariantReasonV0,
@@ -1447,8 +1487,9 @@ pub enum SupportContributionCompositionFailureV0 {
 }
 ```
 
-The two global policy-cell failures and the candidate-universe uniqueness
-failure carry no `ContributionIdentityV0`. Their exact semantics are:
+The two global policy-cell failures, the candidate-universe uniqueness
+failure and the empty-unavailable-selector shape failure carry no
+`ContributionIdentityV0`. Their exact semantics are:
 
 ```text
 SupportCeilingPolicyMismatch:
@@ -1466,6 +1507,13 @@ the compiled support_context_requirement(
 DuplicateCandidateEdgeId:
 the complete candidate-audit universe contains more than one candidate with
 the exact reported edge_id
+
+EmptyUnavailableBindingSelectors:
+the inherited incomplete completion carries an empty unavailable-selector
+vector; the upstream constructor produces Complete whenever that vector is
+empty, so this value is unrepresentable from honest upstream output. It is
+never normalized to Complete, never mapped to
+AdmittedContributionIncomplete, and never repaired
 ```
 
 `DuplicateCandidateEdgeId` reports the lexically first exact duplicated edge
@@ -1481,6 +1529,11 @@ is normative.
 `UpstreamCompletionDispositionMismatch` reports the exact `edge_id` of the
 first candidate whose disposition is inconsistent with the upstream
 completion. Candidate selection uses exact edge-ID order.
+
+`EmptyUnavailableBindingSelectors` carries no `ContributionIdentityV0` and no
+candidate `edge_id`. There is no candidate edge to report, and fabricating
+one would be a synthetic value. It must not be folded into
+`UpstreamCompletionDispositionMismatch`.
 
 Ordering requirements:
 
@@ -1741,6 +1794,12 @@ exact order inherited from AdmittedContributionAuditV0
 
 completion/disposition mismatch:
 first inconsistent candidate in exact edge-ID order
+
+upstream completion shape:
+the empty-unavailable-selector shape check executes before any
+candidate-agreement comparison within the completion/disposition stage;
+an empty-vector incomplete completion plus any disposition violation
+reports EmptyUnavailableBindingSelectors
 ```
 
 When more than one duplicated edge ID exists, the global failure reports the
@@ -2098,6 +2157,31 @@ valid incomplete audit containing only PolicyIneligible
 and OriginAdmissionIncomplete dispositions
 ->
 accepted completion mapping
+
+empty-vector incomplete completion
++ only PolicyIneligible candidates
+->
+UpstreamCompositionRejected { EmptyUnavailableBindingSelectors }
+-> zero support contributions
+
+empty-vector incomplete completion
++ empty candidate universe
+-> rejected (never Complete)
+
+empty-vector incomplete completion
++ any disposition violation (e.g. OriginNotAdmitted candidate)
+-> EmptyUnavailableBindingSelectors wins by precedence
+
+non-empty-vector incomplete completion
++ only PolicyIneligible candidates
+-> accepted completion mapping (regression guard)
+
+the failure carries no contribution identity;
+the selector vector is never defaulted, truncated, normalized or repaired
+
+the upstream Ticket 0048 constructor yields Complete
+if and only if the unavailable-selector vector is empty,
+so the downstream shape check cannot silently drift from upstream behavior
 
 same-origin distinct admitted contributions
 ->
@@ -2680,7 +2764,8 @@ order:
    `AdmittedContributionV0`;
 8. build candidate and top-level admitted maps and reject duplicate identities;
 9. validate exact admitted key-set and complete-value equality;
-10. validate upstream completion/disposition consistency;
+10. validate upstream completion shape and completion/disposition
+    consistency;
 11. apply the eighteen per-contribution invariants;
 12. map upstream completion only after every composition and invariant check
     succeeds;
@@ -2795,3 +2880,16 @@ No later stage is ratified or implemented by Ticket 0051.
 - Confirm no standing, policy matrix, admitted-contribution, origin-admission,
   L0, Cargo, dependency, fixture or Deadbolt surface changes in this
   documentation-only PR.
+- Confirm the composition-validation order remains exactly eighteen stages;
+  stage 15 is upstream completion shape and completion/disposition
+  consistency, and no nineteenth stage was added.
+- Confirm the empty-unavailable-selector shape check executes before any
+  candidate-agreement comparison within stage 15.
+- Confirm an inherited incomplete completion with an empty
+  unavailable-selector vector is rejected as
+  `EmptyUnavailableBindingSelectors` — never normalized to `Complete`, never
+  mapped to `AdmittedContributionIncomplete` and never repaired.
+- Confirm `EmptyUnavailableBindingSelectors` carries no contribution identity
+  and no edge ID, and joins the completion/disposition failure class.
+- Confirm the non-empty-vector, only-`PolicyIneligible` case remains valid
+  and maps to `AdmittedContributionIncomplete`.
