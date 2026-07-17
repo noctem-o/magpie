@@ -1813,6 +1813,611 @@ mod composition_tests {
                 admitted.supporting_origin_candidate_selectors()
             );
         }
+
+        #[test]
+        fn same_origin_distinct_contributions_remain_two_support_inputs() {
+            let expected = expected();
+            let admitted_a = staged_admitted("edge-a", "origin-group-shared");
+            let admitted_b = staged_admitted("edge-b", "origin-group-shared");
+            let mut input = honest_input(&expected);
+            input.candidate_audits = vec![
+                aligned_candidate("edge-b", &admitted_b),
+                aligned_candidate("edge-a", &admitted_a),
+            ];
+            input.admitted_contributions = vec![admitted_b.clone(), admitted_a.clone()];
+            let audit = compose_support_contribution_audit_v0(&expected, input)
+                .expect("two aligned admitted contributions compose");
+            assert_eq!(audit.support_contributions().len(), 2);
+            assert!(audit
+                .support_contributions()
+                .iter()
+                .all(|support| support.origin_group() == "origin-group-shared"));
+            // Exact `ContributionIdentityV0` order, not vector order.
+            let first = std::cmp::min(admitted_a.contribution(), admitted_b.contribution());
+            assert_eq!(audit.support_contributions()[0].contribution(), first);
+        }
+
+        #[test]
+        fn distinct_origin_contributions_remain_two_support_inputs() {
+            let expected = expected();
+            let admitted_a = staged_admitted("edge-a", "origin-group-alpha");
+            let admitted_b = staged_admitted("edge-b", "origin-group-beta");
+            let mut input = honest_input(&expected);
+            input.candidate_audits = vec![
+                aligned_candidate("edge-a", &admitted_a),
+                aligned_candidate("edge-b", &admitted_b),
+            ];
+            input.admitted_contributions = vec![admitted_a, admitted_b];
+            let audit = compose_support_contribution_audit_v0(&expected, input)
+                .expect("distinct origins compose");
+            assert_eq!(audit.support_contributions().len(), 2);
+            let groups: Vec<&str> = audit
+                .support_contributions()
+                .iter()
+                .map(SupportContributionV0::origin_group)
+                .collect();
+            assert!(groups.contains(&"origin-group-alpha"));
+            assert!(groups.contains(&"origin-group-beta"));
+        }
+
+        #[test]
+        fn composition_is_deterministic_under_vector_permutation() {
+            let expected = expected();
+            let admitted_a = staged_admitted("edge-a", "origin-group-alpha");
+            let admitted_b = staged_admitted("edge-b", "origin-group-beta");
+            let mut forward = honest_input(&expected);
+            forward.candidate_audits = vec![
+                aligned_candidate("edge-a", &admitted_a),
+                aligned_candidate("edge-b", &admitted_b),
+                policy_ineligible_candidate("edge-c"),
+            ];
+            forward.admitted_contributions = vec![admitted_a.clone(), admitted_b.clone()];
+
+            let mut permuted = honest_input(&expected);
+            permuted.candidate_audits = vec![
+                policy_ineligible_candidate("edge-c"),
+                aligned_candidate("edge-b", &admitted_b),
+                aligned_candidate("edge-a", &admitted_a),
+            ];
+            permuted.admitted_contributions = vec![admitted_b.clone(), admitted_a.clone()];
+
+            let first = compose_support_contribution_audit_v0(&expected, forward)
+                .expect("forward composition succeeds");
+            let second = compose_support_contribution_audit_v0(&expected, permuted)
+                .expect("permuted composition succeeds");
+            assert_eq!(first, second);
+            assert_eq!(first.canonical_bytes(), second.canonical_bytes());
+        }
+    }
+
+    mod invariants {
+        use super::*;
+        use crate::origin_binding_verifier::ORIGIN_BINDING_DERIVATION_BUNDLE_KIND_V0;
+
+        use SupportContributionInvariantReasonV0 as Reason;
+
+        // Three frozen checks are unreachable-by-construction through every
+        // permitted staging path, because the pinned upstream constructors
+        // cannot produce their drifted inputs: `ArtifactAlgorithmMismatch`
+        // (the identity constructor pins sha256), `NamespacePolicyMismatch`
+        // (the namespace constructor pins the origin-admission policy), and
+        // `DuplicateCandidateAdmission` (trace alignment binds candidate edge
+        // IDs to identity edge IDs, so a repeated candidate identity is
+        // always caught at stage 9 or 10 first). They remain in the closed
+        // vocabularies as defense-in-depth; the contract forbids widening the
+        // origin-binding module to stage them.
+        //
+        // Every other frozen reason is staged and asserted below.
+
+        fn invariant_failure(admitted: AdmittedContributionV0) -> Reason {
+            let expected = expected();
+            let mut input = honest_input(&expected);
+            // The candidate must mirror the (possibly drifted) identity edge
+            // ID so earlier trace alignment still passes.
+            let edge_id = admitted.contribution().justification_edge_id().to_owned();
+            input.candidate_audits = vec![aligned_candidate(&edge_id, &admitted)];
+            input.admitted_contributions = vec![admitted.clone()];
+            match compose_failure(&expected, input) {
+                Failure::ContributionInvariantMismatch { reason, .. } => reason,
+                other => panic!("expected invariant mismatch, got {other:?}"),
+            }
+        }
+
+        fn invariant_valid(admitted: AdmittedContributionV0) {
+            let expected = expected();
+            let mut input = honest_input(&expected);
+            let edge_id = admitted.contribution().justification_edge_id().to_owned();
+            input.candidate_audits = vec![aligned_candidate(&edge_id, &admitted)];
+            input.admitted_contributions = vec![admitted.clone()];
+            compose_support_contribution_audit_v0(&expected, input)
+                .expect("boundary-valid contribution composes");
+        }
+
+        fn identity_with(
+            target: &str,
+            evidence: &str,
+            edge: &str,
+            scope: &str,
+            digest: &str,
+        ) -> ContributionIdentityV0 {
+            stage_contribution_identity_v0_for_tests(target, evidence, edge, scope, digest)
+        }
+
+        fn admitted_with_identity(
+            contribution: ContributionIdentityV0,
+            namespace: OriginComparisonNamespaceV0,
+        ) -> AdmittedContributionV0 {
+            stage_admitted_contribution_v0_for_tests(
+                ADMITTED_CONTRIBUTION_POLICY_ID_V0,
+                ORIGIN_ADMISSION_POLICY_ID_V0,
+                contribution,
+                namespace,
+                "origin-group-alpha",
+                EvidenceKind::ExternalSource.as_str(),
+                ClaimDomain::ExternalReport.as_str(),
+                Status::Supported,
+                vec![valid_selector("run-alpha")],
+            )
+        }
+
+        #[test]
+        fn policy_lane_invariants_are_checked_in_order() {
+            let base = staged_admitted("edge-a", "origin-group-alpha");
+            let drifted =
+                |policy: &str, origin: &str, kind: &str, domain: &str, ceiling: Status| {
+                    stage_admitted_contribution_v0_for_tests(
+                        policy,
+                        origin,
+                        base.contribution().clone(),
+                        base.namespace().clone(),
+                        "origin-group-alpha",
+                        kind,
+                        domain,
+                        ceiling,
+                        vec![valid_selector("run-alpha")],
+                    )
+                };
+            assert_eq!(
+                invariant_failure(drifted(
+                    "magpie-admitted-contribution-v1",
+                    ORIGIN_ADMISSION_POLICY_ID_V0,
+                    "ExternalSource",
+                    "ExternalReport",
+                    Status::Supported,
+                )),
+                Reason::AdmittedPolicyMismatch
+            );
+            assert_eq!(
+                invariant_failure(drifted(
+                    ADMITTED_CONTRIBUTION_POLICY_ID_V0,
+                    "magpie-origin-admission-v1",
+                    "ExternalSource",
+                    "ExternalReport",
+                    Status::Supported,
+                )),
+                Reason::OriginPolicyMismatch
+            );
+            assert_eq!(
+                invariant_failure(drifted(
+                    ADMITTED_CONTRIBUTION_POLICY_ID_V0,
+                    ORIGIN_ADMISSION_POLICY_ID_V0,
+                    "ExecutionEvidence",
+                    "ExternalReport",
+                    Status::Supported,
+                )),
+                Reason::EvidenceKindMismatch
+            );
+            assert_eq!(
+                invariant_failure(drifted(
+                    ADMITTED_CONTRIBUTION_POLICY_ID_V0,
+                    ORIGIN_ADMISSION_POLICY_ID_V0,
+                    "ExternalSource",
+                    "Interpretation",
+                    Status::Supported,
+                )),
+                Reason::ClaimDomainMismatch
+            );
+            assert_eq!(
+                invariant_failure(drifted(
+                    ADMITTED_CONTRIBUTION_POLICY_ID_V0,
+                    ORIGIN_ADMISSION_POLICY_ID_V0,
+                    "ExternalSource",
+                    "ExternalReport",
+                    Status::Settled,
+                )),
+                Reason::CandidateCeilingMismatch
+            );
+        }
+
+        #[test]
+        fn replay_reference_boundaries_are_exact_for_all_four_fields() {
+            let digest = "c".repeat(64);
+            let cases: [(&str, &str, &str, &str, Reason); 4] = [
+                (
+                    "",
+                    "evidence",
+                    "edge-a",
+                    "scope",
+                    Reason::InvalidTargetClaimReference,
+                ),
+                (
+                    "claim",
+                    "",
+                    "edge-a",
+                    "scope",
+                    Reason::InvalidSourceEvidenceReference,
+                ),
+                (
+                    "claim",
+                    "evidence",
+                    "",
+                    "scope",
+                    Reason::InvalidJustificationEdgeReference,
+                ),
+                (
+                    "claim",
+                    "evidence",
+                    "edge-a",
+                    "",
+                    Reason::InvalidScopeReference,
+                ),
+            ];
+            for (target, evidence, edge, scope, reason) in cases {
+                let namespace = stage_namespace_v0_for_tests(target, scope);
+                assert_eq!(
+                    invariant_failure(admitted_with_identity(
+                        identity_with(target, evidence, edge, scope, &digest),
+                        namespace,
+                    )),
+                    reason
+                );
+            }
+
+            let long = "x".repeat(1_025);
+            let namespace = stage_namespace_v0_for_tests(&long, "scope");
+            assert_eq!(
+                invariant_failure(admitted_with_identity(
+                    identity_with(&long, "evidence", "edge-a", "scope", &digest),
+                    namespace,
+                )),
+                Reason::InvalidTargetClaimReference
+            );
+
+            // One byte, exactly 1,024 bytes, and non-ASCII UTF-8 within the
+            // byte bound are all valid; a multibyte string whose byte length
+            // exceeds 1,024 is invalid.
+            for target in ["x", &"x".repeat(1_024), "clé"] {
+                let namespace = stage_namespace_v0_for_tests(target, "scope");
+                invariant_valid(admitted_with_identity(
+                    identity_with(target, "evidence", "edge-a", "scope", &digest),
+                    namespace,
+                ));
+            }
+            let multibyte = "é".repeat(600);
+            assert!(multibyte.len() > 1_024);
+            let namespace = stage_namespace_v0_for_tests(&multibyte, "scope");
+            assert_eq!(
+                invariant_failure(admitted_with_identity(
+                    identity_with(&multibyte, "evidence", "edge-a", "scope", &digest),
+                    namespace,
+                )),
+                Reason::InvalidTargetClaimReference
+            );
+        }
+
+        #[test]
+        fn equal_malformed_contribution_and_namespace_values_are_still_rejected() {
+            let digest = "c".repeat(64);
+            let namespace = stage_namespace_v0_for_tests("", "");
+            assert_eq!(
+                invariant_failure(admitted_with_identity(
+                    identity_with("", "evidence", "edge-a", "", &digest),
+                    namespace,
+                )),
+                Reason::InvalidTargetClaimReference
+            );
+        }
+
+        #[test]
+        fn replay_reference_failures_outrank_artifact_and_namespace_failures() {
+            // Empty target reference plus uppercase digest plus namespace
+            // target/scope drift: the reference reason wins by precedence.
+            let namespace = stage_namespace_v0_for_tests("claim-drifted", "scope-drifted");
+            assert_eq!(
+                invariant_failure(admitted_with_identity(
+                    identity_with("", "evidence", "edge-a", "scope", &"C".repeat(64)),
+                    namespace,
+                )),
+                Reason::InvalidTargetClaimReference
+            );
+        }
+
+        #[test]
+        fn artifact_digest_must_be_exact_lowercase_hex_64() {
+            let namespace = stage_namespace_v0_for_tests("claim", "scope");
+            let mixed_case = format!("{}{}", "a".repeat(32), "B".repeat(32));
+            let prefixed = format!("0x{}", "a".repeat(62));
+            let whitespace = format!("{} ", "a".repeat(63));
+            for digest in [
+                "",
+                &"a".repeat(63),
+                &"a".repeat(65),
+                &"A".repeat(64),
+                &mixed_case,
+                &"g".repeat(64),
+                &prefixed,
+                &whitespace,
+            ] {
+                assert_eq!(
+                    invariant_failure(admitted_with_identity(
+                        identity_with("claim", "evidence", "edge-a", "scope", digest),
+                        namespace.clone(),
+                    )),
+                    Reason::InvalidArtifactDigest,
+                    "digest {digest:?} must be rejected"
+                );
+            }
+            invariant_valid(admitted_with_identity(
+                identity_with("claim", "evidence", "edge-a", "scope", &"f".repeat(64)),
+                namespace.clone(),
+            ));
+        }
+
+        #[test]
+        fn namespace_target_and_scope_equality_is_independently_mandatory() {
+            let base = staged_admitted("edge-a", "origin-group-alpha");
+            let drifted = |namespace: OriginComparisonNamespaceV0| {
+                stage_admitted_contribution_v0_for_tests(
+                    ADMITTED_CONTRIBUTION_POLICY_ID_V0,
+                    ORIGIN_ADMISSION_POLICY_ID_V0,
+                    base.contribution().clone(),
+                    namespace,
+                    "origin-group-alpha",
+                    EvidenceKind::ExternalSource.as_str(),
+                    ClaimDomain::ExternalReport.as_str(),
+                    Status::Supported,
+                    vec![valid_selector("run-alpha")],
+                )
+            };
+            assert_eq!(
+                invariant_failure(drifted(stage_namespace_v0_for_tests(
+                    "claim-other",
+                    "scope:shared",
+                ))),
+                Reason::NamespaceTargetMismatch
+            );
+            assert_eq!(
+                invariant_failure(drifted(stage_namespace_v0_for_tests(
+                    "claim-shared",
+                    "scope:other",
+                ))),
+                Reason::NamespaceScopeMismatch
+            );
+        }
+
+        #[test]
+        fn origin_group_grammar_boundaries_are_exact() {
+            let long = "g".repeat(129);
+            for group in [
+                "",
+                long.as_str(),
+                "gröupe",
+                "-starts-with-punctuation",
+                "has whitespace",
+                "has@unsupported",
+            ] {
+                assert_eq!(
+                    invariant_failure(staged_admitted("edge-a", group)),
+                    Reason::InvalidOriginGroup,
+                    "group {group:?} must be rejected"
+                );
+            }
+            invariant_valid(staged_admitted("edge-a", "g"));
+            invariant_valid(staged_admitted("edge-a", &"g".repeat(128)));
+            invariant_valid(staged_admitted("edge-a", "g0._:/-ok"));
+        }
+
+        fn selector_with(
+            kind: &str,
+            root: &str,
+            algorithm: &str,
+            profile: &str,
+            run_id: &str,
+        ) -> ArtifactProvenanceAnchorSelectorV0 {
+            ArtifactProvenanceAnchorSelectorV0::new(kind, root, algorithm, profile, run_id)
+        }
+
+        fn admitted_with_selectors(
+            selectors: Vec<ArtifactProvenanceAnchorSelectorV0>,
+        ) -> AdmittedContributionV0 {
+            staged_admitted_with_selectors("edge-a", "origin-group-alpha", selectors)
+        }
+
+        #[test]
+        fn an_empty_supporting_selector_vector_is_missing_not_invalid() {
+            assert_eq!(
+                invariant_failure(admitted_with_selectors(Vec::new())),
+                Reason::MissingSupportingOriginSelector
+            );
+        }
+
+        #[test]
+        fn selector_bundle_kinds_are_exactly_the_two_origin_binding_kinds() {
+            assert_eq!(
+                invariant_failure(admitted_with_selectors(vec![selector_with(
+                    "magpie-other-bundle-v0",
+                    &"a".repeat(64),
+                    ORIGIN_BINDING_WITNESS_ALGORITHM_V0,
+                    ORIGIN_BINDING_CANONICALIZATION_PROFILE_V0,
+                    "run-alpha",
+                )])),
+                Reason::InvalidSupportingOriginSelector
+            );
+            // The inner artifact-provenance acquisition kind is not the
+            // outer origin-binding acquisition kind.
+            assert_eq!(
+                invariant_failure(admitted_with_selectors(vec![selector_with(
+                    "magpie-artifact-acquisition-v0",
+                    &"a".repeat(64),
+                    ORIGIN_BINDING_WITNESS_ALGORITHM_V0,
+                    ORIGIN_BINDING_CANONICALIZATION_PROFILE_V0,
+                    "run-alpha",
+                )])),
+                Reason::InvalidSupportingOriginSelector
+            );
+            invariant_valid(admitted_with_selectors(vec![valid_selector("run-alpha")]));
+            invariant_valid(admitted_with_selectors(vec![selector_with(
+                ORIGIN_BINDING_DERIVATION_BUNDLE_KIND_V0,
+                &"b".repeat(64),
+                ORIGIN_BINDING_WITNESS_ALGORITHM_V0,
+                ORIGIN_BINDING_CANONICALIZATION_PROFILE_V0,
+                "run-alpha",
+            )]));
+        }
+
+        #[test]
+        fn selector_witness_fields_are_exact() {
+            for root in [
+                "",
+                &"a".repeat(63),
+                &"a".repeat(65),
+                &"A".repeat(64),
+                &"z".repeat(64),
+            ] {
+                assert_eq!(
+                    invariant_failure(admitted_with_selectors(vec![selector_with(
+                        ORIGIN_BINDING_ACQUISITION_BUNDLE_KIND_V0,
+                        root,
+                        ORIGIN_BINDING_WITNESS_ALGORITHM_V0,
+                        ORIGIN_BINDING_CANONICALIZATION_PROFILE_V0,
+                        "run-alpha",
+                    )])),
+                    Reason::InvalidSupportingOriginSelector,
+                    "witness root {root:?} must be rejected"
+                );
+            }
+            for (algorithm, profile) in [
+                ("sha512", ORIGIN_BINDING_CANONICALIZATION_PROFILE_V0),
+                (ORIGIN_BINDING_WITNESS_ALGORITHM_V0, "other-profile-v0"),
+            ] {
+                assert_eq!(
+                    invariant_failure(admitted_with_selectors(vec![selector_with(
+                        ORIGIN_BINDING_ACQUISITION_BUNDLE_KIND_V0,
+                        &"a".repeat(64),
+                        algorithm,
+                        profile,
+                        "run-alpha",
+                    )])),
+                    Reason::InvalidSupportingOriginSelector
+                );
+            }
+        }
+
+        #[test]
+        fn selector_run_id_grammar_boundaries_are_exact() {
+            let long = "r".repeat(129);
+            for run_id in [
+                "",
+                long.as_str(),
+                ".punctuation-first",
+                "has whitespace",
+                "has@unsupported",
+                "rön-id",
+            ] {
+                assert_eq!(
+                    invariant_failure(admitted_with_selectors(vec![selector_with(
+                        ORIGIN_BINDING_ACQUISITION_BUNDLE_KIND_V0,
+                        &"a".repeat(64),
+                        ORIGIN_BINDING_WITNESS_ALGORITHM_V0,
+                        ORIGIN_BINDING_CANONICALIZATION_PROFILE_V0,
+                        run_id,
+                    )])),
+                    Reason::InvalidSupportingOriginSelector,
+                    "run ID {run_id:?} must be rejected"
+                );
+            }
+            for run_id in ["r", &"r".repeat(128), "r0._:/-ok"] {
+                invariant_valid(admitted_with_selectors(vec![selector_with(
+                    ORIGIN_BINDING_ACQUISITION_BUNDLE_KIND_V0,
+                    &"a".repeat(64),
+                    ORIGIN_BINDING_WITNESS_ALGORITHM_V0,
+                    ORIGIN_BINDING_CANONICALIZATION_PROFILE_V0,
+                    run_id,
+                )]));
+            }
+        }
+
+        #[test]
+        fn selector_vector_must_be_strictly_increasing_without_duplicates() {
+            let alpha = valid_selector("run-alpha");
+            let beta = valid_selector("run-beta");
+            invariant_valid(admitted_with_selectors(vec![alpha.clone()]));
+            invariant_valid(admitted_with_selectors(vec![alpha.clone(), beta.clone()]));
+
+            assert_eq!(
+                invariant_failure(admitted_with_selectors(vec![alpha.clone(), alpha.clone()])),
+                Reason::NonCanonicalSupportingOriginSelectorOrder
+            );
+            assert_eq!(
+                invariant_failure(admitted_with_selectors(vec![beta.clone(), alpha.clone()])),
+                Reason::NonCanonicalSupportingOriginSelectorOrder
+            );
+        }
+
+        #[test]
+        fn individual_selector_validity_precedes_vector_canonicality() {
+            let invalid = selector_with(
+                "magpie-other-bundle-v0",
+                &"a".repeat(64),
+                ORIGIN_BINDING_WITNESS_ALGORITHM_V0,
+                ORIGIN_BINDING_CANONICALIZATION_PROFILE_V0,
+                "run-alpha",
+            );
+            // An individually invalid selector in an otherwise ordered
+            // vector reports the invalid selector.
+            assert_eq!(
+                invariant_failure(admitted_with_selectors(vec![
+                    valid_selector("run-alpha"),
+                    invalid.clone(),
+                ])),
+                Reason::InvalidSupportingOriginSelector
+            );
+            // An individually invalid selector in a non-canonical vector
+            // still reports the invalid selector, not the order failure.
+            assert_eq!(
+                invariant_failure(admitted_with_selectors(vec![
+                    valid_selector("run-beta"),
+                    valid_selector("run-alpha"),
+                    invalid,
+                ])),
+                Reason::InvalidSupportingOriginSelector
+            );
+        }
+
+        #[test]
+        fn first_failing_contribution_is_reported_in_identity_order() {
+            let expected = expected();
+            let bad_a = staged_admitted("edge-a", "");
+            let bad_b = staged_admitted("edge-b", "");
+            let mut input = honest_input(&expected);
+            input.candidate_audits = vec![
+                aligned_candidate("edge-b", &bad_b),
+                aligned_candidate("edge-a", &bad_a),
+            ];
+            input.admitted_contributions = vec![bad_b.clone(), bad_a.clone()];
+            let expected_first =
+                std::cmp::min(bad_a.contribution().clone(), bad_b.contribution().clone());
+            match compose_failure(&expected, input) {
+                Failure::ContributionInvariantMismatch {
+                    contribution,
+                    reason,
+                } => {
+                    assert_eq!(contribution, expected_first);
+                    assert_eq!(reason, Reason::InvalidOriginGroup);
+                }
+                other => panic!("expected invariant mismatch, got {other:?}"),
+            }
+        }
     }
 }
 
