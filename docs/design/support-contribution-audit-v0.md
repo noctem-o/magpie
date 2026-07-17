@@ -140,7 +140,8 @@ The positive authority law is:
 one exact internally derived AdmittedContributionV0
 +
 complete upstream identity, compiled-policy, candidate-universe uniqueness,
-admitted-candidate trace, alignment and completion/disposition validation
+admitted-candidate trace, alignment and completion shape and
+completion/disposition validation
 +
 exact per-contribution lane, inherited replay-reference, artifact,
 namespace, origin-group and supporting-selector validation
@@ -232,7 +233,8 @@ The remaining gap is a deterministic, standing-inert layer that:
    against its nested admitted value;
 6. proves trace-aligned candidate admissions and top-level admissions are
    identical maps;
-7. validates that upstream completion agrees with every candidate disposition;
+7. validates upstream completion shape and that upstream completion agrees
+   with every candidate disposition;
 8. validates every remaining inherited contribution invariant, including all
    four replay references, the copied artifact digest, origin-group key and
    supporting selectors;
@@ -523,8 +525,9 @@ These are global composition checks. They are not properties of one particular
 They must execute before duplicate candidate edge-ID validation,
 admitted-candidate trace consistency, candidate-map insertion,
 contribution-identity duplicate detection, admitted-set alignment, upstream
-completion/disposition consistency, per-contribution invariants, upstream
-completion mapping or support projection. They must execute even when:
+completion shape and completion/disposition consistency, per-contribution
+invariants, upstream completion mapping or support projection. They must
+execute even when:
 
 ```text
 the admitted audit is complete and empty
@@ -564,8 +567,8 @@ Admitted
 
 It must execute before admitted-candidate trace consistency, candidate
 admitted-map insertion, contribution-identity duplicate checks,
-candidate/top-level alignment, completion/disposition validation,
-per-contribution invariants, completion mapping or projection.
+candidate/top-level alignment, completion shape and completion/disposition
+validation, per-contribution invariants, completion mapping or projection.
 
 The future implementation must derive duplicate detection structurally and
 deterministically. If more than one edge ID is duplicated, it reports the
@@ -607,9 +610,9 @@ zero support contributions
 
 Immediately after duplicate candidate edge-ID validation, and before candidate
 admitted-map insertion, duplicate candidate-admission detection, top-level
-alignment, completion/disposition validation, per-contribution invariants,
-completion mapping or projection, validate every candidate whose disposition
-is exactly:
+alignment, completion shape and completion/disposition validation,
+per-contribution invariants, completion mapping or projection, validate every
+candidate whose disposition is exactly:
 
 ```text
 Admitted {
@@ -2788,6 +2791,11 @@ invalidation and supersession/currentness
 ->
 EpistemicGate and writer surfaces
 ```
+
+The future loader contract must validate the inherited unavailable-selector
+universe before consuming it operationally. This v0 contract inherits that
+vector opaquely; the first layer that loads against it becomes its first
+validating consumer.
 
 No later stage is ratified or implemented by Ticket 0051.
 

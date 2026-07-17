@@ -332,7 +332,7 @@ only to verify globally unique edge IDs across the complete candidate
 universe, exact alignment first between every `Admitted` candidate's enclosing
 replay-derived trace and its nested admitted value, then between trace-aligned
 candidate admissions and top-level admitted output, plus exact
-completion/disposition consistency.
+completion shape and completion/disposition consistency.
 
 ## 11. Upstream identity checks
 
@@ -386,9 +386,10 @@ NoPrivilegedContext
 These global composition checks must run before duplicate candidate edge-ID
 validation, admitted-candidate trace consistency, candidate-map insertion,
 contribution-identity duplicate detection, admitted-set alignment, upstream
-completion/disposition consistency, per-contribution invariants, upstream
-completion mapping or support projection. They must run for complete-empty and
-origin-incomplete admitted audits and when both admitted maps are empty.
+completion shape and completion/disposition consistency, per-contribution
+invariants, upstream completion mapping or support projection. They must run
+for complete-empty and origin-incomplete admitted audits and when both
+admitted maps are empty.
 
 ## 12. Exact composition-validation order
 
@@ -506,8 +507,8 @@ Admitted
 
 It must execute before admitted-candidate trace consistency, candidate
 admitted-map insertion, contribution-identity duplicate checks,
-candidate/top-level alignment, completion/disposition validation,
-per-contribution invariants, completion mapping or projection.
+candidate/top-level alignment, completion shape and completion/disposition
+validation, per-contribution invariants, completion mapping or projection.
 
 The future implementation must derive duplicate detection structurally and
 deterministically. If more than one edge ID is duplicated, it reports the
@@ -540,9 +541,9 @@ zero support contributions
 
 Immediately after duplicate candidate edge-ID validation, and before candidate
 admitted-map insertion, duplicate candidate-admission detection, top-level
-alignment, completion/disposition validation, per-contribution invariants,
-completion mapping or projection, validate every candidate whose disposition
-is exactly:
+alignment, completion shape and completion/disposition validation,
+per-contribution invariants, completion mapping or projection, validate every
+candidate whose disposition is exactly:
 
 ```text
 Admitted {
@@ -2410,6 +2411,11 @@ invalidation and supersession/currentness
 EpistemicGate and writer surfaces
 ```
 
+The future loader contract must validate the inherited unavailable-selector
+universe before consuming it operationally. This v0 contract inherits that
+vector opaquely; the first layer that loads against it becomes its first
+validating consumer.
+
 ## 32. Stop conditions
 
 Stop and report rather than invent semantics if the contract or future
@@ -2536,17 +2542,22 @@ ready, merge, enable auto-merge, force-push, resolve reviews, modify another
 PR, add runtime code, add tests or fixtures, implement policy v3, count groups
 or change standing.
 
-For the PR #64 review-remediation follow-up, the explicit task authority
-additionally permits only:
+For the PR #64 review-remediation follow-ups, explicit task authority
+additionally permitted only editing
+`docs/design/support-contribution-audit-v0.md` and
+`tickets/0051-support-contribution-audit-v0-contract.md`, pushing the
+existing `agent/support-contribution-audit-v0-contract` branch without
+force, updating the existing PR #64 body to describe the amended contract,
+and creating these remediation commits in order:
 
-- editing
-  `docs/design/support-contribution-audit-v0.md` and
-  `tickets/0051-support-contribution-audit-v0-contract.md`;
-- creating one additional commit named
-  `docs: reject empty unavailable-selector incompletions`;
-- pushing the existing
-  `agent/support-contribution-audit-v0-contract` branch without force; and
-- updating the existing PR #64 body to describe the amended contract.
+1. `ab5de3e` — `docs: harden support-policy composition`;
+2. `7014ef5` — `docs: harden inherited support inputs`;
+3. `c62a33f` — `docs: close support-input validation gaps`;
+4. `9313122` — `docs: close support replay-identity gaps`;
+5. `8349955a` — `docs: reject empty unavailable-selector incompletions`;
+   and
+6. `docs: align stage-15 narrative and ticket authority record` (this
+   commit).
 
 This follow-up authority does not permit replying to or resolving review
 threads. Those GitHub writes require separate authorization.
@@ -2554,8 +2565,8 @@ threads. Those GitHub writes require separate authorization.
 ## 35. Reviewer checklist
 
 1. Confirm exact base, reviewed PR #63 head, branch, original five-path scope
-   and one additional review-remediation commit limited to the two amended
-   contract paths.
+   and the six review-remediation commits enumerated in §34, each limited to
+   the two amended contract paths.
 2. Confirm status is ratified contract, runtime absent, support contributions
    absent, aggregation absent and standing unchanged.
 3. Confirm deterministic input is exactly `H + Pₒ + P꜀ + Pₛ + M`.
