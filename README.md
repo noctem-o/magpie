@@ -361,8 +361,8 @@ shell execution is unavailable.
     statistical independence, `EpistemicGate`, an ordinary claim-bearing
     writer, loader, CAS, and filesystem or network ingestion remain future
     work. No support or standing changed.
-23. **Support-contribution audit v0 contract — ratified by Ticket 0051;
-    runtime implementation absent.**
+23. **Support-contribution audit v0 — contract ratified by Ticket 0051,
+    runtime implemented by Ticket 0052.**
     [`docs/design/support-contribution-audit-v0.md`](docs/design/support-contribution-audit-v0.md)
     and [Ticket 0051](tickets/0051-support-contribution-audit-v0-contract.md)
     freeze internal same-context admitted-audit composition, exact upstream
@@ -371,11 +371,15 @@ shell execution is unavailable.
     support-context drift checks, one-to-one support-input projection,
     complete global failure behavior, deterministic ordering and
     serialization, and preservation of distinct same-origin contributions.
-    The contract introduces no aggregation or standing effect. Runtime
-    support-contribution audit, aggregation lane, standing policy v3,
-    same-origin collapse, distinct-group threshold, conservative aggregation,
-    statistical independence, `EpistemicGate`, ordinary claim-bearing writer,
-    loader, CAS, and filesystem or network ingestion remain future work.
+    [Ticket 0052](tickets/0052-support-contribution-audit-v0-implementation.md)
+    implements `OriginAdmissionReplayContextV0::resolve_support_contribution_audit_v0`
+    through one crate-private composition path with the four crate-private
+    origin-binding grammar seams, five canonical fixtures and the reserved
+    hostile-test suite. The contract introduces no aggregation or standing
+    effect. Aggregation lane, standing policy v3, same-origin collapse,
+    distinct-group threshold, conservative aggregation, statistical
+    independence, `EpistemicGate`, ordinary claim-bearing writer, loader,
+    CAS, and filesystem or network ingestion remain future work.
 24. **Historical review remediation contract.**
     [`docs/design/historical-review-remediation-ledger.md`](docs/design/historical-review-remediation-ledger.md)
     and [Ticket 0043](tickets/0043-historical-review-remediation-contract.md)
