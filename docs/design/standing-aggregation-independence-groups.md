@@ -74,8 +74,8 @@ later implementation phase; it does not change runtime `StandingView` behavior.
   the existing low-level `LogWriter` capability remains unchanged.
 - No `EpistemicGate`.
 - No achieved-standing aggregation implementation.
-- No support-contribution runtime, standing-policy-v3 or aggregation
-  implementation.
+- No support-contribution runtime behavior change, standing-policy-v3 or
+  aggregation implementation.
 - No contradiction debt implementation.
 - No invalidation implementation.
 - No supersession implementation.
@@ -358,12 +358,12 @@ contribution. Ticket 0049 ratifies, and Ticket 0050 implements, the
 standing-inert audit that associates exact graph-policy eligibility and exact
 evidence artifact identity with that admitted-origin result.
 
-Ticket 0051 ratifies the next distinct standing-inert boundary:
-`SupportContributionAuditV0` must consume only the internally derived and
-completely aligned admitted output, revalidate the exact
-`ExternalSource × ExternalReport` ceiling and support-context cell, and project
-each exact contribution one-to-one. Its runtime remains absent. It defines no
-aggregation lane, group count, threshold or achieved standing.
+Ticket 0051 ratifies, and Ticket 0052 implements, the next distinct
+standing-inert boundary: `SupportContributionAuditV0` must consume only the
+internally derived and completely aligned admitted output, revalidate the
+exact `ExternalSource × ExternalReport` ceiling and support-context cell, and
+project each exact contribution one-to-one. It defines no aggregation lane,
+group count, threshold or achieved standing.
 
 The standing-inert provenance/origin audit freezes external-object availability
 in an immutable resolution content closure. Its deterministic input is
@@ -602,8 +602,8 @@ These are future tests for later PRs. This note does not add tests.
   admitted-contribution audit all precede aggregation.
 - Confirm the origin-binding verifier, origin-admission audit and Ticket 0050
   admitted-contribution audit are implemented.
-- Confirm the support-contribution audit is ratified by Ticket 0051 while its
-  runtime remains absent.
+- Confirm the support-contribution audit is ratified by Ticket 0051 and its
+  standing-inert runtime is implemented by Ticket 0052.
 - Confirm a verified binding's claimed group is not an admitted group until
   the origin-admission policy admits the exact contribution assignment.
 - Confirm aggregation consumes an immutable audit derived from `(H, P, M)` and
