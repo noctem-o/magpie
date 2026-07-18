@@ -765,6 +765,63 @@ fn exact_supported_ceiling(
     }
 }
 
+/// Test-only staging constructor. `#[cfg(test)]` keeps production bytes and
+/// public API untouched while remaining visible to `#[cfg(test)]` modules
+/// crate-wide (the support-contribution audit's hostile tests stage malformed
+/// inherited values through these). Never used by production code.
+#[cfg(test)]
+pub(crate) fn stage_contribution_identity_v0_for_tests(
+    target_claim_id: &str,
+    source_evidence_id: &str,
+    justification_edge_id: &str,
+    scope_ref: &str,
+    artifact_digest: &str,
+) -> ContributionIdentityV0 {
+    ContributionIdentityV0::from_admitted_contribution_graph_v0(
+        target_claim_id,
+        source_evidence_id,
+        justification_edge_id,
+        scope_ref,
+        artifact_digest,
+    )
+}
+
+/// Test-only staging constructor; see [`stage_contribution_identity_v0_for_tests`].
+#[cfg(test)]
+pub(crate) fn stage_namespace_v0_for_tests(
+    target_claim_id: &str,
+    scope_ref: &str,
+) -> OriginComparisonNamespaceV0 {
+    OriginComparisonNamespaceV0::for_admitted_contribution_v0(target_claim_id, scope_ref)
+}
+
+/// Test-only staging constructor; see [`stage_contribution_identity_v0_for_tests`].
+#[cfg(test)]
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn stage_admitted_contribution_v0_for_tests(
+    policy_id: &str,
+    origin_admission_policy_id: &str,
+    contribution: ContributionIdentityV0,
+    namespace: OriginComparisonNamespaceV0,
+    origin_group: &str,
+    evidence_kind: &str,
+    claim_domain: &str,
+    candidate_ceiling: Status,
+    supporting_origin_candidate_selectors: Vec<ArtifactProvenanceAnchorSelectorV0>,
+) -> AdmittedContributionV0 {
+    AdmittedContributionV0 {
+        policy_id: policy_id.to_owned(),
+        origin_admission_policy_id: origin_admission_policy_id.to_owned(),
+        contribution,
+        namespace,
+        origin_group: origin_group.to_owned(),
+        evidence_kind: evidence_kind.to_owned(),
+        claim_domain: claim_domain.to_owned(),
+        candidate_ceiling,
+        supporting_origin_candidate_selectors,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

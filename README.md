@@ -273,11 +273,10 @@ shell execution is unavailable.
     Ticket 0041. The public explicit-slice APIs remain unchanged; Ticket 0045
     adds only crate-private closure-aware reuse for origin-binding composition.
     Origin admission is implemented separately by Ticket 0048 and the
-    admitted-contribution audit by Ticket 0050. Runtime support-contribution
-    audit, aggregation lane, standing policy v3, same-origin collapse,
-    distinct-group threshold, conservative aggregation, refutation,
-    contradiction debt, invalidation, supersession, `EpistemicGate`, and
-    ordinary claim-bearing writer surfaces remain later.
+    admitted-contribution audit by Ticket 0050. Aggregation lane, standing
+    policy v3, same-origin collapse, distinct-group threshold, conservative
+    aggregation, refutation, contradiction debt, invalidation, supersession,
+    `EpistemicGate`, and ordinary claim-bearing writer surfaces remain later.
 17. **Resolution content closure v0 contract — landed.**
     [`docs/design/resolution-content-closure-v0.md`](docs/design/resolution-content-closure-v0.md)
     and [Ticket 0040](tickets/0040-resolution-content-closure-v0.md) now specify
@@ -285,9 +284,9 @@ shell execution is unavailable.
     closure identity used as input `M` for deterministic resolution. The
     public artifact-provenance verifier methods still receive explicit optional
     byte slices. Origin admission is implemented separately by Ticket 0048 and
-    admitted-contribution audit by Ticket 0050. Runtime support-contribution
-    audit, aggregation lane, standing policy v3, conservative aggregation and
-    ordinary claim-bearing writer surfaces remain future work.
+    admitted-contribution audit by Ticket 0050. Aggregation lane, standing
+    policy v3, conservative aggregation and ordinary claim-bearing writer
+    surfaces remain future work.
 18. **Resolution content closure v0 implementation — landed.** Exact bounded
     construction now collapses identical duplicates, rejects deterministic
     conflicts, owns immutable keyed bytes, and exposes exact read-only lookup.
@@ -305,11 +304,10 @@ shell execution is unavailable.
     receipts verify claimed governance content only. The compiled authority
     classification and standing-inert origin-admission fold are implemented
     separately by Ticket 0048, and the admitted-contribution audit is
-    implemented by Ticket 0050. Runtime support-contribution audit,
-    aggregation lane, standing policy v3, same-origin collapse,
-    distinct-group threshold, conservative aggregation, the ordinary
-    claim-bearing writer, `EpistemicGate`, and their standing effects remain
-    future work.
+    implemented by Ticket 0050. Aggregation lane, standing policy v3,
+    same-origin collapse, distinct-group threshold, conservative aggregation,
+    the ordinary claim-bearing writer, `EpistemicGate`, and their standing
+    effects remain future work.
 20. **Origin-admission audit v0 — implemented by Ticket 0048.**
     [`docs/design/origin-admission-audit-v0.md`](docs/design/origin-admission-audit-v0.md)
     and [Ticket 0046](tickets/0046-origin-admission-audit-v0-contract.md)
@@ -324,11 +322,10 @@ shell execution is unavailable.
     deterministic standing-inert audit bytes. It establishes origin-group
     assignment only. It creates no support, aggregation, statistical
     independence or standing. The admitted-contribution audit is implemented
-    by Ticket 0050. Runtime support-contribution audit, aggregation lane,
-    standing policy v3, same-origin collapse, distinct-group threshold,
-    conservative aggregation, statistical independence, `EpistemicGate`, an
-    ordinary claim-bearing writer, loader, CAS, and filesystem or network
-    ingestion remain future work.
+    by Ticket 0050. Aggregation lane, standing policy v3, same-origin
+    collapse, distinct-group threshold, conservative aggregation, statistical
+    independence, `EpistemicGate`, an ordinary claim-bearing writer, loader,
+    CAS, and filesystem or network ingestion remain future work.
 21. **Origin-admission replay substrate v0 — implemented by Ticket 0047.**
     One-read verified
     replay now returns an exact event-count and chain-tip summary while
@@ -356,13 +353,13 @@ shell execution is unavailable.
     serialize as deterministic standing-inert audit bytes, while distinct
     contributions assigned to one origin group remain distinct. The
     support-contribution contract is ratified separately by Ticket 0051.
-    Runtime support-contribution audit, aggregation lane, standing policy v3,
-    same-origin collapse, distinct-group threshold, conservative aggregation,
-    statistical independence, `EpistemicGate`, an ordinary claim-bearing
-    writer, loader, CAS, and filesystem or network ingestion remain future
-    work. No support or standing changed.
-23. **Support-contribution audit v0 contract — ratified by Ticket 0051;
-    runtime implementation absent.**
+    Aggregation lane, standing policy v3, same-origin collapse,
+    distinct-group threshold, conservative aggregation, statistical
+    independence, `EpistemicGate`, an ordinary claim-bearing writer, loader,
+    CAS, and filesystem or network ingestion remain future work. No support
+    or standing changed.
+23. **Support-contribution audit v0 — contract ratified by Ticket 0051,
+    runtime implemented by Ticket 0052.**
     [`docs/design/support-contribution-audit-v0.md`](docs/design/support-contribution-audit-v0.md)
     and [Ticket 0051](tickets/0051-support-contribution-audit-v0-contract.md)
     freeze internal same-context admitted-audit composition, exact upstream
@@ -371,11 +368,15 @@ shell execution is unavailable.
     support-context drift checks, one-to-one support-input projection,
     complete global failure behavior, deterministic ordering and
     serialization, and preservation of distinct same-origin contributions.
-    The contract introduces no aggregation or standing effect. Runtime
-    support-contribution audit, aggregation lane, standing policy v3,
-    same-origin collapse, distinct-group threshold, conservative aggregation,
-    statistical independence, `EpistemicGate`, ordinary claim-bearing writer,
-    loader, CAS, and filesystem or network ingestion remain future work.
+    [Ticket 0052](tickets/0052-support-contribution-audit-v0-implementation.md)
+    implements `OriginAdmissionReplayContextV0::resolve_support_contribution_audit_v0`
+    through one crate-private composition path with the four crate-private
+    origin-binding grammar seams, five canonical fixtures and the reserved
+    hostile-test suite. The contract introduces no aggregation or standing
+    effect. Aggregation lane, standing policy v3, same-origin collapse,
+    distinct-group threshold, conservative aggregation, statistical
+    independence, `EpistemicGate`, ordinary claim-bearing writer, loader,
+    CAS, and filesystem or network ingestion remain future work.
 24. **Historical review remediation contract.**
     [`docs/design/historical-review-remediation-ledger.md`](docs/design/historical-review-remediation-ledger.md)
     and [Ticket 0043](tickets/0043-historical-review-remediation-contract.md)

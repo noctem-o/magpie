@@ -20,6 +20,7 @@ mod resolution_content_closure;
 mod standing;
 mod standing_v1;
 mod standing_v2;
+mod support_contribution_audit;
 
 use std::collections::BTreeMap;
 
@@ -109,6 +110,13 @@ pub use standing_v2::{
     StandingPolicyApplicationV2, StandingPolicyContextV2, StandingPolicyRuleV2,
     StandingResolutionFailureV2, StandingResolutionV2, StandingTraceEntryV2,
     MAGPIE_CLAIMS_POLICY_V2_ID,
+};
+
+pub use support_contribution_audit::{
+    SupportContributionAuditCompletionV0, SupportContributionAuditV0,
+    SupportContributionCompositionFailureV0, SupportContributionInvariantReasonV0,
+    SupportContributionV0, SUPPORT_CONTRIBUTION_AUDIT_CANONICALIZATION_PROFILE_V0,
+    SUPPORT_CONTRIBUTION_AUDIT_SCHEMA_V0, SUPPORT_CONTRIBUTION_POLICY_ID_V0,
 };
 
 /// A single tracked claim and its current epistemic state.
