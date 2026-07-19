@@ -219,7 +219,10 @@ SupportContributionV0.origin_admission_policy_id, and a correct audit-level
 origin policy does not excuse a drifted contribution-level origin policy.
 ```
 
-`origin_admission_policy_id` is not part of the lane partition key. It is a
+The separately serialized `SupportContributionV0.origin_admission_policy_id`
+is not part of the lane partition key: the exact
+`OriginComparisonNamespaceV0`, including its own origin-admission policy
+component, remains the sole partition. The contribution-level field is a
 fixed membership invariant whose drift fails closed, not a value that
 creates another lane. No value is repaired, normalized, inherited from a
 nearby field, or silently ignored.
@@ -391,8 +394,8 @@ reason to recompute v2: it is reported through a closed blocker, no
 promotion occurs, and the inherited governed result and failure remain
 visible.
 
-Governed standing under an identity-valid inherited v2 resolution then
-follows this exact precedence:
+Governed standing under an identity-valid inherited v2 resolution with
+no resolution failure then follows this exact precedence:
 
 ```text
 1. inherited governed Settled   -> Settled
@@ -401,6 +404,10 @@ follows this exact precedence:
 4. otherwise, successful v3 corroboration -> Supported
 5. otherwise -> the inherited v2 standing, unchanged
 ```
+
+When `inherited_v2.resolution_failure` is `Some(_)`, this table does not
+apply: the inherited standing and failure remain visible as a closed
+blocker, and no promotion occurs regardless of corroboration.
 
 The v3 rule's achieved contribution is only `Some(Supported)`, never
 `Settled`.
@@ -491,6 +498,10 @@ one closed enum, exact declaration order
 outer composition failure:
 one first-failure Option in the frozen stage order,
 never an unordered list
+
+competing same-stage failures:
+the first affected contribution in exact ContributionIdentityV0::Ord
+order, independent of vector order
 ```
 
 No caller order, event insertion order, vector order, group lexical
