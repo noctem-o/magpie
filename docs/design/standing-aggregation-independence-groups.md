@@ -29,7 +29,8 @@ support-contribution audit:
 implemented by Ticket 0052
 
 standing policy v3:
-future
+contract ratified by Ticket 0053;
+runtime future
 
 conservative aggregation:
 future
@@ -261,9 +262,9 @@ values; it does not serialize a separate namespace object.
 
 It does not include the complete contribution identity, source evidence ID,
 justification-edge ID, artifact identity, or acquisition occurrence when that
-would isolate every contribution and defeat comparison. A later explicit
-aggregation policy may further partition it through a separately defined
-aggregation-lane identity; this note does not define those lane fields.
+would isolate every contribution and defeat comparison. The Ticket 0053
+contract separately defines the exact aggregation-lane identity for the first
+v3 rule; this note does not define those lane fields.
 
 ```text
 same group key + same origin-comparison namespace
@@ -528,7 +529,8 @@ must not erase truth-bearing contradiction debt or settle factual truth.
 11. Ratify the support-contribution audit v0 contract — ratified by Ticket
     0051.
 12. Support-contribution audit v0 runtime — implemented by Ticket 0052.
-13. Ratify one explicit standing policy v3 aggregation rule.
+13. Ratify one explicit standing policy v3 aggregation rule — ratified by
+    Ticket 0053.
 14. Implement conservative aggregation.
 15. Add direct refutation through admitted verifier context.
 16. Add contradiction debt with explicit precedence.
@@ -543,8 +545,9 @@ is not support, and one admitted group is not aggregation. The implemented
 origin-binding, origin-admission and admitted-contribution layers are
 standing-inert. Step 11 is ratified by Ticket 0051. Step 12 is implemented by
 Ticket 0052 and implements only the contribution-to-support boundary. Step 13
-remains future policy work: this note neither defines a threshold nor creates
-policy v3. Step 14 remains the later conservative aggregation implementation.
+is ratified by Ticket 0053, which freezes one exact threshold and lane
+without implementing runtime. Step 14 remains the later conservative
+aggregation implementation.
 
 ## Future Tests
 
@@ -610,5 +613,6 @@ These are future tests for later PRs. This note does not add tests.
   performs no ambient CAS, filesystem, callback, or network lookup.
 - Confirm origin admission is not support and one admitted group is not
   aggregation.
-- Confirm no numeric threshold or implemented policy v3 appears.
+- Confirm no numeric threshold or implemented policy v3 appears in this note;
+  the first exact threshold is ratified separately by Ticket 0053.
 - Confirm no runtime `StandingView` behavior changes are made by this docs PR.

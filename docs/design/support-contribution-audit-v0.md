@@ -2,11 +2,11 @@
 
 ## Status
 
-Ratified contract.
+Ratified contract (Ticket 0051).
 
-Runtime implementation absent.
+Runtime implemented by Ticket 0052.
 
-Support contributions absent.
+Support contributions are standing-inert typed input only.
 
 Aggregation absent.
 
@@ -1895,6 +1895,8 @@ what achieved standing follows
 ```
 
 Ticket 0051 preserves the exact material that policy v3 may later consume.
+The first exact consumer contract is ratified separately by Ticket 0053; its
+runtime remains future.
 
 ## Source-standing boundary
 
@@ -2801,8 +2803,9 @@ No later stage is ratified or implemented by Ticket 0051.
 
 ## Reviewer checklist
 
-- Confirm status is ratified contract, runtime absent, support contributions
-  absent, aggregation absent and standing unchanged.
+- Confirm status records Ticket 0051 ratification, Ticket 0052 runtime
+  implementation, support contributions as standing-inert typed input,
+  aggregation absent and standing unchanged.
 - Confirm the deterministic input is exactly
   `H + Pₒ + P꜀ + Pₛ + M`.
 - Confirm the admitted audit is derived internally from the same context and

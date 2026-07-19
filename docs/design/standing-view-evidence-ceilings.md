@@ -695,6 +695,8 @@ These are future tests for later PRs. This note does not add tests.
    occurrence/inclusion.
 4. Add deterministic aggregation lanes and traces without amplification.
 5. Add one explicit support aggregation rule; do not invent generic thresholds.
+   The first exact rule contract is ratified by Ticket 0053; its runtime
+   remains future.
 6. Add conservative independence handling. Absent, malformed, unadmitted, or
    self-declared groups must not amplify.
 7. Add direct refutation only through admitted verifier context plus
