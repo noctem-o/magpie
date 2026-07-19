@@ -390,10 +390,12 @@ shell execution is unavailable.
     `ExternalSource × ExternalReport` corroboration rule over one exact
     `OriginComparisonNamespaceV0` lane, requiring at least two distinct
     admitted origin groups for governed `Supported`, never `Settled`.
-    Inherited governed `Settled`, `Refuted`, and `Supported` are preserved;
-    legacy raw status remains quarantined; same-origin contributions remain
-    visible but count once. Runtime implementation, conservative
-    aggregation, refutation aggregation, contradiction debt, invalidation,
+    With identity-valid inherited v2, governed `Settled`, `Refuted`, and
+    `Supported` are preserved; inherited claim or policy identity mismatches
+    yield no top-level standing; legacy raw status remains quarantined;
+    same-origin contributions remain visible but count once. Runtime
+    implementation, conservative aggregation, refutation aggregation,
+    contradiction debt, invalidation,
     supersession, `EpistemicGate`, ordinary claim-bearing writer, loader,
     CAS, and filesystem or network ingestion remain future work.
 

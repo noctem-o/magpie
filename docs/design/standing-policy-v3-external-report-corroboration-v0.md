@@ -160,7 +160,8 @@ Every counted contribution must additionally satisfy these fixed membership
 invariants, which do not vary within honest v0 output:
 
 ```text
-support_contribution_policy_id
+policy_id
+(the exact SupportContributionV0 field and getter)
 == magpie-support-contribution-v0
 
 admitted_contribution_policy_id
@@ -175,6 +176,12 @@ claim_domain
 support_ceiling
 == Supported
 ```
+
+Field names are the exact landed Ticket 0052 surfaces:
+`SupportContributionV0.policy_id` for the contribution-level invariant, and
+`SupportContributionAuditV0.policy_id` plus
+`SupportContributionAuditV0.admitted_contribution_policy_id` for the
+audit-level outer identity checks.
 
 The compiled support-context requirement for
 `ExternalSource × ExternalReport` remains `NoPrivilegedContext`; a complete
@@ -229,9 +236,10 @@ serialized or cloned audit bytes
 ```
 
 No ambient CAS, filesystem, callback, plugin, environment, registry,
-remote, or network lookup participates. The same `(H, P, M)` replay
-context, compiled policies, and immutable closure produce byte-identical
-output on every evaluation.
+remote, or network lookup participates. The same verified replay
+context (H), the same compiled policies (P), the same immutable closure
+(M), and the same requested claim produce byte-identical output on every
+evaluation.
 
 ## Exact claim-selection law
 
@@ -336,7 +344,8 @@ reason to recompute v2: it is reported through a closed blocker, no
 promotion occurs, and the inherited governed result and failure remain
 visible.
 
-Governed standing then follows this exact precedence:
+Governed standing under an identity-valid inherited v2 resolution then
+follows this exact precedence:
 
 ```text
 1. inherited governed Settled   -> Settled
@@ -370,11 +379,16 @@ claim_id:
 the exact requested claim_id
 
 governed_standing:
-the inherited v2 governed standing, unchanged;
-no v3 promotion occurs on any failure
+None when the failure is InheritedClaimMismatch or
+InheritedPolicyMismatch: identity-invalid inherited authority is
+visible only as nested evidence. Otherwise the inherited v2 governed
+standing, unchanged; no v3 promotion occurs on any failure
 
 legacy_raw_standing and currentness:
-copied unchanged from the inherited v2 resolution
+None and Unknown respectively when the failure is an inherited
+identity mismatch: foreign raw values never surface under the
+requested claim. Otherwise copied unchanged from the inherited v2
+resolution
 
 policy_id:
 magpie-claims-standing-v3
@@ -434,9 +448,9 @@ never an unordered list
 
 No caller order, event insertion order, vector order, group lexical
 preference, write recency, or arbitrary first-two selection determines an
-outcome. The same verified prefix, immutable closure, and compiled
-policies produce byte-identical resolutions and byte-identical canonical
-bytes under every input permutation.
+outcome. The same verified prefix, immutable closure, compiled
+policies, and requested claim produce byte-identical resolutions and
+byte-identical canonical bytes under every input permutation.
 
 ## Exact future resolver surface
 
@@ -461,7 +475,9 @@ impl OriginAdmissionReplayContextV0 {
 Freeze:
 
 - The scalar method delegates to the trace-bearing method and returns
-  only `governed_standing`.
+  only `governed_standing`; it therefore returns None whenever the
+  trace-bearing resolution reports an inherited claim or policy identity
+  mismatch, with no second scalar failure policy.
 - The replay context is the sole authority carrier: it alone co-holds the
   privately constructed snapshot (for v2 inheritance) and the verified
   prefix identity (for support-audit derivation).
@@ -568,7 +584,24 @@ groups; more than two distinct groups
 determinism:
 vector permutation invariance; canonical bytes deterministic and
 regenerable; group lexical order and contribution order pinned, not
-only whole-vector permutation
+only whole-vector permutation; same H, P, M with two different
+requested claim IDs binds each output to its request and yields
+different canonical bytes, with no cross-claim cache equivalence
+
+inherited identity failure standing:
+foreign inherited claim with governed Settled, Refuted, or Supported
+-> InheritedClaimMismatch -> top-level governed None, legacy raw
+None, currentness Unknown, nested inherited retained byte-for-byte;
+wrong inherited v2 policy identity with governed Settled, Refuted, or
+Supported -> InheritedPolicyMismatch -> top-level governed None,
+legacy raw None, currentness Unknown, nested inherited retained
+byte-for-byte; simultaneous claim and policy drift reports the claim
+mismatch first; resolved_standing_v3 returns None on either mismatch
+
+later-failure preservation:
+identity-valid inherited v2 with governed Supported plus any later
+outer-composition failure -> inherited standing preserved unchanged,
+no v3 promotion
 
 namespace and selection:
 same textual group in different namespaces is incomparable;
@@ -680,8 +713,8 @@ git status --short
 - Confirm only `Complete` audits evaluate groups, and incomplete and
   rejected audits are visible but never repaired or folded.
 - Confirm the five-step precedence preserves inherited governed
-  `Settled`, `Refuted`, and `Supported`, and that v3 never yields
-  `Settled`.
+  `Settled`, `Refuted`, and `Supported` when inherited v2 identity is
+  valid, and that v3 never yields `Settled`.
 - Confirm legacy raw values remain quarantined and never veto or settle.
 - Confirm same-origin contributions remain visible but count once, and
   that no digest or metadata clustering veto exists.

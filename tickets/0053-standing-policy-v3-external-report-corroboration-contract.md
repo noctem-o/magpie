@@ -264,7 +264,9 @@ impl OriginAdmissionReplayContextV0 {
 ```
 
 The scalar method delegates to the trace-bearing method and returns only
-`governed_standing`. No free resolver, `StandingView` resolver,
+`governed_standing`; it therefore returns None whenever the trace-bearing
+resolution reports an inherited claim or policy identity mismatch, with no
+second scalar failure policy. No free resolver, `StandingView` resolver,
 standalone `StandingReplaySnapshot` v3 method, generic policy parameter,
 or second standing engine is permitted. Only `StandingResolutionV3`
 exposes `canonical_bytes()`, through direct typed
@@ -323,12 +325,18 @@ Every counted contribution must satisfy these fixed membership
 invariants, which do not vary within honest v0 output:
 
 ```text
-support_contribution_policy_id == magpie-support-contribution-v0
+policy_id (SupportContributionV0) == magpie-support-contribution-v0
 admitted_contribution_policy_id == magpie-admitted-contribution-v0
 evidence_kind == ExternalSource
 claim_domain == ExternalReport
 support_ceiling == Supported
 ```
+
+Field names are the exact landed Ticket 0052 surfaces:
+`SupportContributionV0.policy_id` for the contribution-level invariant, and
+`SupportContributionAuditV0.policy_id` plus
+`SupportContributionAuditV0.admitted_contribution_policy_id` for the
+audit-level outer identity checks.
 
 The lane key must not include source evidence ID, justification-edge ID,
 artifact digest, supporting selector, occurrence, or complete
@@ -440,7 +448,8 @@ inherited v2 resolution failure is a closed blocker, never an outer
 failure and never a reason to recompute v2; no promotion occurs and the
 inherited governed result and failure remain visible.
 
-Governed standing follows this exact precedence:
+Governed standing under an identity-valid inherited v2 resolution
+follows this exact precedence:
 
 ```text
 1. inherited governed Settled   -> Settled
@@ -464,11 +473,16 @@ claim_id:
 the exact requested claim_id
 
 governed_standing:
-the inherited v2 governed standing, unchanged;
-no v3 promotion occurs on any failure
+None when the failure is InheritedClaimMismatch or
+InheritedPolicyMismatch: identity-invalid inherited authority is
+visible only as nested evidence. Otherwise the inherited v2 governed
+standing, unchanged; no v3 promotion occurs on any failure
 
 legacy_raw_standing and currentness:
-copied unchanged from the inherited v2 resolution
+None and Unknown respectively when the failure is an inherited
+identity mismatch: foreign raw values never surface under the
+requested claim. Otherwise copied unchanged from the inherited v2
+resolution
 
 policy_id:
 magpie-claims-standing-v3
@@ -624,7 +638,25 @@ groups; more than two distinct groups
 
 determinism:
 vector permutation invariance; canonical bytes deterministic and
-regenerable; group lexical order and contribution order pinned
+regenerable; group lexical order and contribution order pinned;
+same H, P, M with two different requested claim IDs binds each
+output to its request and yields different canonical bytes, with no
+cross-claim cache equivalence
+
+inherited identity failure standing:
+foreign inherited claim with governed Settled, Refuted, or Supported
+-> InheritedClaimMismatch -> top-level governed None, legacy raw
+None, currentness Unknown, nested inherited retained byte-for-byte;
+wrong inherited v2 policy identity with governed Settled, Refuted, or
+Supported -> InheritedPolicyMismatch -> top-level governed None,
+legacy raw None, currentness Unknown, nested inherited retained
+byte-for-byte; simultaneous claim and policy drift reports the claim
+mismatch first; resolved_standing_v3 returns None on either mismatch
+
+later-failure preservation:
+identity-valid inherited v2 with governed Supported plus any later
+outer-composition failure -> inherited standing preserved unchanged,
+no v3 promotion
 
 namespace and selection:
 same textual group in different namespaces; contributions for
@@ -798,8 +830,8 @@ allowlist.
    no caller-provided authority.
 6. Confirm only `Complete` audits evaluate groups; incomplete and
    rejected audits are visible but never repaired or folded.
-7. Confirm the five-step precedence, the never-`Settled` law, and the
-   legacy raw quarantine.
+7. Confirm the five-step precedence under identity-valid inherited v2,
+   the never-`Settled` law, and the legacy raw quarantine.
 8. Confirm same-origin contributions remain visible but count once, and
    no clustering veto exists.
 9. Confirm deterministic ordering and the closed vocabularies.
@@ -821,8 +853,8 @@ at least two distinct admitted origin groups
 among the complete internally derived support contributions
 ->
 governed Supported,
-unless inherited governed standing already preserves
-Settled, Refuted, or Supported.
+unless an identity-valid inherited governed standing
+already preserves Settled, Refuted, or Supported.
 
 Everything else is unchanged, future, or out of scope.
 ```
