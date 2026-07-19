@@ -20,6 +20,7 @@ mod resolution_content_closure;
 mod standing;
 mod standing_v1;
 mod standing_v2;
+mod standing_v3;
 mod support_contribution_audit;
 
 use std::collections::BTreeMap;
@@ -110,6 +111,13 @@ pub use standing_v2::{
     StandingPolicyApplicationV2, StandingPolicyContextV2, StandingPolicyRuleV2,
     StandingResolutionFailureV2, StandingResolutionV2, StandingTraceEntryV2,
     MAGPIE_CLAIMS_POLICY_V2_ID,
+};
+
+pub use standing_v3::{
+    CorroborationGroupV0, ExternalReportCorroborationLaneV0, StandingBlockerV3,
+    StandingPolicyApplicationV3, StandingPolicyContextV3, StandingPolicyRuleV3,
+    StandingResolutionFailureV3, StandingResolutionV3,
+    EXTERNAL_REPORT_CORROBORATION_MIN_DISTINCT_ORIGIN_GROUPS_V0, MAGPIE_CLAIMS_POLICY_V3_ID,
 };
 
 pub use support_contribution_audit::{

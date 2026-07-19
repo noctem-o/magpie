@@ -65,7 +65,7 @@
 //! let _ = origin_binding_candidates_v0(&anchors);
 //! ```
 
-use magpie_log::{LogError, LogReader, LogStore, VerifiedReplaySummary};
+use magpie_log::{LogError, LogReader, LogStore, Status, VerifiedReplaySummary};
 use serde::Serialize;
 
 use crate::admitted_contribution_audit::{
@@ -80,6 +80,9 @@ use crate::origin_binding_verifier::{
 };
 use crate::replay_snapshot::{replay_standing_context_with_summary, StandingReplaySnapshot};
 use crate::resolution_content_closure::ResolutionContentClosureV0;
+use crate::standing_v3::{
+    compose_standing_resolution_v3, StandingResolutionV3, StandingV3CompositionInputV0,
+};
 use crate::support_contribution_audit::{
     resolve_support_contribution_audit_v0, SupportContributionAuditV0,
 };
@@ -146,6 +149,40 @@ impl OriginAdmissionReplayContextV0 {
         closure: &ResolutionContentClosureV0,
     ) -> SupportContributionAuditV0 {
         resolve_support_contribution_audit_v0(self, closure)
+    }
+
+    /// Resolve one claim under the explicitly selected standing policy v3.
+    pub fn resolved_standing_v3(
+        &self,
+        claim_id: &str,
+        closure: &ResolutionContentClosureV0,
+    ) -> Option<Status> {
+        self.resolved_standing_with_trace_v3(claim_id, closure)
+            .governed_standing()
+    }
+
+    /// Resolve one claim with the complete deterministic policy-v3 trace.
+    pub fn resolved_standing_with_trace_v3(
+        &self,
+        claim_id: &str,
+        closure: &ResolutionContentClosureV0,
+    ) -> StandingResolutionV3 {
+        let inherited_v2 = self.snapshot().resolved_standing_with_trace_v2(claim_id);
+        let support_contribution_audit = self.resolve_support_contribution_audit_v0(closure);
+        let requested_claim_scope = self
+            .snapshot()
+            .standing()
+            .typed_claim(claim_id)
+            .map(|claim| claim.scope_ref.clone());
+        let input = StandingV3CompositionInputV0::new(
+            claim_id,
+            requested_claim_scope,
+            self.verified_prefix_identity().clone(),
+            closure.identity().clone(),
+            inherited_v2,
+            support_contribution_audit,
+        );
+        compose_standing_resolution_v3(input)
     }
 
     pub(crate) fn origin_binding_candidates_v0(&self) -> Vec<OriginBindingCandidateV0> {
