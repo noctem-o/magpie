@@ -171,6 +171,9 @@ origin_admission_policy_id
 (the exact SupportContributionV0 field and getter)
 == magpie-origin-admission-v0
 
+namespace.origin_admission_policy_id
+== magpie-origin-admission-v0
+
 evidence_kind
 == ExternalSource
 
@@ -179,6 +182,9 @@ claim_domain
 
 support_ceiling
 == Supported
+
+contribution.scope_ref
+== namespace.scope_ref
 ```
 
 Field names are the exact landed Ticket 0052 surfaces:
@@ -206,10 +212,11 @@ SupportContributionV0.origin_admission_policy_id
 
 namespace identity:
 OriginComparisonNamespaceV0 carries the exact origin-admission policy as
-partition identity. A correct namespace does not excuse a drifted
-separately serialized SupportContributionV0.origin_admission_policy_id,
-and a correct audit-level origin policy does not excuse a drifted
-contribution-level origin policy.
+partition identity; that namespace policy component must itself equal
+magpie-origin-admission-v0 or the contribution fails LaneInvariantMismatch.
+A correct namespace does not excuse a drifted separately serialized
+SupportContributionV0.origin_admission_policy_id, and a correct audit-level
+origin policy does not excuse a drifted contribution-level origin policy.
 ```
 
 `origin_admission_policy_id` is not part of the lane partition key. It is a
@@ -282,10 +289,13 @@ requested claim may enter the rule.
 
 For every such contribution, the exact
 `OriginComparisonNamespaceV0.target_claim_id` must equal the requested
-claim and `namespace.scope_ref` must equal the exact replayed
-`TypedClaimNode.scope_ref` of the requested claim. A same-target
+claim, `namespace.scope_ref` must equal the exact replayed
+`TypedClaimNode.scope_ref` of the requested claim, and
+`contribution.scope_ref` must equal `namespace.scope_ref`. A same-target
 contribution whose namespace target or scope drifts from the replayed
-values is an outer composition failure, not an ignored contribution.
+values, or whose contribution scope drifts from the namespace, is an
+outer composition failure reported as `TargetScopeMismatch`, not an
+ignored contribution.
 
 Contributions whose exact `target_claim_id` differs from the requested
 claim remain visible as ignored, non-counting audit material ordered by
@@ -332,9 +342,12 @@ Freeze:
   supporting selector still count by their admitted exact group keys.
   This rule never invents a digest or metadata clustering veto; any such
   law would belong to the origin-admission policy, not to aggregation.
-- A staged duplicate exact `ContributionIdentityV0` can never manufacture
-  a second group: counting is over distinct group keys, not over vector
-  entries.
+- Every selected contribution must carry a unique exact
+  `ContributionIdentityV0`. A staged duplicate exact identity — in one
+  origin group or across different origin groups — fails closed as
+  `DuplicateContributionIdentity`, reporting the first duplicated
+  identity in exact `ContributionIdentityV0` order. No group evaluation
+  or counting occurs.
 
 ## Exact completion law
 
@@ -578,6 +591,7 @@ StandingResolutionFailureV3
   ClosureIdentityMismatch
   LaneInvariantMismatch { contribution: ContributionIdentityV0 }
   TargetScopeMismatch { contribution: ContributionIdentityV0 }
+  DuplicateContributionIdentity { contribution: ContributionIdentityV0 }
 
 StandingResolutionV3
   claim_id: String
@@ -599,6 +613,12 @@ StandingResolutionV3
   ignored_contributions: Vec<SupportContributionV0>
   blockers: Vec<StandingBlockerV3>
 ```
+
+Inside the failure vocabulary, `LaneInvariantMismatch` reports any fixed
+membership field drifting from its required constant, while
+`TargetScopeMismatch` reports any target or scope binding drift: the
+namespace target or scope departing from the replayed claim, or the
+contribution scope departing from the namespace.
 
 Serialized output is audit material, not reusable authority. No resolver
 ever accepts any v3 output type back as input. Field declaration order is
@@ -652,9 +672,14 @@ identity and invariants:
 every support-audit identity drift separately (schema, canonicalization
 profile, support policy, admitted policy, origin policy, prefix,
 closure), including on complete-empty input; every fixed lane
-membership field drift; same-target namespace scope drift is an outer
-failure, not an ignore; staged duplicate exact ContributionIdentityV0
-cannot count twice
+membership field drift, including namespace origin-policy drift
+reported as LaneInvariantMismatch and contribution scope_ref drift
+reported as TargetScopeMismatch; same-target namespace target or scope drift is
+an outer failure reported as TargetScopeMismatch, not an ignore; staged
+duplicate exact
+ContributionIdentityV0, in one group or across different groups, fails
+closed as DuplicateContributionIdentity with the first duplicated
+identity in exact order
 
 origin-policy drift at two levels:
 drifted SupportContributionV0.origin_admission_policy_id with
@@ -714,6 +739,10 @@ The later runtime ticket may change only:
 crates/magpie-claims/src/standing_v3.rs              (new)
 crates/magpie-claims/src/origin_admission_replay.rs  (two thin resolver methods)
 crates/magpie-claims/src/lib.rs                      (mod + re-exports)
+crates/magpie-claims/src/support_contribution_audit.rs  (#[cfg(test)]
+                                                         staging constructors only)
+crates/magpie-claims/src/origin_binding_verifier.rs  (#[cfg(test)]
+                                                      namespace staging constructor only)
 crates/magpie-claims/tests/standing_v3.rs            (new)
 fixtures/standing-policy-v3-corroboration-v0/*       (new)
 docs/design/standing-aggregation-independence-groups.md  (step 14 flip)
@@ -721,8 +750,15 @@ README.md                                            (item flip)
 its own ticket file                                  (new)
 ```
 
+The `#[cfg(test)] pub(crate)` staging constructors are the only permitted
+changes to `support_contribution_audit.rs` and
+`origin_binding_verifier.rs`: they let hostile tests stage drifted support
+audits, contributions, and namespaces, exactly as Ticket 0052 staged
+admitted audits. Production bytes, public API, and canonical fixtures of
+both modules remain untouched.
+
 No Cargo manifest, lockfile, dependency, L0, existing production file
-beyond the three named seams, existing ticket, or existing fixture may
+beyond the named seams, existing ticket, or existing fixture may
 change.
 
 ## Validation commands

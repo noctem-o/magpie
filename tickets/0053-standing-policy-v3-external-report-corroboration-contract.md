@@ -328,9 +328,11 @@ invariants, which do not vary within honest v0 output:
 policy_id (SupportContributionV0) == magpie-support-contribution-v0
 admitted_contribution_policy_id == magpie-admitted-contribution-v0
 origin_admission_policy_id (SupportContributionV0) == magpie-origin-admission-v0
+namespace.origin_admission_policy_id == magpie-origin-admission-v0
 evidence_kind == ExternalSource
 claim_domain == ExternalReport
 support_ceiling == Supported
+contribution.scope_ref == namespace.scope_ref
 ```
 
 Field names are the exact landed Ticket 0052 surfaces:
@@ -358,10 +360,11 @@ SupportContributionV0.origin_admission_policy_id
 
 namespace identity:
 OriginComparisonNamespaceV0 carries the exact origin-admission policy as
-partition identity. A correct namespace does not excuse a drifted
-separately serialized SupportContributionV0.origin_admission_policy_id,
-and a correct audit-level origin policy does not excuse a drifted
-contribution-level origin policy.
+partition identity; that namespace policy component must itself equal
+magpie-origin-admission-v0 or the contribution fails LaneInvariantMismatch.
+A correct namespace does not excuse a drifted separately serialized
+SupportContributionV0.origin_admission_policy_id, and a correct audit-level
+origin policy does not excuse a drifted contribution-level origin policy.
 ```
 
 `origin_admission_policy_id` is not part of the lane partition key. It is a
@@ -396,10 +399,13 @@ Only support contributions whose exact `target_claim_id` equals the
 requested claim may enter the rule.
 
 For every such contribution, `namespace.target_claim_id` must equal the
-requested claim and `namespace.scope_ref` must equal the exact replayed
-`TypedClaimNode.scope_ref` of the requested claim. A same-target
+requested claim, `namespace.scope_ref` must equal the exact replayed
+`TypedClaimNode.scope_ref` of the requested claim, and
+`contribution.scope_ref` must equal `namespace.scope_ref`. A same-target
 contribution whose namespace target or scope drifts from the replayed
-values is an outer composition failure, not an ignored contribution.
+values, or whose contribution scope drifts from the namespace, is an
+outer composition failure reported as `TargetScopeMismatch`, not an
+ignored contribution.
 
 Contributions for other exact targets remain visible as ignored,
 non-counting audit material ordered by exact `ContributionIdentityV0`.
@@ -440,8 +446,11 @@ Freeze:
 - two distinct admitted groups sharing one artifact digest or supporting
   selector still count by admitted exact group keys; no digest or
   metadata clustering veto exists;
-- a staged duplicate exact `ContributionIdentityV0` can never manufacture
-  a second group.
+- every selected contribution must carry a unique exact
+  `ContributionIdentityV0`; a staged duplicate exact identity — in one
+  origin group or across different origin groups — fails closed as
+  `DuplicateContributionIdentity`, reporting the first duplicated
+  identity in exact `ContributionIdentityV0` order
 
 ## 14. Exact completion law
 
@@ -600,7 +609,14 @@ VerifiedPrefixIdentityMismatch
 ClosureIdentityMismatch
 LaneInvariantMismatch { contribution: ContributionIdentityV0 }
 TargetScopeMismatch { contribution: ContributionIdentityV0 }
+DuplicateContributionIdentity { contribution: ContributionIdentityV0 }
 ```
+
+Inside the failure vocabulary, `LaneInvariantMismatch` reports any fixed
+membership field drifting from its required constant, while
+`TargetScopeMismatch` reports any target or scope binding drift: the
+namespace target or scope departing from the replayed claim, or the
+contribution scope departing from the namespace.
 
 ## 18. Future public types and serialization
 
@@ -702,8 +718,13 @@ identity and invariants:
 each support-audit identity drift separately (schema, canonicalization
 profile, support policy, admitted policy, origin policy, prefix,
 closure), including on complete-empty input; each fixed lane
-membership field drift; same-target namespace scope drift; staged
-duplicate exact ContributionIdentityV0
+membership field drift, including namespace origin-policy drift
+reported as LaneInvariantMismatch and contribution scope_ref drift
+reported as TargetScopeMismatch; same-target namespace target or scope drift
+reported as TargetScopeMismatch; staged
+duplicate exact ContributionIdentityV0, in one group or across
+different groups, fails closed as DuplicateContributionIdentity with
+the first duplicated identity in exact order
 
 origin-policy drift at two levels:
 drifted SupportContributionV0.origin_admission_policy_id with
