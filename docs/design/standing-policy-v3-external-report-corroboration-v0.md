@@ -167,6 +167,10 @@ policy_id
 admitted_contribution_policy_id
 == magpie-admitted-contribution-v0
 
+origin_admission_policy_id
+(the exact SupportContributionV0 field and getter)
+== magpie-origin-admission-v0
+
 evidence_kind
 == ExternalSource
 
@@ -178,10 +182,40 @@ support_ceiling
 ```
 
 Field names are the exact landed Ticket 0052 surfaces:
-`SupportContributionV0.policy_id` for the contribution-level invariant, and
-`SupportContributionAuditV0.policy_id` plus
-`SupportContributionAuditV0.admitted_contribution_policy_id` for the
-audit-level outer identity checks.
+`SupportContributionV0.policy_id`,
+`SupportContributionV0.admitted_contribution_policy_id`, and
+`SupportContributionV0.origin_admission_policy_id` for the contribution-level
+invariants, and `SupportContributionAuditV0.policy_id`,
+`SupportContributionAuditV0.admitted_contribution_policy_id`, and
+`SupportContributionAuditV0.origin_admission_policy_id` for the audit-level
+outer identity checks.
+
+Two origin-policy checks exist at separate levels and never substitute for
+each other:
+
+```text
+audit-level identity:
+SupportContributionAuditV0.origin_admission_policy_id
+== magpie-origin-admission-v0
+-> SupportAuditOriginPolicyMismatch
+
+contribution-level lane membership:
+SupportContributionV0.origin_admission_policy_id
+== magpie-origin-admission-v0
+-> LaneInvariantMismatch { contribution: exact ContributionIdentityV0 }
+
+namespace identity:
+OriginComparisonNamespaceV0 carries the exact origin-admission policy as
+partition identity. A correct namespace does not excuse a drifted
+separately serialized SupportContributionV0.origin_admission_policy_id,
+and a correct audit-level origin policy does not excuse a drifted
+contribution-level origin policy.
+```
+
+`origin_admission_policy_id` is not part of the lane partition key. It is a
+fixed membership invariant whose drift fails closed, not a value that
+creates another lane. No value is repaired, normalized, inherited from a
+nearby field, or silently ignored.
 
 The compiled support-context requirement for
 `ExternalSource × ExternalReport` remains `NoPrivilegedContext`; a complete
@@ -621,6 +655,16 @@ closure), including on complete-empty input; every fixed lane
 membership field drift; same-target namespace scope drift is an outer
 failure, not an ignore; staged duplicate exact ContributionIdentityV0
 cannot count twice
+
+origin-policy drift at two levels:
+drifted SupportContributionV0.origin_admission_policy_id with
+otherwise valid audit, namespace, contribution identity, group and
+lane fields -> LaneInvariantMismatch carrying the exact contribution
+identity -> no lane construction, no group counting, no v3 promotion;
+drifted SupportContributionAuditV0.origin_admission_policy_id
+-> SupportAuditOriginPolicyMismatch -> no claim selection, lane
+construction, counting, or promotion; the two cases use separate
+failure vocabularies and never collapse into one
 
 authority impossibility:
 caller-selected threshold impossible; caller-created audit
