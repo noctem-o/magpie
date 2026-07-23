@@ -156,7 +156,7 @@ witness.
 | #18 | Define duplicate edge-ID replay semantics. | Remediated | Typed edge replay is deterministic first-write-wins; `duplicate_justification_edge_recorded_does_not_overwrite` proves a later conflicting definition neither replaces nor amplifies the first. |
 | #21 | Require verifier context before Deadbolt settlement. | Remediated | `SupportContextRequirement::DeadboltVerifierContext` gates all positive Deadbolt cells, and policy v1 settles only a same-snapshot exact occurrence match. A bare `DeadboltAnchor` label remains inert. |
 | #21 | Gate HumanRoot ratification before settlement. | Superseded by later ratified architecture | Ticket 0019 ratified that humans settle nothing epistemically. Human ratification may later support bounded governance/judgment claims only through `HumanAdmission`; no HumanRoot path reaches epistemic `Settled`. |
-| #21 | Preserve source standing for support edges. | Superseded by later ratified architecture | Later doctrine separates Candidate, PolicyEligible, Admitted, and Support Contribution. No generic support fold landed; any future aggregation must cap claim-source contribution by governed source standing, while current v1/v2 direct lanes consume exact verifier receipts instead. |
+| #21 | Preserve source standing for support edges. | Superseded by later ratified architecture | Later doctrine separates Candidate, PolicyEligible, Admitted, and Support Contribution. No generic support fold has landed. The implemented v1/v2 direct lanes consume exact verifier receipts, and the later exact policy-v3 corroboration rule consumes only the internally derived support-contribution audit; any broader future aggregation must still cap claim-source contribution by governed source standing. |
 | #23 | Remove zero-width characters from domain headers. | Rejected or narrowed with rationale | Display wrapping is not an authority-bearing identifier surface. Closed Rust enums and exact ASCII parser strings define claim-domain identity; rendered table typography cannot select a domain or policy. |
 | #23 | Keep metadata placement in the metadata convention. | Remediated | `docs/design/metadata-conventions.md` owns the advisory `claim_domain`, source-locator, quote-hash, and edge-target conventions while L0 retains one opaque `metadata_json` string. |
 | #23 | Do not broaden `DeadboltAnchor` beyond anchor domains. | Rejected or narrowed with rationale | A ceiling is not achieved standing. All positive Deadbolt cells require exact verifier context; the only implemented Deadbolt standing rule is occurrence/inclusion v1. Other documented ceilings create no support without a separately reviewed rule. |
@@ -169,18 +169,20 @@ witness.
 | #32 | Clarify that `metadata_json` remains canonical input. | Live documentation correction in this PR | The standing aggregation note now distinguishes signed canonical string bytes from policy interpretation and removes the inaccurate “not L0 canonical material” implication. |
 | #32 | Mark `StandingResolution` as future rather than current substrate. | Superseded by later ratified architecture | At review time the surface was pending; Ticket 0023 later landed `StandingResolution` v0. It is now correctly current, policy-identified, fail-closed, and separately exposes quarantined raw status. |
 | #32 | Do not treat current support edges as achieved candidates. | Remediated | The closed vocabulary now defines Candidate as inspectable material only and distinguishes it from PolicyEligible, Admitted, Support Contribution, aggregation, and achieved standing. |
-| #37 | Avoid retaining parsed events for verification-only callers. | Live dedicated implementation follow-up | Correctness and authority remain intact, but `verify_chain_on` currently builds `VerifiedSnapshot.events`, and `LogStore::read_records` materializes all raw records. Section 5 freezes a count/tip-only verification mode without weakening one-read verify-before-apply replay. |
+| #37 | Avoid retaining parsed events for verification-only callers. | Live dedicated implementation follow-up | Partially resolved by PR #57: verification-only and writer-recovery verification no longer retain the parsed `SignedEvent` vector, and replay retains one completely verified snapshot under the unchanged one-read verify-before-apply law. `LogStore::read_records` still materialises the complete raw-record snapshot; that residual store-interface work remains live. Section 5.2 records the exact status. |
 | #45 | Keep release wording conditional until the tag exists. | Superseded by later ratified architecture | The human-created `v0.1.0` tag and GitHub prerelease now exist; the release contract pins the exact source commit and preserves the no-registry-publication boundary. |
-| #45 | Keep verifier implementation before aggregation. | Remediated | The standing-inert deterministic verifier and explicit non-aggregating policy-v2 direct-support rule landed before any aggregation; the next sequence still places origin verification and audits before policy v3. |
+| #45 | Keep verifier implementation before aggregation. | Remediated | The standing-inert deterministic verifier and explicit non-aggregating policy-v2 direct-support rule landed before any aggregation; the landed sequence placed origin verification and audits before policy v3. |
 | #45 | Move witness scope validation after witness parsing. | Live documentation correction in this PR | The checker sequence now performs three-way replay scope validation before witness parsing and completes four-way equality only after strict witness parsing. Runtime order and failure vocabulary are unchanged. |
-| #47 | Preserve raw refutations before deterministic support. | Rejected or narrowed with rationale | The proposal treated quarantined compatibility state as governed authority. Ticket 0043 ratifies that legacy raw `Refuted` is audit-only, so policy v2 may derive governed `Supported`; an inherited governed `Refuted` still wins. Dedicated regression tests remain required. |
+| #47 | Preserve raw refutations before deterministic support. | Rejected or narrowed with rationale | The proposal treated quarantined compatibility state as governed authority. Ticket 0043 ratifies that legacy raw `Refuted` is audit-only, so policy v2 may derive governed `Supported`; an inherited governed `Refuted` still wins. The dedicated regression tests landed in PR #56 without changing production standing behavior; section 5.1 records the exact pinned laws. |
 | #54 | Reject empty origin-binding `scope_ref`. | Remediated | Before merge, both origin-binding documents changed the replay-reference bound to 1-1,024 UTF-8 bytes and pinned `invalid replay reference length` before replay lookup and before any matched receipt. Normative vectors and roots remained unchanged. |
 
-## 5. Live dedicated implementation follow-ups
+## 5. Dedicated follow-up status
 
 ### 5.1 Legacy raw-refutation regression tests
 
-One focused test-only PR must prove both current laws:
+Implemented by PR #56 (`test: pin legacy raw refutation precedence`, merge
+commit `351333ac17cb1d7b82d0ee144568d48a7406f80a`). The follow-up was
+originally frozen as one focused test-only PR proving both current laws:
 
 ```text
 legacy raw Refuted
@@ -195,13 +197,24 @@ inherited governed Refuted
 → governed Refuted
 ```
 
-This follow-up must not change policy identifiers, standing behavior, canonical
-resolution bytes except by adding new pinned fixtures, or the meaning of raw
-compatibility state.
+PR #56 pinned both laws without changing production standing behavior:
+
+- `legacy_raw_refuted_remains_audit_visible_and_does_not_veto_matched_v2_support`
+  (`crates/magpie-claims/tests/deterministic_support_standing_v2.rs`);
+- `inherited_governed_refuted_overrides_matched_deterministic_support`
+  (`crates/magpie-claims/src/standing_v2.rs` test module).
+
+Legacy raw `Refuted` remains audit-visible compatibility material and is
+never governed authority; an inherited governed `Refuted` remains
+authoritative under current policy. No policy identifiers, standing
+behavior, canonical resolution bytes, or the meaning of raw compatibility
+state changed.
 
 ### 5.2 Verification-only memory retention
 
-The live debt is:
+Partially resolved by PR #57 (`log: avoid retaining parsed events during
+verification`, merge commit `c12ef0756a2984c99329679d8630ddec5bc4bc39`,
+under Ticket 0044). The original live debt was:
 
 ```text
 verification-only callers currently reuse a path that retains
@@ -210,7 +223,7 @@ the complete parsed SignedEvent vector
 the LogStore interface also materialises complete raw records
 ```
 
-Classification:
+Classification at contract time:
 
 ```text
 correctness: unaffected
@@ -218,7 +231,7 @@ authority boundaries: unaffected
 availability and long-run scalability: potentially affected
 ```
 
-The dedicated optimisation contract is:
+The dedicated optimisation contract was:
 
 ```text
 verification-only mode
@@ -232,9 +245,34 @@ both modes
 → complete verification before projection mutation
 ```
 
-Changing `LogStore` to avoid complete raw-record materialization may require a
-separate explicit interface design. The optimization must not reintroduce
-multiple reads, prefix application, or verification/projection snapshot skew.
+Resolved by PR #57:
+
+- verification-only chain verification no longer retains the parsed
+  `SignedEvent` vector; it retains only the exact event count and chain tip;
+- writer recovery (`LogWriter::open` / `LogWriter::open_with_clock`)
+  receives the same summary-only benefit;
+- replay retains one completely verified event snapshot; and
+- the one-read and verify-before-apply laws remain unchanged.
+
+The landed coverage is pinned by
+`summary_only_verification_returns_count_and_tip_without_events`
+(`crates/magpie-log/src/logimpl.rs` test module) and
+`verify_chain_uses_one_record_snapshot`,
+`writer_recovery_verifies_once_and_recovers_exact_count_and_tip`, and
+`verification_and_replay_preserve_late_error_parity_and_apply_no_prefix`
+(`crates/magpie-log/tests/chain.rs`).
+
+Still unresolved:
+
+- `LogStore::read_records` materialises the complete raw-record snapshot
+  for every mode;
+- streaming, cursor, or alternate store-interface design remains future;
+  and
+- no public API redesign is authorised by this status record.
+
+The complete memory/scalability concern is therefore partially resolved, not
+done. As before, optimisation must not reintroduce multiple reads, prefix
+application, or verification/projection snapshot skew.
 
 ### 5.3 Higher-level write authority boundary
 

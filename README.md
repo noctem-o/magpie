@@ -7,7 +7,9 @@ to it; everything else is a derived, regenerable projection.**
 The skeleton walks: the bottom of the stack (`magpie-log`, L0, format-frozen and
 golden-pinned), two worked projections (`magpie-claims`, `magpie-episodic`), an
 independent Python verifier, a ratified live seam to `deadbolt`, and a
-fail-closed governed-standing explanation surface. Magpie retains typed claims,
+fail-closed governed-standing explanation surface whose explicit policies now
+include v1 direct occurrence settlement, v2 deterministic direct support, and
+one narrow v3 external-report corroboration rule. Magpie retains typed claims,
 evidence, and justification edges; applies closed support, refutation, and
 privileged-context policy; and still exposes no ordinary writer, ambient
 promotion mechanism, or implicit latest-policy selector.
@@ -24,10 +26,12 @@ completely and co-replays standing with exact anchor context; policy v0 exposes
 candidate-only standing, explicit policy v1 settles only the exact matched
 Deadbolt occurrence proposition, and explicit policy v2 directly supports one
 exact canonical inline digest proposition after the same-snapshot verifier
-matches. A structured mismatch and an interpretation claim remain unpromoted,
-then every snapshot and resolution byte regenerates identically after all
-derived standing state is dropped. It does not verify foreign bundle contents
-or implement general aggregation or writer admission.
+matches. The newer explicit policy v3 corroboration rule (ledger entry 25) is
+not part of this tour, and the tour's output is unchanged by it. A structured
+mismatch and an interpretation claim remain unpromoted, then every snapshot and
+resolution byte regenerates identically after all derived standing state is
+dropped. It does not verify foreign bundle contents or implement general
+aggregation or writer admission.
 
 The thesis, as a test (`crates/magpie-claims/tests/regenerable.rs`):
 > build a projection → **drop all derived state** → replay from the log alone →
@@ -83,7 +87,7 @@ magpie/
     adr/0001-deadbolt-seam.md   the anchored-hierarchy decision (see seam section below)
     adr/0002-governed-claim-memory.md   how memory events earn standing
     design/standing-view-evidence-ceilings.md   evidence/domain ceiling doctrine
-    design/standing-aggregation-independence-groups.md   future aggregation constraints
+    design/standing-aggregation-independence-groups.md   aggregation doctrine: first v3 rule implemented, broader constraints future
   tools/
     verify_chain.py    independent verifier, written from FORMAT.md alone; CI runs it
                        against the golden fixture with a pinned trust root
@@ -172,9 +176,17 @@ v1 settles only the exact structured proposition that a five-field Deadbolt
 occurrence identity appears in the same verified replay. Explicit snapshot-only
 v2 directly supports one exact canonical `sha256_bytes_equals_v0` proposition
 after same-snapshot deterministic verification. That direct contribution is
-`Supported`, not `Settled`, and is not aggregation. Aggregation, refutation
-application, `EpistemicGate`, and ordinary claim-bearing writer surfaces remain
-future work. The low-level `LogWriter` append capability already exists.
+`Supported`, not `Settled`, and is not aggregation. Explicit policy v3
+(ratified by Ticket 0053, implemented by Ticket 0054, merged via PR #68)
+resolves through the same verified replay context and an immutable closure: a
+complete internally derived support audit with at least two distinct admitted
+origin groups in one exact `OriginComparisonNamespaceV0` lane contributes
+governed `Supported`, never `Settled`, to the exact requested `ExternalReport`
+claim. That corroboration rule is the only implemented aggregation rule.
+Broader aggregation, refutation application, contradiction debt, invalidation,
+supersession/currentness, `EpistemicGate`, and ordinary claim-bearing writer
+surfaces remain future work. The low-level `LogWriter` append capability
+already exists.
 
 ## Development workflow
 
@@ -232,8 +244,9 @@ shell execution is unavailable.
    context now feed one explicit `magpie-claims-standing-v1` direct-proof rule
    for exact Deadbolt occurrence/inclusion. The v0 resolver remains unchanged.
    The governed-standing public tour now executes this boundary in CI.
-   Aggregation, contradiction debt, invalidation, and supersession remain
-   separate later phases.
+   Aggregation beyond the first narrow policy-v3 rule (entry 25),
+   contradiction debt, invalidation, and supersession remain separate later
+   phases.
 10. **v0.1.0 source release tagged** — the semantic contract,
     non-publishable metadata, package inventories, changelog, and coordinated
     workspace version are complete. `magpie-log` alone is standalone-verified;
@@ -273,10 +286,11 @@ shell execution is unavailable.
     Ticket 0041. The public explicit-slice APIs remain unchanged; Ticket 0045
     adds only crate-private closure-aware reuse for origin-binding composition.
     Origin admission is implemented separately by Ticket 0048 and the
-    admitted-contribution audit by Ticket 0050. Aggregation lane, standing
-    policy v3, same-origin collapse, distinct-group threshold, conservative
-    aggregation, refutation, contradiction debt, invalidation, supersession,
-    `EpistemicGate`, and ordinary claim-bearing writer surfaces remain later.
+    admitted-contribution audit by Ticket 0050. The first narrow standing
+    policy v3 aggregation rule is implemented later by Ticket 0054 (entry
+    25); broader aggregation, refutation, contradiction debt, invalidation,
+    supersession, `EpistemicGate`, and ordinary claim-bearing writer
+    surfaces remain later.
 17. **Resolution content closure v0 contract — landed.**
     [`docs/design/resolution-content-closure-v0.md`](docs/design/resolution-content-closure-v0.md)
     and [Ticket 0040](tickets/0040-resolution-content-closure-v0.md) now specify
@@ -284,9 +298,10 @@ shell execution is unavailable.
     closure identity used as input `M` for deterministic resolution. The
     public artifact-provenance verifier methods still receive explicit optional
     byte slices. Origin admission is implemented separately by Ticket 0048 and
-    admitted-contribution audit by Ticket 0050. Aggregation lane, standing
-    policy v3, conservative aggregation and ordinary claim-bearing writer
-    surfaces remain future work.
+    admitted-contribution audit by Ticket 0050. The first narrow standing
+    policy v3 aggregation rule is implemented later by Ticket 0054 (entry
+    25); conservative aggregation beyond that rule and ordinary
+    claim-bearing writer surfaces remain future work.
 18. **Resolution content closure v0 implementation — landed.** Exact bounded
     construction now collapses identical duplicates, rejects deterministic
     conflicts, owns immutable keyed bytes, and exposes exact read-only lookup.
@@ -304,10 +319,12 @@ shell execution is unavailable.
     receipts verify claimed governance content only. The compiled authority
     classification and standing-inert origin-admission fold are implemented
     separately by Ticket 0048, and the admitted-contribution audit is
-    implemented by Ticket 0050. Aggregation lane, standing policy v3,
-    same-origin collapse, distinct-group threshold, conservative aggregation,
-    the ordinary claim-bearing writer, `EpistemicGate`, and their standing
-    effects remain future work.
+    implemented by Ticket 0050. The first narrow standing policy v3
+    aggregation rule — one exact lane, same-origin collapse, and a
+    distinct-group threshold — is implemented later by Ticket 0054 (entry
+    25); conservative aggregation beyond that rule, the ordinary
+    claim-bearing writer, `EpistemicGate`, and their standing effects remain
+    future work.
 20. **Origin-admission audit v0 — implemented by Ticket 0048.**
     [`docs/design/origin-admission-audit-v0.md`](docs/design/origin-admission-audit-v0.md)
     and [Ticket 0046](tickets/0046-origin-admission-audit-v0-contract.md)
@@ -322,10 +339,12 @@ shell execution is unavailable.
     deterministic standing-inert audit bytes. It establishes origin-group
     assignment only. It creates no support, aggregation, statistical
     independence or standing. The admitted-contribution audit is implemented
-    by Ticket 0050. Aggregation lane, standing policy v3, same-origin
-    collapse, distinct-group threshold, conservative aggregation, statistical
-    independence, `EpistemicGate`, an ordinary claim-bearing writer, loader,
-    CAS, and filesystem or network ingestion remain future work.
+    by Ticket 0050. The first narrow standing policy v3 aggregation rule
+    is implemented later by Ticket 0054 (entry 25); it establishes
+    corroboration separation, never statistical independence. Conservative
+    aggregation beyond that rule, `EpistemicGate`, an ordinary claim-bearing
+    writer, loader, CAS, and filesystem or network ingestion remain future
+    work.
 21. **Origin-admission replay substrate v0 — implemented by Ticket 0047.**
     One-read verified
     replay now returns an exact event-count and chain-tip summary while
@@ -353,11 +372,12 @@ shell execution is unavailable.
     serialize as deterministic standing-inert audit bytes, while distinct
     contributions assigned to one origin group remain distinct. The
     support-contribution contract is ratified separately by Ticket 0051.
-    Aggregation lane, standing policy v3, same-origin collapse,
-    distinct-group threshold, conservative aggregation, statistical
-    independence, `EpistemicGate`, an ordinary claim-bearing writer, loader,
-    CAS, and filesystem or network ingestion remain future work. No support
-    or standing changed.
+    The first narrow standing policy v3 aggregation rule is implemented
+    later by Ticket 0054 (entry 25); it establishes corroboration
+    separation, never statistical independence. Conservative aggregation
+    beyond that rule, `EpistemicGate`, an ordinary claim-bearing writer,
+    loader, CAS, and filesystem or network ingestion remain future work. No
+    support or standing changed.
 23. **Support-contribution audit v0 — contract ratified by Ticket 0051,
     runtime implemented by Ticket 0052.**
     [`docs/design/support-contribution-audit-v0.md`](docs/design/support-contribution-audit-v0.md)
@@ -373,15 +393,24 @@ shell execution is unavailable.
     through one crate-private composition path with the four crate-private
     origin-binding grammar seams, five canonical fixtures and the reserved
     hostile-test suite. The contract introduces no aggregation or standing
-    effect. Aggregation lane, standing policy v3, same-origin collapse,
-    distinct-group threshold, conservative aggregation, statistical
-    independence, `EpistemicGate`, ordinary claim-bearing writer, loader,
-    CAS, and filesystem or network ingestion remain future work.
+    effect. The first narrow standing policy v3 aggregation rule is
+    implemented later by Ticket 0054 (entry 25); it establishes
+    corroboration separation, never statistical independence. Conservative
+    aggregation beyond that rule, `EpistemicGate`, ordinary claim-bearing
+    writer, loader, CAS, and filesystem or network ingestion remain future
+    work.
 24. **Historical review remediation contract.**
     [`docs/design/historical-review-remediation-ledger.md`](docs/design/historical-review-remediation-ledger.md)
     and [Ticket 0043](tickets/0043-historical-review-remediation-contract.md)
     ratify the remaining doctrine corrections from the PR #1-54 review audit
-    and classify the bounded follow-up work. No runtime behavior changes here.
+    and classify the bounded follow-up work. No runtime behavior changes
+    there. Two of its dedicated follow-ups have since progressed: PR #56
+    landed the legacy raw versus inherited governed `Refuted` regression
+    coverage without changing production standing behavior, and PR #57
+    removed parsed-event retention for verification-only and writer-recovery
+    verification, while `LogStore::read_records` raw-record materialisation
+    remains future interface work. The ledger's section 5 records the exact
+    status.
 25. **Standing policy v3 external-report corroboration v0 — contract
     ratified by Ticket 0053, runtime implemented by Ticket 0054.**
     [`docs/design/standing-policy-v3-external-report-corroboration-v0.md`](docs/design/standing-policy-v3-external-report-corroboration-v0.md)
@@ -398,10 +427,13 @@ shell execution is unavailable.
     implements that one narrow rule through the same verified replay context:
     a complete internally derived support audit with at least two distinct
     admitted origin groups in the exact requested claim's lane may contribute
-    governed `Supported`, never `Settled`. Corroboration separation remains
-    distinct from statistical independence. Refutation aggregation,
-    contradiction debt, invalidation, supersession, `EpistemicGate`, ordinary
-    claim-bearing writer, loader, CAS, and filesystem or network ingestion
-    remain future work.
+    governed `Supported`, never `Settled`. Ticket 0054's implementation head
+    `f030be8ff329c93fd7138d6f831bb44cc42e9409` merged via PR #68 at merge
+    commit `7720a2749f3b85f95e38580d0af4fd26c6f02658` on 2026-07-23.
+    Corroboration separation remains distinct from statistical independence.
+    Refutation aggregation, contradiction debt, invalidation, supersession
+    and currentness policy, general source-standing propagation,
+    `EpistemicGate`, ordinary claim-bearing writer, loader, CAS, and
+    filesystem or network ingestion remain future work.
 
 Conserve the log. Derive the rest.

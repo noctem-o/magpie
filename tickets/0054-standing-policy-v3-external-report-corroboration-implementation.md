@@ -204,7 +204,7 @@ base sha256: 48427d488c501c577c4ba9cf8c44bd89e20b84df8e663dee2c7dc4dbf1e25c2f
 
 ## 12. Validation
 
-Observed on the uncommitted candidate:
+Observed on the final pre-publication candidate:
 
 | Command | Observed result |
 | --- | --- |
@@ -275,8 +275,18 @@ production behavior or fixture bytes:
   `Supported` preservation under incomplete and rejected audits.
 
 The complete validation ladder and the bounded mutation check were rerun after
-that amendment. The first Checker B verdict is stale by construction; closure
-requires an entirely fresh Checker B over the amended raw diff.
+that amendment. At that amendment checkpoint the first Checker B verdict was
+stale by construction, and closure still required an entirely fresh Checker B
+over the amended raw diff.
+
+That closure subsequently completed: an entirely fresh Checker B
+(`gpt-5.6-sol`, xHigh, read-only blind closure packet containing the amended
+raw diff and deterministic validation output) reviewed the final candidate
+and returned `PASS` with no findings. Git history records no further
+production or fixture change after that reviewed candidate: the single
+implementation commit changes exactly the 17 allowlisted paths reviewed in
+the closure packet, and the PR #68 merge tree is byte-identical to that
+commit's tree (section 16).
 
 ## 15. Stop conditions and future work
 
@@ -289,10 +299,26 @@ Refutation aggregation, contradiction debt, invalidation, supersession,
 currentness policy, `EpistemicGate`, writers, loaders, storage, network,
 models, and librarian integration remain future work.
 
-## 16. Publication authority
+## 16. Publication authority and record
 
-The implementation remains uncommitted and unpushed. No PR or GitHub metadata
-action is authorised. The user retains sole publication and merge authority.
+Pre-publication state (historical, at the validation checkpoint above): the
+implementation remained uncommitted and unpushed. K3 did not commit or push
+during implementation, and no PR or GitHub metadata action was authorised.
+The user retained sole publication and merge authority.
+
+Published implementation:
+
+```text
+head:         f030be8ff329c93fd7138d6f831bb44cc42e9409
+PR:           #68
+merged by:    the user
+merge commit: 7720a2749f3b85f95e38580d0af4fd26c6f02658
+merged:       2026-07-23
+```
+
+The merge commit's tree is byte-identical to the implementation head's tree.
+Recording this publication does not transfer publication authority: the user
+remains the sole commit, push, and merge authority.
 
 ## 17. Suggested reviewer checklist
 

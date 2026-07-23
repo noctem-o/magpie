@@ -2,7 +2,10 @@
 
 ## Status
 
-Proposed design note.
+Living doctrine note, originally ratified as a proposed design note. The
+doctrine remains active: Ticket 0054 (merged via PR #68) implements its
+first narrow positive aggregation rule, while broader aggregation and all
+negative and currentness rules remain future and constrained by this note.
 
 The filename is preserved for link stability. “Independence group” is earlier
 design shorthand. The normative terms are **origin group** for the opaque
@@ -42,9 +45,9 @@ not distinct admitted groups and create no corroboration separation.
 
 ## Purpose
 
-This note defines the future doctrine for achieved-standing aggregation,
-origin groups, and corroboration separation before Magpie implements that
-behavior.
+This note defines the doctrine for achieved-standing aggregation, origin
+groups, and corroboration separation. It originally froze that doctrine
+before Magpie implemented any such behavior.
 
 Core laws:
 
@@ -59,10 +62,19 @@ Distinct admitted origin groups are policy-recognised corroboration separation.
 Distinct admitted origin groups are not proof of statistical independence.
 ```
 
-This phase is docs/tickets only. It freezes vocabulary and constraints for a
-later implementation phase; it does not change runtime `StandingView` behavior.
+This note originally froze the doctrine before runtime aggregation: the
+authoring phase was docs/tickets only, freezing vocabulary and constraints
+for later implementation phases, and changed no runtime `StandingView`
+behavior. Ticket 0054 now implements the first narrow rule; the remaining
+doctrine still constrains future slices.
 
 ## Non-goals
+
+The non-goals below bounded this note's original docs-only authoring phase
+and remain accurate as that phase's record. The exclusions that still bind
+the repository — no ordinary governed writer, no `EpistemicGate`, no
+negative or currentness policy, no broader aggregation — are restated as
+future work in the implementation order below.
 
 - No Rust changes.
 - No tests.
@@ -137,8 +149,11 @@ Policy v2 may therefore derive governed `Supported` from successful
 deterministic verification while the separately exposed legacy raw value
 remains `Refuted`. That is not revival of a governed refutation: the raw value
 was never governed standing. Conversely, `combine_v2_standing` preserves an
-inherited governed `Refuted` result. A dedicated follow-up test PR must pin both
-cases without changing current policy behavior.
+inherited governed `Refuted` result. PR #56 (merge commit
+`351333ac17cb1d7b82d0ee144568d48a7406f80a`) pinned both cases without
+changing current policy behavior:
+`legacy_raw_refuted_remains_audit_visible_and_does_not_veto_matched_v2_support`
+and `inherited_governed_refuted_overrides_matched_deterministic_support`.
 
 Current v0 resolution does not implement aggregation, corroboration-separation
 amplification, direct refutation, contradiction debt, invalidation,
@@ -146,7 +161,13 @@ supersession, or public writer admission through `EpistemicGate`.
 
 Explicit policy v2 adds one direct deterministic `Supported` contribution.
 That rule is not aggregation, and trace multiplicity is not corroboration.
-This note does not mutate any current behavior.
+Explicit policy v3 (ratified by Ticket 0053, implemented by Ticket 0054) adds
+the first exact `ExternalSource × ExternalReport` corroboration rule: inside
+one exact `OriginComparisonNamespaceV0` lane, at least two distinct admitted
+origin groups contribute governed `Supported`, never `Settled`. That is one
+narrow aggregation rule, not general aggregation; broader support aggregation
+and all negative and currentness policies remain future. This note does not
+mutate any current behavior.
 
 ## Definitions
 
@@ -187,8 +208,9 @@ origin result. That audit reports potential input and does not create support.
 A support contribution is an admitted positive contribution capped by
 `support_ceiling` and any source-standing limits.
 
-Support contribution is not achieved support. It is one input to future
-aggregation.
+Support contribution is not achieved support. It is one input to explicit
+versioned aggregation policy; standing policy v3 is the first such consumer
+(Ticket 0054).
 
 ### Refutation Contribution
 
@@ -280,9 +302,10 @@ Corroboration separation means that an explicit origin-admission policy has
 assigned distinct exact contribution-scoped paths to different admitted origin
 groups inside the same origin-comparison namespace.
 
-Corroboration separation may be consumed only by a later explicit aggregation
-policy and must not exceed the applicable ceiling. It is not proof of
-statistical, causal, institutional, organisational, or control independence.
+Corroboration separation may be consumed only by explicit versioned
+aggregation policy — standing policy v3 is the first consumer — and must not
+exceed the applicable ceiling. It is not proof of statistical, causal,
+institutional, organisational, or control independence.
 
 ### Same-Origin Evidence
 
@@ -297,11 +320,14 @@ must not be counted repeatedly.
 
 ### Aggregation Lane
 
-An aggregation lane is a future deterministic partition that may organize
-candidates and policy-eligible contributions for explanation. Only admitted
-contributions may affect achieved standing within a lane. A later explicit
-policy must define the lane identity before using it to further partition an
-origin-comparison namespace; this note does not select its fields.
+An aggregation lane is a deterministic partition that organizes candidates
+and policy-eligible contributions for explanation. Only admitted
+contributions may affect achieved standing within a lane. An explicit
+versioned policy must define the lane identity before using it to further
+partition an origin-comparison namespace. The Ticket 0053 contract defines
+the first exact lane — one exact `OriginComparisonNamespaceV0` for the
+policy-v3 corroboration rule; broader lanes remain future work, and this
+note does not select their fields.
 
 Aggregation lanes prevent unrelated evidence from being combined accidentally
 and give future explainability code a stable way to report why a claim reached
@@ -395,11 +421,12 @@ The comparison cases are closed:
   conflict, no admitted group, zero corroboration separation, and no write-order
   winner;
 - different contributions, same namespace, and same admitted group: valid
-  same-origin material, not a conflict, and countable at most once by a later
-  aggregation policy; and
+  same-origin material, not a conflict, and countable at most once by an
+  explicit aggregation policy (the implemented v3 rule counts it once); and
 - different contributions, same namespace, and different admitted groups:
   potential policy-recognised corroboration separation, not statistical-
-  independence proof and not support without a later aggregation policy.
+  independence proof and not support without an explicit aggregation policy;
+  standing policy v3 is the first such policy.
 
 The same byte string in a different namespace is incomparable and has no
 cross-policy, cross-claim, or cross-scope meaning.
@@ -427,10 +454,11 @@ Evidence producers cannot manufacture separation by choosing a fresh string
 for every report.
 
 Origin groups are not source truth. They only constrain whether multiple exact
-admitted contributions may be treated as separate by a later aggregation
-policy. Unknown origin counts as zero corroboration separation in the first
-policy. Same-origin multiplicity inside one comparison namespace may count at
-most once later.
+admitted contributions may be treated as separate by explicit versioned
+aggregation policy. Unknown origin counts as zero corroboration separation in
+the first policy. Same-origin multiplicity inside one comparison namespace
+counts at most once under the implemented v3 rule and must count at most once
+under any future rule.
 
 ## External-Source Corroboration
 
@@ -465,15 +493,19 @@ separation.
 ## Interaction With Support Ceilings
 
 `support_ceiling` defines the maximum positive contribution permitted for an
-evidence-kind/domain pair. Future support aggregation may combine admitted
-support contributions, but the result must not exceed the applicable ceiling.
+evidence-kind/domain pair. The implemented policy-v3 rule is the first
+combination of admitted support contributions: it requires at least two
+distinct admitted origin groups in one exact lane, and its result never
+exceeds the applicable ceiling. Broader support aggregation remains future
+and must likewise respect the applicable ceiling.
 
 Examples:
 
 - `ExternalSource x ExternalReport` may reach at most `Supported`.
 - `HumanRatification x HumanJudgment` may reach at most `Supported`.
-- `DeadboltAnchor x Occurrence/Inclusion` may reach `Settled` only when future
-  verifier-context and eligibility rules admit it.
+- `DeadboltAnchor x Occurrence/Inclusion` may reach `Settled` only through
+  explicit verifier-context and eligibility rules; the implemented policy-v1
+  rule settles one exact occurrence/inclusion proposition.
 
 Support aggregation must consider source standing. Unsupported or conjectured
 source claims cannot amplify a target beyond their own derived standing.
@@ -550,35 +582,64 @@ is ratified by Ticket 0053, which freezes one exact threshold and lane
 without implementing runtime. Step 14 is implemented by Ticket 0054 for that
 one exact rule; broader aggregation remains future work.
 
-## Future Tests
+## Implemented and Future Tests
 
-Future PRs should add tests with names such as:
+Several laws originally listed here as future tests now have landed coverage.
+The landed names below are the actual test functions, not the suggested ones:
 
-- `external_sources_same_origin_group_do_not_amplify`
-- `distinct_admitted_origin_groups_are_only_corroboration_separation`
-- `external_source_corroboration_never_settles`
+- same-origin multiplicity remains visible but counts once:
+  `same_origin_multiplicity_is_visible_but_counts_once` and
+  `many_same_origin_contributions_remain_visible_and_count_once`
+  (Ticket 0054, `crates/magpie-claims/tests/standing_v3.rs`);
+- distinct admitted origin groups provide only corroboration separation, and
+  external-source corroboration never settles:
+  `exact_public_happy_path_supports_but_never_settles`
+  (`tests/standing_v3.rs`) and
+  `standing_precedence_and_never_settled_law_are_exact`
+  (`src/standing_v3.rs` test module);
+- deterministic grouping and distinct-group counting:
+  `grouping_ignored_order_and_distinct_group_count_are_structural` and
+  `canonical_bytes_are_ordered_compact_and_repeatable`
+  (`src/standing_v3.rs` test module), and
+  `more_than_two_groups_are_all_retained_and_repeated_resolution_is_identical`
+  (`tests/standing_v3.rs`);
+- legacy raw `Refuted` with successful deterministic verification:
+  `legacy_raw_refuted_remains_audit_visible_and_does_not_veto_matched_v2_support`
+  (PR #56, `tests/deterministic_support_standing_v2.rs`);
+- inherited governed `Refuted` with successful deterministic verification:
+  `inherited_governed_refuted_overrides_matched_deterministic_support`
+  (PR #56, `src/standing_v2.rs` test module);
+- conflicting origin bindings admit no group:
+  `trusted_conflict_is_terminal_and_admits_no_group`
+  (`tests/origin_admission_audit.rs`);
+- a bare Deadbolt label is not admitted verifier context:
+  `bare_deadbolt_anchor_requires_verifier_context_and_does_not_settle`
+  (`tests/standing_resolution.rs`).
+
+These remain future tests for later PRs (no exact landed coverage located):
+
 - `unknown_origin_provides_zero_corroboration_separation`
 - `model_self_report_repetition_does_not_amplify`
 - `lens_readout_repetition_does_not_amplify`
 - `human_ratification_does_not_settle_external_report`
-- `legacy_raw_refuted_with_successful_deterministic_verification_is_supported`
-- `inherited_governed_refuted_with_successful_deterministic_verification_stays_refuted`
 - `contradicts_edge_creates_debt_not_refutation`
 - `invalidation_is_not_refutation`
 - `supersession_is_not_deletion`
-- `aggregation_is_order_independent`
+- `aggregation_is_order_independent` (landed tests pin deterministic ordering,
+  identity-ordered failure selection, and permutation-invariant duplicate
+  rejection, not full aggregation permutation independence)
 - `aggregation_is_regenerable`
 - `self_declared_origin_group_does_not_amplify`
-- `conflicting_origin_bindings_admit_zero_groups`
-- `bare_deadbolt_label_is_not_admitted_verifier_context`
 - `trace_policy_id_is_not_an_outcome_selector`
 - `human_ratification_does_not_erase_contradiction_debt`
 
-These are future tests for later PRs. This note does not add tests.
+This note does not add tests.
 
 ## Reviewer Checklist
 
-- Confirm this phase is docs/tickets only.
+- Confirm this note's original docs-only phase remains the historical
+  framing, and that the Ticket 0055 reconciliation changed documentation
+  status only, with no runtime, policy, or standing behavior change.
 - Confirm origin groups are opaque policy strings, not inferred source
   clusters, truth labels, or publisher identities.
 - Confirm bindings target exact contributions while group keys compare across
@@ -617,4 +678,5 @@ These are future tests for later PRs. This note does not add tests.
 - Confirm the only numeric threshold and implemented policy-v3 rule are the
   exact Ticket 0053 contract and Ticket 0054 runtime; no broader aggregation
   rule appears in this note.
-- Confirm no runtime `StandingView` behavior changes are made by this docs PR.
+- Confirm no runtime `StandingView` behavior change is made by documentation
+  edits; the v3 runtime arrived only through Ticket 0054.
