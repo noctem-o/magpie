@@ -383,7 +383,7 @@ shell execution is unavailable.
     ratify the remaining doctrine corrections from the PR #1-54 review audit
     and classify the bounded follow-up work. No runtime behavior changes here.
 25. **Standing policy v3 external-report corroboration v0 — contract
-    ratified by Ticket 0053, runtime future.**
+    ratified by Ticket 0053, runtime implemented by Ticket 0054.**
     [`docs/design/standing-policy-v3-external-report-corroboration-v0.md`](docs/design/standing-policy-v3-external-report-corroboration-v0.md)
     and [Ticket 0053](tickets/0053-standing-policy-v3-external-report-corroboration-contract.md)
     ratify the first explicit standing policy v3 aggregation rule: one exact
@@ -393,10 +393,15 @@ shell execution is unavailable.
     With identity-valid inherited v2, governed `Settled`, `Refuted`, and
     `Supported` are preserved; inherited claim or policy identity mismatches
     yield no top-level standing; legacy raw status remains quarantined;
-    same-origin contributions remain visible but count once. Runtime
-    implementation, conservative aggregation, refutation aggregation,
-    contradiction debt, invalidation,
-    supersession, `EpistemicGate`, ordinary claim-bearing writer, loader,
-    CAS, and filesystem or network ingestion remain future work.
+    same-origin contributions remain visible but count once. [Ticket
+    0054](tickets/0054-standing-policy-v3-external-report-corroboration-implementation.md)
+    implements that one narrow rule through the same verified replay context:
+    a complete internally derived support audit with at least two distinct
+    admitted origin groups in the exact requested claim's lane may contribute
+    governed `Supported`, never `Settled`. Corroboration separation remains
+    distinct from statistical independence. Refutation aggregation,
+    contradiction debt, invalidation, supersession, `EpistemicGate`, ordinary
+    claim-bearing writer, loader, CAS, and filesystem or network ingestion
+    remain future work.
 
 Conserve the log. Derive the rest.

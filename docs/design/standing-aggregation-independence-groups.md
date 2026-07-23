@@ -30,10 +30,10 @@ implemented by Ticket 0052
 
 standing policy v3:
 contract ratified by Ticket 0053;
-runtime future
+external-report corroboration runtime implemented by Ticket 0054
 
 conservative aggregation:
-future
+first narrow rule implemented by Ticket 0054; broader rules future
 ```
 
 An origin-group value in a verified binding remains only a claimed group until
@@ -531,7 +531,8 @@ must not erase truth-bearing contradiction debt or settle factual truth.
 12. Support-contribution audit v0 runtime — implemented by Ticket 0052.
 13. Ratify one explicit standing policy v3 aggregation rule — ratified by
     Ticket 0053.
-14. Implement conservative aggregation.
+14. Conservative aggregation — implemented by Ticket 0054 for the one exact
+    standing-policy-v3 external-report corroboration rule.
 15. Add direct refutation through admitted verifier context.
 16. Add contradiction debt with explicit precedence.
 17. Add invalidation and supersession/currentness.
@@ -546,8 +547,8 @@ origin-binding, origin-admission and admitted-contribution layers are
 standing-inert. Step 11 is ratified by Ticket 0051. Step 12 is implemented by
 Ticket 0052 and implements only the contribution-to-support boundary. Step 13
 is ratified by Ticket 0053, which freezes one exact threshold and lane
-without implementing runtime. Step 14 remains the later conservative
-aggregation implementation.
+without implementing runtime. Step 14 is implemented by Ticket 0054 for that
+one exact rule; broader aggregation remains future work.
 
 ## Future Tests
 
@@ -613,6 +614,7 @@ These are future tests for later PRs. This note does not add tests.
   performs no ambient CAS, filesystem, callback, or network lookup.
 - Confirm origin admission is not support and one admitted group is not
   aggregation.
-- Confirm no numeric threshold or implemented policy v3 appears in this note;
-  the first exact threshold is ratified separately by Ticket 0053.
+- Confirm the only numeric threshold and implemented policy-v3 rule are the
+  exact Ticket 0053 contract and Ticket 0054 runtime; no broader aggregation
+  rule appears in this note.
 - Confirm no runtime `StandingView` behavior changes are made by this docs PR.

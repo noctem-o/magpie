@@ -465,6 +465,67 @@ impl SupportContributionAuditV0 {
     }
 }
 
+/// Test-only constructor for hostile policy-v3 composition inputs.
+///
+/// `#[cfg(test)]` keeps this outside production builds and public API. It does
+/// not create another support-audit composition path.
+#[cfg(test)]
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn stage_support_contribution_v0_for_tests(
+    policy_id: &str,
+    admitted_contribution_policy_id: &str,
+    origin_admission_policy_id: &str,
+    contribution: ContributionIdentityV0,
+    namespace: OriginComparisonNamespaceV0,
+    origin_group: &str,
+    evidence_kind: &str,
+    claim_domain: &str,
+    support_ceiling: Status,
+    supporting_origin_candidate_selectors: Vec<ArtifactProvenanceAnchorSelectorV0>,
+) -> SupportContributionV0 {
+    SupportContributionV0 {
+        policy_id: policy_id.to_owned(),
+        admitted_contribution_policy_id: admitted_contribution_policy_id.to_owned(),
+        origin_admission_policy_id: origin_admission_policy_id.to_owned(),
+        contribution,
+        namespace,
+        origin_group: origin_group.to_owned(),
+        evidence_kind: evidence_kind.to_owned(),
+        claim_domain: claim_domain.to_owned(),
+        support_ceiling,
+        supporting_origin_candidate_selectors,
+    }
+}
+
+/// Test-only constructor for hostile policy-v3 composition inputs.
+///
+/// See [`stage_support_contribution_v0_for_tests`].
+#[cfg(test)]
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn stage_support_contribution_audit_v0_for_tests(
+    schema: &str,
+    canonicalization_profile: &str,
+    policy_id: &str,
+    admitted_contribution_policy_id: &str,
+    origin_admission_policy_id: &str,
+    verified_prefix_identity: VerifiedLogPrefixIdentityV0,
+    closure_identity: ResolutionContentClosureIdentityV0,
+    completion: SupportContributionAuditCompletionV0,
+    support_contributions: Vec<SupportContributionV0>,
+) -> SupportContributionAuditV0 {
+    SupportContributionAuditV0 {
+        schema: schema.to_owned(),
+        canonicalization_profile: canonicalization_profile.to_owned(),
+        policy_id: policy_id.to_owned(),
+        admitted_contribution_policy_id: admitted_contribution_policy_id.to_owned(),
+        origin_admission_policy_id: origin_admission_policy_id.to_owned(),
+        verified_prefix_identity,
+        closure_identity,
+        completion,
+        support_contributions,
+    }
+}
+
 /// Expected top-level authority for one composition.
 ///
 /// Carries the current replay-prefix and closure identities plus the two

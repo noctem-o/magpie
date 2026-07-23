@@ -193,6 +193,23 @@ impl OriginComparisonNamespaceV0 {
     }
 }
 
+/// Test-only constructor for hostile policy-v3 namespace inputs.
+///
+/// `#[cfg(test)]` keeps this outside production builds and public API. Honest
+/// production namespaces remain constructible only through origin admission.
+#[cfg(test)]
+pub(crate) fn stage_origin_comparison_namespace_v0_for_tests(
+    origin_admission_policy_id: &str,
+    target_claim_id: &str,
+    scope_ref: &str,
+) -> OriginComparisonNamespaceV0 {
+    OriginComparisonNamespaceV0 {
+        origin_admission_policy_id: origin_admission_policy_id.to_owned(),
+        target_claim_id: target_claim_id.to_owned(),
+        scope_ref: scope_ref.to_owned(),
+    }
+}
+
 /// Closed origin-binding wire family.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "snake_case")]
