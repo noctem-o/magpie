@@ -37,6 +37,9 @@ external-report corroboration runtime implemented by Ticket 0054
 
 conservative aggregation:
 first narrow rule implemented by Ticket 0054; broader rules future
+
+standing policy v4:
+direct-refutation contract ratified by Ticket 0056; runtime future
 ```
 
 An origin-group value in a verified binding remains only a claimed group until
@@ -218,7 +221,10 @@ A refutation contribution is an admitted negative contribution capped by
 `refutation_ceiling`.
 
 Refutation contribution is not contradiction debt, invalidation, or
-supersession. It is one input to future negative standing aggregation.
+supersession. It is one input to explicit versioned negative policy: the
+Ticket 0056 direct-refutation contract is the first such consumer — one
+direct, non-aggregating rule — while broader negative standing aggregation
+remains future.
 
 ### Ceiling
 
@@ -521,7 +527,12 @@ refutation contribution requires a `refutation_ceiling` cell that permits
 `Refuted`, the non-authority policy checks, and admitted verifier context.
 
 Only the refutation ceiling policy can admit direct `Refuted` contribution. It
-does not make refutation automatic.
+does not make refutation automatic. The first such rule is contracted by
+Ticket 0056 and the v4 design note: one exact `DeterministicVerification ×
+ExactMachineCheckable` `contradicts` lane with a same-snapshot
+`PredicateFalse` result contributes governed `Refuted`; its runtime remains
+future, and conflicting exact verifications produce a closed blocker rather
+than a silent override.
 
 ## Interaction With Contradiction Debt
 
@@ -565,7 +576,9 @@ must not erase truth-bearing contradiction debt or settle factual truth.
     Ticket 0053.
 14. Conservative aggregation — implemented by Ticket 0054 for the one exact
     standing-policy-v3 external-report corroboration rule.
-15. Add direct refutation through admitted verifier context.
+15. Add direct refutation through admitted verifier context — contract
+    ratified by Ticket 0056 for one exact deterministic machine-checkable
+    `contradicts` lane; runtime remains future.
 16. Add contradiction debt with explicit precedence.
 17. Add invalidation and supersession/currentness.
 18. Add EpistemicGate and writer surfaces.
