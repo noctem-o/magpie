@@ -150,8 +150,8 @@ absence.
 ## 6. Central deterministic law
 
 ```text
-one exact typed claim
-  (DeterministicVerification × ExactMachineCheckable)
+one exact typed ExactMachineCheckable claim
++ one exact typed DeterministicVerification evidence node
 + one exact contradicts justification edge
 + exact claim/evidence/edge/scope/predicate/statement/content-hash
   bindings
@@ -506,11 +506,15 @@ temporary VCS-free mirror. No `--allow-dirty`. No golden or fixture
 regeneration. A known `CreateProcessAsUserW failed: 5` or linker
 environment failure is reported, not thrashed.
 
-## 25. Publication authority
+## 25. Publication authority and record
 
-The contract candidate remains uncommitted and unpushed. No PR or GitHub
-metadata action is authorised. The user retains sole publication and merge
-authority.
+At coordinator handoff, the contract candidate was uncommitted and
+unpushed, and K3 performed no commit, push, or GitHub metadata action. The
+user subsequently exercised sole publication authority: committed the
+candidate as `379bbb5` on branch
+`agent/standing-policy-v4-direct-refutation-contract`, pushed it, and
+opened draft PR #71. The user retains sole publication, readiness, and
+merge authority.
 
 ## 26. Sol review adjudication record
 
@@ -536,6 +540,32 @@ material claim against the repository and adjudicated as follows.
 | Resolver signature shape `(claim_id, closure)` | A | accepted with exact v3 mirroring | v3 resolvers take `(&self, claim_id: &str, closure: &ResolutionContentClosureV0)`; the closure is explicit content input, not context-owned | §8 |
 | Evidence `content_hash` not validated by the checker | B | accepted | mirrors the positive checker boundary; witness bytes are the checked content | stated in §11 scope |
 | Closure participates only via v3 inheritance | A, B | accepted | the closure is explicit content input to the v3/v4 resolvers; the digest comparison does not consume it | §9 |
+
+### Final review rounds
+
+After the two concurrent architecture audits, seven fresh, read-only
+`gpt-5.6-sol` (xHigh) hostile reviews of the candidate diff ran. Each
+received no prior reviewer's report and no maker self-review, and K3
+independently verified every finding against the repository before
+remediating. No round returned `PASS`; every round returned numbered
+must-fix findings, all remediated:
+
+| Round | Verdict | Findings | Remediation |
+| --- | --- | --- | --- |
+| Sol C (18 falsification targets) | FAIL | 2 — closure signatures/context-ownership; edge-ID versus replay ordering | v3-exact signatures with explicit closure parameter; lexicographic edge-ID order |
+| Closure 1 | FAIL | 2 — `Refutation Contribution` definition; ceilings-doc rollout step 5 | remediated as reported |
+| Closure 2 | FAIL | 1 — ceilings-doc pre-v1 Status/Purpose framing | time-bounded; same-law Non-goals framing |
+| Closure 3 | FAIL | 2 — unsatisfiable compile-fail reservation; test-matrix/rollout framing | narrowed to struct-literal boundary (constructible inert enums never accepted as authority); time-bounded framing |
+| Closure 4 (convergence) | FAIL | 1 — lane-enforcement hole for the two other `Some(Refuted)` cells | closed `UnsupportedDirectRefutationLane` added |
+| Closure 5 (convergence) | FAIL | 1 — eligibility items 3/4 exact-value gates | remediation prescribed; initially not applied (K3 process error, caught by the next round) |
+| Closure 6 (final) | FAIL | 1 — same items 3/4 issue plus hostile-row ambiguity | remediated and grep-verified; self-verified by K3 with no further round per user directive |
+
+The task's four-agent routing budget was exceeded (nine fresh agents) with
+the user's explicit, repeated authorization in favor of the mandatory
+fresh-closure rule. The final two-sentence amendment (parse-then-compare in
+eligibility items 3/4 of both documents) implements the final reviewer's
+own prescribed remediation and is self-verified; it has no independent
+re-review.
 
 ## 27. Suggested reviewer checklist
 

@@ -440,10 +440,11 @@ shell execution is unavailable.
     [`docs/design/standing-policy-v4-deterministic-direct-refutation-v0.md`](docs/design/standing-policy-v4-deterministic-direct-refutation-v0.md)
     and [Ticket 0056](tickets/0056-standing-policy-v4-deterministic-direct-refutation-contract.md)
     ratify the first direct-refutation rule: one exact
-    `DeterministicVerification × ExactMachineCheckable` claim, one exact
-    `contradicts` edge, exact claim/evidence/edge/scope bindings, and one
-    same-snapshot negative evaluation proving `sha256_bytes_equals_v0`
-    false for the exact bound witness contribute governed `Refuted`. The
+    `ExactMachineCheckable` claim, one exact typed
+    `DeterministicVerification` evidence node, one exact `contradicts`
+    edge, exact claim/evidence/edge/scope bindings, and one same-snapshot
+    negative evaluation proving `sha256_bytes_equals_v0` false for the
+    exact bound witness contribute governed `Refuted`. The
     existing `DigestMismatch` trace remains a positive-lane failure token
     and is never negative authority. Conflicting exact positive and
     negative verifications produce a closed blocker, never a silent

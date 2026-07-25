@@ -34,7 +34,8 @@ already-closed evidence cell, one exact negative relationship, and one
 freshly recomputed negative result, all derived inside one verified replay:
 
 ```text
-one exact typed claim (DeterministicVerification × ExactMachineCheckable)
+one exact typed ExactMachineCheckable claim
++ one exact typed DeterministicVerification evidence node
 + one exact contradicts justification edge
 + exact claim/evidence/edge/scope/predicate/statement/content-hash bindings
 + one exact same-snapshot negative evaluation proving
