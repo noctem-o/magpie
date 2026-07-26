@@ -37,6 +37,10 @@ external-report corroboration runtime implemented by Ticket 0054
 
 conservative aggregation:
 first narrow rule implemented by Ticket 0054; broader rules future
+
+standing policy v4:
+candidate blocked, not ratified (Ticket 0056 subject-binding blocker);
+no direct-refutation rule exists
 ```
 
 An origin-group value in a verified binding remains only a claimed group until
@@ -218,7 +222,10 @@ A refutation contribution is an admitted negative contribution capped by
 `refutation_ceiling`.
 
 Refutation contribution is not contradiction debt, invalidation, or
-supersession. It is one input to future negative standing aggregation.
+supersession. It is one input to explicit versioned negative policy, none
+of which is ratified yet: the Ticket 0056 candidate was blocked on the
+missing subject-binding prerequisite, and broader negative standing
+aggregation remains future.
 
 ### Ceiling
 
@@ -521,7 +528,11 @@ refutation contribution requires a `refutation_ceiling` cell that permits
 `Refuted`, the non-authority policy checks, and admitted verifier context.
 
 Only the refutation ceiling policy can admit direct `Refuted` contribution. It
-does not make refutation automatic.
+does not make refutation automatic. No such rule is ratified: the Ticket
+0056 candidate was blocked because the existing predicate is
+evidence-relative with no independent subject binding (recorded in its
+documents). Direct refutation remains future pending a subject-binding
+contract, and no conflict handling is ratified.
 
 ## Interaction With Contradiction Debt
 
@@ -565,7 +576,9 @@ must not erase truth-bearing contradiction debt or settle factual truth.
     Ticket 0053.
 14. Conservative aggregation — implemented by Ticket 0054 for the one exact
     standing-policy-v3 external-report corroboration rule.
-15. Add direct refutation through admitted verifier context.
+15. Add direct refutation through admitted verifier context — the Ticket
+    0056 candidate is blocked on the missing subject-binding prerequisite;
+    a subject-binding contract must precede any rule.
 16. Add contradiction debt with explicit precedence.
 17. Add invalidation and supersession/currentness.
 18. Add EpistemicGate and writer surfaces.

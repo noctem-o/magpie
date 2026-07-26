@@ -2,24 +2,36 @@
 
 ## Status
 
-Proposed design note.
+Living doctrine note, originally a proposed design note. PR #33 and
+`StandingResolution` v0 have long landed, and the explicit policies v1, v2,
+and v3 now implement achieved-standing slices on top of this ceiling law.
+V0 itself remains candidate-only, and the v4 direct-refutation runtime
+remains future.
 
 ## Purpose
 
 This note defines the ADR-0002 evidence ceiling law used by current explanation
 and later achieved-standing semantics.
 
-The current substrate can retain typed claims, typed evidence, and typed
-justification edges. Once PR #33 lands, `StandingResolution` v0 also explains
-candidate ceilings under a fixed policy identifier, parses the target claim's
-`claim_domain` fail-closed, and quarantines legacy raw status. It deliberately
-does not implement support promotion, settlement, contradiction debt,
-invalidation, supersession, ratification, `EpistemicGate`, or writer-facing
-surfaces.
+At authoring time, the current substrate could retain typed claims, typed
+evidence, and typed justification edges, and PR #33 was pending. Since then,
+`StandingResolution` v0 has landed: it explains candidate ceilings under a
+fixed policy identifier, parses the target claim's `claim_domain`
+fail-closed, and quarantines legacy raw status. V0 deliberately implements
+no support promotion, settlement, contradiction debt, invalidation,
+supersession, ratification, `EpistemicGate`, or writer-facing surfaces.
 
-This note freezes the next rule layer before those semantics are implemented.
+This note originally froze the next rule layer before those semantics were
+implemented; its ceilings remain the maximum-contribution law the landed
+policies consume.
 
 ## Non-goals
+
+The non-goals below bounded this note's original docs-only authoring phase
+and remain accurate as that phase's record. The exclusions that still bind
+the repository — no contradiction debt, invalidation, supersession,
+ratification semantics, `EpistemicGate`, or writer surfaces — remain future
+work.
 
 - No Rust changes.
 - No tests.
@@ -213,10 +225,17 @@ Neither function performs achieved-standing aggregation. The code mirror for
 the negative ceiling surface is
 `magpie_claims::policy::refutation_ceiling`.
 
-Contradiction debt, invalidation, supersession, and all achieved-standing rules
-beyond exact Deadbolt occurrence/inclusion remain future fold behavior. A
-`contradicts` edge may create debt or block settlement later; it does not
-automatically refute in this phase.
+Contradiction debt, invalidation, and supersession remain future fold
+behavior. Ticket 0056 examined the first direct-refutation contract
+candidate; external review demonstrated that the existing
+`sha256_bytes_equals_v0` predicate is evidence-relative with no
+independent subject binding, and the candidate was blocked rather than
+ratified (see
+[`standing-policy-v4-deterministic-direct-refutation-v0.md`](standing-policy-v4-deterministic-direct-refutation-v0.md)).
+Direct refutation therefore remains future: it requires a same-replay,
+non-caller-substitutable subject-binding contract first. A bare
+`contradicts` edge never refutes, and no conflict handling is ratified —
+contradiction debt remains future.
 
 Aggregation and independence-group policy are defined separately in
 `docs/design/standing-aggregation-independence-groups.md`. Ceilings define
@@ -491,8 +510,10 @@ This prevents future ceiling escalation by classification drift.
 ### contradicts
 
 - Creates debt or blocks settlement in a future semantics PR.
-- Does not automatically refute in this design note.
-- Must not be implemented yet.
+- Does not automatically refute: no direct-refutation rule is ratified;
+  the Ticket 0056 candidate was blocked on the missing subject-binding
+  prerequisite (recorded in its documents).
+- The debt semantics must not be implemented yet.
 
 ### invalidates
 
@@ -665,7 +686,12 @@ Invalid.
 
 ## Future test matrix
 
-Future PRs should add tests with names such as:
+The list below is preserved from the original authoring phase. Several of
+its laws are now covered by landed tests (exact Deadbolt occurrence
+settlement, deterministic direct support, exact scope and binding refusal,
+and the raw-versus-governed `Refuted` laws), while contradiction,
+invalidation, and supersession cases remain future. These are the original
+suggested names, not a claim about landed test names:
 
 - `model_self_report_support_does_not_promote_beyond_conjectured`
 - `lens_readout_support_does_not_promote_beyond_conjectured`
@@ -683,9 +709,16 @@ Future PRs should add tests with names such as:
 - `supersedes_marks_currentness_without_deleting`
 - `segment_anchor_does_not_create_evidence_or_settle_claim`
 
-These are future tests for later PRs. This note does not add tests.
+This note does not add tests.
 
 ## Rollout order
+
+The numbered plan below is preserved from the original authoring phase.
+Steps 1-4 are landed: `StandingResolution` v0, the standing-inert verifier
+context, the exact Deadbolt v1 slice, and deterministic v2 lanes all exist.
+Step 6 is partially landed through the implemented v3 corroboration rule.
+Step 7's first contract candidate is blocked by Ticket 0056 on the missing
+subject-binding prerequisite; its runtime remains future.
 
 1. Keep or land `StandingResolution` v0 as the canonical fail-closed
    explanation surface.
@@ -695,8 +728,9 @@ These are future tests for later PRs. This note does not add tests.
    occurrence/inclusion.
 4. Add deterministic aggregation lanes and traces without amplification.
 5. Add one explicit support aggregation rule; do not invent generic thresholds.
-   The first exact rule contract is ratified by Ticket 0053; its runtime
-   remains future.
+   The first exact rule contract is ratified by Ticket 0053; its one narrow
+   runtime is implemented by Ticket 0054; broader aggregation remains
+   future.
 6. Add conservative independence handling. Absent, malformed, unadmitted, or
    self-declared groups must not amplify.
 7. Add direct refutation only through admitted verifier context plus
