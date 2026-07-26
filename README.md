@@ -466,10 +466,31 @@ shell execution is unavailable.
     `magpie-machine-predicate-inline-bytes-v0` schema), with the
     complete subject descriptor — schema, predicate identity, expected
     digest, and subject bytes — carried injectively in the canonical
-    statement and bound three-way to the replayed metadata and
-    statement hash.
-    Evidence and edges carry no byte source, so the Ticket 0056
-    substitution class is closed by construction. No predicate, policy,
+    statement. The canonical encoding is injective; SHA-256 is not —
+    binding is the exact direct three-way statement comparison
+    `StandingClaim.statement == TypedClaimNode.statement == the
+    descriptor-derived canonical statement`, with
+    `ClaimAssertedV2.content_hash` recomputed separately as the
+    SHA-256 of the exact statement bytes; collision resistance is
+    assumed and hash equality alone never establishes descriptor or
+    statement equality. Subject resolution re-fetches the typed claim
+    from the same verified replay snapshot, parses the outer envelope
+    and nested descriptor in that order, and decodes the subject from
+    the claim alone. The descriptor is nested as
+    `machine_predicate_inline_bytes` beside `claim_domain` in the
+    established two-key metadata envelope: exactly those two outer keys
+    and no others, duplicate keys rejected at both levels, no
+    descriptor fields at the outer level, and `claim_domain`
+    revalidated by the existing strict parser. `predicate_id` is a
+    closed `[a-z0-9_]+` identifier bounded by the compiled
+    `MAX_PREDICATE_ID_BYTES_V0 = 64` constant, checked after the
+    missing/wrong-type/empty checks and before character validation,
+    canonical statement construction, or allocation. For the new inline family, evidence and
+    edges supply no candidate-selectable subject bytes — the Ticket
+    0056 substitution class is closed by construction — while existing
+    v0 evidence formats — including `magpie-verification-witness-v0`
+    and `witness_hex` — remain unchanged under their own historical
+    path. No predicate, policy,
     standing rule, refutation, resolver, or runtime is ratified; the
     external acquired-object and replay-owned subject forms are
     recorded as unratified future extensions. A predicate contract over

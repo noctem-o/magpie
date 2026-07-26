@@ -67,7 +67,7 @@ Nothing established that `"unrelated material"` was the claim's subject.
 This contract removes that entire class of substitution by moving the
 subject into the claim itself: under the mechanism below, the bytes
 being hashed are the claim's own committed bytes, and an evidence node
-carries no byte source at all.
+supplies no subject bytes to that evaluation.
 
 ## The subject-binding law
 
@@ -87,9 +87,13 @@ carries no byte source at all.
 
 3. The canonical statement carries the descriptor.
    The claim's canonical statement must itself encode the complete
-   subject descriptor and expected digest. The claim content hash
-   remains the SHA-256 of that exact statement; it is never repurposed
-   as a subject digest.
+   subject descriptor and expected digest. Binding is the exact direct
+   three-way comparison `StandingClaim.statement ==
+   TypedClaimNode.statement == the descriptor-derived canonical
+   statement`; `ClaimAssertedV2.content_hash` is separately recomputed
+   as the SHA-256 of the exact UTF-8 statement bytes, with collision
+   resistance assumed and hash equality never used as identity. The
+   content hash is never repurposed as a subject digest.
 
 4. One resolution path for both polarities.
    Positive and negative evaluation must resolve the subject through
@@ -108,30 +112,62 @@ carries no byte source at all.
    provenance string, rationale, signature, or append-only retention
    never establishes byte-subject identity.
 
-7. Evidence carries no byte source.
-   Under this contract's mechanism, evidence nodes and edges may attest
-   or relate, but no evidence or edge field may carry bytes that an
-   evaluation could consume. Any byte-carrying evidence field is
-   rejected, never compared.
+7. Evidence supplies no candidate-selectable subject bytes.
+   Existing v0 evidence formats — including
+   `magpie-verification-witness-v0` and `witness_hex` — remain
+   unchanged and valid under their own historical path. For the new
+   inline-subject family, the subject comes only from the replayed
+   claim; evidence and edges may bind or attest; no evidence or edge
+   field may provide an alternate subject byte source consumed by
+   inline-subject resolution or later evaluation over that resolved
+   subject; any such alternate source is rejected by that future path.
+   This is not a global ban on byte-bearing evidence.
 ```
 
 ## The chosen mechanism: claim-owned inline immutable subject bytes
 
 ### Subject descriptor
 
-A new closed claim-metadata schema, `magpie-machine-predicate-inline-bytes-v0`,
-carries, and carries only:
+The outer claim metadata object keeps the repository's established
+nested machine-predicate shape. It carries exactly two keys:
+
+```text
+claim_domain:                 exactly ExactMachineCheckable, parsed and
+                              revalidated by the existing strict
+                              claim-domain parser
+machine_predicate_inline_bytes: the closed inline-subject descriptor
+```
+
+The nested descriptor carries, and carries only:
 
 ```text
 schema:          exactly magpie-machine-predicate-inline-bytes-v0
-predicate_id:    a closed lowercase [a-z0-9_]+ identifier introduced
-                 only by a later predicate contract (this contract
-                 ratifies none)
+predicate_id:    a closed lowercase [a-z0-9_]+ identifier, at most
+                 MAX_PREDICATE_ID_BYTES_V0 bytes long, introduced only
+                 by a later predicate contract (this contract ratifies
+                 none)
 subject_hex:     the complete inline subject bytes, strict lowercase
                  even-length hex, empty string permitted
 expected_sha256: the expected SHA-256 digest of the exact subject
                  bytes, exactly 64 lowercase hex characters
 ```
+
+No descriptor field may appear at the outer level. There are no other
+outer keys, no duplicate keys at either level, and no unknown keys in
+the nested descriptor.
+
+The predicate identifier is bounded by an exact compiled constant:
+
+```text
+MAX_PREDICATE_ID_BYTES_V0 = 64 bytes
+```
+
+The bound is checked after the missing, wrong-type, and empty checks,
+and before character validation, canonical statement construction, or
+any allocation or copy. The longest current policy and predicate
+identifiers are about 35 characters (`sha256_bytes_equals_v0` is 21;
+`magpie-claims-standing-v3` is 25); 64 bytes gives comfortable headroom
+while keeping the value compiled and checked, never caller-unbounded.
 
 Each schema version fixes its own field set, subject encoding, and
 resource bound; the schema constant names that complete profile, so no
@@ -160,11 +196,14 @@ magpie-machine-predicate-inline-bytes-v0:<predicate_id>:<expected_sha256>:<subje
 
 Every field is delimiter-free by construction (the fixed schema
 constant, closed-alphabet predicate IDs, and lowercase hex), so the
-encoding is injective without length framing. A different schema
-version, encoding profile, bound, predicate identity, expected digest,
-or subject byte string produces a different statement and a different
-statement hash; two claims can never share one statement hash while
-differing in any of them.
+canonical *encoding* is injective without length framing: one byte
+string encodes exactly one descriptor. SHA-256 is not injective. The
+binding is established by exact direct comparison — descriptor-derived
+statement versus replayed legacy and typed statements — never by hash
+equality. `content_hash == SHA-256(exact statement bytes)` is the
+existing cryptographic commitment and check; collision resistance is
+assumed, and hash equality alone never establishes descriptor or
+statement equality. The direct statement comparisons are never omitted.
 
 Statement, metadata, and content hash bind three ways, mirroring the
 existing v0 binding law:
@@ -187,8 +226,9 @@ three-way binding is.
 ### Versioning boundary
 
 `magpie-machine-predicate-v0`, `sha256_bytes_equals_v0`,
-`magpie-verification-witness-v0`, `DeterministicVerifierContextTraceV0`,
-and standing policies v0-v3 remain byte- and behavior-identical. The v0
+`magpie-verification-witness-v0` and its `witness_hex` field,
+`DeterministicVerifierContextTraceV0`, and standing policies v0-v3
+remain byte- and behavior-identical. The v0
 strict parser rejects the new schema as unknown; the new schema has its
 own strict parser that rejects duplicate or unknown keys, non-object or
 trailing content, and wrong-typed values. No L0 payload, tag, canonical
@@ -205,12 +245,28 @@ A future subject resolver — not ratified here — must work exactly this
 way:
 
 1. re-fetch the typed claim from the same verified replay snapshot;
-2. strictly parse the inline-bytes descriptor (closed failures:
-   malformed/non-object/trailing content, duplicate key, unknown key,
-   missing field, wrong-typed field, unknown schema, unknown predicate
-   ID, invalid subject hex, oversize);
-3. derive the canonical statement and require three-way equality with
-   the replayed statement and statement hash;
+2. strictly parse the outer metadata envelope and then the nested
+   descriptor: `claim_domain` via the existing strict claim-domain
+   parser, required to equal `ExactMachineCheckable`; exactly the two
+   outer keys (`claim_domain`, `machine_predicate_inline_bytes`) with
+   no other outer keys; duplicate keys rejected at both levels; any
+   descriptor field rejected at the outer level; then the nested
+   descriptor's closed failures (malformed/non-object/trailing content,
+   duplicate or unknown nested key, missing or wrong-typed field,
+   unknown schema, missing/wrong-typed/empty `predicate_id`,
+   `predicate_id` beyond the compiled
+   `MAX_PREDICATE_ID_BYTES_V0 = 64` bound — checked before character
+   validation, statement construction, or allocation —
+   `predicate_id` characters outside closed `[a-z0-9_]+`,
+   missing/wrong-typed/invalid `expected_sha256`,
+   missing/wrong-typed/invalid subject hex, oversize);
+3. derive the canonical statement and require exact three-way statement
+   equality by direct byte comparison —
+   `StandingClaim.statement == TypedClaimNode.statement == the
+   descriptor-derived canonical statement` — then separately recompute
+   and verify `content_hash` as the SHA-256 of the exact UTF-8
+   statement bytes, with collision resistance assumed and hash equality
+   never used as identity in place of the direct comparisons;
 4. decode the subject from the claim — never from evidence, edges,
    caller arguments, or any other source;
 5. only then perform any predicate evaluation, through the one shared
@@ -222,15 +278,24 @@ standing.
 
 ## Substitution resistance
 
-- An evidence node cannot select the subject: it carries no byte
-  source, and any byte-carrying evidence field is rejected outright.
+- An evidence node cannot select the subject: the new family reads
+  subject bytes only from the replayed claim. Any alternate subject
+  byte source offered to the inline path is rejected by that path.
+  Existing v0 witness evidence — including
+  `magpie-verification-witness-v0` and `witness_hex` — remains valid
+  under its own historical path and is untouched.
 - A claim author chooses subject and expected digest when asserting the
   claim; that defines the proposition, exactly as today's authors
   choose a matching witness. It is not substitution after the fact.
 - A future attestation schema for evidence may carry only routing
   fields (`schema`, `predicate_id`, `subject_claim_id`, `scope_ref`) —
-  never `witness_hex` or any other byte source. This contract defines
-  only that boundary; it ratifies no attestation schema.
+  never `witness_hex` or any other alternate subject byte source. The
+  `predicate_id` in that schema is the already validated claim
+  predicate identity: closed `[a-z0-9_]+`, bounded by the compiled
+  `MAX_PREDICATE_ID_BYTES_V0 = 64` constant, checked after
+  missing/wrong-type/empty and before character validation, canonical
+  statement construction, or allocation. This contract defines only
+  that boundary; it ratifies no attestation schema.
 - No caller-provided claim bytes, metadata, subject, receipt, or
   evaluation result may enter any resolver; every authority-bearing
   value (subject-resolution result, receipts, standing resolutions) is
@@ -290,9 +355,11 @@ accepted. This contract ratifies none of it.
 Do not proceed to any direct-refutation contract if a future design
 cannot fix all of: injective canonical subject encoding; one
 internal-only same-call authority path; missing/malformed/unavailable
-never false; no byte source in evidence; brand-new schema/predicate
-identities leaving `sha256_bytes_equals_v0` and policies v0-v3
-untouched.
+never false; no alternate subject byte source consumed by the
+inline-subject path (existing v0 evidence formats — including
+`magpie-verification-witness-v0` and `witness_hex` — preserved under
+their own historical path); brand-new schema/predicate identities
+leaving `sha256_bytes_equals_v0` and policies v0-v3 untouched.
 
 ## Explicitly unratified future designs
 
@@ -312,14 +379,18 @@ ratified here:
 
 | Case | Expected result under this contract |
 | --- | --- |
-| evidence node supplies arbitrary `witness_hex` | rejected outright — evidence carries no byte source; no evaluation |
+| an evidence node offers `witness_hex` as an alternate subject to the inline path | rejected by that path — no evaluation; the existing `magpie-verification-witness-v0` format and its `witness_hex` field remain unchanged under their own historical path |
 | contradicts edge with well-formed routing | attestation only; never changes the checked bytes |
 | claim metadata with duplicate keys | closed parse failure; no standing effect |
 | claim metadata with unknown keys or unknown schema | closed parse failure |
+| descriptor fields placed at the outer metadata level | closed parse failure — the descriptor is nested beside `claim_domain` only |
+| `predicate_id` empty, beyond the compiled `MAX_PREDICATE_ID_BYTES_V0 = 64` bound, or outside closed `[a-z0-9_]+` | closed parse failure — the bound is enforced after missing/wrong-type/empty and before character validation, statement construction, or allocation |
 | subject hex oversized (encoded or decoded) | closed audit failure; never falsity |
 | subject hex invalid (odd length, uppercase, non-hex) | closed audit failure |
-| statement differs from descriptor-derived canonical statement | binding failure; no evaluation |
-| content hash differs from recomputed statement hash | binding failure; no evaluation |
+| `StandingClaim.statement` differs from the descriptor-derived canonical statement | binding failure — exact direct comparison is required; no evaluation |
+| `TypedClaimNode.statement` differs from `StandingClaim.statement` | binding failure — the legacy and typed statements must be byte-equal; no evaluation |
+| `ClaimAssertedV2.content_hash` differs from the recomputed SHA-256 of the exact statement bytes | binding failure — the hash is a separate commitment check, never an identity shortcut; no evaluation |
+| matching `content_hash` used in place of the direct three-way statement comparison | rejected — hash equality is never identity; collision resistance is assumed, not injectivity |
 | caller-created subject-resolution receipt | unconstructible; never accepted |
 | cloned or deserialized receipt presented as authority | audit material only; never accepted |
 | v0-family claim presented to the inline parser (or vice versa) | unknown schema/predicate — fail closed |
@@ -364,10 +435,33 @@ mirror. No `--allow-dirty`.
 - Confirm only the authorised documentation paths changed.
 - Confirm no predicate, policy, standing rule, refutation, resolver, or
   runtime is ratified or claimed.
-- Confirm the subject bytes come only from the claim: no evidence or
-  edge byte source exists anywhere in the mechanism.
+- Confirm the outer metadata carries exactly `claim_domain` and the
+  nested `machine_predicate_inline_bytes` and no other outer keys,
+  duplicate keys are rejected at both levels, no descriptor fields
+  appear at the outer level, and `claim_domain` is parsed by the
+  existing strict claim-domain parser.
+- Confirm the new inline family reads subject bytes only from the
+  replayed claim, while existing v0 evidence formats — including
+  `magpie-verification-witness-v0` and `witness_hex` — remain unchanged
+  under their own historical path.
+- Confirm `predicate_id` is closed `[a-z0-9_]+`, bounded by the
+  compiled `MAX_PREDICATE_ID_BYTES_V0 = 64` constant, checked after
+  missing/wrong-type/empty and before character validation, statement
+  construction, or allocation.
+- Confirm subject resolution re-fetches the typed claim from the same
+  verified replay snapshot, parses the outer envelope before the
+  nested descriptor in that order, and decodes the subject from the
+  claim alone.
+- Confirm no SHA-256 injectivity is claimed anywhere: binding is by
+  exact direct statement comparison, with collision resistance assumed
+  and direct comparisons never omitted.
 - Confirm the canonical statement carries the complete subject
-  descriptor and the three-way binding is exact.
+  descriptor; binding is the exact direct three-way comparison
+  `StandingClaim.statement == TypedClaimNode.statement == the
+  descriptor-derived canonical statement`, with
+  `ClaimAssertedV2.content_hash` recomputed separately as the SHA-256
+  of the exact statement bytes — collision resistance assumed, hash
+  equality never identity.
 - Confirm `sha256_bytes_equals_v0`, its parser and trace, policies
   v0-v3, L0, and FORMAT are untouched, and the new schema is
   unknown/fail-closed to v0.
@@ -378,7 +472,9 @@ mirror. No `--allow-dirty`.
 - Confirm the two bounded future extensions are recorded as
   unratified, with their prerequisites and stop conditions.
 - Confirm the Ticket 0056 counterexample is answered by construction:
-  evidence can no longer choose the checked bytes.
+  no evidence node can supply subject bytes to the new inline-subject
+  path, while existing v0 evidence formats
+  (`magpie-verification-witness-v0`, `witness_hex`) remain unchanged.
 
 ## Next slice
 
