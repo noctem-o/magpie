@@ -232,8 +232,10 @@ candidate; external review demonstrated that the existing
 independent subject binding, and the candidate was blocked rather than
 ratified (see
 [`standing-policy-v4-deterministic-direct-refutation-v0.md`](standing-policy-v4-deterministic-direct-refutation-v0.md)).
-Direct refutation therefore remains future: it requires a same-replay,
-non-caller-substitutable subject-binding contract first. A bare
+Direct refutation therefore remains future: the subject-binding
+prerequisite is now ratified by Ticket 0057 (claim-owned inline subject
+bytes), and a predicate contract and a direct-refutation contract must
+still follow. A bare
 `contradicts` edge never refutes, and no conflict handling is ratified —
 contradiction debt remains future.
 
@@ -717,8 +719,10 @@ The numbered plan below is preserved from the original authoring phase.
 Steps 1-4 are landed: `StandingResolution` v0, the standing-inert verifier
 context, the exact Deadbolt v1 slice, and deterministic v2 lanes all exist.
 Step 6 is partially landed through the implemented v3 corroboration rule.
-Step 7's first contract candidate is blocked by Ticket 0056 on the missing
-subject-binding prerequisite; its runtime remains future.
+Step 7's first contract candidate was blocked by Ticket 0056 on the
+missing subject-binding prerequisite; that prerequisite is now ratified
+by Ticket 0057 (claim-owned inline subject bytes). A predicate contract,
+a direct-refutation contract, and any runtime remain future.
 
 1. Keep or land `StandingResolution` v0 as the canonical fail-closed
    explanation surface.

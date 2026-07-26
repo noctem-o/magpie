@@ -455,5 +455,27 @@ shell execution is unavailable.
     supersession/currentness, `EpistemicGate`, ordinary claim-bearing
     writer, loader, CAS, and filesystem or network ingestion remain
     future work.
+27. **Claim-inline subject binding v0 — contract ratified by Ticket
+    0057.**
+    [`docs/design/claim-inline-subject-binding-v0.md`](docs/design/claim-inline-subject-binding-v0.md)
+    and [Ticket 0057](tickets/0057-claim-inline-subject-binding-contract.md)
+    ratify the subject-binding prerequisite identified by Ticket 0056:
+    an `ExactMachineCheckable` claim independently commits to exactly
+    one immutable byte subject through claim-owned inline subject bytes
+    (strict bounded hex plus an exact expected digest in the new
+    `magpie-machine-predicate-inline-bytes-v0` schema), with the
+    complete subject descriptor — schema, predicate identity, expected
+    digest, and subject bytes — carried injectively in the canonical
+    statement and bound three-way to the replayed metadata and
+    statement hash.
+    Evidence and edges carry no byte source, so the Ticket 0056
+    substitution class is closed by construction. No predicate, policy,
+    standing rule, refutation, resolver, or runtime is ratified; the
+    external acquired-object and replay-owned subject forms are
+    recorded as unratified future extensions. A predicate contract over
+    inline-subject claims is the next slice; direct refutation,
+    contradiction debt, invalidation, supersession/currentness,
+    `EpistemicGate`, ordinary claim-bearing writer, loader, CAS, and
+    filesystem or network ingestion remain future work.
 
 Conserve the log. Derive the rest.
