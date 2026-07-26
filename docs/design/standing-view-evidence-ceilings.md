@@ -226,14 +226,16 @@ the negative ceiling surface is
 `magpie_claims::policy::refutation_ceiling`.
 
 Contradiction debt, invalidation, and supersession remain future fold
-behavior. The first exact direct-refutation rule is contracted separately
-by Ticket 0056 and
-[`standing-policy-v4-deterministic-direct-refutation-v0.md`](standing-policy-v4-deterministic-direct-refutation-v0.md):
-one `DeterministicVerification × ExactMachineCheckable` `contradicts`
-lane with a freshly recomputed predicate inequality. Its runtime remains
-future. A bare `contradicts` edge still does not automatically refute,
-and conflicting exact verifications remain future debt, not a silent
-override.
+behavior. Ticket 0056 examined the first direct-refutation contract
+candidate; external review demonstrated that the existing
+`sha256_bytes_equals_v0` predicate is evidence-relative with no
+independent subject binding, and the candidate was blocked rather than
+ratified (see
+[`standing-policy-v4-deterministic-direct-refutation-v0.md`](standing-policy-v4-deterministic-direct-refutation-v0.md)).
+Direct refutation therefore remains future: it requires a same-replay,
+non-caller-substitutable subject-binding contract first. A bare
+`contradicts` edge never refutes, and no conflict handling is ratified —
+contradiction debt remains future.
 
 Aggregation and independence-group policy are defined separately in
 `docs/design/standing-aggregation-independence-groups.md`. Ceilings define
@@ -508,8 +510,9 @@ This prevents future ceiling escalation by classification drift.
 ### contradicts
 
 - Creates debt or blocks settlement in a future semantics PR.
-- Does not automatically refute: the only direct-refutation lane is the
-  exact Ticket 0056 / v4 contract (contract ratified; runtime future).
+- Does not automatically refute: no direct-refutation rule is ratified;
+  the Ticket 0056 candidate was blocked on the missing subject-binding
+  prerequisite (recorded in its documents).
 - The debt semantics must not be implemented yet.
 
 ### invalidates
@@ -714,7 +717,8 @@ The numbered plan below is preserved from the original authoring phase.
 Steps 1-4 are landed: `StandingResolution` v0, the standing-inert verifier
 context, the exact Deadbolt v1 slice, and deterministic v2 lanes all exist.
 Step 6 is partially landed through the implemented v3 corroboration rule.
-Step 7's contract is ratified by Ticket 0056; its runtime remains future.
+Step 7's first contract candidate is blocked by Ticket 0056 on the missing
+subject-binding prerequisite; its runtime remains future.
 
 1. Keep or land `StandingResolution` v0 as the canonical fail-closed
    explanation surface.

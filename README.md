@@ -435,22 +435,25 @@ shell execution is unavailable.
     and currentness policy, general source-standing propagation,
     `EpistemicGate`, ordinary claim-bearing writer, loader, CAS, and
     filesystem or network ingestion remain future work.
-26. **Standing policy v4 deterministic direct refutation v0 — contract
-    ratified by Ticket 0056.**
+26. **Direct-refutation subject-binding blocker — recorded by Ticket
+    0056.**
     [`docs/design/standing-policy-v4-deterministic-direct-refutation-v0.md`](docs/design/standing-policy-v4-deterministic-direct-refutation-v0.md)
     and [Ticket 0056](tickets/0056-standing-policy-v4-deterministic-direct-refutation-contract.md)
-    ratify the first direct-refutation rule: one exact
-    `ExactMachineCheckable` claim, one exact typed
-    `DeterministicVerification` evidence node, one exact `contradicts`
-    edge, exact claim/evidence/edge/scope bindings, and one same-snapshot
-    negative evaluation proving `sha256_bytes_equals_v0` false for the
-    exact bound witness contribute governed `Refuted`. The
-    existing `DigestMismatch` trace remains a positive-lane failure token
-    and is never negative authority. Conflicting exact positive and
-    negative verifications produce a closed blocker, never a silent
-    override. No runtime is implemented. Direct-refutation runtime,
-    contradiction debt, invalidation, supersession/currentness,
-    `EpistemicGate`, ordinary claim-bearing writer, loader, CAS, and
-    filesystem or network ingestion remain future work.
+    record the first direct-refutation contract candidate and why it is
+    blocked. External review demonstrated that the existing
+    `sha256_bytes_equals_v0` predicate is evidence-relative: an arbitrary
+    well-formed `contradicts` evidence node can supply unrelated bytes
+    and manufacture a negative result, because no record independently
+    identifies the claim's subject bytes. The candidate is not ratified:
+    no policy v4, rule, resolver, receipt, or conflict blocker is active.
+    The existing v2 positive rule and the `DigestMismatch`
+    non-authority law are unchanged, and the three refutation-ceiling
+    cells remain ceilings only. Direct refutation remains future work
+    and now requires a same-replay, non-caller-substitutable
+    subject-binding contract first, then a direct-refutation contract,
+    then runtime. Contradiction debt, invalidation,
+    supersession/currentness, `EpistemicGate`, ordinary claim-bearing
+    writer, loader, CAS, and filesystem or network ingestion remain
+    future work.
 
 Conserve the log. Derive the rest.

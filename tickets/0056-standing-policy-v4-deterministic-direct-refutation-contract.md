@@ -1,5 +1,18 @@
 # Ticket 0056: Standing policy v4 deterministic direct-refutation contract
 
+## 0. Current status: BLOCKED — candidate not ratified
+
+After publication of the candidate as draft PR #71, external review
+(Codex P1) demonstrated that the ratified rule is unsound: the existing
+`sha256_bytes_equals_v0` predicate is evidence-relative and no record
+independently identifies the claim's subject bytes, so an arbitrary
+well-formed `contradicts` witness can manufacture a negative result for
+a true claim. K3 and two independent fresh Sol audits adjudicated the
+finding as valid. **No standing policy v4 or direct-refutation rule is
+ratified.** Sections 1-27 below are preserved as the chronological
+architecture record of the candidate; section 28 records the finding,
+the adjudication, and the exact prerequisite for any future contract.
+
 ## 1. Exact base
 
 ```text
@@ -149,6 +162,9 @@ absence.
 
 ## 6. Central deterministic law
 
+(Rejected candidate law — preserved as the architecture record. It is not
+active policy; see sections 0 and 28.)
+
 ```text
 one exact typed ExactMachineCheckable claim
 + one exact typed DeterministicVerification evidence node
@@ -169,6 +185,8 @@ normative text is
 this ticket and that note agree exactly.
 
 ## 7. Exact policy identities
+
+(Withdrawn identifiers — none active; see section 28.)
 
 ```text
 policy id:
@@ -514,7 +532,9 @@ user subsequently exercised sole publication authority: committed the
 candidate as `379bbb5` on branch
 `agent/standing-policy-v4-direct-refutation-contract`, pushed it, and
 opened draft PR #71. The user retains sole publication, readiness, and
-merge authority.
+merge authority. Following external review of the draft PR (Codex P1),
+the candidate was adjudicated unsound and blocked; the PR's revised
+purpose is the subject-binding blocker record (section 28).
 
 ## 26. Sol review adjudication record
 
@@ -589,3 +609,92 @@ re-review.
    `Default`, or public constructors; private fields; deterministic bytes).
 10. The ticket and the design note agree exactly.
 11. Every reported validation actually ran.
+
+## 28. External finding and blocker decision
+
+### The finding
+
+External review of draft PR #71 reported three findings. Codex P1 (the
+primary finding) demonstrated that an arbitrary well-formed `contradicts`
+evidence node may supply unrelated nonmatching bytes, satisfy every
+routing binding, and manufacture the candidate's `PredicateFalse` — and
+that a lone such candidate would produce governed `Refuted` for a true
+claim. CodeRabbit added two wording findings (CR-1 conflict wording in
+the ceilings note; CR-2 precedence ambiguity in this ticket's central
+law).
+
+### Demonstrated counterexample
+
+```text
+claim C:
+  statement = sha256_bytes_equals_v0:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
+  (SHA-256 of the exact bytes "abc")
+  domain ExactMachineCheckable, correct statement content hash, scope S
+
+supports evidence E+:
+  witness_hex = 616263 ("abc"), subject_claim_id = C, same predicate ID,
+  scope S, valid supports edge → Matched (v2 direct support)
+
+contradicts evidence E-:
+  witness_hex = 756e72656c61746564206d6174657269616c
+  ("unrelated material"), same subject_claim_id = C, same predicate ID,
+  same scope, valid contradicts edge
+  → computed digest
+    d42273bca408c671996c4f6eea5efefd010450655a44d742b0a2ba055b0542dc
+  ≠ H → the candidate's "PredicateFalse"
+```
+
+Every candidate prerequisite passes for `E-`, yet nothing establishes
+that `"unrelated material"` is the same byte subject as `"abc"`. With
+`E+` absent, the candidate's own rule 4 produced governed `Refuted` for
+a true claim. With `E+` present, the conflict blocker suppressed the
+application by misclassifying two evaluations of different byte subjects
+as one verified conflict.
+
+### Adjudication
+
+Two independent fresh read-only `gpt-5.6-sol` (xHigh) audits ran on the
+finding, with no shared inputs and no maker preference: Sol A
+(subject-binding audit) returned `UNSOUND` with the complete evidence
+trace and the same counterexample; Sol B (remediation-design audit)
+returned `WITHDRAW` with the smallest sound remediation. K3
+independently verified every material claim against the repository.
+
+| Finding | Source | Decision | Repository evidence | Consequence |
+| --- | --- | --- | --- | --- |
+| Codex P1 (missing subject-byte binding) | external review | VALID — candidate blocked, not ratified | the v0 predicate is evidence-relative; claim schema carries only the expected digest; witness bindings are routing only; claim `content_hash` hashes the statement, not subject bytes; evidence `content_hash` is never consumed by the checker; the positive direction is guarded by preimage resistance while the negative is not; the lone-witness path reaches the candidate's rule 4 | v4 candidate withdrawn; this blocker record; subject-binding prerequisite for any future contract |
+| CR-1 (conflict wording) | CodeRabbit | VALID | the ceilings note's conflict sentence predated the final disposition | wording aligned with the blocker: no conflict handling ratified; contradiction debt future |
+| CR-2 (central-law ambiguity) | CodeRabbit | VALID | the compact law read as every valid negative evaluation yielding final `Refuted` | central law marked as the rejected candidate law (§6) |
+
+### Decision
+
+```text
+no standing policy v4 is ratified
+no direct-refutation rule, resolver, receipt, or conflict blocker is active
+the candidate's identifiers are withdrawn
+  (design note §Withdrawn identities — none active)
+the v2 positive rule and the DigestMismatch non-authority law are unchanged
+the three refutation-ceiling cells remain ceilings only
+contradiction debt, invalidation, supersession/currentness remain future
+runtime remains absent
+```
+
+### Exact blocker and next design question
+
+Predicate inequality cannot carry negative authority until the claim
+independently commits to one immutable byte subject (claim-invariant
+byte-subject identity), with verified acquisition additionally required
+for external subjects, under a new versioned predicate identity.
+Candidate shapes are enumerated, not chosen, in the companion record
+`docs/design/standing-policy-v4-deterministic-direct-refutation-v0.md`.
+The next design question is the subject-binding contract, which precedes
+any new direct-refutation contract.
+
+### Suggested PR metadata revision
+
+The candidate PR's thesis changed with this decision. A truthful title
+is `docs: record direct-refutation subject-binding blocker`; the body
+should state that no v4 policy or runtime is ratified, the existing v2
+positive rule is unchanged, and a future contract must first establish a
+same-replay, non-caller-substitutable subject binding. Metadata changes
+remain the user's sole authority.
