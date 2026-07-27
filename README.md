@@ -455,5 +455,52 @@ shell execution is unavailable.
     supersession/currentness, `EpistemicGate`, ordinary claim-bearing
     writer, loader, CAS, and filesystem or network ingestion remain
     future work.
+27. **Claim-inline subject binding v0 — contract ratified by Ticket
+    0057.**
+    [`docs/design/claim-inline-subject-binding-v0.md`](docs/design/claim-inline-subject-binding-v0.md)
+    and [Ticket 0057](tickets/0057-claim-inline-subject-binding-contract.md)
+    ratify the subject-binding prerequisite identified by Ticket 0056:
+    an `ExactMachineCheckable` claim independently commits to exactly
+    one immutable byte subject through claim-owned inline subject bytes
+    (strict bounded hex plus an exact expected digest — exactly 64
+    lowercase hex characters, no prefix, uppercase, or whitespace,
+    validated before canonical statement construction — in the new
+    `magpie-machine-predicate-inline-bytes-v0` schema), with the
+    complete subject descriptor — schema, predicate identity, expected
+    digest, and subject bytes — carried injectively in the canonical
+    statement. The canonical encoding is injective; SHA-256 is not —
+    binding is the exact direct three-way statement comparison
+    `StandingClaim.statement == TypedClaimNode.statement == the
+    descriptor-derived canonical statement`, with
+    `ClaimAssertedV2.content_hash` recomputed separately as the
+    SHA-256 of the exact statement bytes; collision resistance is
+    assumed and hash equality alone never establishes descriptor or
+    statement equality. Subject resolution re-fetches the typed claim
+    from the same verified replay snapshot, parses the outer envelope
+    and nested descriptor in that order, and decodes the subject from
+    the claim alone. The descriptor is nested as
+    `machine_predicate_inline_bytes` beside `claim_domain` in the
+    established two-key metadata envelope: exactly those two outer keys
+    and no others, duplicate keys rejected at both levels, no
+    descriptor fields at the outer level, and `claim_domain`
+    revalidated by the existing strict parser. `predicate_id` is a
+    closed `[a-z0-9_]+` identifier bounded by the compiled
+    `MAX_PREDICATE_ID_BYTES_V0 = 64` constant, checked after the
+    missing/wrong-type/empty checks and before character validation,
+    canonical statement construction, or allocation. For the new
+    inline-subject path, any future evidence attestation consumed by
+    that path may carry routing and binding fields only and may supply
+    no alternate subject byte source — the Ticket 0056 substitution
+    class is closed by construction — while existing v0 evidence,
+    including `magpie-verification-witness-v0`, `witness_hex`, and
+    `sha256_bytes_equals_v0` behavior, remains unchanged; no global ban
+    on byte-bearing evidence is stated. No predicate, policy,
+    standing rule, refutation, resolver, or runtime is ratified; the
+    external acquired-object and replay-owned subject forms are
+    recorded as unratified future extensions. A predicate contract over
+    inline-subject claims is the next slice; direct refutation,
+    contradiction debt, invalidation, supersession/currentness,
+    `EpistemicGate`, ordinary claim-bearing writer, loader, CAS, and
+    filesystem or network ingestion remain future work.
 
 Conserve the log. Derive the rest.

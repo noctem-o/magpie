@@ -531,8 +531,10 @@ Only the refutation ceiling policy can admit direct `Refuted` contribution. It
 does not make refutation automatic. No such rule is ratified: the Ticket
 0056 candidate was blocked because the existing predicate is
 evidence-relative with no independent subject binding (recorded in its
-documents). Direct refutation remains future pending a subject-binding
-contract, and no conflict handling is ratified.
+documents). The subject-binding prerequisite is now ratified by Ticket
+0057 (claim-owned inline subject bytes); a predicate contract and then a
+direct-refutation contract remain future, and no conflict handling is
+ratified.
 
 ## Interaction With Contradiction Debt
 
@@ -576,9 +578,9 @@ must not erase truth-bearing contradiction debt or settle factual truth.
     Ticket 0053.
 14. Conservative aggregation — implemented by Ticket 0054 for the one exact
     standing-policy-v3 external-report corroboration rule.
-15. Add direct refutation through admitted verifier context — the Ticket
-    0056 candidate is blocked on the missing subject-binding prerequisite;
-    a subject-binding contract must precede any rule.
+15. Add direct refutation through admitted verifier context — subject
+    binding ratified by Ticket 0057 (claim-owned inline bytes); a
+    predicate contract and a direct-refutation contract remain future.
 16. Add contradiction debt with explicit precedence.
 17. Add invalidation and supersession/currentness.
 18. Add EpistemicGate and writer surfaces.
