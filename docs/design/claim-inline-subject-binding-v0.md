@@ -182,10 +182,11 @@ The decoded subject is bounded by an exact compiled constant:
 MAX_INLINE_SUBJECT_BYTES_V0 = 4096 decoded bytes
 ```
 
-The encoded hex length is checked against `2 × 4096` before any decode
-or allocation; the decoded length is checked after decode. Oversize in
-either check is a closed audit failure, never falsity. The empty byte
-string is a valid subject (its SHA-256 is
+Hex input exceeding 8192 characters (strict pre-decode maximum,
+corresponding to 2 × 4096 decoded bytes) is rejected before decoding;
+the decoded length is checked after decode. Oversize in either check is
+a closed audit failure, never falsity. The empty byte string is a valid
+subject (its SHA-256 is
 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`).
 
 Boundary of the compiled caps: `MAX_INLINE_SUBJECT_BYTES_V0` bounds

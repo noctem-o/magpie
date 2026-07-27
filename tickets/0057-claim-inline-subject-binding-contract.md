@@ -135,9 +135,12 @@ schema:          magpie-machine-predicate-inline-bytes-v0
 fields:          schema, predicate_id, subject_hex, expected_sha256
                  (only, nested; never at the outer level)
 subject form:    strict lowercase even-length hex; empty permitted
-bound:           4096 decoded bytes (encoded checked before decode);
-                 bounds only the inline descriptor field — no global
-                 event, statement, or metadata size limit is ratified
+bound:           strict pre-decode maximum of 8192 hexadecimal
+                 characters (2 × 4096 decoded bytes), enforced by
+                 rejecting input before decoding; 4096 decoded bytes
+                 checked after decode; bounds only the inline descriptor
+                 field — no global event, statement, or metadata size
+                 limit is ratified
 expected_sha256: exactly 64 lowercase hexadecimal characters — no
                  prefix, no uppercase, no alternate encoding, no
                  whitespace — validated before canonical statement
