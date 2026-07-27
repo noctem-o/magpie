@@ -462,7 +462,9 @@ shell execution is unavailable.
     ratify the subject-binding prerequisite identified by Ticket 0056:
     an `ExactMachineCheckable` claim independently commits to exactly
     one immutable byte subject through claim-owned inline subject bytes
-    (strict bounded hex plus an exact expected digest in the new
+    (strict bounded hex plus an exact expected digest — exactly 64
+    lowercase hex characters, no prefix, uppercase, or whitespace,
+    validated before canonical statement construction — in the new
     `magpie-machine-predicate-inline-bytes-v0` schema), with the
     complete subject descriptor — schema, predicate identity, expected
     digest, and subject bytes — carried injectively in the canonical
@@ -485,12 +487,14 @@ shell execution is unavailable.
     closed `[a-z0-9_]+` identifier bounded by the compiled
     `MAX_PREDICATE_ID_BYTES_V0 = 64` constant, checked after the
     missing/wrong-type/empty checks and before character validation,
-    canonical statement construction, or allocation. For the new inline family, evidence and
-    edges supply no candidate-selectable subject bytes — the Ticket
-    0056 substitution class is closed by construction — while existing
-    v0 evidence formats — including `magpie-verification-witness-v0`
-    and `witness_hex` — remain unchanged under their own historical
-    path. No predicate, policy,
+    canonical statement construction, or allocation. For the new
+    inline-subject path, any future evidence attestation consumed by
+    that path may carry routing and binding fields only and may supply
+    no alternate subject byte source — the Ticket 0056 substitution
+    class is closed by construction — while existing v0 evidence,
+    including `magpie-verification-witness-v0`, `witness_hex`, and
+    `sha256_bytes_equals_v0` behavior, remains unchanged; no global ban
+    on byte-bearing evidence is stated. No predicate, policy,
     standing rule, refutation, resolver, or runtime is ratified; the
     external acquired-object and replay-owned subject forms are
     recorded as unratified future extensions. A predicate contract over

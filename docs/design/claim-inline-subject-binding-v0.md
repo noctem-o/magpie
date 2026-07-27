@@ -149,7 +149,10 @@ predicate_id:    a closed lowercase [a-z0-9_]+ identifier, at most
 subject_hex:     the complete inline subject bytes, strict lowercase
                  even-length hex, empty string permitted
 expected_sha256: the expected SHA-256 digest of the exact subject
-                 bytes, exactly 64 lowercase hex characters
+                 bytes, in one exact representation: exactly 64
+                 characters of lowercase hexadecimal only — no prefix,
+                 no uppercase, no alternate encoding, no whitespace —
+                 validated before canonical statement construction
 ```
 
 No descriptor field may appear at the outer level. There are no other
@@ -184,6 +187,17 @@ or allocation; the decoded length is checked after decode. Oversize in
 either check is a closed audit failure, never falsity. The empty byte
 string is a valid subject (its SHA-256 is
 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`).
+
+Boundary of the compiled caps: `MAX_INLINE_SUBJECT_BYTES_V0` bounds
+only decoded inline subject bytes, and the encoded check protects only
+the inline descriptor field; `MAX_PREDICATE_ID_BYTES_V0` bounds only
+`predicate_id`. These limits do not bound the full `ClaimAssertedV2`
+event, `metadata_json`, the full statement, whitespace, unknown values
+before strict rejection, or pre-existing allocation performed by
+upstream replay or application code. A true pre-allocation cap for raw
+claims or events requires a separate future writer/ingestion/L0
+boundary contract and is not ratified here. No resolver can undo
+memory already allocated upstream.
 
 ### Canonical commitment
 
@@ -258,7 +272,9 @@ way:
    `MAX_PREDICATE_ID_BYTES_V0 = 64` bound — checked before character
    validation, statement construction, or allocation —
    `predicate_id` characters outside closed `[a-z0-9_]+`,
-   missing/wrong-typed/invalid `expected_sha256`,
+   `expected_sha256` missing, wrong-typed, or not exactly 64 lowercase
+   hexadecimal characters — no prefix, no uppercase, no whitespace —
+   validated before canonical statement construction,
    missing/wrong-typed/invalid subject hex, oversize);
 3. derive the canonical statement and require exact three-way statement
    equality by direct byte comparison —
@@ -287,21 +303,30 @@ standing.
 - A claim author chooses subject and expected digest when asserting the
   claim; that defines the proposition, exactly as today's authors
   choose a matching witness. It is not substitution after the fact.
-- A future attestation schema for evidence may carry only routing
-  fields (`schema`, `predicate_id`, `subject_claim_id`, `scope_ref`) —
-  never `witness_hex` or any other alternate subject byte source. The
-  `predicate_id` in that schema is the already validated claim
-  predicate identity: closed `[a-z0-9_]+`, bounded by the compiled
-  `MAX_PREDICATE_ID_BYTES_V0 = 64` constant, checked after
-  missing/wrong-type/empty and before character validation, canonical
-  statement construction, or allocation. This contract defines only
-  that boundary; it ratifies no attestation schema.
+- For the new inline-subject path, any future evidence attestation
+  consumed by that path may carry routing and binding fields only
+  (`schema`, `predicate_id`, `subject_claim_id`, `scope_ref`) and may
+  not supply an alternate subject byte source — never `witness_hex` or
+  any other byte-carrying field. The `predicate_id` in that schema is
+  the already validated claim predicate identity: closed `[a-z0-9_]+`,
+  bounded by the compiled `MAX_PREDICATE_ID_BYTES_V0 = 64` constant,
+  checked after missing/wrong-type/empty and before character
+  validation, canonical statement construction, or allocation. This
+  contract defines only that boundary; it ratifies no attestation
+  schema and no global restriction on byte-bearing evidence.
 - No caller-provided claim bytes, metadata, subject, receipt, or
-  evaluation result may enter any resolver; every authority-bearing
-  value (subject-resolution result, receipts, standing resolutions) is
-  private-construction, `Serialize`-only, with no public constructor,
-  no `Deserialize`, no `Default`, and no public mutation. Serialized or
-  cloned values are audit material only.
+  evaluation result may enter any resolver. Every **new**
+  authority-bearing type introduced for the inline-subject family — any
+  future resolved-subject result, receipt, or application type — uses
+  private construction, private fields, read-only getters,
+  `Serialize`-only, no `Deserialize`, no `Default`, no public
+  constructor, and no public mutation. Existing v0-v3
+  standing-resolution types (`StandingResolution`,
+  `StandingResolutionV1`, `StandingResolutionV2`) keep their frozen
+  public fields and are unchanged; where existing public audit values
+  are caller-constructible, caller constructibility does not make them
+  authority, and no resolver accepts caller-created audit values as
+  authority input. Public audit material is never resolver authority.
 
 ## What remains standing-inert
 
@@ -385,6 +410,7 @@ ratified here:
 | claim metadata with unknown keys or unknown schema | closed parse failure |
 | descriptor fields placed at the outer metadata level | closed parse failure — the descriptor is nested beside `claim_domain` only |
 | `predicate_id` empty, beyond the compiled `MAX_PREDICATE_ID_BYTES_V0 = 64` bound, or outside closed `[a-z0-9_]+` | closed parse failure — the bound is enforced after missing/wrong-type/empty and before character validation, statement construction, or allocation |
+| `expected_sha256` missing, wrong-typed, not exactly 64 lowercase hexadecimal characters, or carrying prefix, uppercase, or whitespace | closed parse failure before canonical statement construction |
 | subject hex oversized (encoded or decoded) | closed audit failure; never falsity |
 | subject hex invalid (odd length, uppercase, non-hex) | closed audit failure |
 | `StandingClaim.statement` differs from the descriptor-derived canonical statement | binding failure — exact direct comparison is required; no evaluation |
@@ -396,7 +422,8 @@ ratified here:
 | v0-family claim presented to the inline parser (or vice versa) | unknown schema/predicate — fail closed |
 | empty subject bytes | valid subject; evaluation is exact |
 | claim author sets expected digest unequal to the subject's digest | the proposition is false — but only a later, separately ratified predicate contract may say so; this contract takes no standing position |
-| oversized claim event via inflated metadata | bounded by the compiled cap; closed audit failure |
+| oversized inline descriptor field (encoded or decoded) | closed resolver failure under the field-specific compiled bound |
+| arbitrarily inflated raw event, statement, or `metadata_json` | outside this subject-resolver contract — a true pre-allocation bound requires a separately ratified writer/ingestion/L0 boundary contract; the resolver cannot undo memory already allocated upstream |
 
 ## Exact future implementation boundary
 
@@ -442,12 +469,21 @@ mirror. No `--allow-dirty`.
   existing strict claim-domain parser.
 - Confirm the new inline family reads subject bytes only from the
   replayed claim, while existing v0 evidence formats — including
-  `magpie-verification-witness-v0` and `witness_hex` — remain unchanged
-  under their own historical path.
+  `magpie-verification-witness-v0`, `witness_hex`, and
+  `sha256_bytes_equals_v0` behavior — remain unchanged under their own
+  historical path; no global ban on byte-bearing evidence is stated.
 - Confirm `predicate_id` is closed `[a-z0-9_]+`, bounded by the
   compiled `MAX_PREDICATE_ID_BYTES_V0 = 64` constant, checked after
   missing/wrong-type/empty and before character validation, statement
   construction, or allocation.
+- Confirm `expected_sha256` has one exact representation everywhere:
+  exactly 64 lowercase hexadecimal characters, no prefix, no uppercase,
+  no alternate encoding, no whitespace, validated before canonical
+  statement construction.
+- Confirm the compiled caps bound only their specific fields
+  (`predicate_id`, the inline descriptor field's decoded bytes) and no
+  global event, statement, or metadata size limit is claimed or
+  ratified.
 - Confirm subject resolution re-fetches the typed claim from the same
   verified replay snapshot, parses the outer envelope before the
   nested descriptor in that order, and decodes the subject from the
@@ -467,8 +503,10 @@ mirror. No `--allow-dirty`.
   unknown/fail-closed to v0.
 - Confirm missing/malformed/oversized subject material is never
   falsity.
-- Confirm private-construction and no-caller-receipt requirements are
-  stated for every authority-bearing value.
+- Confirm private-construction requirements apply to new inline-family
+  authority-bearing types only, that existing v0-v3 standing-resolution
+  APIs keep their frozen public fields, and that caller
+  constructibility never confers authority.
 - Confirm the two bounded future extensions are recorded as
   unratified, with their prerequisites and stop conditions.
 - Confirm the Ticket 0056 counterexample is answered by construction:

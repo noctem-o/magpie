@@ -135,7 +135,13 @@ schema:          magpie-machine-predicate-inline-bytes-v0
 fields:          schema, predicate_id, subject_hex, expected_sha256
                  (only, nested; never at the outer level)
 subject form:    strict lowercase even-length hex; empty permitted
-bound:           4096 decoded bytes (encoded checked before decode)
+bound:           4096 decoded bytes (encoded checked before decode);
+                 bounds only the inline descriptor field — no global
+                 event, statement, or metadata size limit is ratified
+expected_sha256: exactly 64 lowercase hexadecimal characters — no
+                 prefix, no uppercase, no alternate encoding, no
+                 whitespace — validated before canonical statement
+                 construction
 predicate_id:    closed [a-z0-9_]+, at most
                  MAX_PREDICATE_ID_BYTES_V0 = 64 bytes (checked after
                  missing/wrong-type/empty and before character
@@ -183,8 +189,10 @@ unknown nested keys; unknown schema; `predicate_id` missing,
 wrong-typed, or empty, then beyond the compiled
 `MAX_PREDICATE_ID_BYTES_V0 = 64` bound — enforced before character
 validation, statement construction, or allocation — then characters
-outside closed `[a-z0-9_]+`; missing/wrong-typed/invalid
-`expected_sha256`; invalid or oversized subject hex); derive the
+outside closed `[a-z0-9_]+`; `expected_sha256` missing, wrong-typed,
+or not exactly 64 lowercase hexadecimal characters — no prefix, no
+uppercase, no whitespace — validated before canonical statement
+construction; invalid or oversized subject hex); derive the
 canonical statement and require exact three-way statement equality by
 direct byte comparison — `StandingClaim.statement ==
 TypedClaimNode.statement == descriptor-derived canonical statement` —
@@ -200,15 +208,21 @@ resolution grants no standing.
 
 - No caller-provided claim bytes, metadata, subject, receipt, or
   evaluation result ever enters a resolver.
-- Every authority-bearing value is private-construction,
+- New authority-bearing types introduced for the inline-subject family
+  use private construction, private fields, read-only getters,
   `Serialize`-only, no `Deserialize`, no `Default`, no public
-  constructor, no public mutation; serialized or cloned values are audit
-  material only.
-- Evidence attestation may carry routing fields only; any alternate
-  subject byte source offered to the inline path is rejected by that
-  path, while existing v0 evidence formats — including
-  `magpie-verification-witness-v0` and `witness_hex` — remain unchanged
-  under their own historical path.
+  constructor, and no public mutation. Existing v0-v3
+  standing-resolution types keep their frozen public fields and APIs;
+  their caller constructibility does not make them authority, and no
+  resolver accepts caller-created audit values as authority input.
+  Public audit material is never resolver authority.
+- For the new inline-subject path, any future evidence attestation
+  consumed by that path may carry routing and binding fields only and
+  may not supply an alternate subject byte source; any such source is
+  rejected by that path. Existing v0 evidence — including
+  `magpie-verification-witness-v0`, `witness_hex`, and
+  `sha256_bytes_equals_v0` behavior — remains unchanged. This is not a
+  global ban on byte-bearing evidence.
 - A claim author choosing subject and expected digest at assertion time
   defines the proposition; it is not after-the-fact substitution.
 
@@ -351,9 +365,11 @@ readiness, and merge authority.
    changed exactly the three files named in section 20; no runtime,
    test, fixture, Cargo, L0, format, golden, verifier, or CI change.
 2. For the new inline family, the subject bytes come only from the
-   claim; existing v0 evidence formats — including
-   `magpie-verification-witness-v0` and `witness_hex` — remain
-   unchanged under their own historical path.
+   claim; existing v0 evidence — including
+   `magpie-verification-witness-v0`, `witness_hex`, and
+   `sha256_bytes_equals_v0` behavior — remains unchanged under its own
+   historical path, and no global ban on byte-bearing evidence is
+   stated.
 3. The canonical statement carries the complete subject descriptor;
    binding is the exact direct three-way statement comparison
    `StandingClaim.statement == TypedClaimNode.statement == the
@@ -374,19 +390,28 @@ readiness, and merge authority.
    `MAX_PREDICATE_ID_BYTES_V0 = 64` constant, checked after
    missing/wrong-type/empty and before character validation, canonical
    statement construction, or allocation.
-7. `sha256_bytes_equals_v0`, its parser and trace, policies v0-v3, L0,
+7. `expected_sha256` has one exact representation everywhere: exactly
+   64 lowercase hexadecimal characters, no prefix, no uppercase, no
+   alternate encoding, no whitespace, validated before canonical
+   statement construction.
+8. The compiled caps bound only `predicate_id` and the inline
+   descriptor field's decoded bytes; no global event, statement, or
+   metadata size limit is claimed or ratified.
+9. `sha256_bytes_equals_v0`, its parser and trace, policies v0-v3, L0,
    and FORMAT are untouched; the new schema is fail-closed to v0.
-8. Missing, malformed, oversized, or unparseable subject material is
-   never falsity.
-9. No predicate, policy, standing rule, refutation, resolver, receipt,
-   or runtime is ratified or claimed.
-10. Private-construction and no-caller-receipt requirements hold for
-    every authority-bearing value.
-11. The external and replay-owned extensions are recorded as unratified,
+10. Missing, malformed, oversized, or unparseable subject material is
+    never falsity.
+11. No predicate, policy, standing rule, refutation, resolver, receipt,
+    or runtime is ratified or claimed.
+12. Private-construction requirements apply to new inline-family
+    authority-bearing types only; existing v0-v3 standing-resolution
+    APIs keep their frozen public fields, and caller constructibility
+    never confers authority.
+13. The external and replay-owned extensions are recorded as unratified,
     with prerequisites and stop conditions.
-12. The Ticket 0056 counterexample is answered by construction.
-13. The ticket and the design note agree exactly.
-14. Every reported validation actually ran.
+14. The Ticket 0056 counterexample is answered by construction.
+15. The ticket and the design note agree exactly.
+16. Every reported validation actually ran.
 
 ## 20. Review remediations (PR #72)
 
@@ -426,3 +451,38 @@ remediations, all applied:
 These remediations were verified against the repository and are
 reflected identically in the design note, this ticket, and README
 entry 27.
+
+### Second review round
+
+A later review round produced four more findings, all accepted and
+remediated within the same documentation-only scope:
+
+5. **Exact `expected_sha256` encoding** — accepted. The field now has
+   one exact representation everywhere: exactly 64 lowercase
+   hexadecimal characters, no prefix, no uppercase, no alternate
+   encoding, no whitespace, validated before canonical statement
+   construction (design note descriptor, resolver procedure, hostile
+   cases, checklist; ticket §6/§8/§19; README entry 27).
+6. **Routing-only evidence scope** — accepted. The attestation rule is
+   now stated exactly: for the new inline-subject path, any future
+   evidence attestation consumed by that path may carry routing and
+   binding fields only and may not supply an alternate subject byte
+   source; existing v0 evidence — `magpie-verification-witness-v0`,
+   `witness_hex`, and `sha256_bytes_equals_v0` behavior — remains
+   unchanged, and no global ban on byte-bearing evidence is stated.
+7. **Raw envelope not bounded by inline caps** — accepted with
+   narrowing; no global size-limit design added. The compiled caps now
+   explicitly bound only `predicate_id` and the inline descriptor
+   field's decoded bytes; the full event, `metadata_json`, the full
+   statement, whitespace, unknown values, and upstream allocation are
+   out of scope and require a separately ratified writer/ingestion/L0
+   boundary contract. The hostile table's false "oversized claim event
+   → bounded" row was replaced by the field-specific bound and that
+   boundary note.
+8. **Private-construction scope** — accepted with narrowing to new
+   authority-bearing types. The rule now covers only new inline-family
+   authority-bearing types (any future resolved-subject result,
+   receipt, or application type); existing v0-v3 standing-resolution
+   types keep their frozen public fields and APIs, caller
+   constructibility never confers authority, and no resolver accepts
+   caller-created audit values as authority input.
