@@ -170,6 +170,8 @@ pub fn kind(
     &self,
 ) -> Sha256ClaimInlineBytesPredicateOutcomeKindV0;
 
+pub fn requested_claim_id(&self) -> &str;
+
 pub fn receipt(
     &self,
 ) -> Option<&Sha256ClaimInlineBytesPredicateReceiptV0>;
@@ -179,20 +181,33 @@ pub fn failure(
 ) -> Option<&ClaimInlineSubjectResolutionFailureV0>;
 ```
 
+Every outcome privately retains the exact `claim_id` query key supplied
+to the evaluator. `requested_claim_id()` borrows that exact value for
+all three kinds, without normalization or replacement. For
+`DigestEqual` and `DigestUnequal` it borrows the `claim_id` already
+retained in the receipt; no duplicate claim ID exists outside the
+receipt. For `ResolutionFailed` it borrows privately retained query
+attribution stored with the failure reason. That failed-query value
+does not assert that a replayed claim existed and is not replay
+provenance, standing authority, or proof of successful resolution.
+
 An outcome of kind `DigestEqual` or `DigestUnequal` carries exactly one
-receipt recording the exact audit basis of the terminal comparison; an
-outcome of kind `ResolutionFailed` carries exactly one closed failure
-reason and no receipt. The evaluator alone creates the complete
-outcome. A caller cannot construct an outcome, cannot select or
-replace its classification, cannot move a receipt from one outcome
-into another variant, cannot deserialize, default, or mutate an
-outcome, and cannot feed any outcome, receipt, failure, kind, or
-serialized bytes back into an evaluator, resolver, policy, or composer
-as authority. The fieldless `Sha256ClaimInlineBytesPredicateOutcomeKindV0`
-and the closed `ClaimInlineSubjectResolutionFailureV0` are
-caller-constructible classification vocabulary only: they carry no
-receipt, cannot be converted into an outcome, and are never accepted
-as authority.
+receipt recording the exact audit basis of the terminal comparison. An
+outcome of kind `ResolutionFailed` carries the exact requested claim-ID
+attribution plus exactly one closed failure reason, and no receipt. The
+evaluator alone creates the complete outcome. A caller cannot
+construct an outcome or failure payload, select or replace its
+classification or requested claim ID, move a receipt from one outcome
+into another variant, deserialize, default, or mutate an outcome, or
+feed any outcome, receipt, failure, kind, or serialized bytes back into
+an evaluator, resolver, policy, or composer as authority. Reusing the
+borrowed requested ID as an ordinary query key is permitted but never
+conveys claim existence or authority. The fieldless
+`Sha256ClaimInlineBytesPredicateOutcomeKindV0` and the closed
+`ClaimInlineSubjectResolutionFailureV0` are caller-constructible
+classification vocabulary only: they carry no receipt or query
+attribution, cannot be converted into an outcome, and are never
+accepted as authority.
 
 Serialization is deterministic and one-way through the exact canonical
 profile below. The future `Serialize` implementation borrows the
@@ -213,7 +228,8 @@ This deliberately reuses the exact `outcome` / `details` adjacent
 tagging and direct typed `serde_json::to_vec` convention of the
 origin-admission and admitted-contribution audits. Unlike a unit
 variant, each outcome here has an explicit `details` payload: a receipt
-for either terminal relation or a reason for resolution failure.
+for either terminal relation or exact requested claim-ID attribution
+plus a reason for resolution failure.
 
 The bytes are one compact UTF-8 JSON object with exact adjacent tagging:
 
@@ -225,7 +241,7 @@ DigestUnequal:
 {"outcome":"digest_unequal","details":{"receipt":{RECEIPT}}}
 
 ResolutionFailed:
-{"outcome":"resolution_failed","details":{"reason":"FAILURE"}}
+{"outcome":"resolution_failed","details":{"claim_id":"CLAIM_ID","reason":"FAILURE"}}
 ```
 
 The outer key order is always `outcome`, then `details`. `outcome` is exactly one of
@@ -246,9 +262,22 @@ expected_sha256
 computed_sha256
 ```
 
-For `resolution_failed`, `details` contains exactly one key, `reason`,
-whose JSON string is the exact snake-case encoding paired with the
-closed failure vocabulary:
+For `resolution_failed`, `details` contains exactly two mandatory keys
+in this exact order:
+
+```text
+claim_id
+reason
+```
+
+`claim_id` is the exact query key supplied to
+`evaluate_sha256_claim_inline_bytes_equals_v0`, preserved without
+rejection, normalization, hashing, truncation, replacement, or other
+canonicalization. It is query attribution only. In particular,
+`MissingClaim` plus this field does not assert that a replayed claim
+existed; the field is not replay provenance, standing authority, or
+proof of resolution. `reason` is the exact snake-case encoding paired
+with the closed failure vocabulary:
 
 ```text
 MissingClaim                         -> "missing_claim"
@@ -287,10 +316,12 @@ DecodedSubjectTooLarge               -> "decoded_subject_too_large"
 ```
 
 There is no optional or omitted-field ambiguity. Both outer keys are
-always present. A terminal outcome has `receipt` and never `reason`; a
-resolution failure has `reason` and never `receipt`. No field is
-`null`, no extra key is permitted, and no other key or declaration
-order is canonical.
+always present. A terminal relation has `receipt` and no sibling
+`claim_id` or `reason`; its claim ID remains solely inside the
+eight-field receipt. A resolution failure has `claim_id` then `reason`
+and never `receipt`. Both failure fields are present and non-null. No
+extra key is permitted, and no other key or declaration order is
+canonical.
 
 The encoder law is exact: fixed object-field declaration order; compact
 UTF-8 JSON; `"` and `\` escaped as `\"` and `\\`; the short escapes
@@ -300,6 +331,15 @@ Unicode normalization; no escaped `/`; no insignificant whitespace,
 BOM, or trailing newline. The encoder serializes the private typed wire
 view directly and never passes through `serde_json::Value`, a map, JCS,
 RFC 8785, a generic canonical-JSON registry, or Magpie L0.
+
+No compiled maximum for claim IDs exists in the repository:
+`ClaimAssertedV2` requires only a non-empty `claim_id`. This contract
+therefore invents no `MAX_CLAIM_ID_BYTES`, adds no failure reason, and
+performs no query-ID rejection or normalization. The opaque outcome
+privately preserves the exact already-existing query string. Canonical
+failure serialization size grows linearly with that string under the
+fixed escaping law; this audit attribution introduces no second subject
+or predicate authority source.
 
 The following three one-line code-block contents are the complete
 canonical byte vectors; the Markdown line ending after each is not part
@@ -319,16 +359,18 @@ of the vector.
 {"outcome":"digest_unequal","details":{"receipt":{"predicate_schema":"magpie-machine-predicate-inline-bytes-v0","predicate_id":"sha256_claim_inline_bytes_equals_v0","claim_id":"claim-c","scope_ref":"scope-s","canonical_statement":"magpie-machine-predicate-inline-bytes-v0:sha256_claim_inline_bytes_equals_v0:0000000000000000000000000000000000000000000000000000000000000000:616263","claim_content_hash":"1d5c96e14bb5116ef1dcf2481fac95a8b134cfc7434dc6054e69f919ca15ff93","expected_sha256":"0000000000000000000000000000000000000000000000000000000000000000","computed_sha256":"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"}}}
 ```
 
-`ResolutionFailed(MissingClaim)` — 68 bytes, SHA-256
-`5c028ec1c0ca7364a17cca284cf8f136bd5038f9baf430c04f0b8b553f07d351`:
+`ResolutionFailed(MissingClaim)`, requested claim ID `claim-missing` —
+95 bytes, SHA-256
+`b99b96af9b35c96e6d65bea4a0fdd364670abefd21e163009737a9ef4d91969d`:
 
 ```json
-{"outcome":"resolution_failed","details":{"reason":"missing_claim"}}
+{"outcome":"resolution_failed","details":{"claim_id":"claim-missing","reason":"missing_claim"}}
 ```
 
 Future compatibility tests must pin all three literal vectors, their
-lengths and SHA-256 values, every failure string, receipt field order,
-and escaping edge cases. Any byte change requires a new
+lengths and SHA-256 values, every failure string, successful receipt
+field order, failed-detail `claim_id` / `reason` order, requested-claim
+attribution, and escaping edge cases. Any byte change requires a new
 canonicalization-profile identity; the v0 bytes may not drift.
 
 The names are deliberately relation names, not verdict names. The
@@ -385,9 +427,9 @@ ends with an empty final segment, and its statement content hash is
 
 ## Closed resolution-failure vocabulary
 
-`ResolutionFailed` carries exactly one variant of
-`ClaimInlineSubjectResolutionFailureV0`, a closed enum evaluated in
-this frozen first-failure order:
+`ResolutionFailed` carries the exact requested claim-ID attribution
+plus exactly one variant of `ClaimInlineSubjectResolutionFailureV0`, a
+closed 33-reason enum evaluated in this frozen first-failure order:
 
 ```text
  1. MissingClaim                    claim ID absent from the legacy
@@ -503,6 +545,13 @@ Claim-ID selection is not substitution: requesting claim C evaluates
 C's own proposition. Replay maps are first-write-wins, so a later
 duplicate `ClaimAssertedV2` cannot overwrite the resolved claim.
 
+The evaluator privately retains the exact query string at entry for
+`requested_claim_id()`. It adds no claim-ID validation, bound, failure,
+normalization, hashing, truncation, or canonicalization. Successful
+resolution retains that value once in the receipt. Failed resolution
+retains it only as private query attribution beside the closed reason;
+it does not turn the query key into evidence that a claim existed.
+
 The contracted future evaluation hangs on `StandingReplaySnapshot` — the
 same layer that owns
 the existing standing-inert v0 verifier query — because the predicate
@@ -515,7 +564,8 @@ provenance it cannot honestly own.
 
 The return type is total: there is no `Option`. A missing or
 unavailable claim is an explicit `ResolutionFailed` reason, not absence
-of a value.
+of a value. `requested_claim_id()` still returns the exact supplied
+query key without asserting that the missing claim existed.
 
 ## Exact parser and evaluation order
 
@@ -601,11 +651,17 @@ CAS, second-store, or network read. Two evaluations of the same claim
 on the same snapshot produce equal outcomes and byte-identical
 serialized audit output; there is no clock, nonce, counter, or
 traversal-dependent field. Repetition is audit-only and never
-amplifies.
+amplifies. Failures with the same reason but different requested claim
+IDs retain distinct query attribution and therefore serialize to
+different canonical bytes.
 
 ## Receipt boundary
 
 The receipt's only job is auditability of the terminal comparison.
+Its `claim_id` is both successful query identity and replay attribution
+because resolution succeeded. A failure has no receipt; its separately
+retained requested claim ID is query attribution only and proves no
+replayed claim existed.
 The smallest sound field set, evaluated field-by-field against the
 audit questions (independently derived? needed to audit? recomputable?
 a second authority source? duplicating a nested record? implying
@@ -661,9 +717,10 @@ No resolver, evaluator, or composer ever accepts such a value back as
 authority input. Clones and serialized forms are audit material only;
 the authority-bearing types themselves expose no `Deserialize` path,
 and parsing lookalike bytes into generic caller-owned data confers no
-authority. The internal decoded-subject value used mid-evaluation is
-private, consumed in the same call, and never published as a second
-authority source.
+authority. Borrowing `requested_claim_id()` confers no authority and
+provides no mutation or replacement path. The internal decoded-subject
+value used mid-evaluation is private, consumed in the same call, and
+never published as a second authority source.
 
 ## Versioning boundary
 
@@ -825,7 +882,11 @@ any scope S.
 | an attestation `predicate_id` differing from the claim's predicate identity | rejected under Ticket 0057's inherited boundary — the attestation `predicate_id` must equal the already validated claim predicate identity; deferred to the attestation contract are exactly the six open dimensions — schema identity, envelope identity, duplicate/unknown-key handling and failure precedence, binding mechanics within the already-fixed same-replay path, field requiredness, and evidence kind |
 | a resolver mixing `StandingClaim` from one snapshot with typed metadata from another | impossible by construction — one `&self` snapshot re-fetches both tables internally; no API accepts separate pieces |
 | the same claim evaluated twice in one replay | equal outcomes and byte-identical serialized audit output; repetition never amplifies |
-| serializer emits an external tag, an internal tag, `receipt` beside `outcome`, reversed keys, omitted `details`, `null`, or any extra key | noncanonical audit bytes — only the exact `outcome` / `details` adjacent profile and terminal payload shapes above are v0 |
+| missing `claim-a` and missing `claim-b` both yield `MissingClaim` | `requested_claim_id()` returns the exact respective query key; canonical failure bytes differ because query attribution differs |
+| `MissingClaim` outcome for `claim-missing` | the private requested ID records only which key was queried; it does not assert that `claim-missing` existed or provide replay provenance, standing, or resolution proof |
+| caller attempts to replace the requested claim ID after evaluation | impossible through the opaque read-only surface; there is no public outcome or failure-payload constructor, mutation, deserialization, or replacement path |
+| requested claim ID is empty, long, or requires JSON escaping | preserve it exactly as supplied; add no query-ID rejection, normalization, hash, truncation, maximum, or 34th failure; canonical failure size grows linearly under the fixed escaping law |
+| serializer emits an external tag, an internal tag, `receipt` beside `outcome`, reversed keys, omitted `details`, a failure without `claim_id`, failure-detail keys other than `claim_id` then `reason`, `null`, or any extra key | noncanonical audit bytes — only the exact `outcome` / `details` adjacent profile and terminal payload shapes above are v0 |
 | serializer pretty-prints, appends a newline, normalizes Unicode, escapes `/`, uses uppercase `\u00XX`, or chooses a non-short control escape where a short escape is fixed | noncanonical audit bytes — the exact encoder law and pinned vector hashes must fail closed against every alternate spelling |
 
 ## What a receipt proves — and does not prove
@@ -854,9 +915,11 @@ The immediate next separately reviewed slice is the predicate evaluator
 implementation. Its complete permitted scope is: the purpose-built
 bounded inline parser; exact same-snapshot claim resolution; the
 snapshot-only evaluator method; opaque private-construction
-outcome/receipt types; the closed failure vocabulary; neutral digest
-comparison; the exact canonical outcome audit JSON profile; hostile and
-compatibility tests; and documentation.
+outcome/receipt types with exact privately retained requested claim-ID
+attribution and the read-only `requested_claim_id()` accessor; the
+closed failure vocabulary; neutral digest comparison; the exact
+canonical outcome audit JSON profile; hostile and compatibility tests;
+and documentation.
 
 For `predicate_id`, the parser uses a borrowed two-pass or equivalent
 count-only preflight. The first pass inspects and logically unescapes
@@ -896,10 +959,21 @@ be implemented in the same slice as the predicate evaluator.
 Future hostile and compile-fail coverage must prove at least: callers
 cannot construct any terminal outcome; cannot extract a receipt by
 value and rewrap it under a different classification; cannot change an
-outcome's classification; cannot deserialize, default, or mutate an
-outcome; cannot convert a kind or failure vocabulary value into an
-outcome; and cannot feed an outcome, receipt, failure, kind, or
-serialized bytes back into the evaluator. Parser coverage must prove:
+outcome's classification or requested claim ID; cannot deserialize,
+default, or mutate an outcome; cannot construct a failure payload;
+cannot convert a kind or failure vocabulary value into an outcome; and
+cannot feed an outcome, receipt, failure, kind, or serialized bytes
+back into the evaluator as authority. Reusing
+`requested_claim_id()` as an ordinary query key must confer no claim
+existence or authority. Canonical outcome coverage must prove:
+`requested_claim_id()` returns the exact query key for all three kinds;
+successful outcomes borrow the receipt's sole `claim_id` and preserve
+the 639- and 641-byte vectors exactly; failures with one reason and
+different query IDs serialize differently; `MissingClaim` attribution
+implies no claim existence; failure details are exactly `claim_id` then
+`reason`; the `claim-missing` vector is exactly 95 bytes with its pinned
+SHA-256; and no query-ID bound, normalization, or 34th failure exists.
+Parser coverage must prove:
 exactly 64 decoded `predicate_id` bytes accepted, 65 rejected with
 `PredicateIdTooLong`; escaped raw spellings decoding to 64 and 65
 bytes measured after logical unescaping; multibyte UTF-8 boundaries;
@@ -1166,12 +1240,21 @@ fixture regeneration.
   verified-prefix identity, subject length, raw subject copy, status,
   policy, evidence/edge, contribution, admission, or polarity field.
 - Confirm private-construction doctrine: no public constructor,
-  struct literal, `Deserialize`, `Default`, or mutation; serialized
-  values are audit material only.
+  struct literal, failure-payload constructor, `Deserialize`, `Default`,
+  requested-claim-ID replacement, or mutation; serialized values and
+  borrowed requested IDs are audit material only.
 - Confirm the exact adjacent `outcome` / `details` canonical profile,
-  lowercase tags, terminal payload shapes, receipt field order, all 33
-  failure strings, escaping law, and the three literal vector
-  lengths/hashes; no alternate representation is canonical.
+  lowercase tags, terminal payload shapes, successful receipt field
+  order, failed-detail `claim_id` / `reason` order, all 33 failure
+  strings, escaping law, and the three literal vector lengths/hashes;
+  the two successful vectors are unchanged and no alternate
+  representation is canonical.
+- Confirm `requested_claim_id()` returns the exact evaluator query key
+  for all three kinds; success uses the receipt's sole `claim_id`, while
+  failure retains private query attribution that proves no claim
+  existence. Confirm no claim-ID maximum, normalization, rejection, or
+  new failure was invented and failure serialization grows linearly
+  with the exact query string.
 - Confirm Ticket 0057's design-note resource law is restored unchanged:
   the bound precedes every resolver-owned identifier allocation or copy.
   Confirm pre-existing upstream replay/application allocation or

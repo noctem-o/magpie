@@ -540,9 +540,13 @@ shell execution is unavailable.
     outcome vocabulary is `DigestEqual`,
     `DigestUnequal`, and `ResolutionFailed`, exposed read-only by an
     opaque outcome value that only the evaluator constructs. Callers may
-    inspect its kind and borrow its receipt or failure reason, but cannot
-    construct or reclassify the outcome, move a receipt between terminal
-    classes, deserialize or mutate it, or re-present any audit value as
+    inspect its kind, borrow the exact requested claim ID for every
+    outcome, and borrow its receipt or failure reason. Successful
+    outcomes use the receipt's sole claim ID; a failed outcome retains
+    the query key only as attribution and does not assert that the claim
+    existed. Callers cannot construct or reclassify the outcome, replace
+    its requested claim ID, move a receipt between terminal classes,
+    deserialize or mutate it, or re-present any audit value as
     authority; caller-constructible kind and failure vocabulary carries
     no authority:
     `DigestEqual` is not `Supported` or `Settled`, `DigestUnequal` is
