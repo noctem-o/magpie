@@ -746,26 +746,68 @@ ambient lookup; or editing any path outside the five-path allowlist.
 
 ## 22. Validation commands
 
-Run and report actual results only:
+Run the following commands and verify explicit pass/fail gates:
 
 ```powershell
+# Standard checks (must pass)
 git diff --check
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked
 cargo test --doc --locked
-cargo run --locked --example tour -p magpie-claims
+
+# Tour output invariant (hard gate: must be exactly 1917 bytes with pinned SHA-256)
+cargo run --locked --example tour -p magpie-claims > tour_output.txt
+if ((Get-Item tour_output.txt).Length -ne 1917) {
+    Write-Error "FAIL: Tour output is not exactly 1917 bytes"
+    exit 1
+}
+$tourHash = (Get-FileHash tour_output.txt -Algorithm SHA256).Hash.ToLower()
+if ($tourHash -ne "48427d488c501c577c4ba9cf8c44bd89e20b84df8e663dee2c7dc4dbf1e25c2f") {
+    Write-Error "FAIL: Tour output SHA-256 mismatch (expected 48427d488c501c577c4ba9cf8c44bd89e20b84df8e663dee2c7dc4dbf1e25c2f, got $tourHash)"
+    exit 1
+}
+Remove-Item tour_output.txt
+
+# Release metadata (may fail on dirty worktree; if so, run in VCS-free mirror)
 python tools/check_release_metadata.py
+
+# Changed-path allowlist enforcement (hard gate: only the five exact paths may change)
+$allowlist = @(
+    "README.md",
+    "docs/design/claim-inline-subject-binding-v0.md",
+    "docs/design/claim-inline-sha256-predicate-v0.md",
+    "docs/design/standing-view-evidence-ceilings.md",
+    "tickets/0058-claim-inline-sha256-predicate-contract.md"
+)
+
+# Collect all changed/untracked paths (union of git status and git diff)
+$statusPaths = (git status --short | ForEach-Object { $_.Substring(3).Trim() })
+$diffPaths = (git diff --name-only)
+$allChanged = ($statusPaths + $diffPaths) | Sort-Object -Unique
+
+# Verify each changed path is in the allowlist
+foreach ($path in $allChanged) {
+    if ($path -notin $allowlist) {
+        Write-Error "FAIL: Unauthorized path changed: $path (only five allowlisted paths permitted)"
+        exit 1
+    }
+}
+
+# Report for review
 git status --short
 git diff --name-only
 git diff --stat
 ```
 
 Because this change is documentation-only, cargo outputs must remain
-identical to the exact base. The release-metadata checker may refuse
-the intentionally dirty worktree; the unchanged script is then run in
-a temporary VCS-free mirror. No `--allow-dirty`. No golden or fixture
-regeneration.
+identical to the exact base. Validation passes only if: all standard
+checks succeed, the tour output is exactly 1917 bytes with SHA-256
+`48427d488c501c577c4ba9cf8c44bd89e20b84df8e663dee2c7dc4dbf1e25c2f`,
+and all changed paths are exactly within the five-path allowlist. The
+release-metadata checker may refuse the intentionally dirty worktree;
+the unchanged script is then run in a temporary VCS-free mirror. No
+`--allow-dirty`. No golden or fixture regeneration.
 
 ## 23. Publication authority
 
