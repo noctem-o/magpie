@@ -420,9 +420,10 @@ this frozen first-failure order:
                                     decided by a borrowed count-only
                                     unescape preflight with no copied
                                     identifier bytes; decoded byte 65
-                                    rejects before allocation or copy,
-                                    character validation, or statement
-                                    construction
+                                    rejects before any resolver-owned
+                                    allocation or copy attributable to
+                                    predicate_id, character validation,
+                                    or statement construction
 21. InvalidPredicateId             characters outside closed [a-z0-9_]+
 22. UnknownPredicateId             well-formed but not byte-equal to the
                                     compiled sha256_claim_inline_bytes_equals_v0
@@ -548,16 +549,31 @@ One evaluation performs, in this frozen order:
    requires a purpose-built borrowed two-pass parser, or an equivalent
    count-only preflight, rather than the existing allocating generic
    descriptor-string value path. Its first pass inspects and logically
-   unescapes the borrowed `predicate_id` token only to count decoded
-   UTF-8 bytes; it accumulates no complete or partial copied identifier.
-   Decoded byte 65 yields `PredicateIdTooLong`. Only after that bound
-   decision succeeds may a second pass decode, copy, or allocate the
-   accepted bounded identifier; character validation and canonical
-   statement construction follow that copy. Escaped JSON and multibyte
-   UTF-8 are counted by their decoded bytes and cannot bypass the bound.
-   Duplicate detection remains post-unescape. Unrelated bounded parser
-   bookkeeping and the upstream-owned input are outside the
-   predicate-identifier allocation-or-copy law.
+   unescapes an existing upstream-owned `predicate_id` token only to
+   count decoded UTF-8 bytes. Before the bound decision, the resolver
+   may retain only bounded non-identifier bookkeeping: the decoded-byte
+   count, JSON escape and UTF-8 decoder state, fixed scalar flags, and
+   duplicate/key-traversal state containing no copied identifier bytes.
+   It may not mutate or extend upstream input; allocate or extend an
+   owned `String` or `Vec` as an identifier representation; construct an
+   owned `Cow` containing identifier material; copy raw or decoded
+   identifier bytes into a buffer; accumulate a prefix, suffix,
+   complete, or partial identifier; materialise the complete identifier;
+   or invoke the allocating generic descriptor-string path. Unrelated
+   bounded parser bookkeeping containing no copied identifier bytes
+   remains outside this predicate-ID allocation/copy guarantee. Decoded
+   byte 65 yields `PredicateIdTooLong`. Allocation or copying of raw
+   claim, event, metadata, statement, input-buffer, or
+   storage/application representations performed before resolver entry
+   by upstream replay or application code is outside this resolver-owned
+   resource law and cannot be undone; that scope exclusion grants the
+   resolver no additional permission. Only after the bound succeeds may
+   a second pass decode, copy, or allocate the accepted bounded
+   identifier; character validation and canonical statement construction
+   follow.
+   Escaped JSON and multibyte UTF-8 are counted by their decoded bytes
+   and cannot bypass the bound. Duplicate detection remains
+   post-unescape.
 4. Derive the canonical statement from the strictly parsed descriptor
    and require exact three-way statement equality by direct byte
    comparison — `StandingClaim.statement == TypedClaimNode.statement
@@ -844,18 +860,29 @@ compatibility tests; and documentation.
 
 For `predicate_id`, the parser uses a borrowed two-pass or equivalent
 count-only preflight. The first pass inspects and logically unescapes
-the token to count decoded UTF-8 bytes without accumulating any
-complete or partial copied identifier. It rejects decoded byte 65.
-Only after the bound succeeds may the second pass decode, copy, or
+an existing upstream-owned token to count decoded UTF-8 bytes. Before
+the bound decision, the resolver may retain only bounded
+non-identifier scalar decoding/counting and duplicate/key-traversal
+state containing no copied identifier bytes. It may not mutate or
+extend upstream input; create or extend an owned `String`, `Vec`, or
+`Cow` as an identifier representation; copy raw or decoded identifier
+bytes into any buffer; retain a prefix, suffix, complete, or partial
+identifier; materialise the complete identifier; or invoke the
+allocating generic descriptor-string path. Unrelated bounded parser
+bookkeeping containing no copied identifier bytes remains outside this
+predicate-ID allocation/copy guarantee. It rejects decoded byte 65.
+Pre-existing allocation or copying of upstream-owned raw claim, event,
+metadata, statement, input-buffer, or storage/application
+representations before resolver entry is outside this resolver-owned law
+and cannot be undone; it is not permission for resolver-owned identifier
+work. Only after the bound succeeds may the second pass decode, copy, or
 allocate the accepted bounded identifier, after which character
 validation and statement construction occur. `subject_hex` is likewise
 bounded before allocating decoded subject output. The existing strict
 claim-domain parser may be reused for outer `claim_domain`, and its
 duplicate/unknown-key structural pattern may be reused, but the
 allocating generic descriptor-string value path must not be reused for
-the inline descriptor's resource-sensitive string fields. Unrelated
-bounded parser bookkeeping is outside the identifier
-allocation-or-copy law.
+the inline descriptor's resource-sensitive string fields.
 
 The slice must not change
 `sha256_bytes_equals_v0`,
@@ -877,13 +904,19 @@ exactly 64 decoded `predicate_id` bytes accepted, 65 rejected with
 `PredicateIdTooLong`; escaped raw spellings decoding to 64 and 65
 bytes measured after logical unescaping; multibyte UTF-8 boundaries;
 very large raw and heavily escaped tokens with zero complete or partial
-identifier bytes copied before the bound decision; invalid characters
-within the bound yield
+resolver-owned identifier bytes copied before the bound decision,
+including into fixed-capacity storage; pre-existing allocation of
+upstream-owned input is recognized as out of scope while resolver
+mutation or extension of that input is rejected; only bounded
+non-identifier scalar
+decoding/counting and key-traversal state is retained; invalid
+characters within the bound yield
 `InvalidPredicateId` while any over-bound input — with the invalid
 character before or after the boundary — yields `PredicateIdTooLong`;
 post-unescape duplicate keys still fail as duplicates; malformed
-escapes still fail as malformed metadata; no accepted-value allocation
-or copy occurs until the count-only preflight succeeds; and an
+escapes still fail as malformed metadata; no resolver-owned
+accepted-value allocation or copy occurs until the count-only preflight
+succeeds; and an
 `expected_sha256` failure
 combined with a `subject_hex` failure selects the `expected_sha256`
 failure first.
@@ -1140,10 +1173,15 @@ fixture regeneration.
   failure strings, escaping law, and the three literal vector
   lengths/hashes; no alternate representation is canonical.
 - Confirm Ticket 0057's design-note resource law is restored unchanged:
-  the bound precedes identifier allocation or copy. Confirm Ticket
-  0058's borrowed count-only first pass copies no
-  complete or partial identifier, rejects decoded byte 65, and permits
-  accepted-value decoding/copy/allocation only in the second pass.
+  the bound precedes every resolver-owned identifier allocation or copy.
+  Confirm pre-existing upstream replay/application allocation or
+  copying is outside that resolver law and cannot be undone, without
+  permitting resolver mutation/extension or any complete or partial
+  identifier copy into fixed-capacity or heap storage. Confirm Ticket
+  0058's borrowed
+  count-only first pass retains only bounded non-identifier scalar state,
+  rejects decoded byte 65, and permits accepted-value
+  decoding/copy/allocation only in the second pass.
 - Confirm the bidirectional versioning boundary: new family fails
   closed in v0, v0 family fails closed in the new parser, hybrids fail
   `UnknownSchema` or `UnknownPredicateId`.

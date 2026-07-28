@@ -97,7 +97,11 @@ historical tickets including Tickets 0056 and 0057,
 15), generated files, and GitHub metadata.
 
 The subject-binding design note may receive only a narrow handoff/status
-clarification; its ratified law is not altered.
+clarification; its ratified law is not altered. Making explicit that
+pre-resolver upstream allocation is outside the resolver-owned
+predicate-ID resource guarantee is a scope clarification of its
+existing compiled-caps boundary, not a relaxation or a new
+implementation law.
 
 ## 5. The predicate law
 
@@ -448,8 +452,9 @@ equal outcomes and byte-identical serialized audit output.
    empty, then beyond the compiled 64-byte bound — decided by a
    borrowed count-only unescape preflight that accumulates no complete
    or partial copied identifier and rejects decoded byte 65 before any
-   identifier allocation or copy, character validation, or statement
-   construction — then outside `[a-z0-9_]+`, then
+   resolver-owned allocation or copy attributable to the identifier,
+   character validation, or statement construction — then outside
+   `[a-z0-9_]+`, then
    byte-unequal to the compiled identity); `expected_sha256`
    (missing, wrong-type, then not exactly 64 lowercase hexadecimal
    characters — no prefix, no uppercase, no whitespace — validated
@@ -462,15 +467,32 @@ equal outcomes and byte-identical serialized audit output.
    `claim_domain`, and its duplicate/unknown-key structural pattern may
    be reused, but its allocating generic descriptor-string value path
    must not be reused for the inline descriptor's resource-sensitive
-   string fields. The first pass inspects and logically unescapes the
-   borrowed `predicate_id` token only to count decoded UTF-8 bytes; it
-   copies no identifier prefix. Only after the bound succeeds may a
-   second pass decode, copy, or allocate the accepted bounded
-   identifier, followed by character validation and statement
-   construction. Escaped JSON and multibyte UTF-8 are counted by
-   decoded bytes; duplicate detection remains post-unescape. Unrelated
-   bounded parser bookkeeping is outside the predicate-identifier
-   allocation-or-copy law.
+   string fields. The first pass inspects and logically unescapes an
+   existing upstream-owned `predicate_id` token only to count decoded
+   UTF-8 bytes. Before the bound decision, the resolver may retain only
+   bounded non-identifier bookkeeping: the decoded-byte count, JSON
+   escape and UTF-8 decoder state, fixed scalar flags, and
+   duplicate/key-traversal state containing no copied identifier bytes.
+   It may not mutate or extend upstream input; allocate or extend an
+   owned `String` or `Vec` as an identifier representation; construct an
+   owned `Cow` containing identifier material; copy raw or decoded
+   identifier bytes into a buffer; accumulate a prefix, suffix,
+   complete, or partial identifier; materialise the complete identifier;
+   or invoke the allocating generic descriptor-string path. Unrelated
+   bounded parser bookkeeping containing no copied identifier bytes
+   remains outside this predicate-ID allocation/copy guarantee. Decoded
+   byte 65 yields `PredicateIdTooLong`. Allocation or copying of raw
+   claim, event, metadata, statement, input-buffer, or
+   storage/application representations performed before resolver entry
+   by upstream replay or application code is outside this resolver-owned
+   resource law and cannot be undone; that scope exclusion grants the
+   resolver no additional permission. Only after the bound succeeds may
+   a second pass decode, copy, or allocate the accepted bounded
+   identifier; character validation and canonical statement construction
+   follow.
+   Escaped JSON and multibyte UTF-8 are counted by their decoded bytes
+   and cannot bypass the bound. Duplicate detection remains
+   post-unescape.
 4. Derive the canonical statement and require exact three-way
    statement equality by direct byte comparison —
    `StandingClaim.statement == TypedClaimNode.statement ==
@@ -1081,19 +1103,23 @@ verified all six groups valid; all seven threads are remediated:
    expected-wins hostile reservation; no implementation may order by
    JSON source-key, map-iteration, or Serde encounter order.
 3. **Pre-allocation bound** — the contract required
-   `PredicateIdTooLong` before allocation while permitting exact reuse
-   of the allocating existing descriptor machinery; both could not
-   hold. The final law preserves Ticket 0057 unchanged and makes the
-   Ticket 0058 implementation path explicit: a borrowed first pass
-   logically unescapes and counts decoded UTF-8 bytes without copying
-   any complete or partial identifier; decoded byte 65 rejects; only
-   after success may a second pass decode, copy, or allocate the
-   accepted bounded identifier, followed by character validation and
-   statement construction. The existing claim-domain parser and
-   structural duplicate/unknown-key pattern may be reused, but the
+   `PredicateIdTooLong` before resolver-owned identifier allocation or
+   copy while permitting exact reuse of the allocating existing
+   descriptor machinery; both could not hold. The final law preserves
+   Ticket 0057 unchanged and makes the Ticket 0058 implementation path
+   explicit: a borrowed first pass logically unescapes and counts
+   decoded UTF-8 bytes with bounded non-identifier state only and
+   without copying any complete or partial identifier; decoded byte 65
+   rejects; only after success may a second pass decode, copy, or
+   allocate the accepted bounded identifier, followed by character
+   validation and statement construction. Pre-existing upstream
+   replay/application allocation or copying before resolver entry is
+   outside this resolver-owned law and cannot be undone; that
+   clarification neither relaxes the law nor permits resolver mutation,
+   extension, or identifier copying. The existing claim-domain parser
+   and structural duplicate/unknown-key pattern may be reused, but the
    allocating generic descriptor-string value path is not sufficient
-   for this family's resource-sensitive fields. Unrelated bounded
-   parser bookkeeping is outside the identifier law.
+   for this family's resource-sensitive fields.
 4. **Operand terminology** — `expected_sha256` was described as
    committing to the subject bytes, false for every well-formed
    `DigestUnequal` claim. It is now defined everywhere as the
@@ -1122,14 +1148,19 @@ Three fresh review findings on `e9fa2bf` were adjudicated as valid and
 remediated without widening the five-path documentation boundary:
 
 1. **Ticket 0057 law restoration** — the subject-binding design note had
-   been changed from its ratified before-allocation-or-copy law to a
-   weaker streaming formulation. Every resource-law change in that
-   prerequisite note is restored to its pre-remediation meaning. Ticket
-   0058 now owns the implementable mechanism: a borrowed count-only
-   unescape pass copies no complete or partial identifier, decoded byte
-   65 rejects, and only a successful bound decision permits a second
-   pass to decode/copy/allocate the accepted identifier before character
-   validation and statement construction.
+   been changed from its ratified pre-bound prohibition on
+   resolver-owned `predicate_id` allocation or copy to a weaker
+   streaming formulation. Every resource-law change in that
+   prerequisite note is restored to its pre-remediation meaning. The
+   clarification that upstream allocations completed before resolver
+   entry are out of scope neither relaxes that law nor grants the
+   resolver permission to copy any identifier bytes. Ticket 0058 owns
+   the implementable mechanism: a borrowed count-only unescape pass
+   retains bounded non-identifier state only and copies no complete or
+   partial identifier, decoded byte 65 rejects, and only a successful
+   bound decision permits a second pass to decode/copy/allocate the
+   accepted identifier before character validation and statement
+   construction.
 2. **Canonical outcome serialization** — the former tag-only promise
    left several byte encodings possible. Both contract documents now
    freeze the exact
@@ -1556,10 +1587,15 @@ user retains sole publication, readiness, and merge authority.
    33 failure strings, escaping law, and three literal vector
    lengths/hashes are pinned; no alternate representation is canonical.
 9. Ticket 0057's resource law remains unamended: the bound precedes
-   identifier allocation or copy. Ticket 0058's borrowed count-only
-   first pass copies no complete or partial identifier, rejects decoded
-   byte 65, and permits accepted-value decoding/copy/allocation only in
-   the second pass.
+   every resolver-owned identifier allocation or copy. Pre-existing
+   upstream replay/application allocation or copying before resolver
+   entry is outside that law and cannot be undone, but gives the
+   resolver no permission to mutate/extend input or copy any complete or
+   partial identifier into fixed-capacity or heap storage. Ticket 0058's
+   borrowed
+   count-only first pass retains bounded non-identifier scalar state
+   only, rejects decoded byte 65, and permits accepted-value
+   decoding/copy/allocation only in the second pass.
 10. The versioning boundary is fail-closed in both directions; hybrids
    fail `UnknownSchema` or `UnknownPredicateId`.
 11. The Ticket 0056 arbitrary-byte attack is answered by construction

@@ -491,14 +491,17 @@ shell execution is unavailable.
     closed `[a-z0-9_]+` identifier bounded by the compiled
     `MAX_PREDICATE_ID_BYTES_V0 = 64` constant after the
     missing/wrong-type/empty checks and before character validation,
-    canonical statement construction, or any allocation or copy
-    attributable to the identifier. Ticket 0058's future evaluator
-    satisfies that inherited law with a borrowed two-pass or equivalent
-    count-only preflight: inspect/unescape and count without copying any
-    complete or partial identifier, reject decoded byte 65, and only
-    after success decode/copy the accepted bounded value before
-    character validation.
-    Unrelated bounded parser bookkeeping is outside that identifier law.
+    canonical statement construction, or any resolver-owned allocation
+    or copy attributable to the identifier. Inputs already allocated or
+    copied by upstream replay/application code before resolver entry are
+    outside that law and cannot be undone; the resolver may inspect but
+    not mutate or extend them. Ticket 0058's future evaluator satisfies
+    the inherited law with a borrowed two-pass or equivalent count-only
+    preflight: retain bounded non-identifier scalar decoding/counting
+    state only, copy no complete or partial identifier, reject decoded
+    byte 65, and only after success decode/copy the accepted bounded
+    value before character validation. The existing allocating generic
+    descriptor-string path remains prohibited for this descriptor.
     For the new
     inline-subject path, any future evidence attestation consumed by
     that path may carry routing and binding fields only and may supply
