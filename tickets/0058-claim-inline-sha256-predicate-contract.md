@@ -625,6 +625,211 @@ ticket/design-note agreement; and all eleven prior remediations
 verified landed. No further review rounds were run, per the stop rule
 of one genuine PASS.
 
+### External review remediation (CodeRabbit, PR #73)
+
+After publication as PR #73, CodeRabbit reported a validation-enforcement
+finding: the ticket's validation commands were report-only, with no hard
+tour byte/hash gate and no changed-path allowlist enforcement. Its
+autofix commit (`9ae4b03`, ticket-only) added both gates as a narrow
+first remediation. K3 verified the autofix against the repository and
+found the enforcement real but three residual defects still valid:
+
+1. **Ticket/design disagreement** — the autofix changed only this
+   ticket; the design note still carried the earlier report-only
+   commands, so the two documents no longer agreed exactly.
+2. **Non-exact tour capture** — `cargo run ... > tour_output.txt`
+   routes stdout through PowerShell native-output redirection, whose
+   encoding differs across PowerShell versions (UTF-16LE with BOM in
+   5.1, UTF-8 in 7+), so the hashed bytes were not guaranteed to be the
+   executable's exact stdout bytes; the temporary file was also left
+   behind whenever a gate failed.
+3. **Vacuous path gate** — the check parsed `git status --short` with a
+   fixed `Substring(3)` (fragile for rename records and quoted paths)
+   and never inspected the committed PR diff against the exact base,
+   staged changes, or untracked files, so a clean committed branch
+   passed with an empty changed set.
+
+K3 remediated within the existing two-file documentation scope, with no
+architectural change: the hardened validation contract now lives
+identically in this ticket (§22) and the design note (validation
+section). The tour gate captures exact stdout bytes through Python's
+binary `subprocess` interface (no PowerShell redirection, no temporary
+file, actual length and digest printed, nonzero subprocess exit fails
+the gate). The changed-path gate unions the committed PR diff against
+the exact base, staged, unstaged, and untracked paths without parsing
+porcelain output, requires every changed path inside the five-path
+allowlist, and requires the committed PR diff to be exactly those five
+paths. Negative tests confirmed the path gate fails on an unauthorised
+untracked file and the tour gate fails on an altered expected digest or
+length, with all test artifacts removed afterwards. Validation results
+are recorded in the handoff.
+
+A fresh read-only `gpt-5.6-sol` (xHigh) review of that hardened
+candidate returned `FAIL` with three findings, all verified by K3 and
+remediated within the same two-file scope:
+
+1. **PowerShell 5.1 native-argument mangling** — the reviewer executed
+   the block on Windows PowerShell 5.1 and showed that passing the
+   Python checker as a `python -c` argument loses its embedded double
+   quotes during native argument marshalling, so the program never
+   parses. The checker now reaches Python on standard input
+   (`@' ... '@ | python -`), which no PowerShell version's argument
+   marshalling can re-encode or mangle.
+2. **Ungated native exit codes** — a failed cargo or git command could
+   be followed by a later success, and a failed path collector could
+   silently yield empty output. Every native command in the block is
+   now followed by an immediate exit-code check (the release-metadata
+   checker keeps its documented dirty-worktree mirror exception).
+3. **Rename-source invisibility** — `git diff --name-only` reports
+   only rename destinations, so an out-of-allowlist source path could
+   hide behind a rename into an allowlisted path. All three diff
+   collectors now use `--no-renames`, exposing a rename as its
+   old-path deletion plus new-path addition.
+
+A fresh read-only `gpt-5.6-sol` (xHigh) closure review of the
+remediated block returned `FAIL` with two findings, both verified by
+K3 and remediated within the same two-file scope:
+
+1. **Case-insensitive path comparisons** — the reviewer replayed the
+   gate on Windows PowerShell 5.1 with a case-variant path
+   (`readme.md`) and showed PowerShell's case-insensitive
+   `Sort-Object -Unique`, `-notin`, and `-ne` collapsed it against the
+   allowlisted `README.md`, letting an exact unauthorised Git pathname
+   pass. The gate now uses `Sort-Object -CaseSensitive -Unique`,
+   `-cnotin`, and `-cne` throughout, matching Git's exact path bytes.
+2. **Ungated release-metadata and report commands** — a release-check
+   refusal could be overwritten by later success, contradicting the
+   every-command-gated claim. The release check is now gated: a
+   refusal stops validation until the unchanged script passes in an
+   in-block temporary VCS-free mirror that is removed afterwards even
+   on failure, and the three report commands are exit-checked like
+   every other native command.
+
+A fresh read-only `gpt-5.6-sol` (xHigh) closure review of that state
+returned `FAIL` with three findings, all verified by K3 and remediated
+within the same two-file scope:
+
+1. **Index-flag hole** — an `assume-unchanged` or `skip-worktree`
+   index entry could hide a tracked modification from both diff
+   collectors while never appearing as untracked. An exit-gated
+   `git ls-files -v` check now fails on any non-normal (`H`) index
+   tag; the current index is clean.
+2. **`.git` file copied into the "VCS-free" mirror** — this worktree's
+   `.git` is a 52-byte linked-worktree pointer file, and robocopy
+   `/XD` excludes directories only, so the mirror stayed VCS-connected
+   (K3's tar-based mirrors excluded it by name, which is why they
+   worked). The mirror copy now uses `/XF .git` as well and hard-gates
+   `Test-Path` for a `.git` in the mirror before running; verified
+   against the real robocopy: mirror is VCS-free and the checker
+   passes there.
+3. **Mirror cleanup not guaranteed on every failure path** — a
+   robocopy failure threw before `Remove-Item`, and the location
+   cmdlets lacked terminating-error handling. The whole mirror
+   lifecycle now runs in `try/finally` with the mirror removed even on
+   failure and the native exit preserved for the final throw.
+
+A fresh read-only `gpt-5.6-sol` (xHigh) closure review of that state
+returned `FAIL` with one finding, verified by K3 and remediated within
+the same two-file scope:
+
+1. **Command-resolution failures pass the exit gates** — a missing
+   `python` (or `git`/`cargo`) raises a non-terminating
+   `CommandNotFoundException` in PowerShell and never sets
+   `$LASTEXITCODE`, so the gates could pass without the checker ever
+   running (reproduced by the reviewer on PS 5.1 and 7.6). The block
+   now preflights `git`, `cargo`, and `python` — and `robocopy` on the
+   mirror fallback path — with `Get-Command -ErrorAction Stop`, making
+   resolution failure terminating before any gate runs.
+
+A fresh read-only `gpt-5.6-sol` (xHigh) closure review of that state
+returned `FAIL` with five findings, all verified by K3 and remediated
+within the same two-file scope:
+
+1. **Case-insensitive index-flag match** — `git ls-files -v` marks an
+   assume-unchanged entry with a lowercase tag, and PowerShell
+   `-match` folds case, so `'^[^H]'` missed it. The check now uses
+   `-cmatch`.
+2. **Preflight/invocation shadowing** — validating `python.exe` as an
+   Application did not stop a shadowing `function python` from being
+   what actually ran (reproduced on both shells). Every application is
+   now resolved once to its concrete path (`Get-Command ... .Source`)
+   and invoked by that path everywhere.
+3. **PS 7 native-exit promotion** — with
+   `$PSNativeCommandUseErrorActionPreference = $true` and
+   `ErrorActionPreference = 'Stop'`, a nonzero native exit throws
+   before the `$LASTEXITCODE` gates, and robocopy's success codes 1-7
+   would throw before the `-ge 8` threshold. The block now neutralizes
+   that preference for its duration and restores it afterwards.
+4. **Location restoration not guaranteed** — a terminating error after
+   `Push-Location` skipped `Pop-Location`, and cleanup then ran from
+   inside the mirror with its failure swallowed. The mirror lifecycle
+   now nests the push in its own `try/finally` (pop always runs) and
+   verifies cleanup explicitly, throwing if the mirror remains.
+5. **`.cmd` cargo shim invisible to Python** — a shim-resolved cargo
+   passed the preflight but `subprocess.run(["cargo"])` fails with
+   WinError 2 on Windows. The resolved cargo path is now handed to
+   both Python consumers through `CARGO` (the release checker honors
+   it natively; the tour gate reads it), and `CARGO` is restored on
+   exit.
+
+A fresh read-only `gpt-5.6-sol` (xHigh) closure review of that state
+returned `FAIL` with two findings, both verified by K3 and remediated
+within the same two-file scope:
+
+1. **Non-scalar application resolution** — with more than one matching
+   Application on PATH (for example an installed Python beside the
+   Windows App Execution Alias), `Get-Command ... .Source` returns an
+   array and the invocation fails (reproduced on both shells). All
+   four resolutions now take the first Application match in PATH
+   precedence via `(@(Microsoft.PowerShell.Core\Get-Command ...)[0]).Source`.
+2. **StrictMode-unsafe preference probe and mutation ordering** —
+   reading the PS 7-only preference variable throws under
+   `Set-StrictMode` on shells where it does not exist, and `CARGO`
+   was mutated before the protecting `try` began, so a throw there
+   would have left it changed. The probe now uses `Get-Variable
+   -ErrorAction SilentlyContinue`, `CARGO` is read and written through
+   the .NET environment API, every mutation happens inside `try`, and
+   both values are restored in `finally`.
+
+A fresh read-only `gpt-5.6-sol` (xHigh) closure review of that state
+returned `FAIL` with three findings, all verified by K3 and remediated
+within the same two-file scope:
+
+1. **Live `PSVariable` restore** — `Get-Variable` returns a live
+   object, so `$nativePref.Value` read at restore time was the
+   just-mutated `$false`, not the original value. The block now
+   captures the scalar value before mutating and restores that scalar.
+2. **Nearer-scope preference defeats the guard** — probing only the
+   global scope missed a function- or script-local
+   `$PSNativeCommandUseErrorActionPreference = $true`, which would
+   still promote native exits (including robocopy's success codes).
+   The block now sets a current-scope override after recording the
+   local variable's presence and scalar value, and in `finally`
+   restores the prior local value or removes the temporary override,
+   leaving outer scopes untouched.
+3. **Absent `CARGO` not deleted on PS 7** — .NET
+   `SetEnvironmentVariable(name, null, Process)` sets an empty string
+   rather than deleting on PS 7, leaving a present-but-empty `CARGO`
+   that would also defeat the Python fallback. The block now records
+   presence separately; when `CARGO` was absent it is explicitly
+   removed in `finally` with a verification check, and otherwise the
+   saved value is restored through the .NET API.
+
+### External review closure (final)
+
+A fresh read-only `gpt-5.6-sol` (xHigh) closure review of the fully
+remediated candidate returned `PASS` with no findings. It executed the
+complete state matrix on Windows PowerShell 5.1 and PowerShell 7.6,
+under `Set-StrictMode -Version Latest`: local/global/absent
+native-exit preference × set/absent `CARGO` × normal completion and
+injected mid-block throw — every case restored the exact prior state.
+Both shells' tour gates and the existing binary independently produced
+exactly 1917 stdout bytes with the pinned SHA-256; the mirror fallback
+passed from both ordinary and linked-worktree checkouts with cleanup
+verified; the case-sensitive exact-five path gate, index-flag
+rejection, and all prior remediations were verified landed. No further
+review rounds were run, per the stop rule of one genuine PASS.
+
 ## 17. Hostile cases
 
 The design note's hostile table is normative and agrees exactly with
@@ -749,65 +954,215 @@ ambient lookup; or editing any path outside the five-path allowlist.
 Run the following commands and verify explicit pass/fail gates:
 
 ```powershell
-# Standard checks (must pass)
-git diff --check
-cargo fmt --all --check
-cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo test --workspace --locked
-cargo test --doc --locked
+# Preflight: resolve each required application once to its concrete
+# path — the first Application match in PATH precedence, so multiple
+# installed matches cannot produce an uninvokable array. A
+# command-resolution failure is not a native exit and never sets
+# $LASTEXITCODE, so the exit gates below cannot catch it; resolving
+# once also prevents function/alias shadowing and bare-name shim
+# failures from substituting a different command.
+$gitExe = (@(Microsoft.PowerShell.Core\Get-Command git -CommandType Application -ErrorAction Stop)[0]).Source
+$cargoExe = (@(Microsoft.PowerShell.Core\Get-Command cargo -CommandType Application -ErrorAction Stop)[0]).Source
+$pythonExe = (@(Microsoft.PowerShell.Core\Get-Command python -CommandType Application -ErrorAction Stop)[0]).Source
 
-# Tour output invariant (hard gate: must be exactly 1917 bytes with pinned SHA-256)
-cargo run --locked --example tour -p magpie-claims > tour_output.txt
-if ((Get-Item tour_output.txt).Length -ne 1917) {
-    Write-Error "FAIL: Tour output is not exactly 1917 bytes"
-    exit 1
-}
-$tourHash = (Get-FileHash tour_output.txt -Algorithm SHA256).Hash.ToLower()
-if ($tourHash -ne "48427d488c501c577c4ba9cf8c44bd89e20b84df8e663dee2c7dc4dbf1e25c2f") {
-    Write-Error "FAIL: Tour output SHA-256 mismatch (expected 48427d488c501c577c4ba9cf8c44bd89e20b84df8e663dee2c7dc4dbf1e25c2f, got $tourHash)"
-    exit 1
-}
-Remove-Item tour_output.txt
+# CARGO is handed to the Python consumers (the release checker honors
+# it; the tour gate reads it) and restored on exit (or removed when it
+# was absent). Native-exit promotion (the PS 7+ opt-in preference) is
+# neutralized for the block by a current-scope override; the prior
+# value (or absence) is restored on exit. Reads use Get-Variable, the
+# .NET environment API, and scalar captures so the block stays safe
+# under Set-StrictMode and live-reference traps on every supported
+# shell.
+$prevCargoEnv = [System.Environment]::GetEnvironmentVariable("CARGO", "Process")
+$cargoEnvExisted = ($null -ne $prevCargoEnv)
+$nativePrefVar = Get-Variable -Name PSNativeCommandUseErrorActionPreference -Scope Local -ErrorAction SilentlyContinue
+$nativePrefExisted = ($null -ne $nativePrefVar)
+$nativePrefValue = if ($nativePrefExisted) { $nativePrefVar.Value } else { $null }
+try {
+    [System.Environment]::SetEnvironmentVariable("CARGO", $cargoExe, "Process")
+    $PSNativeCommandUseErrorActionPreference = $false
+    # Standard checks (must pass)
+    & $gitExe diff --check
+    if ($LASTEXITCODE -ne 0) { throw "git diff --check failed" }
+    & $cargoExe fmt --all --check
+    if ($LASTEXITCODE -ne 0) { throw "cargo fmt failed" }
+    & $cargoExe clippy --workspace --all-targets --locked -- -D warnings
+    if ($LASTEXITCODE -ne 0) { throw "cargo clippy failed" }
+    & $cargoExe test --workspace --locked
+    if ($LASTEXITCODE -ne 0) { throw "cargo test (workspace) failed" }
+    & $cargoExe test --doc --locked
+    if ($LASTEXITCODE -ne 0) { throw "cargo test (doc) failed" }
 
-# Release metadata (may fail on dirty worktree; if so, run in VCS-free mirror)
-python tools/check_release_metadata.py
-
-# Changed-path allowlist enforcement (hard gate: only the five exact paths may change)
-$allowlist = @(
-    "README.md",
-    "docs/design/claim-inline-subject-binding-v0.md",
-    "docs/design/claim-inline-sha256-predicate-v0.md",
-    "docs/design/standing-view-evidence-ceilings.md",
-    "tickets/0058-claim-inline-sha256-predicate-contract.md"
+    # Tour invariant — hard gate over the exact stdout bytes. The
+    # program reaches Python on stdin, never as a native argument, so
+    # no PowerShell-version argument marshalling can re-encode or
+    # mangle it; PowerShell redirection (>, Out-File, string variables)
+    # is likewise never used. Cargo diagnostics stay on stderr and are
+    # not part of the tour artifact. No temporary file is created.
+    @'
+import hashlib, os, subprocess, sys
+r = subprocess.run(
+    [os.environ.get("CARGO", "cargo"), "run", "--locked", "--example", "tour", "-p", "magpie-claims"],
+    stdout=subprocess.PIPE,
 )
+if r.returncode != 0:
+    sys.exit(f"FAIL: tour exited with code {r.returncode}")
+b = r.stdout
+h = hashlib.sha256(b).hexdigest()
+print(f"tour bytes: {len(b)}")
+print(f"tour sha256: {h}")
+if len(b) != 1917:
+    sys.exit(f"FAIL: expected 1917 tour bytes, got {len(b)}")
+if h != "48427d488c501c577c4ba9cf8c44bd89e20b84df8e663dee2c7dc4dbf1e25c2f":
+    sys.exit("FAIL: tour SHA-256 mismatch")
+'@ | & $pythonExe -
+    if ($LASTEXITCODE -ne 0) { throw "tour gate failed" }
 
-# Collect all changed/untracked paths (union of git status and git diff)
-$statusPaths = (git status --short | ForEach-Object { $_.Substring(3).Trim() })
-$diffPaths = (git diff --name-only)
-$allChanged = ($statusPaths + $diffPaths) | Sort-Object -Unique
+    # Release metadata — the direct check may refuse the intentionally
+    # dirty worktree; a refusal stops validation until the unchanged
+    # script passes in a temporary VCS-free mirror (removed afterwards,
+    # even on failure, with cleanup verified).
+    & $pythonExe tools/check_release_metadata.py
+    if ($LASTEXITCODE -ne 0) {
+        $mirror = Join-Path $env:TEMP ("magpie-relcheck-" + [guid]::NewGuid().ToString("N"))
+        $mirrorExit = 0
+        try {
+            $robocopyExe = (@(Microsoft.PowerShell.Core\Get-Command robocopy -CommandType Application -ErrorAction Stop)[0]).Source
+            & $robocopyExe . $mirror /MIR /XD .git target /XF .git | Out-Null
+            if ($LASTEXITCODE -ge 8) { throw "mirror copy failed (robocopy $LASTEXITCODE)" }
+            if (Test-Path -LiteralPath (Join-Path $mirror '.git')) {
+                throw "mirror is not VCS-free (.git present)"
+            }
+            Push-Location $mirror -ErrorAction Stop
+            try {
+                & $pythonExe tools/check_release_metadata.py
+                $mirrorExit = $LASTEXITCODE
+            }
+            finally {
+                Pop-Location -ErrorAction SilentlyContinue
+            }
+            if ($mirrorExit -ne 0) { throw "release-metadata mirror check failed ($mirrorExit)" }
+        }
+        finally {
+            Remove-Item -Recurse -Force $mirror -ErrorAction SilentlyContinue
+            if (Test-Path -LiteralPath $mirror) {
+                throw "mirror cleanup failed: $mirror still present"
+            }
+        }
+    }
 
-# Verify each changed path is in the allowlist
-foreach ($path in $allChanged) {
-    if ($path -notin $allowlist) {
-        Write-Error "FAIL: Unauthorized path changed: $path (only five allowlisted paths permitted)"
-        exit 1
+    # Changed-path allowlist — hard gate over committed and local
+    # changes. Union of: the committed PR diff against the exact base,
+    # unstaged tracked changes, staged changes, and untracked files.
+    # --no-renames exposes a rename as its old-path deletion plus
+    # new-path addition, so an out-of-allowlist source path cannot
+    # hide behind a rename. Index flags are rejected outright: an
+    # assume-unchanged or skip-worktree entry could hide a tracked
+    # modification from the diff collectors. Every collector is
+    # exit-checked before its output is used. Membership and equality
+    # comparisons are case-sensitive, matching Git's exact path bytes.
+    # Porcelain-free collection; `git status --short` is printed for
+    # review, never parsed.
+    $base = "67a87e01575a9e9930ba3dc1ec52b95f963b6136"
+    $allowlist = @(
+        "README.md",
+        "docs/design/claim-inline-subject-binding-v0.md",
+        "docs/design/claim-inline-sha256-predicate-v0.md",
+        "docs/design/standing-view-evidence-ceilings.md",
+        "tickets/0058-claim-inline-sha256-predicate-contract.md"
+    )
+    $committed = @(& $gitExe diff --name-only --no-renames "$base...HEAD")
+    if ($LASTEXITCODE -ne 0) { throw "git diff BASE...HEAD failed" }
+    $unstaged = @(& $gitExe diff --name-only --no-renames)
+    if ($LASTEXITCODE -ne 0) { throw "git diff failed" }
+    $staged = @(& $gitExe diff --cached --name-only --no-renames)
+    if ($LASTEXITCODE -ne 0) { throw "git diff --cached failed" }
+    $untracked = @(& $gitExe ls-files --others --exclude-standard)
+    if ($LASTEXITCODE -ne 0) { throw "git ls-files failed" }
+    $indexTags = @(& $gitExe ls-files -v)
+    if ($LASTEXITCODE -ne 0) { throw "git ls-files -v failed" }
+    $flagged = @($indexTags | Where-Object { $_ -cmatch '^[^H]' })
+    if ($flagged.Count -gt 0) {
+        throw "FAIL: assume-unchanged or skip-worktree index flags present — clear them before validating: $($flagged -join '; ')"
+    }
+    $all = @($committed) + @($unstaged) + @($staged) + @($untracked) |
+        ForEach-Object { $_ -replace '\\', '/' } |
+        Where-Object { $_ -ne "" } |
+        Sort-Object -CaseSensitive -Unique
+    $outside = @($all | Where-Object { $_ -cnotin $allowlist })
+    if ($outside.Count -gt 0) {
+        throw "FAIL: unauthorised changed path(s): $($outside -join ', ')"
+    }
+    $committedSorted = @($committed |
+        ForEach-Object { $_ -replace '\\', '/' } |
+        Where-Object { $_ -ne "" } |
+        Sort-Object -CaseSensitive -Unique)
+    $allowSorted = @($allowlist | Sort-Object -CaseSensitive)
+    if (($committedSorted -join "`n") -cne ($allowSorted -join "`n")) {
+        throw "FAIL: committed PR diff is not exactly the five allowlisted paths: $($committedSorted -join ', ')"
+    }
+
+    # Report for human review (not parsed)
+    & $gitExe status --short
+    if ($LASTEXITCODE -ne 0) { throw "git status failed" }
+    & $gitExe diff --name-only
+    if ($LASTEXITCODE -ne 0) { throw "git diff --name-only failed" }
+    & $gitExe diff --stat
+    if ($LASTEXITCODE -ne 0) { throw "git diff --stat failed" }
+}
+finally {
+    if ($cargoEnvExisted) {
+        [System.Environment]::SetEnvironmentVariable("CARGO", $prevCargoEnv, "Process")
+    } else {
+        Remove-Item Env:CARGO -ErrorAction SilentlyContinue
+        if (Test-Path Env:CARGO) { throw "CARGO restore failed" }
+    }
+    if ($nativePrefExisted) {
+        $PSNativeCommandUseErrorActionPreference = $nativePrefValue
+    } else {
+        Remove-Variable -Name PSNativeCommandUseErrorActionPreference -Scope Local -ErrorAction SilentlyContinue
     }
 }
-
-# Report for review
-git status --short
-git diff --name-only
-git diff --stat
 ```
 
 Because this change is documentation-only, cargo outputs must remain
-identical to the exact base. Validation passes only if: all standard
-checks succeed, the tour output is exactly 1917 bytes with SHA-256
-`48427d488c501c577c4ba9cf8c44bd89e20b84df8e663dee2c7dc4dbf1e25c2f`,
-and all changed paths are exactly within the five-path allowlist. The
-release-metadata checker may refuse the intentionally dirty worktree;
-the unchanged script is then run in a temporary VCS-free mirror. No
-`--allow-dirty`. No golden or fixture regeneration.
+identical to the exact base `67a87e01575a9e9930ba3dc1ec52b95f963b6136`.
+Required applications (`git`, `cargo`, `python`, and `robocopy` on the
+mirror fallback path) are resolved once to their first concrete
+Application path with terminating checks and invoked by that path: a
+command-resolution failure never sets `$LASTEXITCODE`, multiple
+installed matches cannot produce an uninvokable array, and a function
+or alias shadow cannot substitute a different command. Native-exit
+promotion (the PS 7+ opt-in preference) is neutralized for the block
+by a current-scope override — probed and restored (or removed) safely
+under `Set-StrictMode` — so interpreted exit codes always reach the
+gates. Every native command in the block is followed by an immediate
+exit-code check, so no failed check can be overwritten silently by a
+later success. The tour gate captures the executable's exact stdout
+bytes through Python's binary `subprocess` interface, with the checker
+program delivered to Python on standard input — never as a native
+argument, whose quoting rules differ across PowerShell versions, and
+never through PowerShell redirection or a string variable, which can
+re-encode output — and requires exactly 1917 bytes with SHA-256
+`48427d488c501c577c4ba9cf8c44bd89e20b84df8e663dee2c7dc4dbf1e25c2f`;
+it prints the actual byte length and digest on success and creates no
+temporary file, so nothing is left behind on success or failure. The
+changed-path gate collects the committed PR diff against the exact
+base plus staged, unstaged, and untracked local paths with rename
+detection disabled, so an out-of-allowlist source path cannot hide
+behind a rename, and rejects assume-unchanged and skip-worktree index
+flags outright, so a tracked modification cannot hide behind a flag;
+membership and equality comparisons are
+case-sensitive, matching Git's exact path bytes. It requires every
+changed path to be inside the five-path allowlist and requires the
+committed PR diff to be exactly those five paths, so a clean committed
+branch cannot pass vacuously and a missing authorised file cannot pass
+silently. Any violated invariant stops validation immediately and
+reports the actual offending value. The release-metadata checker may
+refuse the intentionally dirty worktree; validation then stops until
+the unchanged script passes in a temporary VCS-free mirror, which is
+removed afterwards even on failure. No `--allow-dirty`. No golden or
+fixture regeneration.
 
 ## 23. Publication authority
 
