@@ -830,6 +830,23 @@ verified; the case-sensitive exact-five path gate, index-flag
 rejection, and all prior remediations were verified landed. No further
 review rounds were run, per the stop rule of one genuine PASS.
 
+### External review remediation (CodeRabbit, second round)
+
+Two further CodeRabbit findings on the published head were verified as
+valid and remediated surgically:
+
+1. **Whitespace coverage** — the block invoked only the unstaged
+   worktree form of `git diff --check`. The pinned `$base` is now
+   declared once, early, and the standard checks run three
+   hard-failing invocations: the exact pinned base tree against
+   `HEAD`, the staged index, and the unstaged worktree, each with its
+   own native-exit check.
+2. **Merge-base range** — the committed changed-path collector used
+   the three-dot `"$base...HEAD"` form, which diffs from the merge
+   base rather than the exact pinned tree. It now uses a direct
+   two-tree comparison `$base HEAD --`, with the duplicate later
+   `$base` declaration removed.
+
 ## 17. Hostile cases
 
 The design note's hostile table is normative and agrees exactly with
@@ -965,6 +982,10 @@ $gitExe = (@(Microsoft.PowerShell.Core\Get-Command git -CommandType Application 
 $cargoExe = (@(Microsoft.PowerShell.Core\Get-Command cargo -CommandType Application -ErrorAction Stop)[0]).Source
 $pythonExe = (@(Microsoft.PowerShell.Core\Get-Command python -CommandType Application -ErrorAction Stop)[0]).Source
 
+# The exact pinned base, declared once and used by both the whitespace
+# checks and the changed-path collectors below.
+$base = "67a87e01575a9e9930ba3dc1ec52b95f963b6136"
+
 # CARGO is handed to the Python consumers (the release checker honors
 # it; the tour gate reads it) and restored on exit (or removed when it
 # was absent). Native-exit promotion (the PS 7+ opt-in preference) is
@@ -981,7 +1002,13 @@ $nativePrefValue = if ($nativePrefExisted) { $nativePrefVar.Value } else { $null
 try {
     [System.Environment]::SetEnvironmentVariable("CARGO", $cargoExe, "Process")
     $PSNativeCommandUseErrorActionPreference = $false
-    # Standard checks (must pass)
+    # Standard checks (must pass): whitespace coverage across the exact
+    # pinned base tree vs HEAD, the staged index, and the unstaged
+    # worktree, then format, lint, and tests.
+    & $gitExe diff --check $base HEAD --
+    if ($LASTEXITCODE -ne 0) { throw "git diff BASE HEAD --check failed" }
+    & $gitExe diff --cached --check
+    if ($LASTEXITCODE -ne 0) { throw "git diff --cached --check failed" }
     & $gitExe diff --check
     if ($LASTEXITCODE -ne 0) { throw "git diff --check failed" }
     & $cargoExe fmt --all --check
@@ -1052,7 +1079,8 @@ if h != "48427d488c501c577c4ba9cf8c44bd89e20b84df8e663dee2c7dc4dbf1e25c2f":
     }
 
     # Changed-path allowlist — hard gate over committed and local
-    # changes. Union of: the committed PR diff against the exact base,
+    # changes. Union of: the committed PR diff against the exact pinned
+    # base (direct two-tree comparison, never a merge-base range),
     # unstaged tracked changes, staged changes, and untracked files.
     # --no-renames exposes a rename as its old-path deletion plus
     # new-path addition, so an out-of-allowlist source path cannot
@@ -1063,7 +1091,6 @@ if h != "48427d488c501c577c4ba9cf8c44bd89e20b84df8e663dee2c7dc4dbf1e25c2f":
     # comparisons are case-sensitive, matching Git's exact path bytes.
     # Porcelain-free collection; `git status --short` is printed for
     # review, never parsed.
-    $base = "67a87e01575a9e9930ba3dc1ec52b95f963b6136"
     $allowlist = @(
         "README.md",
         "docs/design/claim-inline-subject-binding-v0.md",
@@ -1071,8 +1098,8 @@ if h != "48427d488c501c577c4ba9cf8c44bd89e20b84df8e663dee2c7dc4dbf1e25c2f":
         "docs/design/standing-view-evidence-ceilings.md",
         "tickets/0058-claim-inline-sha256-predicate-contract.md"
     )
-    $committed = @(& $gitExe diff --name-only --no-renames "$base...HEAD")
-    if ($LASTEXITCODE -ne 0) { throw "git diff BASE...HEAD failed" }
+    $committed = @(& $gitExe diff --name-only --no-renames $base HEAD --)
+    if ($LASTEXITCODE -ne 0) { throw "git diff BASE HEAD failed" }
     $unstaged = @(& $gitExe diff --name-only --no-renames)
     if ($LASTEXITCODE -ne 0) { throw "git diff failed" }
     $staged = @(& $gitExe diff --cached --name-only --no-renames)
