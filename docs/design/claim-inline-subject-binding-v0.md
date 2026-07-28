@@ -12,7 +12,12 @@ mechanism:
 claim-owned inline immutable subject bytes — ratified as the one
 concrete subject representation
 
-predicates, policies, standing rules, refutation:
+predicates:
+none ratified by this contract; the neutral claim-inline SHA-256
+predicate sha256_claim_inline_bytes_equals_v0 is ratified separately
+by Ticket 0058 over this substrate
+
+policies, standing rules, refutation:
 none ratified
 
 runtime:
@@ -517,7 +522,12 @@ mirror. No `--allow-dirty`.
 
 ## Next slice
 
-The next separately reviewed slice is a predicate contract over this
-mechanism (positive and/or negative deterministic evaluation of
-inline-subject claims), followed only later by any direct-refutation
-contract. This contract ratifies none of those.
+The predicate contract over this mechanism — one neutral, standing-inert
+claim-inline SHA-256 predicate (`sha256_claim_inline_bytes_equals_v0`,
+outcomes `DigestEqual` / `DigestUnequal` / `ResolutionFailed`) — is
+ratified separately by Ticket 0058
+([`claim-inline-sha256-predicate-v0.md`](claim-inline-sha256-predicate-v0.md)).
+The next separately reviewed slice after it is a routing-only
+attestation-binding contract, followed only later by support/refutation
+lane contracts and any direct-refutation contract. This contract
+ratifies none of those.

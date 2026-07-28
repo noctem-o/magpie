@@ -497,10 +497,48 @@ shell execution is unavailable.
     on byte-bearing evidence is stated. No predicate, policy,
     standing rule, refutation, resolver, or runtime is ratified; the
     external acquired-object and replay-owned subject forms are
-    recorded as unratified future extensions. A predicate contract over
-    inline-subject claims is the next slice; direct refutation,
+    recorded as unratified future extensions. The predicate contract
+    over inline-subject claims follows as entry 28; direct refutation,
     contradiction debt, invalidation, supersession/currentness,
     `EpistemicGate`, ordinary claim-bearing writer, loader, CAS, and
     filesystem or network ingestion remain future work.
+28. **Claim-inline SHA-256 predicate v0 — contract ratified by Ticket
+    0058.**
+    [`docs/design/claim-inline-sha256-predicate-v0.md`](docs/design/claim-inline-sha256-predicate-v0.md)
+    and [Ticket 0058](tickets/0058-claim-inline-sha256-predicate-contract.md)
+    ratify one neutral, standing-inert predicate over the Ticket 0057
+    claim-inline subject-binding substrate: the exact proposition
+    `SHA-256(exact decoded claim-owned inline subject bytes) == the
+    exact claim-owned expected_sha256 value`, evaluated only on subject
+    bytes resolved from the exact replayed claim under Ticket 0057's
+    law — never from evidence, edges, callers, closures, or audit
+    values. The predicate identity `sha256_claim_inline_bytes_equals_v0`
+    is new and contracted to be compiled into the future evaluator;
+    `sha256_bytes_equals_v0` and the v0 family keep their
+    evidence-local meaning, with the versioning boundary fail-closed
+    in both directions. The contracted future evaluation hangs on the
+    same verified `StandingReplaySnapshot` and takes only a claim ID: strict outer-envelope and descriptor parsing, compiled
+    predicate-identity equality, descriptor-derived canonical
+    statement, exact three-way direct statement binding, separate
+    content-hash recomputation, and bounded claim-only subject decode
+    precede the terminal 32-byte digest comparison. The closed neutral
+    outcome vocabulary is `DigestEqual(receipt)`,
+    `DigestUnequal(receipt)`, and `ResolutionFailed(reason)`:
+    `DigestEqual` is not `Supported` or `Settled`, `DigestUnequal` is
+    not `Refuted`, and every parse, binding, or decode failure is
+    `ResolutionFailed`, never a negative result — the Ticket 0056
+    arbitrary-byte attack yields `DigestEqual` for the true claim
+    because evidence and edges are never evaluator inputs. The
+    private-construction receipt carries exactly eight audit fields
+    (predicate schema and identity, claim ID, scope, canonical
+    statement, claim content hash, expected and computed SHA-256) and
+    asserts no verified-prefix provenance. No standing policy, support
+    or refutation rule, evidence attestation schema, or edge-polarity
+    meaning is ratified; a routing-only attestation-binding contract is
+    the next slice, then support/refutation lane contracts, then any
+    direct-refutation runtime. Contradiction debt, invalidation,
+    supersession/currentness, `EpistemicGate`, ordinary claim-bearing
+    writer, loader, CAS, and filesystem or network ingestion remain
+    future work.
 
 Conserve the log. Derive the rest.
