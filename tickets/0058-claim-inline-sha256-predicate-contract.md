@@ -182,7 +182,8 @@ The authority-bearing outcome is an opaque public struct
 `Sha256ClaimInlineBytesPredicateOutcomeV0` with a private
 representation and no public constructor, no struct- or tuple-literal
 construction, no `Deserialize`, no `Default`, no `From`/`TryFrom`, and
-no public mutation. Its only public accessors are read-only borrows:
+no public mutation. Its only public semantic inspection accessors are
+read-only:
 `kind()`, `receipt() -> Option<&Sha256ClaimInlineBytesPredicateReceiptV0>`,
 and `failure() -> Option<&ClaimInlineSubjectResolutionFailureV0>`. An
 outcome of kind `DigestEqual` or `DigestUnequal` carries exactly one
@@ -193,11 +194,143 @@ between outcomes, deserialize, default, mutate, or re-present an
 outcome as authority. The fieldless kind enum and the closed failure
 enum are caller-constructible classification vocabulary only: they
 carry no receipt, cannot be converted into an outcome, and are never
-accepted as authority. Serialization is deterministic and one-way,
-preserving the wire tags `DigestEqual`, `DigestUnequal`, and
-`ResolutionFailed` through the private representation; cloning or
-serializing any legitimately obtained value yields audit material
-only.
+accepted as authority. Serialization is deterministic and one-way
+through the exact canonical profile below. The future `Serialize`
+implementation borrows the outcome and emits audit material only;
+cloning or serializing any legitimately obtained value never creates an
+authority input.
+
+### Canonical outcome audit JSON v0
+
+The canonicalization profile is exactly
+`magpie-claim-inline-sha256-predicate-outcome-json-v0`. It is a
+compiled future encoder identity, not a ninth receipt field. The
+authority-bearing opaque outcome remains privately represented; a
+private fixed-field wire view emits its audit bytes directly with
+`serde_json::to_vec`, following Magpie's existing purpose-built derived
+audit convention.
+
+This deliberately reuses the exact `outcome` / `details` adjacent
+tagging and direct typed `serde_json::to_vec` convention of the
+origin-admission and admitted-contribution audits. Unlike a unit
+variant, each outcome here has an explicit `details` payload: a receipt
+for either terminal relation or a reason for resolution failure.
+
+The bytes are one compact UTF-8 JSON object with exact adjacent tagging:
+
+```text
+DigestEqual:
+{"outcome":"digest_equal","details":{"receipt":{RECEIPT}}}
+
+DigestUnequal:
+{"outcome":"digest_unequal","details":{"receipt":{RECEIPT}}}
+
+ResolutionFailed:
+{"outcome":"resolution_failed","details":{"reason":"FAILURE"}}
+```
+
+The outer key order is always `outcome`, then `details`. `outcome` is exactly one of
+`digest_equal`, `digest_unequal`, or `resolution_failed`.
+
+For `digest_equal` and `digest_unequal`, `details` contains exactly one
+key, `receipt`. The receipt is an object whose eight keys and JSON
+string values appear in this exact order:
+
+```text
+predicate_schema
+predicate_id
+claim_id
+scope_ref
+canonical_statement
+claim_content_hash
+expected_sha256
+computed_sha256
+```
+
+For `resolution_failed`, `details` contains exactly one key, `reason`,
+whose JSON string is the exact snake-case encoding paired with the
+closed failure vocabulary:
+
+```text
+MissingClaim                         -> "missing_claim"
+MissingTypedClaim                    -> "missing_typed_claim"
+MalformedMetadata                    -> "malformed_metadata"
+MissingClaimDomain                   -> "missing_claim_domain"
+WrongTypeClaimDomain                 -> "wrong_type_claim_domain"
+DuplicateClaimMetadataKey            -> "duplicate_claim_metadata_key"
+UnknownClaimDomain                   -> "unknown_claim_domain"
+ClaimDomainMismatch                  -> "claim_domain_mismatch"
+UnknownClaimMetadataKey              -> "unknown_claim_metadata_key"
+MissingInlineSubjectDescriptor       -> "missing_inline_subject_descriptor"
+WrongTypeInlineSubjectDescriptor     -> "wrong_type_inline_subject_descriptor"
+DuplicateDescriptorKey               -> "duplicate_descriptor_key"
+UnknownDescriptorKey                 -> "unknown_descriptor_key"
+MissingSchema                        -> "missing_schema"
+WrongTypeSchema                      -> "wrong_type_schema"
+UnknownSchema                        -> "unknown_schema"
+MissingPredicateId                   -> "missing_predicate_id"
+WrongTypePredicateId                 -> "wrong_type_predicate_id"
+EmptyPredicateId                     -> "empty_predicate_id"
+PredicateIdTooLong                   -> "predicate_id_too_long"
+InvalidPredicateId                   -> "invalid_predicate_id"
+UnknownPredicateId                   -> "unknown_predicate_id"
+MissingExpectedSha256                -> "missing_expected_sha256"
+WrongTypeExpectedSha256              -> "wrong_type_expected_sha256"
+InvalidExpectedSha256                -> "invalid_expected_sha256"
+MissingSubjectHex                    -> "missing_subject_hex"
+WrongTypeSubjectHex                  -> "wrong_type_subject_hex"
+SubjectHexTooLong                    -> "subject_hex_too_long"
+InvalidSubjectHex                    -> "invalid_subject_hex"
+StatementBindingMismatch             -> "statement_binding_mismatch"
+MissingClaimContentHash              -> "missing_claim_content_hash"
+ClaimContentHashMismatch             -> "claim_content_hash_mismatch"
+DecodedSubjectTooLarge               -> "decoded_subject_too_large"
+```
+
+There is no optional or omitted-field ambiguity. Both outer keys are
+always present. A terminal outcome has `receipt` and never `reason`; a
+resolution failure has `reason` and never `receipt`. No field is
+`null`, no extra key is permitted, and no other key or declaration
+order is canonical.
+
+The encoder law is exact: fixed object-field declaration order; compact
+UTF-8 JSON; `"` and `\` escaped as `\"` and `\\`; the short escapes
+`\b`, `\t`, `\n`, `\f`, and `\r`; lowercase `\u00xx` for every other
+U+0000-U+001F control; direct UTF-8 for every other Unicode scalar; no
+Unicode normalization; no escaped `/`; no insignificant whitespace,
+BOM, or trailing newline. The encoder serializes the private typed wire
+view directly and never passes through `serde_json::Value`, a map, JCS,
+RFC 8785, a generic canonical-JSON registry, or Magpie L0.
+
+The following three one-line code-block contents are the complete
+canonical byte vectors; the Markdown line ending after each is not part
+of the vector.
+
+`DigestEqual` — 639 bytes, SHA-256
+`d0c6a0f771600c34aad02264f722f915bb9093ac28c4489d1369585c402a6f5a`:
+
+```json
+{"outcome":"digest_equal","details":{"receipt":{"predicate_schema":"magpie-machine-predicate-inline-bytes-v0","predicate_id":"sha256_claim_inline_bytes_equals_v0","claim_id":"claim-c","scope_ref":"scope-s","canonical_statement":"magpie-machine-predicate-inline-bytes-v0:sha256_claim_inline_bytes_equals_v0:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad:616263","claim_content_hash":"aa1b8f1c339bc8e53c7db9d432e85073cc1495284279ba1b2474b74d26381223","expected_sha256":"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad","computed_sha256":"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"}}}
+```
+
+`DigestUnequal` — 641 bytes, SHA-256
+`cced955ed7822888e3d2e0a3f91263ec905d2c629d5649003eaabd3360f81291`:
+
+```json
+{"outcome":"digest_unequal","details":{"receipt":{"predicate_schema":"magpie-machine-predicate-inline-bytes-v0","predicate_id":"sha256_claim_inline_bytes_equals_v0","claim_id":"claim-c","scope_ref":"scope-s","canonical_statement":"magpie-machine-predicate-inline-bytes-v0:sha256_claim_inline_bytes_equals_v0:0000000000000000000000000000000000000000000000000000000000000000:616263","claim_content_hash":"1d5c96e14bb5116ef1dcf2481fac95a8b134cfc7434dc6054e69f919ca15ff93","expected_sha256":"0000000000000000000000000000000000000000000000000000000000000000","computed_sha256":"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"}}}
+```
+
+`ResolutionFailed(MissingClaim)` — 68 bytes, SHA-256
+`5c028ec1c0ca7364a17cca284cf8f136bd5038f9baf430c04f0b8b553f07d351`:
+
+```json
+{"outcome":"resolution_failed","details":{"reason":"missing_claim"}}
+```
+
+Future compatibility tests must pin all three literal vectors, their
+lengths and SHA-256 values, every failure string, receipt field order,
+and escaping edge cases. Any byte change requires a new
+canonicalization-profile identity; the v0 bytes may not drift.
 
 The candidate labels `Satisfied` / `Unsatisfied` were audited and
 rejected: they sit one morpheme from the withdrawn Ticket 0056
@@ -312,23 +445,32 @@ equal outcomes and byte-identical serialized audit output.
    decoded values; raw token bytes are not identity.
 3. Strictly parse the nested descriptor in Ticket 0057's ratified
    resolution order: schema; `predicate_id` (missing, wrong-type,
-   empty, then beyond the compiled 64-byte bound — enforced while
-   reading and unescaping the token, before the oversized identifier
-   is fully heap-materialised, before character validation, and before
-   statement construction — then outside `[a-z0-9_]+`, then
+   empty, then beyond the compiled 64-byte bound — decided by a
+   borrowed count-only unescape preflight that accumulates no complete
+   or partial copied identifier and rejects decoded byte 65 before any
+   identifier allocation or copy, character validation, or statement
+   construction — then outside `[a-z0-9_]+`, then
    byte-unequal to the compiled identity); `expected_sha256`
    (missing, wrong-type, then not exactly 64 lowercase hexadecimal
    characters — no prefix, no uppercase, no whitespace — validated
    before canonical statement construction); `subject_hex` (missing,
    wrong-type, then beyond 8192 encoded characters — rejected before
    decoding — then odd-length, uppercase, or non-hex). This requires a
-   purpose-built bounded borrowing/streaming inline-descriptor parser.
+   purpose-built borrowed two-pass inline-descriptor parser, or an
+   equivalent count-only preflight.
    The existing strict claim-domain parser may be reused for the outer
    `claim_domain`, and its duplicate/unknown-key structural pattern may
    be reused, but its allocating generic descriptor-string value path
-   must not be reused for these fields. No unbounded intermediate
-   `predicate_id` representation is permitted; bounded structural state
-   and allocation of accepted, already-bounded values remain permitted.
+   must not be reused for the inline descriptor's resource-sensitive
+   string fields. The first pass inspects and logically unescapes the
+   borrowed `predicate_id` token only to count decoded UTF-8 bytes; it
+   copies no identifier prefix. Only after the bound succeeds may a
+   second pass decode, copy, or allocate the accepted bounded
+   identifier, followed by character validation and statement
+   construction. Escaped JSON and multibyte UTF-8 are counted by
+   decoded bytes; duplicate detection remains post-unescape. Unrelated
+   bounded parser bookkeeping is outside the predicate-identifier
+   allocation-or-copy law.
 4. Derive the canonical statement and require exact three-way
    statement equality by direct byte comparison —
    `StandingClaim.statement == TypedClaimNode.statement ==
@@ -416,7 +558,10 @@ bytes into generic caller-owned data confers no authority. The internal
 decoded-subject value is private, consumed in the same call, and never
 published as a second authority source. Existing v0-v3
 standing-resolution types keep their frozen public fields and APIs;
-caller constructibility never confers authority.
+caller constructibility never confers authority. Canonical outcome
+bytes are exclusively the exact adjacent-tagged compact UTF-8 JSON
+profile and three pinned vectors in §7; generic serialization with any
+other serializer or presentation is not canonical.
 
 ## 13. Versioning boundary and compatibility invariants
 
@@ -924,7 +1069,9 @@ verified all six groups valid; all seven threads are remediated:
    the closed failure enum are caller-constructible classification
    vocabulary only — they carry no receipt, cannot convert into an
    outcome, and are never accepted as authority. Serialization stays
-   deterministic and one-way with the frozen wire tags.
+   deterministic and one-way under the exact adjacent-tagged canonical
+   profile, failure strings, field order, encoder law, and pinned
+   vectors in §7.
 2. **Descriptor precedence** — the failure enum had `subject_hex`
    checks before `expected_sha256`, contradicting Ticket 0057's
    ratified resolver procedure (schema → predicate_id →
@@ -936,17 +1083,17 @@ verified all six groups valid; all seven threads are remediated:
 3. **Pre-allocation bound** — the contract required
    `PredicateIdTooLong` before allocation while permitting exact reuse
    of the allocating existing descriptor machinery; both could not
-   hold. The law is now precise: the decoded UTF-8 byte bound is
-   enforced by a purpose-built bounded borrowing/streaming descriptor
-   parser while reading and unescaping the token; decoded byte 65 is
-   rejected before the complete oversized identifier exists, and no
-   unbounded intermediate identifier representation is permitted. The
-   existing claim-domain parser may be reused for the outer
-   `claim_domain` and the structural duplicate/unknown-key pattern may
-   be reused, but the allocating generic descriptor-string value path
-   is not sufficient for this family's resource-sensitive fields.
-   Bounded structural allocation and allocation of accepted,
-   already-bounded values are explicitly permitted.
+   hold. The final law preserves Ticket 0057 unchanged and makes the
+   Ticket 0058 implementation path explicit: a borrowed first pass
+   logically unescapes and counts decoded UTF-8 bytes without copying
+   any complete or partial identifier; decoded byte 65 rejects; only
+   after success may a second pass decode, copy, or allocate the
+   accepted bounded identifier, followed by character validation and
+   statement construction. The existing claim-domain parser and
+   structural duplicate/unknown-key pattern may be reused, but the
+   allocating generic descriptor-string value path is not sufficient
+   for this family's resource-sensitive fields. Unrelated bounded
+   parser bookkeeping is outside the identifier law.
 4. **Operand terminology** — `expected_sha256` was described as
    committing to the subject bytes, false for every well-formed
    `DigestUnequal` claim. It is now defined everywhere as the
@@ -968,6 +1115,36 @@ verified all six groups valid; all seven threads are remediated:
    comparison. It now carries the identical hardened block as this
    ticket: one early `$base`, three whitespace checks (base-vs-HEAD,
    staged, unstaged), and the direct two-tree collector.
+
+### External review remediation (post-`e9fa2bf`, three findings)
+
+Three fresh review findings on `e9fa2bf` were adjudicated as valid and
+remediated without widening the five-path documentation boundary:
+
+1. **Ticket 0057 law restoration** — the subject-binding design note had
+   been changed from its ratified before-allocation-or-copy law to a
+   weaker streaming formulation. Every resource-law change in that
+   prerequisite note is restored to its pre-remediation meaning. Ticket
+   0058 now owns the implementable mechanism: a borrowed count-only
+   unescape pass copies no complete or partial identifier, decoded byte
+   65 rejects, and only a successful bound decision permits a second
+   pass to decode/copy/allocate the accepted identifier before character
+   validation and statement construction.
+2. **Canonical outcome serialization** — the former tag-only promise
+   left several byte encodings possible. Both contract documents now
+   freeze the exact
+   `magpie-claim-inline-sha256-predicate-outcome-json-v0` adjacent-tagged
+   compact UTF-8 JSON profile, all key and field orders, all 33 failure
+   strings, the escaping law, absence rules, and three literal vectors:
+   639-byte `DigestEqual`, 641-byte `DigestUnequal`, and 68-byte
+   `ResolutionFailed(MissingClaim)`.
+3. **Evaluator-slice scope** — the implementation boundary now opens
+   with one complete permitted-scope list covering the bounded parser,
+   same-snapshot resolution, snapshot-only method, opaque
+   outcome/receipt types, closed failures, canonical audit JSON, hostile
+   and compatibility tests, and documentation. The existing
+   attestation, polarity, standing, support, refutation, and
+   contradiction exclusions remain unchanged.
 
 ## 17. Hostile cases
 
@@ -1045,6 +1222,14 @@ content hash `aa1b8f1c339bc8e53c7db9d432e85073cc1495284279ba1b2474b74d26381223`:
 21. **Resolver mixing claim tables across snapshots** — impossible by
     construction; one `&self` snapshot re-fetches both tables
     internally.
+22. **Alternate outcome tagging or payload shape** — external or
+    internal tags, `receipt` beside `outcome`, reversed keys, omitted
+    `details`, `null`, or any extra key are noncanonical; only the exact
+    adjacent `outcome` / `details` profile is v0.
+23. **Alternate JSON spelling** — pretty printing, trailing newline,
+    Unicode normalization, escaped `/`, uppercase `\u00XX`, or a
+    non-short control escape where the profile fixes a short escape is
+    noncanonical and must differ from the pinned byte hashes.
 
 ## 18. Frozen surfaces
 
@@ -1068,12 +1253,13 @@ CAS, filesystem or network ingestion, model integration, librarian,
 Deadbolt change, or production trust claim. The predicate evaluator and
 the subject resolver are not implemented in this slice. Contract and
 runtime are never combined. The predicate evaluator implementation is
-the immediate next separately reviewed slice. Its functional scope is
-only: the purpose-built bounded borrowing/streaming strict descriptor
-parser; exact same-snapshot claim resolution; opaque outcome and
-receipt surfaces plus the closed failure vocabulary; neutral digest
-comparison; deterministic audit serialization; and hostile and
-compatibility tests.
+the immediate next separately reviewed slice. Its complete permitted
+scope is only: the borrowed two-pass or equivalent count-only bounded
+inline parser; exact same-snapshot claim resolution; the snapshot-only
+evaluator method; opaque outcome and receipt types; the closed failure
+vocabulary; neutral digest comparison; the exact canonical outcome
+audit JSON profile; hostile and compatibility tests; and
+documentation.
 It may add no attestation, evidence-kind assumption, edge polarity,
 support, refutation, standing, or contradiction handling.
 
@@ -1365,11 +1551,20 @@ user retains sole publication, readiness, and merge authority.
    standing/policy/evidence/edge/polarity field.
 7. Private-construction doctrine holds; serialized values are audit
    material only.
-8. The versioning boundary is fail-closed in both directions; hybrids
+8. The exact adjacent `outcome` / `details` canonical profile,
+   lowercase tags, terminal payload shapes, receipt field order, all
+   33 failure strings, escaping law, and three literal vector
+   lengths/hashes are pinned; no alternate representation is canonical.
+9. Ticket 0057's resource law remains unamended: the bound precedes
+   identifier allocation or copy. Ticket 0058's borrowed count-only
+   first pass copies no complete or partial identifier, rejects decoded
+   byte 65, and permits accepted-value decoding/copy/allocation only in
+   the second pass.
+10. The versioning boundary is fail-closed in both directions; hybrids
    fail `UnknownSchema` or `UnknownPredicateId`.
-9. The Ticket 0056 arbitrary-byte attack is answered by construction
+11. The Ticket 0056 arbitrary-byte attack is answered by construction
    and reproduced as the central hostile case.
-10. The attestation deferral states exactly: inherited from Ticket
+12. The attestation deferral states exactly: inherited from Ticket
     0057 — the four routing/binding fields (`schema`, `predicate_id`,
     `subject_claim_id`, `scope_ref`), `predicate_id` equal to the
     validated claim predicate identity, no alternate subject byte
@@ -1381,5 +1576,8 @@ user retains sole publication, readiness, and merge authority.
     kind. No attestation schema or edge-polarity meaning is ratified;
     the sequence and do-not-bundle law are stated; the aggregation note
     is untouched and its staleness is recorded as deferred.
-11. The ticket and the design note agree exactly.
-12. Every reported validation actually ran.
+13. The evaluator boundary has one complete permitted-scope list and
+    retains every attestation, polarity, support, refutation, standing,
+    and contradiction exclusion.
+14. The ticket and the design note agree exactly.
+15. Every reported validation actually ran.

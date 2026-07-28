@@ -173,16 +173,11 @@ MAX_PREDICATE_ID_BYTES_V0 = 64 bytes
 ```
 
 The bound is checked after the missing, wrong-type, and empty checks,
-by decoded UTF-8 byte length while the token is read and unescaped.
-Decoded byte 65 is rejected before character validation or canonical
-statement construction, without first materialising a complete
-oversized owned identifier or retaining an unbounded intermediate
-representation. Bounded structural parser state and allocation of an
-accepted, already-bounded value are permitted. The longest current
-policy and predicate identifiers are about 35 characters
-(`sha256_bytes_equals_v0` is 21; `magpie-claims-standing-v3` is 25);
-64 bytes gives comfortable headroom while keeping the value compiled
-and checked, never caller-unbounded.
+and before character validation, canonical statement construction, or
+any allocation or copy. The longest current policy and predicate
+identifiers are about 35 characters (`sha256_bytes_equals_v0` is 21;
+`magpie-claims-standing-v3` is 25); 64 bytes gives comfortable headroom
+while keeping the value compiled and checked, never caller-unbounded.
 
 Each schema version fixes its own field set, subject encoding, and
 resource bound; the schema constant names that complete profile, so no
@@ -282,10 +277,8 @@ way:
    duplicate or unknown nested key, missing or wrong-typed field,
    unknown schema, missing/wrong-typed/empty `predicate_id`,
    `predicate_id` beyond the compiled
-   `MAX_PREDICATE_ID_BYTES_V0 = 64` bound — enforced by decoded UTF-8
-   byte length while reading and unescaping, with decoded byte 65
-   rejected before character validation or statement construction and
-   before a complete oversized owned identifier exists —
+   `MAX_PREDICATE_ID_BYTES_V0 = 64` bound — checked before character
+   validation, statement construction, or allocation —
    `predicate_id` characters outside closed `[a-z0-9_]+`,
    `expected_sha256` missing, wrong-typed, or not exactly 64 lowercase
    hexadecimal characters — no prefix, no uppercase, no whitespace —
@@ -325,10 +318,8 @@ standing.
   any other byte-carrying field. The `predicate_id` in that schema is
   the already validated claim predicate identity: closed `[a-z0-9_]+`,
   bounded by the compiled `MAX_PREDICATE_ID_BYTES_V0 = 64` constant,
-  checked after missing/wrong-type/empty by decoded UTF-8 byte length
-  while reading and unescaping; decoded byte 65 is rejected before
-  character validation or canonical statement construction and before
-  a complete oversized owned identifier exists. This
+  checked after missing/wrong-type/empty and before character
+  validation, canonical statement construction, or allocation. This
   contract defines only that boundary; it ratifies no attestation
   schema and no global restriction on byte-bearing evidence.
 - No caller-provided claim bytes, metadata, subject, receipt, or
@@ -426,7 +417,7 @@ The following later layers become possible over this mechanism but are
 | claim metadata with duplicate keys | closed parse failure; no standing effect |
 | claim metadata with unknown keys or unknown schema | closed parse failure |
 | descriptor fields placed at the outer metadata level | closed parse failure — the descriptor is nested beside `claim_domain` only |
-| `predicate_id` empty, beyond the compiled `MAX_PREDICATE_ID_BYTES_V0 = 64` bound, or outside closed `[a-z0-9_]+` | closed parse failure — decoded byte 65 is rejected as too long while reading and unescaping, before character validation or statement construction and before a complete oversized owned identifier exists |
+| `predicate_id` empty, beyond the compiled `MAX_PREDICATE_ID_BYTES_V0 = 64` bound, or outside closed `[a-z0-9_]+` | closed parse failure — the bound is enforced after missing/wrong-type/empty and before character validation, statement construction, or allocation |
 | `expected_sha256` missing, wrong-typed, not exactly 64 lowercase hexadecimal characters, or carrying prefix, uppercase, or whitespace | closed parse failure before canonical statement construction |
 | subject hex oversized (encoded or decoded) | closed audit failure; never falsity |
 | subject hex invalid (odd length, uppercase, non-hex) | closed audit failure |
@@ -445,11 +436,8 @@ The following later layers become possible over this mechanism but are
 ## Exact future implementation boundary
 
 A future implementation ticket may add only additive, separately
-reviewed surfaces: a purpose-built bounded borrowing/streaming
-claim-metadata parser module for the inline descriptor (reusing the
-existing strict parser only for outer `claim_domain`, never its
-allocating generic descriptor-string value path), a snapshot-private
-subject resolver, private-construction result types,
+reviewed surfaces: a new strict claim-metadata parser module, a
+snapshot-private subject resolver, private-construction result types,
 hostile tests, and documentation. It must not change `sha256_bytes_equals_v0`,
 its parser, trace, fixtures, policies v0-v3, L0, `docs/FORMAT.md`,
 golden vectors, the Python verifier, Cargo manifests, CI, or any
@@ -493,11 +481,9 @@ mirror. No `--allow-dirty`.
   `sha256_bytes_equals_v0` behavior — remain unchanged under their own
   historical path; no global ban on byte-bearing evidence is stated.
 - Confirm `predicate_id` is closed `[a-z0-9_]+`, bounded by the
-  compiled `MAX_PREDICATE_ID_BYTES_V0 = 64` constant after
-  missing/wrong-type/empty; decoded byte 65 is rejected while reading
-  and unescaping, before character validation or statement
-  construction and before a complete oversized owned identifier or
-  unbounded intermediate representation exists.
+  compiled `MAX_PREDICATE_ID_BYTES_V0 = 64` constant, checked after
+  missing/wrong-type/empty and before character validation, statement
+  construction, or allocation.
 - Confirm `expected_sha256` has one exact representation everywhere:
   exactly 64 lowercase hexadecimal characters, no prefix, no uppercase,
   no alternate encoding, no whitespace, validated before canonical
@@ -544,10 +530,12 @@ outcomes `DigestEqual` / `DigestUnequal` / `ResolutionFailed`) — is
 ratified separately by Ticket 0058
 ([`claim-inline-sha256-predicate-v0.md`](claim-inline-sha256-predicate-v0.md)).
 The next separately reviewed slice after it is the predicate evaluator
-implementation (purpose-built bounded borrowing/streaming descriptor
-parser, exact same-snapshot claim resolution, opaque
-outcome/receipt/failure surfaces, neutral digest evaluation, canonical
-audit serialization, and hostile and compatibility tests —
+implementation (bounded inline descriptor parsing that preserves this
+contract's before-allocation-or-copy `predicate_id` law, exact
+same-snapshot claim resolution, opaque
+outcome/receipt/failure surfaces, neutral digest evaluation, Ticket
+0058's exact canonical outcome audit JSON profile, and hostile and
+compatibility tests —
 standing-inert, realizing both this contract's resolver and Ticket
 0058's evaluator). Only then follow a routing-only attestation-binding
 contract and its implementation, support/refutation lane contract(s)

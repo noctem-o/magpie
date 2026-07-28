@@ -488,13 +488,18 @@ shell execution is unavailable.
     and no others, duplicate keys rejected at both levels, no
     descriptor fields at the outer level, and `claim_domain`
     revalidated by the existing strict parser. `predicate_id` is a
-    closed `[a-z0-9_]+` identifier bounded by decoded UTF-8 byte length
-    under the compiled `MAX_PREDICATE_ID_BYTES_V0 = 64` constant while
-    the token is read and unescaped. Missing/wrong-type/empty checks
-    come first; decoded byte 65 yields `PredicateIdTooLong` before
-    character validation or canonical statement construction, without
-    materialising a complete oversized owned identifier or retaining an
-    unbounded intermediate representation. For the new
+    closed `[a-z0-9_]+` identifier bounded by the compiled
+    `MAX_PREDICATE_ID_BYTES_V0 = 64` constant after the
+    missing/wrong-type/empty checks and before character validation,
+    canonical statement construction, or any allocation or copy
+    attributable to the identifier. Ticket 0058's future evaluator
+    satisfies that inherited law with a borrowed two-pass or equivalent
+    count-only preflight: inspect/unescape and count without copying any
+    complete or partial identifier, reject decoded byte 65, and only
+    after success decode/copy the accepted bounded value before
+    character validation.
+    Unrelated bounded parser bookkeeping is outside that identifier law.
+    For the new
     inline-subject path, any future evidence attestation consumed by
     that path may carry routing and binding fields only and may supply
     no alternate subject byte source — the Ticket 0056 substitution
@@ -548,11 +553,14 @@ shell execution is unavailable.
     asserts no verified-prefix provenance. No standing policy, support
     or refutation rule, evidence attestation schema, or edge-polarity
     meaning is ratified. The ratified progression is: the predicate
-    evaluator implementation next (purpose-built bounded
-    borrowing/streaming descriptor parser, exact
+    evaluator implementation next (borrowed count-only `predicate_id`
+    preflight followed by accepted-value decoding, exact
     same-snapshot claim resolution, opaque outcome/receipt/failure
-    surfaces, neutral digest evaluation, canonical audit serialization,
-    and hostile and compatibility tests — standing-inert, with no
+    surfaces, neutral digest evaluation, exact canonical outcome audit
+    JSON profile
+    `magpie-claim-inline-sha256-predicate-outcome-json-v0` with pinned
+    terminal vectors, and hostile and compatibility tests —
+    standing-inert, with no
     attestation, edge polarity, support, refutation, or contradiction
     handling); then a
     routing-only attestation-binding contract and its implementation;
