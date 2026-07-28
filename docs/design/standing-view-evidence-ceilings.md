@@ -236,9 +236,10 @@ Direct refutation therefore remains future: the subject-binding
 prerequisite is now ratified by Ticket 0057 (claim-owned inline subject
 bytes), and the neutral claim-inline SHA-256 predicate contract is now
 ratified by Ticket 0058 and implemented, standing-inert, by Ticket 0059;
-the remaining progression starts with a routing-only attestation-binding
-contract and its implementation, then support/refutation lane contract(s) and
-corresponding standing-inert lane/input implementation(s), a
+the routing-only attestation-binding contract is now ratified by Ticket 0060
+and remains standing-inert. The remaining progression starts with its
+implementation, then support/refutation lane contract(s) and corresponding
+standing-inert lane/input implementation(s), a
 direct-refutation policy contract, and only then any direct-refutation
 runtime. A bare
 `contradicts` edge never refutes, and no conflict handling is ratified —
@@ -729,8 +730,9 @@ missing subject-binding prerequisite; that prerequisite is now ratified
 by Ticket 0057 (claim-owned inline subject bytes), and the neutral
 claim-inline SHA-256 predicate contract is now ratified by Ticket 0058
 and implemented, standing-inert, by Ticket 0059.
-The remaining progression — routing-only attestation-binding contract and
-implementation,
+Ticket 0060 now ratifies the routing-only attestation-binding contract,
+with no edge, polarity, contribution, or standing meaning.
+The remaining progression — attestation-binding implementation,
 support/refutation lane contract(s) and corresponding standing-inert
 lane/input implementation(s), a direct-refutation policy contract, and
 any direct-refutation runtime — remains future.

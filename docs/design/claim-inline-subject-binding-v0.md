@@ -25,6 +25,10 @@ none ratified
 runtime:
 implemented by Ticket 0059 for the one Ticket 0058 SHA-256 predicate;
 no attestation, polarity, support, refutation, or standing effect
+
+attestation binding:
+routing-only contract ratified separately by Ticket 0060;
+implementation remains future
 ```
 
 This note ratifies the subject-binding prerequisite identified by Ticket
@@ -357,7 +361,9 @@ standing.
   resolver law and cannot be undone; they grant the resolver no
   permission to copy any identifier bytes before the bound. This
   contract defines only that boundary; it ratifies no attestation schema
-  and no global restriction on byte-bearing evidence.
+  and no global restriction on byte-bearing evidence. Ticket 0060 later
+  ratifies the separate routing-only schema and same-replay binding
+  contract without changing this subject-binding law.
 - No caller-provided claim bytes, metadata, subject, receipt, or
   evaluation result may enter any resolver. Every **new**
   authority-bearing type introduced for the inline-subject family — any
@@ -433,9 +439,11 @@ leaving `sha256_bytes_equals_v0` and policies v0-v3 untouched.
 ## Explicitly unratified future designs
 
 The following later layers become possible over this mechanism but are
-**not** ratified here and must follow the sequence in `Next slice`:
+**not** ratified by this Ticket 0057 contract and must follow the sequence
+in `Next slice`:
 
-- a routing-only attestation-binding contract and implementation;
+- the routing-only attestation-binding implementation (its contract is
+  ratified separately by Ticket 0060);
 - support/refutation lane contract(s) and corresponding standing-inert
   lane/input implementation(s);
 - a direct-refutation policy contract over inline-subject claims
@@ -576,9 +584,10 @@ on resolver-owned `predicate_id` allocation or copy, exact same-snapshot
 claim resolution, opaque outcome/receipt/failure surfaces, neutral digest
 evaluation, Ticket 0058's exact canonical outcome audit JSON profile, and
 hostile and compatibility tests. It is standing-inert and realizes only
-this contract's resolver plus Ticket 0058's evaluator. The next separately
-reviewed slice is a routing-only attestation-binding contract, followed by
-its implementation, support/refutation lane contract(s) and corresponding
-standing-inert lane/input implementation(s), a direct-refutation policy
-contract, and any direct-refutation runtime. This contract ratifies none
-of those later surfaces.
+this contract's resolver plus Ticket 0058's evaluator. Ticket 0060
+separately ratifies the routing-only attestation-binding contract without
+changing this note's law. The next separately reviewed slice is that
+contract's implementation, followed by support/refutation lane contract(s)
+and corresponding standing-inert lane/input implementation(s), a
+direct-refutation policy contract, and any direct-refutation runtime. This
+Ticket 0057 contract ratifies none of those later surfaces.
