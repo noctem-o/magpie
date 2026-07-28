@@ -10,6 +10,7 @@ pub mod policy;
 
 mod admitted_contribution_audit;
 mod artifact_provenance_verifier;
+mod claim_inline_sha256_predicate;
 mod deadbolt_context;
 mod deterministic_verifier_context;
 mod origin_admission_audit;
@@ -44,6 +45,12 @@ pub use artifact_provenance_verifier::{
     ARTIFACT_DERIVATION_SCHEMA_V0, ARTIFACT_PROVENANCE_ARTIFACT_ALGORITHM_V0,
     ARTIFACT_PROVENANCE_CANONICALIZATION_PROFILE_V0, ARTIFACT_PROVENANCE_VERIFIER_PROFILE_V0,
     ARTIFACT_PROVENANCE_WITNESS_ALGORITHM_V0, MAX_ARTIFACT_PROVENANCE_BUNDLE_BYTES_V0,
+};
+
+pub use claim_inline_sha256_predicate::{
+    ClaimInlineSubjectResolutionFailureV0, Sha256ClaimInlineBytesPredicateOutcomeKindV0,
+    Sha256ClaimInlineBytesPredicateOutcomeV0, Sha256ClaimInlineBytesPredicateReceiptV0,
+    MAX_INLINE_SUBJECT_BYTES_V0, MAX_PREDICATE_ID_BYTES_V0,
 };
 
 pub use deadbolt_context::{

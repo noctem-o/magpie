@@ -2,14 +2,15 @@
 
 ## Status
 
-Contract ratified by Ticket 0058. Documentation only.
+Contract ratified by Ticket 0058. Runtime implemented by Ticket 0059 without
+changing this note's ratified predicate law.
 
 ```text
 subject-binding substrate:
 claim-invariant byte-subject identity — ratified by Ticket 0057
 
 predicate identity:
-sha256_claim_inline_bytes_equals_v0 — ratified (contract only)
+sha256_claim_inline_bytes_equals_v0 — ratified and implemented
 
 evaluation outcomes:
 DigestEqual / DigestUnequal / ResolutionFailed — ratified as neutral,
@@ -19,7 +20,7 @@ policies, standing rules, support, refutation, attestation schemas:
 none ratified
 
 runtime:
-not implemented
+implemented by Ticket 0059; neutral and standing-inert
 ```
 
 This note ratifies one neutral, claim-inline SHA-256 predicate contract
@@ -138,7 +139,7 @@ aliased, or extended. The identity is 35 ASCII bytes of closed
 `[a-z0-9_]+`, within the compiled `MAX_PREDICATE_ID_BYTES_V0 = 64`
 bound ratified by Ticket 0057.
 
-The identity is **compiled into the future evaluator** as a constant.
+The identity is **compiled into the Ticket 0059 evaluator** as a constant.
 A descriptor whose `predicate_id` parses cleanly but is not byte-equal
 to the compiled constant fails closed (`UnknownPredicateId`); the
 evaluator never evaluates a generic or caller-selected predicate. This
@@ -791,7 +792,8 @@ The ratified sequence is:
 
 ```text
 claim-inline SHA-256 predicate contract (this contract)
-→ claim-inline SHA-256 predicate evaluator implementation
+→ claim-inline SHA-256 predicate evaluator implementation (Ticket 0059,
+  implemented)
 → routing-only attestation-binding contract
 → routing-only attestation-binding implementation
 → support/refutation lane contract(s)
@@ -909,10 +911,10 @@ acquisition, file contents, semantic correctness, interpretation truth,
 unique object identity (SHA-256 is not injective), or publication
 authority.
 
-## Exact future implementation boundary
+## Exact implementation boundary
 
-The immediate next separately reviewed slice is the predicate evaluator
-implementation. Its complete permitted scope is: the purpose-built
+Ticket 0059 implements the predicate evaluator under this complete permitted
+scope: the purpose-built
 bounded inline parser; exact same-snapshot claim resolution; the
 snapshot-only evaluator method; opaque private-construction
 outcome/receipt types with exact privately retained requested claim-ID
@@ -1291,18 +1293,15 @@ fixture regeneration.
 
 ## Next slice
 
-The next separately reviewed slice is the predicate evaluator
-implementation: the borrowed two-pass or equivalent count-only bounded
-descriptor parser, the exact same-snapshot claim resolution, the
-snapshot-only evaluator method,
-the opaque outcome/receipt types and closed failure vocabulary,
-the exact canonical outcome audit JSON profile, hostile and
-compatibility tests, and documentation —
-standing-inert, with no attestation, evidence-kind assumption, edge
-polarity, support, refutation, standing, or contradiction handling.
-Only then follow the
-routing-only attestation-binding contract recorded in the attestation
-decision above and its implementation, separately ratified
+Ticket 0059 implements the borrowed count-only bounded descriptor parser,
+exact same-snapshot claim resolution, snapshot-only evaluator method, opaque
+outcome/receipt types and closed failure vocabulary, exact canonical outcome
+audit JSON profile, hostile and compatibility tests, and documentation. The
+runtime is standing-inert and adds no attestation, evidence-kind assumption,
+edge polarity, support, refutation, standing, or contradiction handling.
+The next separately reviewed slice is the routing-only attestation-binding
+contract recorded in the attestation decision above, followed by its
+implementation, separately ratified
 support/refutation lane contracts and their standing-inert
 implementations, a direct-refutation policy contract, and any
 direct-refutation runtime. This contract ratifies none of those.

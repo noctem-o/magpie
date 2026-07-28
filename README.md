@@ -449,10 +449,10 @@ shell execution is unavailable.
     The existing v2 positive rule and the `DigestMismatch`
     non-authority law are unchanged, and the three refutation-ceiling
     cells remain ceilings only. Direct refutation remains future work.
-    Entries 27-28 record the now-ratified subject-binding and neutral
-    predicate contracts; the remaining progression is the predicate
-    evaluator implementation, a routing-only attestation-binding contract
-    and implementation, support/refutation lane contracts and their
+    Entries 27-29 record the ratified subject-binding and neutral predicate
+    contracts plus the standing-inert evaluator implementation; the remaining
+    progression begins with a routing-only attestation-binding contract and
+    implementation, followed by support/refutation lane contracts and their
     standing-inert inputs, a direct-refutation policy contract, then
     runtime. Contradiction debt, invalidation,
     supersession/currentness, `EpistemicGate`, ordinary claim-bearing
@@ -495,7 +495,7 @@ shell execution is unavailable.
     or copy attributable to the identifier. Inputs already allocated or
     copied by upstream replay/application code before resolver entry are
     outside that law and cannot be undone; the resolver may inspect but
-    not mutate or extend them. Ticket 0058's future evaluator satisfies
+    not mutate or extend them. Ticket 0059's evaluator satisfies
     the inherited law with a borrowed two-pass or equivalent count-only
     preflight: retain bounded non-identifier scalar decoding/counting
     state only, copy no complete or partial identifier, reject decoded
@@ -509,9 +509,10 @@ shell execution is unavailable.
     class is closed by construction — while existing v0 evidence,
     including `magpie-verification-witness-v0`, `witness_hex`, and
     `sha256_bytes_equals_v0` behavior, remains unchanged; no global ban
-    on byte-bearing evidence is stated. No predicate, policy,
-    standing rule, refutation, resolver, or runtime is ratified; the
-    external acquired-object and replay-owned subject forms are
+    on byte-bearing evidence is stated. Ticket 0057 itself ratifies no
+    predicate, policy, standing rule, refutation, resolver, or runtime;
+    Ticket 0059 separately implements only the neutral Ticket 0058
+    evaluator. The external acquired-object and replay-owned subject forms are
     recorded as unratified future extensions. The predicate contract
     over inline-subject claims follows as entry 28; direct refutation,
     contradiction debt, invalidation, supersession/currentness,
@@ -528,10 +529,10 @@ shell execution is unavailable.
     bytes resolved from the exact replayed claim under Ticket 0057's
     law — never from evidence, edges, callers, closures, or audit
     values. The predicate identity `sha256_claim_inline_bytes_equals_v0`
-    is new and contracted to be compiled into the future evaluator;
+    is new and compiled into the Ticket 0059 evaluator;
     `sha256_bytes_equals_v0` and the v0 family keep their
     evidence-local meaning, with the versioning boundary fail-closed
-    in both directions. The contracted future evaluation hangs on the
+    in both directions. The implemented evaluation hangs on the
     same verified `StandingReplaySnapshot` and takes only a claim ID: strict outer-envelope and descriptor parsing, compiled
     predicate-identity equality, descriptor-derived canonical
     statement, exact three-way direct statement binding, separate
@@ -559,8 +560,8 @@ shell execution is unavailable.
     statement, claim content hash, expected and computed SHA-256) and
     asserts no verified-prefix provenance. No standing policy, support
     or refutation rule, evidence attestation schema, or edge-polarity
-    meaning is ratified. The ratified progression is: the predicate
-    evaluator implementation next (borrowed count-only `predicate_id`
+    meaning is ratified. Ticket 0059 implements the predicate evaluator
+    (borrowed count-only `predicate_id`
     preflight followed by accepted-value decoding, exact
     same-snapshot claim resolution, opaque outcome/receipt/failure
     surfaces, neutral digest evaluation, exact canonical outcome audit
@@ -569,8 +570,8 @@ shell execution is unavailable.
     terminal vectors, and hostile and compatibility tests —
     standing-inert, with no
     attestation, edge polarity, support, refutation, or contradiction
-    handling); then a
-    routing-only attestation-binding contract and its implementation;
+    handling). The next slice is a routing-only attestation-binding contract,
+    followed by its implementation;
     then support/refutation lane contract(s) and corresponding
     standing-inert lane/input implementation(s); then a direct-refutation
     policy contract; and only then any direct-refutation runtime.
@@ -578,5 +579,23 @@ shell execution is unavailable.
     supersession/currentness, `EpistemicGate`, ordinary claim-bearing
     writer, loader, CAS, and filesystem or network ingestion remain
     future work.
+29. **Claim-inline SHA-256 predicate v0 — runtime implemented by Ticket
+    0059.**
+    `StandingReplaySnapshot::evaluate_sha256_claim_inline_bytes_equals_v0`
+    accepts only one requested claim ID, re-fetches both claim tables from
+    that snapshot, and evaluates only the exact decoded claim-owned inline
+    subject bytes against the exact claim-owned expected digest. A
+    purpose-built borrowed parser validates the complete JSON envelope,
+    post-unescape duplicate keys, and the frozen 33-stage failure order. Its
+    count-only first pass rejects decoded predicate-ID byte 65 before any
+    resolver-owned identifier copy; accepted identifiers are materialized only
+    in the second pass. The opaque evaluator-created outcome is exactly
+    `DigestEqual`, `DigestUnequal`, or `ResolutionFailed`, with deterministic
+    one-way audit bytes under
+    `magpie-claim-inline-sha256-predicate-outcome-json-v0`. Evidence and edges
+    are not evaluator inputs, so the Ticket 0056 substitution class remains
+    closed. This runtime adds no attestation, polarity, support, refutation,
+    standing, policy, contradiction handling, loader, CAS, filesystem, or
+    network behavior. The routing-only attestation-binding contract is next.
 
 Conserve the log. Derive the rest.

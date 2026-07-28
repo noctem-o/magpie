@@ -41,6 +41,10 @@ first narrow rule implemented by Ticket 0054; broader rules future
 standing policy v4:
 candidate blocked, not ratified (Ticket 0056 subject-binding blocker);
 no direct-refutation rule exists
+
+claim-inline SHA-256 predicate:
+contract ratified by Ticket 0058; neutral standing-inert evaluator
+implemented by Ticket 0059; attestation binding remains future
 ```
 
 An origin-group value in a verified binding remains only a claimed group until
@@ -532,9 +536,10 @@ does not make refutation automatic. No such rule is ratified: the Ticket
 0056 candidate was blocked because the existing predicate is
 evidence-relative with no independent subject binding (recorded in its
 documents). The subject-binding prerequisite is now ratified by Ticket
-0057 (claim-owned inline subject bytes); a predicate contract and then a
-direct-refutation contract remain future, and no conflict handling is
-ratified.
+0057 (claim-owned inline subject bytes); the neutral predicate contract is
+ratified by Ticket 0058 and its standing-inert evaluator is implemented by
+Ticket 0059. Routing-only attestation binding, support/refutation lanes, a
+direct-refutation contract, and conflict handling remain future.
 
 ## Interaction With Contradiction Debt
 
@@ -579,8 +584,10 @@ must not erase truth-bearing contradiction debt or settle factual truth.
 14. Conservative aggregation — implemented by Ticket 0054 for the one exact
     standing-policy-v3 external-report corroboration rule.
 15. Add direct refutation through admitted verifier context — subject
-    binding ratified by Ticket 0057 (claim-owned inline bytes); a
-    predicate contract and a direct-refutation contract remain future.
+    binding ratified by Ticket 0057 (claim-owned inline bytes), neutral
+    predicate contract ratified by Ticket 0058, and standing-inert evaluator
+    implemented by Ticket 0059; routing-only attestation binding,
+    support/refutation lanes, and a direct-refutation contract remain future.
 16. Add contradiction debt with explicit precedence.
 17. Add invalidation and supersession/currentness.
 18. Add EpistemicGate and writer surfaces.

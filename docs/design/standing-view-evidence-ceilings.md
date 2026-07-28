@@ -235,9 +235,9 @@ ratified (see
 Direct refutation therefore remains future: the subject-binding
 prerequisite is now ratified by Ticket 0057 (claim-owned inline subject
 bytes), and the neutral claim-inline SHA-256 predicate contract is now
-ratified by Ticket 0058; the remaining progression is the predicate
-evaluator implementation, a routing-only attestation-binding contract
-and its implementation, support/refutation lane contract(s) and
+ratified by Ticket 0058 and implemented, standing-inert, by Ticket 0059;
+the remaining progression starts with a routing-only attestation-binding
+contract and its implementation, then support/refutation lane contract(s) and
 corresponding standing-inert lane/input implementation(s), a
 direct-refutation policy contract, and only then any direct-refutation
 runtime. A bare
@@ -727,9 +727,10 @@ Step 6 is partially landed through the implemented v3 corroboration rule.
 Step 7's first contract candidate was blocked by Ticket 0056 on the
 missing subject-binding prerequisite; that prerequisite is now ratified
 by Ticket 0057 (claim-owned inline subject bytes), and the neutral
-claim-inline SHA-256 predicate contract is now ratified by Ticket 0058.
-The remaining progression — predicate evaluator implementation,
-routing-only attestation-binding contract and implementation,
+claim-inline SHA-256 predicate contract is now ratified by Ticket 0058
+and implemented, standing-inert, by Ticket 0059.
+The remaining progression — routing-only attestation-binding contract and
+implementation,
 support/refutation lane contract(s) and corresponding standing-inert
 lane/input implementation(s), a direct-refutation policy contract, and
 any direct-refutation runtime — remains future.
