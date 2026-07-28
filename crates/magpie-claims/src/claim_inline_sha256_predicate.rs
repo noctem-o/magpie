@@ -159,6 +159,22 @@
 //!     );
 //! }
 //! ```
+//!
+//! ```compile_fail
+//! use magpie_claims::Sha256ClaimInlineBytesPredicateOutcomeV0;
+//!
+//! fn opaque_outcome_has_no_debug(outcome: &Sha256ClaimInlineBytesPredicateOutcomeV0) {
+//!     let _ = format!("{outcome:?}");
+//! }
+//! ```
+//!
+//! ```compile_fail
+//! use magpie_claims::Sha256ClaimInlineBytesPredicateReceiptV0;
+//!
+//! fn opaque_receipt_has_no_debug(receipt: &Sha256ClaimInlineBytesPredicateReceiptV0) {
+//!     let _ = format!("{receipt:?}");
+//! }
+//! ```
 
 use serde::{Serialize, Serializer};
 use sha2::{Digest, Sha256};
@@ -230,7 +246,7 @@ pub enum ClaimInlineSubjectResolutionFailureV0 {
 ///
 /// Construction is private. Field declaration order is the canonical receipt
 /// JSON order.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Serialize)]
 pub struct Sha256ClaimInlineBytesPredicateReceiptV0 {
     predicate_schema: String,
     predicate_id: String,
@@ -276,7 +292,7 @@ impl Sha256ClaimInlineBytesPredicateReceiptV0 {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 enum Sha256ClaimInlineBytesPredicateOutcomeDataV0 {
     DigestEqual(Sha256ClaimInlineBytesPredicateReceiptV0),
     DigestUnequal(Sha256ClaimInlineBytesPredicateReceiptV0),
@@ -287,7 +303,7 @@ enum Sha256ClaimInlineBytesPredicateOutcomeDataV0 {
 }
 
 /// Opaque evaluator-created claim-inline SHA-256 outcome.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Sha256ClaimInlineBytesPredicateOutcomeV0 {
     data: Sha256ClaimInlineBytesPredicateOutcomeDataV0,
 }
