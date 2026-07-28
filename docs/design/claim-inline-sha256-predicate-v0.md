@@ -73,25 +73,43 @@ The existing v0 checker hashes decoded bytes and compares digest bytes
 in exactly this way
 (`crates/magpie-claims/src/deterministic_verifier_context.rs`).
 
-The two digest roles remain distinct, exactly as in the v0 family:
+The operands and commitments stay distinct, exactly as in the v0
+family:
 
 ```text
-expected_sha256 (descriptor)
-    commits to the claim-owned subject bytes
+subject_hex
+    the claim-owned encoded subject operand
+
+expected_sha256
+    the claim-owned expected terminal digest operand
+
+canonical statement
+    injectively records the complete descriptor, including both
+    operands
 
 ClaimAssertedV2.content_hash
     commits to the exact UTF-8 canonical statement bytes
+
+computed_sha256
+    independently derived from the decoded subject bytes
 ```
 
 `content_hash` is never a subject digest and never enters the terminal
-comparison. `expected_sha256` is **proposition data**: the claim author
-chooses the subject and the expected digest at assertion time, and that
-choice defines the proposition (Ticket 0057, authority and construction
-boundary). The evaluator reads both operands from the replayed claim; no
-caller, evidence node, edge, or audit value may supply or replace either
-operand. A caller able to substitute the freshly computed digest for the
-claim's expected digest could turn a false proposition into a true one;
-the authority path below forecloses that by construction.
+comparison. `expected_sha256` is **proposition data**: claim-owned,
+immutable within the replayed claim, non-caller-substitutable, and not
+independently subject identity — it does not prove correspondence to
+the subject until the terminal comparison yields `DigestEqual`. The
+claim author chooses the subject and the expected digest at assertion
+time, and that choice defines the proposition (Ticket 0057, authority
+and construction boundary). The evaluator reads both operands from the
+replayed claim; no caller, evidence node, edge, or audit value may
+supply or replace either operand. A caller able to substitute the
+freshly computed digest for the claim's expected digest could turn a
+false proposition into a true one; the authority path below forecloses
+that by construction. A well-formed `DigestUnequal` outcome means the
+claim-owned expected operand differs from the independently computed
+digest of the claim-owned subject; it does not make the expected
+operand malformed or unauthoritative as proposition data.
 
 The proposition is two-sided decidable after successful resolution:
 given one valid decoded byte string and one valid 32-byte expected
@@ -130,18 +148,59 @@ mirrors the existing v0 checker, which compares the parsed
 
 ## Neutral outcome vocabulary
 
-The closed, polarity-neutral outcome vocabulary is:
+The closed, polarity-neutral outcome classification vocabulary is the
+fieldless public enum:
 
 ```text
-Sha256ClaimInlineBytesPredicateOutcomeV0::DigestEqual { receipt }
-Sha256ClaimInlineBytesPredicateOutcomeV0::DigestUnequal { receipt }
-Sha256ClaimInlineBytesPredicateOutcomeV0::ResolutionFailed { reason }
+Sha256ClaimInlineBytesPredicateOutcomeKindV0:
+    DigestEqual
+    DigestUnequal
+    ResolutionFailed
 ```
 
-`DigestEqual` and `DigestUnequal` each carry one privately constructed
-receipt recording the exact audit basis of the terminal comparison.
-`ResolutionFailed` carries one closed reason from the resolution-failure
-vocabulary below and no receipt.
+The authority-bearing outcome itself is an **opaque public struct**
+`Sha256ClaimInlineBytesPredicateOutcomeV0` with a private
+representation and no public constructor, no struct- or tuple-literal
+construction, no `Deserialize`, no `Default`, no `From`/`TryFrom`, and
+no public mutation. Its only public accessors are read-only borrows:
+
+```rust
+pub fn kind(
+    &self,
+) -> Sha256ClaimInlineBytesPredicateOutcomeKindV0;
+
+pub fn receipt(
+    &self,
+) -> Option<&Sha256ClaimInlineBytesPredicateReceiptV0>;
+
+pub fn failure(
+    &self,
+) -> Option<&ClaimInlineSubjectResolutionFailureV0>;
+```
+
+An outcome of kind `DigestEqual` or `DigestUnequal` carries exactly one
+receipt recording the exact audit basis of the terminal comparison; an
+outcome of kind `ResolutionFailed` carries exactly one closed failure
+reason and no receipt. The evaluator alone creates the complete
+outcome. A caller cannot construct an outcome, cannot select or
+replace its classification, cannot move a receipt from one outcome
+into another variant, cannot deserialize, default, or mutate an
+outcome, and cannot feed any outcome, receipt, failure, kind, or
+serialized bytes back into an evaluator, resolver, policy, or composer
+as authority. The fieldless `Sha256ClaimInlineBytesPredicateOutcomeKindV0`
+and the closed `ClaimInlineSubjectResolutionFailureV0` are
+caller-constructible classification vocabulary only: they carry no
+receipt, cannot be converted into an outcome, and are never accepted
+as authority.
+
+Serialization is deterministic and one-way: the outcome serializes
+through its private representation with the same wire tags
+`DigestEqual`, `DigestUnequal`, and `ResolutionFailed` and the same
+payload shapes described for the receipt and failure vocabulary, so
+the frozen audit vocabulary is unchanged while no public
+authority-bearing enum variant exists. Cloning or serializing any
+legitimately obtained value yields audit material only; it is never
+accepted back as authority.
 
 The names are deliberately relation names, not verdict names. The
 candidate labels `Satisfied` / `Unsatisfied` were audited and rejected:
@@ -229,22 +288,26 @@ this frozen first-failure order:
 18. WrongTypePredicateId
 19. EmptyPredicateId
 20. PredicateIdTooLong             beyond MAX_PREDICATE_ID_BYTES_V0 = 64,
-                                    checked before character validation,
-                                    statement construction, or allocation
+                                    enforced while reading and
+                                    unescaping the token, before the
+                                    oversized identifier is fully
+                                    heap-materialised, before character
+                                    validation, and before statement
+                                    construction
 21. InvalidPredicateId             characters outside closed [a-z0-9_]+
 22. UnknownPredicateId             well-formed but not byte-equal to the
                                     compiled sha256_claim_inline_bytes_equals_v0
-23. MissingSubjectHex
-24. WrongTypeSubjectHex
-25. SubjectHexTooLong              beyond 8192 encoded characters,
-                                    rejected before decoding
-26. InvalidSubjectHex              odd length, uppercase, or non-hex
-27. MissingExpectedSha256
-28. WrongTypeExpectedSha256
-29. InvalidExpectedSha256          not exactly 64 lowercase hexadecimal
+23. MissingExpectedSha256
+24. WrongTypeExpectedSha256
+25. InvalidExpectedSha256          not exactly 64 lowercase hexadecimal
                                     characters — no prefix, no uppercase,
                                     no whitespace — validated before
                                     canonical statement construction
+26. MissingSubjectHex
+27. WrongTypeSubjectHex
+28. SubjectHexTooLong              beyond 8192 encoded characters,
+                                    rejected before decoding
+29. InvalidSubjectHex              odd length, uppercase, or non-hex
 30. StatementBindingMismatch       any of the three-way direct statement
                                     comparisons fails
 31. MissingClaimContentHash        replayed claim content_hash is empty
@@ -253,7 +316,7 @@ this frozen first-failure order:
 33. DecodedSubjectTooLarge         decoded subject beyond
                                     MAX_INLINE_SUBJECT_BYTES_V0 = 4096,
                                     checked after decode (unreachable when
-                                    25 and 26 hold; retained as a compiled
+                                    28 and 29 hold; retained as a compiled
                                     guard, never as falsity)
 ```
 
@@ -266,10 +329,13 @@ envelope. It deliberately does not mirror the existing v0 claim-domain
 parser, whose visitor records a duplicate key on encounter and can
 therefore report a duplicate before a missing or wrong-typed
 `claim_domain`; the new family freezes one total order of its own.
-10-33 follow Ticket 0057's ratified resolution
-procedure: descriptor fields in descriptor order (schema, predicate_id,
-subject_hex, expected_sha256), then statement binding, then the separate
-content-hash recomputation, then decode.
+10-33 follow Ticket 0057's ratified resolution order: schema, then
+predicate_id, then expected_sha256, then subject_hex — the order in
+which Ticket 0057's resolver procedure validates the descriptor —
+then statement binding, then the separate content-hash recomputation,
+then decode. No implementation may choose order based on JSON
+source-key order, map iteration, Serde encounter order, or whichever
+error happens to surface first internally.
 
 ## Exact authority path
 
@@ -338,18 +404,27 @@ One evaluation performs, in this frozen order:
    derived from decoded values; raw token bytes are not identity. The
    existing claim-domain parser alone never constitutes descriptor
    authority.
-3. Strictly parse the nested descriptor (failures 12-29): unknown
-   schema rejected; `predicate_id` checked missing, wrong-type, empty,
-   then beyond the compiled `MAX_PREDICATE_ID_BYTES_V0 = 64` bound —
-   before character validation, canonical statement construction, or
-   any allocation — then characters outside closed `[a-z0-9_]+`, then
-   byte-unequal to the compiled `sha256_claim_inline_bytes_equals_v0`
-   constant; `subject_hex` checked missing, wrong-type, then beyond
-   8192 encoded characters — rejected before decoding — then odd
-   length, uppercase, or non-hex; `expected_sha256` checked missing,
-   wrong-type, then not exactly 64 lowercase hexadecimal characters —
-   no prefix, no uppercase, no alternate encoding, no whitespace —
-   validated before canonical statement construction.
+3. Strictly parse the nested descriptor (failures 12-29), in Ticket
+   0057's ratified resolution order: unknown schema rejected;
+   `predicate_id` checked missing, wrong-type, empty, then beyond the
+   compiled `MAX_PREDICATE_ID_BYTES_V0 = 64` bound, then characters
+   outside closed `[a-z0-9_]+`, then byte-unequal to the compiled
+   `sha256_claim_inline_bytes_equals_v0` constant; `expected_sha256`
+   checked missing, wrong-type, then not exactly 64 lowercase
+   hexadecimal characters — no prefix, no uppercase, no alternate
+   encoding, no whitespace — validated before canonical statement
+   construction; `subject_hex` checked missing, wrong-type, then
+   beyond 8192 encoded characters — rejected before decoding — then
+   odd length, uppercase, or non-hex. The inline descriptor therefore
+   requires a purpose-built bounded borrowing/streaming parser rather
+   than the existing allocating generic descriptor-string value path.
+   The decoded UTF-8 byte bound on `predicate_id` is enforced while
+   reading and unescaping the token: decoded byte 65 is rejected before
+   the complete oversized identifier exists, before character
+   validation, and before canonical statement construction, and no
+   unbounded intermediate identifier representation is permitted.
+   Bounded structural parser state, upstream-owned input, and allocation
+   of an accepted, already-bounded value after validation are unaffected.
 4. Derive the canonical statement from the strictly parsed descriptor
    and require exact three-way statement equality by direct byte
    comparison — `StandingClaim.statement == TypedClaimNode.statement
@@ -366,8 +441,9 @@ One evaluation performs, in this frozen order:
    after decode (failure 33).
 7. Compute `SHA-256` over exactly the decoded subject bytes and compare
    the 32 computed bytes with the 32 strictly decoded expected digest
-   bytes: equal yields `DigestEqual(receipt)`; unequal yields
-   `DigestUnequal(receipt)`.
+   bytes. Equality yields an opaque outcome of kind `DigestEqual`;
+   inequality yields one of kind `DigestUnequal`. In either case
+   `receipt()` borrows the evaluator-bound receipt.
 
 The evaluator is deterministic, total or fail-closed, commandless,
 networkless, pluginless, callback-free, environment-independent, and
@@ -415,8 +491,9 @@ Excluded candidates and why:
   `witness_len` because the witness bytes are not in its receipt; here
   the complete subject is already visible in the statement, so a length
   field is derived redundancy, not audit necessity.
-- **raw subject bytes** — already committed by the canonical statement;
-  a second copy adds no audit value and tempts byte-source confusion.
+- **raw subject bytes** — already recorded injectively by the canonical
+  statement and covered by its separately verified content hash; a
+  second copy adds no audit value and tempts byte-source confusion.
 - **any `Status`, policy identity, evidence or edge ID, contribution,
   admission result, or polarity** — a predicate receipt is not standing
   material and carries none.
@@ -425,11 +502,19 @@ Any future authority-bearing outcome, receipt, or application type in
 this family is privately constructed: private fields, read-only
 getters, `Serialize` only, no `Deserialize`, no `Default`, no public
 constructor, no struct-literal construction, and no public mutation.
+The outcome is opaque beyond this: no caller can select or replace its
+classification, move a receipt between outcomes, or construct it
+through any public enum-variant, struct-, or tuple-literal syntax; the
+fieldless kind enum and the closed failure enum are
+caller-constructible classification vocabulary only, carry no receipt,
+and are never accepted as authority.
 No resolver, evaluator, or composer ever accepts such a value back as
-authority input. Cloning, serializing, or deserializing any value
-yields audit material only. The internal decoded-subject value used
-mid-evaluation is private, consumed in the same call, and never
-published as a second authority source.
+authority input. Clones and serialized forms are audit material only;
+the authority-bearing types themselves expose no `Deserialize` path,
+and parsing lookalike bytes into generic caller-owned data confers no
+authority. The internal decoded-subject value used mid-evaluation is
+private, consumed in the same call, and never published as a second
+authority source.
 
 ## Versioning boundary
 
@@ -481,8 +566,9 @@ network, filesystem, CAS, callback, or loader is introduced.
 
 Independent audit (Sol C, adjudicated in Ticket 0058) compared three
 options — predicate only; predicate plus a routing-only attestation
-schema in this PR; predicate now with attestation committed as the next
-separate contract — and recommended the third. K3 accepted.
+schema in this PR; predicate contract now, its neutral evaluator
+implementation immediately next, and attestation as the later separate
+contract — and recommended the third. K3 accepted.
 
 The predicate is a complete claim-local decision: it resolves one
 replayed claim, hashes its claim-owned bytes, and compares. An evidence
@@ -499,15 +585,20 @@ The ratified sequence is:
 
 ```text
 claim-inline SHA-256 predicate contract (this contract)
+→ claim-inline SHA-256 predicate evaluator implementation
 → routing-only attestation-binding contract
+→ routing-only attestation-binding implementation
 → support/refutation lane contract(s)
+→ corresponding standing-inert lane/input implementation(s)
+→ direct-refutation policy contract
 → direct-refutation runtime
 ```
 
 No later direct-refutation or support/refutation contract may bundle
 the attestation schema with polarity and standing rules in one PR.
 
-What is binding for that next contract is only what is already ratified
+What is binding for that later attestation-binding contract is only
+what is already ratified
 elsewhere: Ticket 0057's boundary — any future evidence attestation
 consumed by the inline path may carry routing and binding fields only,
 named there as `schema`, `predicate_id`, `subject_claim_id`,
@@ -556,30 +647,31 @@ any scope S.
 
 | Case | Expected result under this contract |
 | --- | --- |
-| the Ticket 0056 attack recreated: a well-formed `contradicts` evidence node E- carries `witness_hex = 756e72656c61746564206d6174657269616c` ("unrelated material", digest `d42273bca408c671996c4f6eea5efefd010450655a44d742b0a2ba055b0542dc`), same `subject_claim_id = C`, same scope | `DigestEqual(receipt)` for C — evaluation selects only C, decodes only C's `616263`, computes `ba7816…15ad`, and never reads E- or the edge; removing all support evidence changes nothing. The manufactured-negative class is closed by construction |
+| the Ticket 0056 attack recreated: a well-formed `contradicts` evidence node E- carries `witness_hex = 756e72656c61746564206d6174657269616c` ("unrelated material", digest `d42273bca408c671996c4f6eea5efefd010450655a44d742b0a2ba055b0542dc`), same `subject_claim_id = C`, same scope | opaque outcome of kind `DigestEqual` for C, with `receipt()` borrowing its receipt — evaluation selects only C, decodes only C's `616263`, computes `ba7816…15ad`, and never reads E- or the edge; removing all support evidence changes nothing. The manufactured-negative class is closed by construction |
 | evidence metadata offering `subject_hex` or any byte field to the inline path | never consumed — the evaluator has no evidence input; a later attestation path must reject byte-bearing fields |
 | edge metadata or rationale carrying subject bytes | never consumed — the evaluator has no edge input and does not traverse `justification_edges` |
 | a `contradicts` edge targets C | edge polarity does not alter the evaluated subject or the truth outcome; the edge is not an evaluator input |
 | a `supports` edge targets C | same as above; no edge kind is interpreted |
-| C exactly as reference (subject `abc`, matching expected digest) | `DigestEqual(receipt)` |
-| C's subject is `abc` and the claim-owned expected digest is any other valid 64-hex value | `DigestUnequal(receipt)` — a well-formed false proposition authored at assertion time; neutral, never `Refuted` |
-| empty subject (`subject_hex = ""`) with the empty-byte digest `e3b0c4…b855` | `DigestEqual(receipt)` |
-| empty subject with any other valid expected digest | `DigestUnequal(receipt)`, never `Refuted` |
-| duplicate outer or nested metadata key (including post-unescape duplicates such as `"pred\u0069cate_id"`) | `ResolutionFailed(DuplicateClaimMetadataKey)` or `ResolutionFailed(DuplicateDescriptorKey)` |
-| unknown outer or nested key | `ResolutionFailed(UnknownClaimMetadataKey)` or `ResolutionFailed(UnknownDescriptorKey)` |
-| descriptor schema is `magpie-machine-predicate-v0` or any other value | `ResolutionFailed(UnknownSchema)` — no cross-family reinterpretation |
-| descriptor names the new schema but `predicate_id = "sha256_bytes_equals_v0"` | `ResolutionFailed(UnknownPredicateId)` — well-formed syntax, wrong compiled identity |
+| C exactly as reference (subject `abc`, matching expected digest) | kind `DigestEqual`; `receipt()` borrows the evaluator-bound receipt |
+| C's subject is `abc` and the claim-owned expected digest is any other valid 64-hex value | kind `DigestUnequal`; `receipt()` borrows the evaluator-bound receipt — a well-formed false proposition authored at assertion time; neutral, never `Refuted` |
+| empty subject (`subject_hex = ""`) with the empty-byte digest `e3b0c4…b855` | kind `DigestEqual`; `receipt()` borrows the evaluator-bound receipt |
+| empty subject with any other valid expected digest | kind `DigestUnequal`; `receipt()` borrows the evaluator-bound receipt, never `Refuted` |
+| duplicate outer or nested metadata key (including post-unescape duplicates such as `"pred\u0069cate_id"`) | kind `ResolutionFailed`; `failure()` borrows `DuplicateClaimMetadataKey` or `DuplicateDescriptorKey` |
+| unknown outer or nested key | kind `ResolutionFailed`; `failure()` borrows `UnknownClaimMetadataKey` or `UnknownDescriptorKey` |
+| descriptor schema is `magpie-machine-predicate-v0` or any other value | kind `ResolutionFailed`; `failure()` borrows `UnknownSchema` — no cross-family reinterpretation |
+| descriptor names the new schema but `predicate_id = "sha256_bytes_equals_v0"` | kind `ResolutionFailed`; `failure()` borrows `UnknownPredicateId` — well-formed syntax, wrong compiled identity |
 | a v0-family claim (`machine_predicate` envelope) presented to the inline parser | `ResolutionFailed` — unknown outer key and missing descriptor; fail closed |
 | an inline-subject claim presented to the v0 predicate parser | fail closed there as unknown outer key — v0 behavior unchanged |
-| `expected_sha256` uppercase, `0x`-prefixed, whitespace-padded, or 63/65 characters | `ResolutionFailed(InvalidExpectedSha256)` before canonical statement construction |
-| `subject_hex` odd-length, uppercase, non-hex, `0x`-prefixed, or beyond 8192 encoded characters | `ResolutionFailed` (`SubjectHexTooLong` or `InvalidSubjectHex`), never `DigestUnequal`; the 8192-character bound is enforced before any decode or allocation |
-| `subject_hex` of 8194 encoded characters (4097 decoded bytes) | `ResolutionFailed(SubjectHexTooLong)` — the encoded bound rejects before any decode or allocation; `DecodedSubjectTooLarge` is an internal defense-in-depth guard, unreachable after failures 25-26, never caller-reachable, and never falsity |
-| `StandingClaim.statement` differs from the descriptor-derived canonical statement | `ResolutionFailed(StatementBindingMismatch)` — exact direct comparison, no normalization |
-| `TypedClaimNode.statement` differs from `StandingClaim.statement` | `ResolutionFailed(StatementBindingMismatch)` |
-| `content_hash` differs from the recomputed statement hash despite statement agreement | `ResolutionFailed(ClaimContentHashMismatch)` |
+| `expected_sha256` uppercase, `0x`-prefixed, whitespace-padded, or 63/65 characters | kind `ResolutionFailed`; `failure()` borrows `InvalidExpectedSha256` before canonical statement construction |
+| `expected_sha256` invalid and `subject_hex` invalid (any combination of missing, wrong-typed, or malformed across both) | `ResolutionFailed` with the `expected_sha256` failure first — Ticket 0057's ratified resolution order is frozen; never JSON source-key order, map iteration, Serde encounter order, or whichever error surfaces first internally |
+| `subject_hex` odd-length, uppercase, non-hex, `0x`-prefixed, or beyond 8192 encoded characters | `ResolutionFailed` (`SubjectHexTooLong` or `InvalidSubjectHex`), never `DigestUnequal`; the 8192-character bound is enforced before decoding or allocating the decoded subject output |
+| `subject_hex` of 8194 encoded characters (4097 decoded bytes) | kind `ResolutionFailed`; `failure()` borrows `SubjectHexTooLong` — the encoded bound rejects before decoding or allocating the decoded subject output; `DecodedSubjectTooLarge` is an internal defense-in-depth guard, unreachable after failures 28-29, never caller-reachable, and never falsity |
+| `StandingClaim.statement` differs from the descriptor-derived canonical statement | kind `ResolutionFailed`; `failure()` borrows `StatementBindingMismatch` — exact direct comparison, no normalization |
+| `TypedClaimNode.statement` differs from `StandingClaim.statement` | kind `ResolutionFailed`; `failure()` borrows `StatementBindingMismatch` |
+| `content_hash` differs from the recomputed statement hash despite statement agreement | kind `ResolutionFailed`; `failure()` borrows `ClaimContentHashMismatch` |
 | matching `content_hash` offered in place of the direct three-way statement comparison | rejected architecture — hash equality is never identity; the direct comparisons are never omitted |
 | caller-created or deserialized resolved-subject value presented to a resolver | audit material only; never accepted as authority |
-| caller-created, cloned, or deserialized evaluation receipt or outcome | unconstructible by struct literal; no `Deserialize`, `Default`, or public constructor; never accepted by any resolver, evaluator, or composer |
+| caller-created or deserialized evaluation receipt or outcome, or a clone/serialization of one legitimately obtained | caller-created/deserialized typed authority values are unavailable: private representation, no `Deserialize`, `Default`, or public constructor; clones and serialized forms are audit material only; none is ever accepted by any resolver, evaluator, or composer |
 | a later attestation carrying `witness_hex` or any byte source | rejected by the inline path under Ticket 0057's inherited routing-only boundary (no alternate subject byte source); deferred to the attestation contract are exactly the six open dimensions — schema identity, envelope identity, duplicate/unknown-key handling and failure precedence, binding mechanics within the already-fixed same-replay path, field requiredness, and evidence kind; historical v0 `witness_hex` handling unchanged |
 | an attestation `predicate_id` differing from the claim's predicate identity | rejected under Ticket 0057's inherited boundary — the attestation `predicate_id` must equal the already validated claim predicate identity; deferred to the attestation contract are exactly the six open dimensions — schema identity, envelope identity, duplicate/unknown-key handling and failure precedence, binding mechanics within the already-fixed same-replay path, field requiredness, and evidence kind |
 | a resolver mixing `StandingClaim` from one snapshot with typed metadata from another | impossible by construction — one `&self` snapshot re-fetches both tables internally; no API accepts separate pieces |
@@ -607,15 +699,51 @@ authority.
 
 ## Exact future implementation boundary
 
-A future implementation ticket may add only additive, separately
-reviewed surfaces: the strict whole-envelope parser (or exact reuse of
-the existing strict machinery), the snapshot-only evaluator method, the
-private-construction outcome/receipt/failure types, hostile tests, and
-documentation. It must not change `sha256_bytes_equals_v0`, its parser,
+The immediate next separately reviewed slice is the predicate evaluator
+implementation. It may add only additive, separately reviewed surfaces:
+a purpose-built bounded borrowing/streaming inline-descriptor parser.
+For `predicate_id`, it enforces the decoded UTF-8 byte bound while
+reading and unescaping the token, rejects decoded byte 65 before the
+complete oversized identifier exists, and retains no unbounded
+intermediate identifier representation. `subject_hex` is likewise
+bounded before allocating decoded subject output. The existing strict
+claim-domain parser may be reused for the outer `claim_domain`, and the
+existing duplicate/unknown-key structural pattern may be reused, but
+the allocating generic descriptor-string value path is not sufficient
+for this inline family and must not be reused for those fields. Bounded
+structural parser state and allocation of accepted, already-bounded
+values remain permitted. The other surfaces are the exact
+same-snapshot claim resolution, the snapshot-only evaluator
+method, the opaque private-construction outcome/receipt types and the
+closed failure vocabulary, canonical audit serialization, hostile and
+compatibility tests, and documentation. It must not change
+`sha256_bytes_equals_v0`,
+its parser,
 trace, fixtures, policies v0-v3, L0, `docs/FORMAT.md`, golden vectors,
 the Python verifier, Cargo manifests, CI, or any historical ticket. No
-standing rule, support lane, refutation lane, or attestation schema may
+standing rule, support lane, refutation lane, attestation schema,
+evidence-kind assumption, edge polarity, or contradiction handling may
 be implemented in the same slice as the predicate evaluator.
+
+Future hostile and compile-fail coverage must prove at least: callers
+cannot construct any terminal outcome; cannot extract a receipt by
+value and rewrap it under a different classification; cannot change an
+outcome's classification; cannot deserialize, default, or mutate an
+outcome; cannot convert a kind or failure vocabulary value into an
+outcome; and cannot feed an outcome, receipt, failure, kind, or
+serialized bytes back into the evaluator. Parser coverage must prove:
+exactly 64 decoded `predicate_id` bytes accepted, 65 rejected with
+`PredicateIdTooLong`; escaped raw spellings decoding to 64 and 65
+bytes measured after unescaping; multibyte UTF-8 boundaries; very
+large raw and heavily escaped tokens with bounded parser-side
+retention; invalid characters within the bound yield
+`InvalidPredicateId` while any over-bound input — with the invalid
+character before or after the boundary — yields `PredicateIdTooLong`;
+post-unescape duplicate keys still fail as duplicates; malformed
+escapes still fail as malformed metadata; retained predicate bytes
+never exceed 64 before rejection; and an `expected_sha256` failure
+combined with a `subject_hex` failure selects the `expected_sha256`
+failure first.
 
 ## Validation commands (for this documentation change)
 
@@ -633,6 +761,10 @@ $gitExe = (@(Microsoft.PowerShell.Core\Get-Command git -CommandType Application 
 $cargoExe = (@(Microsoft.PowerShell.Core\Get-Command cargo -CommandType Application -ErrorAction Stop)[0]).Source
 $pythonExe = (@(Microsoft.PowerShell.Core\Get-Command python -CommandType Application -ErrorAction Stop)[0]).Source
 
+# The exact pinned base, declared once and used by both the whitespace
+# checks and the changed-path collectors below.
+$base = "67a87e01575a9e9930ba3dc1ec52b95f963b6136"
+
 # CARGO is handed to the Python consumers (the release checker honors
 # it; the tour gate reads it) and restored on exit (or removed when it
 # was absent). Native-exit promotion (the PS 7+ opt-in preference) is
@@ -649,7 +781,13 @@ $nativePrefValue = if ($nativePrefExisted) { $nativePrefVar.Value } else { $null
 try {
     [System.Environment]::SetEnvironmentVariable("CARGO", $cargoExe, "Process")
     $PSNativeCommandUseErrorActionPreference = $false
-    # Standard checks (must pass)
+    # Standard checks (must pass): whitespace coverage across the exact
+    # pinned base tree vs HEAD, the staged index, and the unstaged
+    # worktree, then format, lint, and tests.
+    & $gitExe diff --check $base HEAD --
+    if ($LASTEXITCODE -ne 0) { throw "git diff BASE HEAD --check failed" }
+    & $gitExe diff --cached --check
+    if ($LASTEXITCODE -ne 0) { throw "git diff --cached --check failed" }
     & $gitExe diff --check
     if ($LASTEXITCODE -ne 0) { throw "git diff --check failed" }
     & $cargoExe fmt --all --check
@@ -720,7 +858,8 @@ if h != "48427d488c501c577c4ba9cf8c44bd89e20b84df8e663dee2c7dc4dbf1e25c2f":
     }
 
     # Changed-path allowlist — hard gate over committed and local
-    # changes. Union of: the committed PR diff against the exact base,
+    # changes. Union of: the committed PR diff against the exact pinned
+    # base (direct two-tree comparison, never a merge-base range),
     # unstaged tracked changes, staged changes, and untracked files.
     # --no-renames exposes a rename as its old-path deletion plus
     # new-path addition, so an out-of-allowlist source path cannot
@@ -731,7 +870,6 @@ if h != "48427d488c501c577c4ba9cf8c44bd89e20b84df8e663dee2c7dc4dbf1e25c2f":
     # comparisons are case-sensitive, matching Git's exact path bytes.
     # Porcelain-free collection; `git status --short` is printed for
     # review, never parsed.
-    $base = "67a87e01575a9e9930ba3dc1ec52b95f963b6136"
     $allowlist = @(
         "README.md",
         "docs/design/claim-inline-subject-binding-v0.md",
@@ -739,8 +877,8 @@ if h != "48427d488c501c577c4ba9cf8c44bd89e20b84df8e663dee2c7dc4dbf1e25c2f":
         "docs/design/standing-view-evidence-ceilings.md",
         "tickets/0058-claim-inline-sha256-predicate-contract.md"
     )
-    $committed = @(& $gitExe diff --name-only --no-renames "$base...HEAD")
-    if ($LASTEXITCODE -ne 0) { throw "git diff BASE...HEAD failed" }
+    $committed = @(& $gitExe diff --name-only --no-renames $base HEAD --)
+    if ($LASTEXITCODE -ne 0) { throw "git diff BASE HEAD failed" }
     $unstaged = @(& $gitExe diff --name-only --no-renames)
     if ($LASTEXITCODE -ne 0) { throw "git diff failed" }
     $staged = @(& $gitExe diff --cached --name-only --no-renames)
@@ -877,8 +1015,17 @@ fixture regeneration.
 
 ## Next slice
 
-The next separately reviewed slice is the routing-only
-attestation-binding contract recorded in the attestation decision
-above, followed only later by separately ratified support/refutation
-lane contracts and any direct-refutation runtime. This contract
-ratifies none of those.
+The next separately reviewed slice is the predicate evaluator
+implementation: the purpose-built bounded borrowing/streaming
+descriptor parser, the exact same-snapshot claim resolution, the
+snapshot-only evaluator method,
+the opaque outcome/receipt types and closed failure vocabulary,
+canonical audit serialization, and hostile and compatibility tests —
+standing-inert, with no attestation, evidence-kind assumption, edge
+polarity, support, refutation, standing, or contradiction handling.
+Only then follow the
+routing-only attestation-binding contract recorded in the attestation
+decision above and its implementation, separately ratified
+support/refutation lane contracts and their standing-inert
+implementations, a direct-refutation policy contract, and any
+direct-refutation runtime. This contract ratifies none of those.

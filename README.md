@@ -448,10 +448,13 @@ shell execution is unavailable.
     no policy v4, rule, resolver, receipt, or conflict blocker is active.
     The existing v2 positive rule and the `DigestMismatch`
     non-authority law are unchanged, and the three refutation-ceiling
-    cells remain ceilings only. Direct refutation remains future work
-    and now requires a same-replay, non-caller-substitutable
-    subject-binding contract first, then a direct-refutation contract,
-    then runtime. Contradiction debt, invalidation,
+    cells remain ceilings only. Direct refutation remains future work.
+    Entries 27-28 record the now-ratified subject-binding and neutral
+    predicate contracts; the remaining progression is the predicate
+    evaluator implementation, a routing-only attestation-binding contract
+    and implementation, support/refutation lane contracts and their
+    standing-inert inputs, a direct-refutation policy contract, then
+    runtime. Contradiction debt, invalidation,
     supersession/currentness, `EpistemicGate`, ordinary claim-bearing
     writer, loader, CAS, and filesystem or network ingestion remain
     future work.
@@ -460,14 +463,15 @@ shell execution is unavailable.
     [`docs/design/claim-inline-subject-binding-v0.md`](docs/design/claim-inline-subject-binding-v0.md)
     and [Ticket 0057](tickets/0057-claim-inline-subject-binding-contract.md)
     ratify the subject-binding prerequisite identified by Ticket 0056:
-    an `ExactMachineCheckable` claim independently commits to exactly
-    one immutable byte subject through claim-owned inline subject bytes
-    (strict bounded hex plus an exact expected digest — exactly 64
-    lowercase hex characters, no prefix, uppercase, or whitespace,
-    validated before canonical statement construction — in the new
-    `magpie-machine-predicate-inline-bytes-v0` schema), with the
-    complete subject descriptor — schema, predicate identity, expected
-    digest, and subject bytes — carried injectively in the canonical
+    an `ExactMachineCheckable` claim owns exactly one immutable byte
+    subject through claim-owned strict bounded inline hex and separately
+    owns an expected terminal SHA-256 operand — exactly 64 lowercase
+    hex characters, no prefix, uppercase, or whitespace, validated
+    before canonical statement construction — in the new
+    `magpie-machine-predicate-inline-bytes-v0` schema. The expected
+    operand does not independently commit to or identify the subject.
+    The complete descriptor — schema, predicate identity, expected
+    operand, and subject bytes — is carried injectively in the canonical
     statement. The canonical encoding is injective; SHA-256 is not —
     binding is the exact direct three-way statement comparison
     `StandingClaim.statement == TypedClaimNode.statement == the
@@ -484,10 +488,13 @@ shell execution is unavailable.
     and no others, duplicate keys rejected at both levels, no
     descriptor fields at the outer level, and `claim_domain`
     revalidated by the existing strict parser. `predicate_id` is a
-    closed `[a-z0-9_]+` identifier bounded by the compiled
-    `MAX_PREDICATE_ID_BYTES_V0 = 64` constant, checked after the
-    missing/wrong-type/empty checks and before character validation,
-    canonical statement construction, or allocation. For the new
+    closed `[a-z0-9_]+` identifier bounded by decoded UTF-8 byte length
+    under the compiled `MAX_PREDICATE_ID_BYTES_V0 = 64` constant while
+    the token is read and unescaped. Missing/wrong-type/empty checks
+    come first; decoded byte 65 yields `PredicateIdTooLong` before
+    character validation or canonical statement construction, without
+    materialising a complete oversized owned identifier or retaining an
+    unbounded intermediate representation. For the new
     inline-subject path, any future evidence attestation consumed by
     that path may carry routing and binding fields only and may supply
     no alternate subject byte source — the Ticket 0056 substitution
@@ -522,8 +529,14 @@ shell execution is unavailable.
     statement, exact three-way direct statement binding, separate
     content-hash recomputation, and bounded claim-only subject decode
     precede the terminal 32-byte digest comparison. The closed neutral
-    outcome vocabulary is `DigestEqual(receipt)`,
-    `DigestUnequal(receipt)`, and `ResolutionFailed(reason)`:
+    outcome vocabulary is `DigestEqual`,
+    `DigestUnequal`, and `ResolutionFailed`, exposed read-only by an
+    opaque outcome value that only the evaluator constructs. Callers may
+    inspect its kind and borrow its receipt or failure reason, but cannot
+    construct or reclassify the outcome, move a receipt between terminal
+    classes, deserialize or mutate it, or re-present any audit value as
+    authority; caller-constructible kind and failure vocabulary carries
+    no authority:
     `DigestEqual` is not `Supported` or `Settled`, `DigestUnequal` is
     not `Refuted`, and every parse, binding, or decode failure is
     `ResolutionFailed`, never a negative result — the Ticket 0056
@@ -534,9 +547,19 @@ shell execution is unavailable.
     statement, claim content hash, expected and computed SHA-256) and
     asserts no verified-prefix provenance. No standing policy, support
     or refutation rule, evidence attestation schema, or edge-polarity
-    meaning is ratified; a routing-only attestation-binding contract is
-    the next slice, then support/refutation lane contracts, then any
-    direct-refutation runtime. Contradiction debt, invalidation,
+    meaning is ratified. The ratified progression is: the predicate
+    evaluator implementation next (purpose-built bounded
+    borrowing/streaming descriptor parser, exact
+    same-snapshot claim resolution, opaque outcome/receipt/failure
+    surfaces, neutral digest evaluation, canonical audit serialization,
+    and hostile and compatibility tests — standing-inert, with no
+    attestation, edge polarity, support, refutation, or contradiction
+    handling); then a
+    routing-only attestation-binding contract and its implementation;
+    then support/refutation lane contract(s) and corresponding
+    standing-inert lane/input implementation(s); then a direct-refutation
+    policy contract; and only then any direct-refutation runtime.
+    Contradiction debt, invalidation,
     supersession/currentness, `EpistemicGate`, ordinary claim-bearing
     writer, loader, CAS, and filesystem or network ingestion remain
     future work.
