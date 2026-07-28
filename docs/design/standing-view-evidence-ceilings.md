@@ -234,8 +234,13 @@ ratified (see
 [`standing-policy-v4-deterministic-direct-refutation-v0.md`](standing-policy-v4-deterministic-direct-refutation-v0.md)).
 Direct refutation therefore remains future: the subject-binding
 prerequisite is now ratified by Ticket 0057 (claim-owned inline subject
-bytes), and a predicate contract and a direct-refutation contract must
-still follow. A bare
+bytes), and the neutral claim-inline SHA-256 predicate contract is now
+ratified by Ticket 0058; the remaining progression is the predicate
+evaluator implementation, a routing-only attestation-binding contract
+and its implementation, support/refutation lane contract(s) and
+corresponding standing-inert lane/input implementation(s), a
+direct-refutation policy contract, and only then any direct-refutation
+runtime. A bare
 `contradicts` edge never refutes, and no conflict handling is ratified —
 contradiction debt remains future.
 
@@ -721,8 +726,13 @@ context, the exact Deadbolt v1 slice, and deterministic v2 lanes all exist.
 Step 6 is partially landed through the implemented v3 corroboration rule.
 Step 7's first contract candidate was blocked by Ticket 0056 on the
 missing subject-binding prerequisite; that prerequisite is now ratified
-by Ticket 0057 (claim-owned inline subject bytes). A predicate contract,
-a direct-refutation contract, and any runtime remain future.
+by Ticket 0057 (claim-owned inline subject bytes), and the neutral
+claim-inline SHA-256 predicate contract is now ratified by Ticket 0058.
+The remaining progression — predicate evaluator implementation,
+routing-only attestation-binding contract and implementation,
+support/refutation lane contract(s) and corresponding standing-inert
+lane/input implementation(s), a direct-refutation policy contract, and
+any direct-refutation runtime — remains future.
 
 1. Keep or land `StandingResolution` v0 as the canonical fail-closed
    explanation surface.

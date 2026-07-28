@@ -12,7 +12,12 @@ mechanism:
 claim-owned inline immutable subject bytes — ratified as the one
 concrete subject representation
 
-predicates, policies, standing rules, refutation:
+predicates:
+none ratified by this contract; the neutral claim-inline SHA-256
+predicate sha256_claim_inline_bytes_equals_v0 is ratified separately
+by Ticket 0058 over this substrate
+
+policies, standing rules, refutation:
 none ratified
 
 runtime:
@@ -148,8 +153,10 @@ predicate_id:    a closed lowercase [a-z0-9_]+ identifier, at most
                  none)
 subject_hex:     the complete inline subject bytes, strict lowercase
                  even-length hex, empty string permitted
-expected_sha256: the expected SHA-256 digest of the exact subject
-                 bytes, in one exact representation: exactly 64
+expected_sha256: the claim-owned expected terminal SHA-256 operand,
+                 compared by a later predicate with the SHA-256 of the
+                 exact subject bytes, in one exact representation:
+                 exactly 64
                  characters of lowercase hexadecimal only — no prefix,
                  no uppercase, no alternate encoding, no whitespace —
                  validated before canonical statement construction
@@ -167,8 +174,32 @@ MAX_PREDICATE_ID_BYTES_V0 = 64 bytes
 
 The bound is checked after the missing, wrong-type, and empty checks,
 and before character validation, canonical statement construction, or
-any allocation or copy. The longest current policy and predicate
-identifiers are about 35 characters (`sha256_bytes_equals_v0` is 21;
+any resolver-owned allocation or copy attributable to `predicate_id`.
+This is an explicit scope clarification of the already-ratified
+resolver law, not a relaxation or a new parser permission. Allocation
+or copying performed before resolver entry by upstream replay or
+application code is outside this law; the resolver cannot
+retroactively prevent or undo it.
+
+Before the bound decision, the resolver may inspect existing
+upstream-owned input and retain only bounded non-identifier bookkeeping
+needed to logically decode and count: a decoded-byte count, JSON escape
+and UTF-8 decoder state, fixed scalar flags, and duplicate/key-traversal
+state containing no copied identifier bytes. It may not mutate or
+extend upstream input; allocate or extend an owned `String` or `Vec` as
+an identifier representation; construct an owned `Cow` containing
+identifier material; copy raw or decoded identifier bytes into any
+buffer; accumulate a prefix, suffix, complete, or partial identifier;
+materialise the complete identifier; or invoke an allocating generic
+descriptor-string path. Unrelated bounded parser bookkeeping containing
+no copied identifier bytes remains outside this predicate-ID
+allocation/copy guarantee. Only after the bound succeeds may the
+resolver decode, copy, or allocate the accepted bounded identifier;
+character validation and canonical statement construction follow.
+Escaped JSON and multibyte UTF-8 remain measured by decoded byte length.
+
+The longest current policy and predicate identifiers are about 35
+characters (`sha256_bytes_equals_v0` is 21;
 `magpie-claims-standing-v3` is 25); 64 bytes gives comfortable headroom
 while keeping the value compiled and checked, never caller-unbounded.
 
@@ -194,11 +225,15 @@ only decoded inline subject bytes, and the encoded check protects only
 the inline descriptor field; `MAX_PREDICATE_ID_BYTES_V0` bounds only
 `predicate_id`. These limits do not bound the full `ClaimAssertedV2`
 event, `metadata_json`, the full statement, whitespace, unknown values
-before strict rejection, or pre-existing allocation performed by
-upstream replay or application code. A true pre-allocation cap for raw
-claims or events requires a separate future writer/ingestion/L0
-boundary contract and is not ratified here. No resolver can undo
-memory already allocated upstream.
+before strict rejection, input buffers, or storage/application
+representations. Allocation or copying of those upstream-owned inputs
+before resolver entry is outside this resolver resource law; no
+resolver can retroactively prevent or undo it. That exclusion is not
+permission for the resolver to mutate or extend upstream input or to
+create any complete or partial predicate-identifier representation
+before the bound succeeds. A true pre-allocation cap for raw claims or
+events requires a separate future writer/ingestion/L0 boundary contract
+and is not ratified here.
 
 ### Canonical commitment
 
@@ -271,7 +306,8 @@ way:
    unknown schema, missing/wrong-typed/empty `predicate_id`,
    `predicate_id` beyond the compiled
    `MAX_PREDICATE_ID_BYTES_V0 = 64` bound — checked before character
-   validation, statement construction, or allocation —
+   validation, statement construction, or any resolver-owned allocation
+   or copy attributable to `predicate_id` —
    `predicate_id` characters outside closed `[a-z0-9_]+`,
    `expected_sha256` missing, wrong-typed, or not exactly 64 lowercase
    hexadecimal characters — no prefix, no uppercase, no whitespace —
@@ -312,9 +348,13 @@ standing.
   the already validated claim predicate identity: closed `[a-z0-9_]+`,
   bounded by the compiled `MAX_PREDICATE_ID_BYTES_V0 = 64` constant,
   checked after missing/wrong-type/empty and before character
-  validation, canonical statement construction, or allocation. This
-  contract defines only that boundary; it ratifies no attestation
-  schema and no global restriction on byte-bearing evidence.
+  validation, canonical statement construction, or any resolver-owned
+  allocation or copy attributable to `predicate_id`. Pre-existing
+  upstream replay/application allocations or copies are outside that
+  resolver law and cannot be undone; they grant the resolver no
+  permission to copy any identifier bytes before the bound. This
+  contract defines only that boundary; it ratifies no attestation schema
+  and no global restriction on byte-bearing evidence.
 - No caller-provided claim bytes, metadata, subject, receipt, or
   evaluation result may enter any resolver. Every **new**
   authority-bearing type introduced for the inline-subject family — any
@@ -378,7 +418,7 @@ accepted. This contract ratifies none of it.
 
 ### Stop conditions
 
-Do not proceed to any direct-refutation contract if a future design
+Do not proceed to any direct-refutation policy contract if a future design
 cannot fix all of: injective canonical subject encoding; one
 internal-only same-call authority path; missing/malformed/unavailable
 never false; no alternate subject byte source consumed by the
@@ -389,17 +429,17 @@ leaving `sha256_bytes_equals_v0` and policies v0-v3 untouched.
 
 ## Explicitly unratified future designs
 
-The following become possible over this mechanism but are **not**
-ratified here:
+The following later layers become possible over this mechanism but are
+**not** ratified here and must follow the sequence in `Next slice`:
 
-- a positive standing rule over inline-subject claims (a new
-  `DeterministicVerification × ExactMachineCheckable` family whose
-  checker hashes claim-owned bytes);
-- a direct-refutation contract over inline-subject claims (predicate
-  inequality over the claim-fixed bytes as negative authority);
-- an attestation-consumption rule for evidence polarity;
-- any policy v4 or later identity, any negative receipt, any conflict
-  or precedence rule, any resolver signature, and any runtime.
+- a routing-only attestation-binding contract and implementation;
+- support/refutation lane contract(s) and corresponding standing-inert
+  lane/input implementation(s);
+- a direct-refutation policy contract over inline-subject claims
+  (predicate inequality over the claim-fixed bytes as potential
+  negative authority), followed only later by its runtime;
+- any policy v4 or later identity, negative receipt, conflict or
+  precedence rule, or other runtime.
 
 ## Hostile cases
 
@@ -410,7 +450,7 @@ ratified here:
 | claim metadata with duplicate keys | closed parse failure; no standing effect |
 | claim metadata with unknown keys or unknown schema | closed parse failure |
 | descriptor fields placed at the outer metadata level | closed parse failure — the descriptor is nested beside `claim_domain` only |
-| `predicate_id` empty, beyond the compiled `MAX_PREDICATE_ID_BYTES_V0 = 64` bound, or outside closed `[a-z0-9_]+` | closed parse failure — the bound is enforced after missing/wrong-type/empty and before character validation, statement construction, or allocation |
+| `predicate_id` empty, beyond the compiled `MAX_PREDICATE_ID_BYTES_V0 = 64` bound, or outside closed `[a-z0-9_]+` | closed parse failure — the bound is enforced after missing/wrong-type/empty and before character validation, statement construction, or any resolver-owned allocation or copy attributable to the identifier; pre-existing upstream-owned input is outside that scope, but the resolver may inspect it with bounded non-identifier scalar state only and may not copy any complete or partial identifier |
 | `expected_sha256` missing, wrong-typed, not exactly 64 lowercase hexadecimal characters, or carrying prefix, uppercase, or whitespace | closed parse failure before canonical statement construction |
 | subject hex oversized (encoded or decoded) | closed audit failure; never falsity |
 | subject hex invalid (odd length, uppercase, non-hex) | closed audit failure |
@@ -476,7 +516,12 @@ mirror. No `--allow-dirty`.
 - Confirm `predicate_id` is closed `[a-z0-9_]+`, bounded by the
   compiled `MAX_PREDICATE_ID_BYTES_V0 = 64` constant, checked after
   missing/wrong-type/empty and before character validation, statement
-  construction, or allocation.
+  construction, or any resolver-owned allocation or copy attributable
+  to the identifier. Confirm pre-existing upstream allocation/copy is
+  outside that scope and cannot be undone, but the resolver may retain
+  only bounded non-identifier decoding/counting state and may not
+  mutate or extend upstream input or copy any complete or partial
+  identifier before the bound succeeds.
 - Confirm `expected_sha256` has one exact representation everywhere:
   exactly 64 lowercase hexadecimal characters, no prefix, no uppercase,
   no alternate encoding, no whitespace, validated before canonical
@@ -517,7 +562,22 @@ mirror. No `--allow-dirty`.
 
 ## Next slice
 
-The next separately reviewed slice is a predicate contract over this
-mechanism (positive and/or negative deterministic evaluation of
-inline-subject claims), followed only later by any direct-refutation
-contract. This contract ratifies none of those.
+The predicate contract over this mechanism — one neutral, standing-inert
+claim-inline SHA-256 predicate (`sha256_claim_inline_bytes_equals_v0`,
+outcomes `DigestEqual` / `DigestUnequal` / `ResolutionFailed`) — is
+ratified separately by Ticket 0058
+([`claim-inline-sha256-predicate-v0.md`](claim-inline-sha256-predicate-v0.md)).
+The next separately reviewed slice after it is the predicate evaluator
+implementation (bounded inline descriptor parsing that preserves this
+contract's pre-bound prohibition on resolver-owned `predicate_id`
+allocation or copy, exact
+same-snapshot claim resolution, opaque
+outcome/receipt/failure surfaces, neutral digest evaluation, Ticket
+0058's exact canonical outcome audit JSON profile, and hostile and
+compatibility tests —
+standing-inert, realizing both this contract's resolver and Ticket
+0058's evaluator). Only then follow a routing-only attestation-binding
+contract and its implementation, support/refutation lane contract(s)
+and corresponding standing-inert lane/input implementation(s), a
+direct-refutation policy contract, and any direct-refutation runtime.
+This contract ratifies none of those.
