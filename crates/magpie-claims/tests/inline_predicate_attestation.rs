@@ -960,7 +960,8 @@ fn failed_query_attribution_and_json_escaping_preserve_both_exact_ids() {
         ),
     );
     let json = String::from_utf8(outcome.canonical_bytes()).unwrap();
-    assert!(json.contains(r#"\b\t\n\f\r\u0001/é/é"#));
+    let expected_claim_escape = format!("{}e\u{0301}", r#"\b\t\n\f\r\u0001/é/"#);
+    assert!(json.contains(&expected_claim_escape));
     assert!(json.contains(r#"\b\t\n\f\r\u0002/普通话"#));
     assert!(!json.contains("\\/"));
 
