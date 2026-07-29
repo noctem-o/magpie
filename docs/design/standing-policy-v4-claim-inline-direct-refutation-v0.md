@@ -805,7 +805,7 @@ The blocker spellings are:
 | --- | --- |
 | `InheritedV3ResolutionFailed` | `{"kind":"inherited_v3_resolution_failed"}` |
 | `InheritedV3NotExtensionSafe { blocker }` | `{"kind":"inherited_v3_not_extension_safe","blocker":<exact StandingBlockerV3>}` |
-| `InheritedPositiveStandingRequiresContradictionPolicy { inherited_status }` | `{"kind":"inherited_positive_standing_requires_contradiction_policy","inherited_status":"Supported|Settled"}` |
+| `InheritedPositiveStandingRequiresContradictionPolicy { inherited_status }` | `{"kind":"inherited_positive_standing_requires_contradiction_policy","inherited_status":"Supported"}` or `{"kind":"inherited_positive_standing_requires_contradiction_policy","inherited_status":"Settled"}` |
 
 The complete inherited v3 object is the source of detailed inherited failure
 and blocker audit. V4 does not duplicate those nested facts into parallel

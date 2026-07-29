@@ -541,10 +541,10 @@ refutation contribution requires a `refutation_ceiling` cell that permits
 `Refuted`, the non-authority policy checks, and admitted verifier context.
 
 Only the refutation ceiling policy can admit direct `Refuted` contribution. It
-does not make refutation automatic. No such rule is ratified: the Ticket
-0056 candidate was blocked because the existing predicate is
-evidence-relative with no independent subject binding (recorded in its
-documents). The subject-binding prerequisite is now ratified by Ticket
+does not make refutation automatic. The evidence-relative rule proposed by
+Ticket 0056 remains unratified and blocked because the existing predicate has
+no independent subject binding, as recorded in its documents. The
+subject-binding prerequisite is now ratified by Ticket
 0057 (claim-owned inline subject bytes); the neutral predicate contract is
 ratified by Ticket 0058 and its standing-inert evaluator is implemented by
 Ticket 0059. The routing-only attestation-binding contract is ratified by
