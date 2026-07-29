@@ -49,6 +49,10 @@ pub use artifact_provenance_verifier::{
 };
 
 pub use claim_inline_sha256_predicate::{
+    ClaimInlinePredicateEdgeLaneEdgeKindV0, ClaimInlinePredicateEdgeLaneFailureV0,
+    ClaimInlinePredicateEdgeLaneIneligibleReasonV0, ClaimInlinePredicateEdgeLaneKindV0,
+    ClaimInlinePredicateEdgeLaneOutcomeKindV0, ClaimInlinePredicateEdgeLaneOutcomeV0,
+    ClaimInlinePredicateEdgeLaneReceiptV0, ClaimInlinePredicateEdgeLaneRelationV0,
     ClaimInlineSubjectResolutionFailureV0, Sha256ClaimInlineBytesPredicateOutcomeKindV0,
     Sha256ClaimInlineBytesPredicateOutcomeV0, Sha256ClaimInlineBytesPredicateReceiptV0,
     MAX_INLINE_SUBJECT_BYTES_V0, MAX_PREDICATE_ID_BYTES_V0,

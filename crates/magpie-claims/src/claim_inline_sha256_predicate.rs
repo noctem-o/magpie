@@ -176,6 +176,15 @@
 //! }
 //! ```
 
+mod edge_lane;
+
+pub use edge_lane::{
+    ClaimInlinePredicateEdgeLaneEdgeKindV0, ClaimInlinePredicateEdgeLaneFailureV0,
+    ClaimInlinePredicateEdgeLaneIneligibleReasonV0, ClaimInlinePredicateEdgeLaneKindV0,
+    ClaimInlinePredicateEdgeLaneOutcomeKindV0, ClaimInlinePredicateEdgeLaneOutcomeV0,
+    ClaimInlinePredicateEdgeLaneReceiptV0, ClaimInlinePredicateEdgeLaneRelationV0,
+};
+
 use serde::{Serialize, Serializer};
 use sha2::{Digest, Sha256};
 
@@ -433,6 +442,17 @@ struct TerminalEvaluationV0 {
     receipt: Sha256ClaimInlineBytesPredicateReceiptV0,
 }
 
+#[derive(Clone, Copy)]
+enum ResolvedClaimInlineSha256RelationV0 {
+    DigestEqual,
+    DigestUnequal,
+}
+
+struct ResolvedClaimInlineSha256EvaluationV0 {
+    relation: ResolvedClaimInlineSha256RelationV0,
+    computed_bytes: [u8; 32],
+}
+
 pub(crate) struct ResolvedClaimInlineSubjectV0 {
     claim_id: String,
     predicate_id: String,
@@ -482,9 +502,12 @@ fn evaluate_claim_inline_sha256(
     claim_id: &str,
 ) -> Result<TerminalEvaluationV0, ClaimInlineSubjectResolutionFailureV0> {
     let resolved = resolve_claim_inline_subject_v0(snapshot, claim_id)?;
-    let computed_bytes: [u8; 32] = Sha256::digest(&resolved.subject_bytes).into();
-    let equal = computed_bytes == resolved.expected_bytes;
-    let computed_sha256 = hex::encode(computed_bytes);
+    let evaluation = evaluate_resolved_claim_inline_sha256_v0(&resolved);
+    let equal = matches!(
+        evaluation.relation,
+        ResolvedClaimInlineSha256RelationV0::DigestEqual
+    );
+    let computed_sha256 = hex::encode(evaluation.computed_bytes);
 
     Ok(TerminalEvaluationV0 {
         equal,
@@ -499,6 +522,21 @@ fn evaluate_claim_inline_sha256(
             computed_sha256,
         },
     })
+}
+
+fn evaluate_resolved_claim_inline_sha256_v0(
+    resolved: &ResolvedClaimInlineSubjectV0,
+) -> ResolvedClaimInlineSha256EvaluationV0 {
+    let computed_bytes: [u8; 32] = Sha256::digest(&resolved.subject_bytes).into();
+    let relation = if computed_bytes == resolved.expected_bytes {
+        ResolvedClaimInlineSha256RelationV0::DigestEqual
+    } else {
+        ResolvedClaimInlineSha256RelationV0::DigestUnequal
+    };
+    ResolvedClaimInlineSha256EvaluationV0 {
+        relation,
+        computed_bytes,
+    }
 }
 
 pub(crate) fn resolve_claim_inline_subject_v0(

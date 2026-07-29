@@ -250,7 +250,7 @@ use serde::{Serialize, Serializer};
 use crate::claim_inline_sha256_predicate::{
     decoded_json_string_eq, decoded_utf8_len_through_limit, key_has_equal_predecessor,
     materialize_json_string, resolve_claim_inline_subject_v0, validate_json_document,
-    JsonStringToken, ObjectMemberCursor, MAX_PREDICATE_ID_BYTES_V0,
+    JsonStringToken, ObjectMemberCursor, ResolvedClaimInlineSubjectV0, MAX_PREDICATE_ID_BYTES_V0,
 };
 use crate::replay_snapshot::StandingReplaySnapshot;
 use crate::ClaimInlineSubjectResolutionFailureV0;
@@ -734,6 +734,80 @@ fn parse_inline_predicate_attestation_v0(
     })
 }
 
+pub(crate) struct ResolvedInlinePredicateAttestationBindingV0 {
+    predicate_id: String,
+    claim_id: String,
+    evidence_id: String,
+    scope_ref: String,
+}
+
+impl ResolvedInlinePredicateAttestationBindingV0 {
+    pub(crate) fn predicate_id(&self) -> &str {
+        &self.predicate_id
+    }
+
+    pub(crate) fn claim_id(&self) -> &str {
+        &self.claim_id
+    }
+
+    pub(crate) fn evidence_id(&self) -> &str {
+        &self.evidence_id
+    }
+
+    pub(crate) fn scope_ref(&self) -> &str {
+        &self.scope_ref
+    }
+}
+
+pub(crate) fn resolve_inline_predicate_attestation_after_claim_v0(
+    snapshot: &StandingReplaySnapshot,
+    resolved_claim: &ResolvedClaimInlineSubjectV0,
+    evidence_id: &str,
+) -> Result<ResolvedInlinePredicateAttestationBindingV0, InlinePredicateAttestationBindingFailureV0>
+{
+    let evidence = snapshot
+        .standing()
+        .typed_evidence(evidence_id)
+        .ok_or(InlinePredicateAttestationBindingFailureV0::MissingEvidence)?;
+    if evidence.evidence_kind.as_bytes() != DETERMINISTIC_VERIFICATION_EVIDENCE_KIND_V0.as_bytes() {
+        return Err(InlinePredicateAttestationBindingFailureV0::WrongEvidenceKind);
+    }
+
+    let attestation = parse_inline_predicate_attestation_v0(&evidence.metadata_json)?;
+
+    if attestation.predicate_id.as_bytes() != resolved_claim.predicate_id().as_bytes() {
+        return Err(InlinePredicateAttestationBindingFailureV0::PredicateBindingMismatch);
+    }
+    if !decoded_json_string_eq(
+        &evidence.metadata_json,
+        attestation.subject_claim_id,
+        resolved_claim.claim_id(),
+    ) {
+        return Err(InlinePredicateAttestationBindingFailureV0::ClaimBindingMismatch);
+    }
+    if !decoded_json_string_eq(
+        &evidence.metadata_json,
+        attestation.scope_ref,
+        &evidence.scope_ref,
+    ) {
+        return Err(InlinePredicateAttestationBindingFailureV0::EvidenceScopeBindingMismatch);
+    }
+    if !decoded_json_string_eq(
+        &evidence.metadata_json,
+        attestation.scope_ref,
+        resolved_claim.scope_ref(),
+    ) {
+        return Err(InlinePredicateAttestationBindingFailureV0::ClaimScopeBindingMismatch);
+    }
+
+    Ok(ResolvedInlinePredicateAttestationBindingV0 {
+        predicate_id: resolved_claim.predicate_id().to_owned(),
+        claim_id: resolved_claim.claim_id().to_owned(),
+        evidence_id: evidence_id.to_owned(),
+        scope_ref: evidence.scope_ref.clone(),
+    })
+}
+
 impl StandingReplaySnapshot {
     /// Bind one replayed deterministic-verification evidence node to one
     /// internally resolved claim-inline predicate without evaluating its digest
@@ -762,67 +836,22 @@ impl StandingReplaySnapshot {
             }
         };
 
-        let evidence = match self.standing().typed_evidence(evidence_id) {
-            Some(evidence) => evidence,
-            None => {
-                return resolution_failed(
-                    InlinePredicateAttestationBindingFailureV0::MissingEvidence,
-                );
-            }
-        };
-        if evidence.evidence_kind.as_bytes()
-            != DETERMINISTIC_VERIFICATION_EVIDENCE_KIND_V0.as_bytes()
-        {
-            return resolution_failed(
-                InlinePredicateAttestationBindingFailureV0::WrongEvidenceKind,
-            );
-        }
-
-        let attestation = match parse_inline_predicate_attestation_v0(&evidence.metadata_json) {
-            Ok(attestation) => attestation,
+        let binding = match resolve_inline_predicate_attestation_after_claim_v0(
+            self,
+            &resolved_claim,
+            evidence_id,
+        ) {
+            Ok(binding) => binding,
             Err(failure) => return resolution_failed(failure),
         };
-
-        if attestation.predicate_id.as_bytes() != resolved_claim.predicate_id().as_bytes() {
-            return resolution_failed(
-                InlinePredicateAttestationBindingFailureV0::PredicateBindingMismatch,
-            );
-        }
-        if !decoded_json_string_eq(
-            &evidence.metadata_json,
-            attestation.subject_claim_id,
-            claim_id,
-        ) {
-            return resolution_failed(
-                InlinePredicateAttestationBindingFailureV0::ClaimBindingMismatch,
-            );
-        }
-        if !decoded_json_string_eq(
-            &evidence.metadata_json,
-            attestation.scope_ref,
-            &evidence.scope_ref,
-        ) {
-            return resolution_failed(
-                InlinePredicateAttestationBindingFailureV0::EvidenceScopeBindingMismatch,
-            );
-        }
-        if !decoded_json_string_eq(
-            &evidence.metadata_json,
-            attestation.scope_ref,
-            resolved_claim.scope_ref(),
-        ) {
-            return resolution_failed(
-                InlinePredicateAttestationBindingFailureV0::ClaimScopeBindingMismatch,
-            );
-        }
 
         InlinePredicateAttestationBindingOutcomeV0::bound(
             InlinePredicateAttestationBindingReceiptV0 {
                 schema: INLINE_PREDICATE_ATTESTATION_SCHEMA_V0.to_owned(),
-                predicate_id: resolved_claim.predicate_id().to_owned(),
-                claim_id: resolved_claim.claim_id().to_owned(),
-                evidence_id: evidence_id.to_owned(),
-                scope_ref: evidence.scope_ref.clone(),
+                predicate_id: binding.predicate_id,
+                claim_id: binding.claim_id,
+                evidence_id: binding.evidence_id,
+                scope_ref: binding.scope_ref,
             },
         )
     }

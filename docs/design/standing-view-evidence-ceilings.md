@@ -5,9 +5,10 @@
 Living doctrine note, originally a proposed design note. PR #33 and
 `StandingResolution` v0 have long landed, and the explicit policies v1, v2,
 and v3 now implement achieved-standing slices on top of this ceiling law.
-V0 itself remains candidate-only. Ticket 0062 ratifies only a standing-inert
-edge-lane contract in the current candidate documentation patch; policy v4
-and governed direct refutation remain future.
+V0 itself remains candidate-only. The Ticket 0062 standing-inert edge-lane
+contract landed through merged PR #77, and Ticket 0063 implements its runtime
+in the current candidate patch. Policy v4 and governed direct refutation
+remain future.
 
 ## Purpose
 
@@ -239,12 +240,12 @@ bytes), and the neutral claim-inline SHA-256 predicate contract is now
 ratified by Ticket 0058 and implemented, standing-inert, by Ticket 0059;
 the routing-only attestation-binding contract is now ratified by Ticket 0060
 and its standing-inert implementation landed through Ticket 0061 and merged
-PR #76. Ticket 0062 ratifies the first exact claim-inline predicate edge-lane
-contract in the current candidate documentation patch; no edge-lane runtime
-exists. The remaining progression starts with that runtime. Only after it
-lands may a fresh direct-refutation policy contract be considered. A bare
-`contradicts` edge never refutes, and no conflict handling is ratified —
-contradiction debt remains future.
+PR #76. The Ticket 0062 exact claim-inline predicate edge-lane contract
+landed through merged PR #77, and Ticket 0063 implements its standing-inert
+runtime in the current candidate patch. A fresh direct-refutation policy
+contract may be considered only as a separate review slice. A bare
+`contradicts` edge never refutes, lane eligibility is not achieved standing,
+and no conflict handling is ratified — contradiction debt remains future.
 
 Aggregation and independence-group policy are defined separately in
 `docs/design/standing-aggregation-independence-groups.md`. Ceilings define
@@ -734,10 +735,12 @@ and implemented, standing-inert, by Ticket 0059.
 Ticket 0060 now ratifies the routing-only attestation-binding contract,
 with no edge, polarity, contribution, or standing meaning. Ticket 0061
 implements that routing-only, standing-inert resolver and landed through
-merged PR #76. Ticket 0062 ratifies the first exact claim-inline predicate
-edge-lane contract in the current candidate documentation patch; no edge-lane
-runtime exists. The next separately reviewed slice is that runtime. Only
-after it lands may a fresh direct-refutation policy contract be considered.
+merged PR #76. The Ticket 0062 exact claim-inline predicate edge-lane contract
+landed through merged PR #77. Ticket 0063 implements its standing-inert
+runtime in the current candidate patch. `SupportEligible` and
+`RefutationEligible` expose candidate ceilings only and do not change achieved
+standing. The next possible slice is a fresh, separately reviewed
+direct-refutation policy contract.
 
 1. Keep or land `StandingResolution` v0 as the canonical fail-closed
    explanation surface.
