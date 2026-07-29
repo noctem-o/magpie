@@ -28,7 +28,7 @@ no attestation, polarity, support, refutation, or standing effect
 
 attestation binding:
 routing-only contract ratified separately by Ticket 0060;
-implementation remains future
+standing-inert resolver implemented by Ticket 0061 in this candidate patch
 ```
 
 This note ratifies the subject-binding prerequisite identified by Ticket
@@ -585,9 +585,10 @@ claim resolution, opaque outcome/receipt/failure surfaces, neutral digest
 evaluation, Ticket 0058's exact canonical outcome audit JSON profile, and
 hostile and compatibility tests. It is standing-inert and realizes only
 this contract's resolver plus Ticket 0058's evaluator. Ticket 0060
-separately ratifies the routing-only attestation-binding contract without
-changing this note's law. The next separately reviewed slice is that
-contract's implementation, followed by support/refutation lane contract(s)
-and corresponding standing-inert lane/input implementation(s), a
+separately ratifies the routing-only attestation-binding contract, and Ticket
+0061 implements its standing-inert resolver in this candidate patch without
+changing this note's law. The next separately reviewed slice is
+support/refutation lane contract(s), followed by corresponding standing-inert
+lane/input implementation(s), a
 direct-refutation policy contract, and any direct-refutation runtime. This
 Ticket 0057 contract ratifies none of those later surfaces.

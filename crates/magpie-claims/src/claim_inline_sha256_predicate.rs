@@ -433,6 +433,31 @@ struct TerminalEvaluationV0 {
     receipt: Sha256ClaimInlineBytesPredicateReceiptV0,
 }
 
+pub(crate) struct ResolvedClaimInlineSubjectV0 {
+    claim_id: String,
+    predicate_id: String,
+    scope_ref: String,
+    canonical_statement: String,
+    claim_content_hash: String,
+    expected_sha256: String,
+    expected_bytes: [u8; 32],
+    subject_bytes: Vec<u8>,
+}
+
+impl ResolvedClaimInlineSubjectV0 {
+    pub(crate) fn claim_id(&self) -> &str {
+        &self.claim_id
+    }
+
+    pub(crate) fn predicate_id(&self) -> &str {
+        &self.predicate_id
+    }
+
+    pub(crate) fn scope_ref(&self) -> &str {
+        &self.scope_ref
+    }
+}
+
 impl StandingReplaySnapshot {
     /// Evaluate the one compiled claim-owned inline-byte SHA-256 predicate.
     pub fn evaluate_sha256_claim_inline_bytes_equals_v0(
@@ -456,6 +481,30 @@ fn evaluate_claim_inline_sha256(
     snapshot: &StandingReplaySnapshot,
     claim_id: &str,
 ) -> Result<TerminalEvaluationV0, ClaimInlineSubjectResolutionFailureV0> {
+    let resolved = resolve_claim_inline_subject_v0(snapshot, claim_id)?;
+    let computed_bytes: [u8; 32] = Sha256::digest(&resolved.subject_bytes).into();
+    let equal = computed_bytes == resolved.expected_bytes;
+    let computed_sha256 = hex::encode(computed_bytes);
+
+    Ok(TerminalEvaluationV0 {
+        equal,
+        receipt: Sha256ClaimInlineBytesPredicateReceiptV0 {
+            predicate_schema: INLINE_PREDICATE_SCHEMA_V0.to_owned(),
+            predicate_id: resolved.predicate_id,
+            claim_id: resolved.claim_id,
+            scope_ref: resolved.scope_ref,
+            canonical_statement: resolved.canonical_statement,
+            claim_content_hash: resolved.claim_content_hash,
+            expected_sha256: resolved.expected_sha256,
+            computed_sha256,
+        },
+    })
+}
+
+pub(crate) fn resolve_claim_inline_subject_v0(
+    snapshot: &StandingReplaySnapshot,
+    claim_id: &str,
+) -> Result<ResolvedClaimInlineSubjectV0, ClaimInlineSubjectResolutionFailureV0> {
     let standing_claim = snapshot
         .standing()
         .get(claim_id)
@@ -496,22 +545,16 @@ fn evaluate_claim_inline_sha256(
     }
 
     let subject_bytes = decode_subject_bytes(&descriptor.subject_hex)?;
-    let computed_bytes: [u8; 32] = Sha256::digest(&subject_bytes).into();
-    let equal = computed_bytes == descriptor.expected_bytes;
-    let computed_sha256 = hex::encode(computed_bytes);
 
-    Ok(TerminalEvaluationV0 {
-        equal,
-        receipt: Sha256ClaimInlineBytesPredicateReceiptV0 {
-            predicate_schema: INLINE_PREDICATE_SCHEMA_V0.to_owned(),
-            predicate_id: descriptor.predicate_id,
-            claim_id: claim_id.to_owned(),
-            scope_ref: typed_claim.scope_ref.clone(),
-            canonical_statement,
-            claim_content_hash: typed_claim.content_hash.clone(),
-            expected_sha256: descriptor.expected_sha256,
-            computed_sha256,
-        },
+    Ok(ResolvedClaimInlineSubjectV0 {
+        claim_id: claim_id.to_owned(),
+        predicate_id: descriptor.predicate_id,
+        scope_ref: typed_claim.scope_ref.clone(),
+        canonical_statement,
+        claim_content_hash: typed_claim.content_hash.clone(),
+        expected_sha256: descriptor.expected_sha256,
+        expected_bytes: descriptor.expected_bytes,
+        subject_bytes,
     })
 }
 
@@ -542,9 +585,19 @@ struct ResolvedInlineDescriptorV0 {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct JsonStringToken {
+pub(crate) struct JsonStringToken {
     start: usize,
     end: usize,
+}
+
+impl JsonStringToken {
+    pub(crate) fn new(start: usize, end: usize) -> Self {
+        Self { start, end }
+    }
+
+    pub(crate) fn is_empty(self) -> bool {
+        self.end == self.start + 2
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -750,7 +803,7 @@ fn is_lowercase_hex(input: &str, token: JsonStringToken) -> bool {
         .all(|character| matches!(character, '0'..='9' | 'a'..='f'))
 }
 
-fn decoded_utf8_len_through_limit(
+pub(crate) fn decoded_utf8_len_through_limit(
     input: &str,
     token: JsonStringToken,
     limit: usize,
@@ -780,7 +833,11 @@ fn decoded_character_count_through_limit(
     Ok(count)
 }
 
-fn materialize_json_string(input: &str, token: JsonStringToken, capacity: usize) -> String {
+pub(crate) fn materialize_json_string(
+    input: &str,
+    token: JsonStringToken,
+    capacity: usize,
+) -> String {
     let mut decoded = String::with_capacity(capacity);
     for character in DecodedJsonStringCharacters::new(input, token) {
         decoded.push(character);
@@ -788,7 +845,7 @@ fn materialize_json_string(input: &str, token: JsonStringToken, capacity: usize)
     decoded
 }
 
-fn decoded_json_string_eq(input: &str, token: JsonStringToken, expected: &str) -> bool {
+pub(crate) fn decoded_json_string_eq(input: &str, token: JsonStringToken, expected: &str) -> bool {
     DecodedJsonStringCharacters::new(input, token).eq(expected.chars())
 }
 
@@ -952,20 +1009,20 @@ fn collect_descriptor_tokens(input: &str, open: usize, close: usize) -> Descript
 }
 
 #[derive(Clone, Copy)]
-struct ObjectMember {
-    key: JsonStringToken,
-    value_start: usize,
-    value_end: usize,
+pub(crate) struct ObjectMember {
+    pub(crate) key: JsonStringToken,
+    pub(crate) value_start: usize,
+    pub(crate) value_end: usize,
 }
 
-struct ObjectMemberCursor<'a> {
+pub(crate) struct ObjectMemberCursor<'a> {
     input: &'a str,
     cursor: usize,
     close: usize,
 }
 
 impl<'a> ObjectMemberCursor<'a> {
-    fn new(input: &'a str, open: usize, close: usize) -> Self {
+    pub(crate) fn new(input: &'a str, open: usize, close: usize) -> Self {
         Self {
             input,
             cursor: open + 1,
@@ -973,7 +1030,7 @@ impl<'a> ObjectMemberCursor<'a> {
         }
     }
 
-    fn next(&mut self) -> Option<ObjectMember> {
+    pub(crate) fn next(&mut self) -> Option<ObjectMember> {
         self.cursor = skip_json_whitespace(self.input.as_bytes(), self.cursor, self.close);
         if self.cursor >= self.close {
             return None;
@@ -1003,7 +1060,7 @@ impl<'a> ObjectMemberCursor<'a> {
     }
 }
 
-fn key_has_equal_predecessor(
+pub(crate) fn key_has_equal_predecessor(
     input: &str,
     open: usize,
     close: usize,
@@ -1021,7 +1078,7 @@ fn key_has_equal_predecessor(
     false
 }
 
-fn validate_json_document(input: &str) -> Option<(usize, usize)> {
+pub(crate) fn validate_json_document(input: &str) -> Option<(usize, usize)> {
     if !validate_json_strings_and_delimiters(input) {
         return None;
     }

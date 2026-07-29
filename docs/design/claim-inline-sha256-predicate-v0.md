@@ -800,8 +800,9 @@ The ratified sequence is:
 claim-inline SHA-256 predicate contract (this contract)
 → claim-inline SHA-256 predicate evaluator implementation (Ticket 0059,
   implemented)
-→ routing-only attestation-binding contract
-→ routing-only attestation-binding implementation
+→ routing-only attestation-binding contract (Ticket 0060, ratified)
+→ routing-only attestation-binding implementation (Ticket 0061,
+  implemented in this candidate patch)
 → support/refutation lane contract(s)
 → corresponding standing-inert lane/input implementation(s)
 → direct-refutation policy contract
@@ -1318,9 +1319,10 @@ audit JSON profile, hostile and compatibility tests, and documentation. The
 runtime is standing-inert and adds no attestation, evidence-kind assumption,
 edge polarity, support, refutation, standing, or contradiction handling.
 Ticket 0060 separately ratifies the routing-only attestation-binding
-contract recorded as future candidate material above. The next separately
-reviewed slice is its implementation, followed by separately ratified
-support/refutation lane contracts and their standing-inert
+contract recorded as future candidate material above, and Ticket 0061
+implements its standing-inert resolver in this candidate patch. The next
+separately reviewed slice is support/refutation lane contracts, followed by
+their standing-inert
 implementations, a direct-refutation policy contract, and any
 direct-refutation runtime. This Ticket 0058 contract ratifies none of
 those later surfaces.

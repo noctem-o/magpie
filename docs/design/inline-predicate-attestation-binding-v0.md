@@ -2,8 +2,9 @@
 
 ## Status
 
-Contract ratified by Ticket 0060. This is a documentation-only authority
-contract. Runtime remains future.
+Contract ratified by Ticket 0060. Ticket 0061 implements the routing-only,
+standing-inert runtime in this candidate patch; this note's ratified authority
+law is unchanged.
 
 ```text
 outer evidence-metadata envelope:
@@ -973,9 +974,9 @@ This contract ratifies no:
 If a later implementation cannot preserve routing-only binding without
 simultaneously defining polarity, contribution, or standing, it must stop.
 
-## Future implementation boundary
+## Implemented runtime boundary
 
-The next separately reviewed implementation may add only:
+Ticket 0061 implements only:
 
 - one private shared claim-resolution primitive factored without changing
   Ticket 0059 behavior;
@@ -987,7 +988,7 @@ The next separately reviewed implementation may add only:
   tests;
 - narrow documentation status handoffs.
 
-It may not add an edge input, lane, support/refutation meaning, contribution,
+It does not add an edge input, lane, support/refutation meaning, contribution,
 standing policy, policy identity, conflict rule, L0 change, format change,
 fixture rewrite, dependency, I/O, or ambient authority.
 
@@ -995,7 +996,8 @@ The remaining sequence is:
 
 ```text
 Ticket 0060: routing-only attestation-binding contract — ratified
-→ routing-only attestation-binding implementation
+→ Ticket 0061: routing-only attestation-binding implementation —
+  implemented in this candidate patch
 → support/refutation lane contract(s)
 → corresponding standing-inert lane/input implementation(s)
 → direct-refutation policy contract
