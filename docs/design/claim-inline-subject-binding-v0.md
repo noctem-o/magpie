@@ -28,7 +28,8 @@ no attestation, polarity, support, refutation, or standing effect
 
 attestation binding:
 routing-only contract ratified separately by Ticket 0060;
-standing-inert resolver implemented by Ticket 0061 in this candidate patch
+standing-inert resolver implemented by Ticket 0061 and landed through
+merged PR #76
 ```
 
 This note ratifies the subject-binding prerequisite identified by Ticket
@@ -586,9 +587,10 @@ evaluation, Ticket 0058's exact canonical outcome audit JSON profile, and
 hostile and compatibility tests. It is standing-inert and realizes only
 this contract's resolver plus Ticket 0058's evaluator. Ticket 0060
 separately ratifies the routing-only attestation-binding contract, and Ticket
-0061 implements its standing-inert resolver in this candidate patch without
-changing this note's law. The next separately reviewed slice is
-support/refutation lane contract(s), followed by corresponding standing-inert
-lane/input implementation(s), a
-direct-refutation policy contract, and any direct-refutation runtime. This
-Ticket 0057 contract ratifies none of those later surfaces.
+0061 implements its standing-inert resolver and landed through merged PR #76
+without changing this note's law. Ticket 0062 ratifies the first closed
+claim-inline predicate edge-lane contract in the current candidate
+documentation patch; no edge-lane runtime exists. The next separately
+reviewed slice is claim-inline predicate edge-lane runtime v0. Only after that
+runtime lands may a fresh direct-refutation policy contract be considered.
+This Ticket 0057 contract ratifies none of those later surfaces.

@@ -3,8 +3,10 @@
 ## Status
 
 Contract ratified by Ticket 0060. Ticket 0061 implements the routing-only,
-standing-inert runtime in this candidate patch; this note's ratified authority
-law is unchanged.
+standing-inert runtime and landed through merged PR #76; this note's ratified
+authority law is unchanged. Ticket 0062 ratifies the first exact claim-inline
+predicate edge-lane contract in the current candidate documentation patch;
+no edge-lane runtime exists.
 
 ```text
 outer evidence-metadata envelope:
@@ -997,11 +999,11 @@ The remaining sequence is:
 ```text
 Ticket 0060: routing-only attestation-binding contract — ratified
 → Ticket 0061: routing-only attestation-binding implementation —
-  implemented in this candidate patch
-→ support/refutation lane contract(s)
-→ corresponding standing-inert lane/input implementation(s)
-→ direct-refutation policy contract
-→ direct-refutation runtime
+  implemented and landed through merged PR #76
+→ Ticket 0062: first exact claim-inline predicate edge-lane contract —
+  ratified in the current candidate documentation patch
+→ claim-inline predicate edge-lane runtime v0
+→ only then may a fresh direct-refutation policy contract be considered
 → contradiction debt, invalidation, supersession/currentness, ...
 ```
 

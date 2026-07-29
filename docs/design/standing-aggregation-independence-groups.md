@@ -48,7 +48,11 @@ implemented by Ticket 0059
 
 inline predicate attestation binding:
 routing-only contract ratified by Ticket 0060; standing-inert
-resolver implemented by Ticket 0061 in this candidate patch
+resolver implemented by Ticket 0061 and landed through merged PR #76
+
+claim-inline predicate edge lanes:
+standing-inert contract ratified by Ticket 0062 in the current candidate
+documentation patch; runtime absent
 ```
 
 An origin-group value in a verified binding remains only a claimed group until
@@ -544,9 +548,12 @@ documents). The subject-binding prerequisite is now ratified by Ticket
 ratified by Ticket 0058 and its standing-inert evaluator is implemented by
 Ticket 0059. The routing-only attestation-binding contract is ratified by
 Ticket 0060 without edge, polarity, contribution, or standing meaning.
-Ticket 0061 implements that standing-inert resolver in this candidate patch.
-Support/refutation lanes, a direct-refutation contract, and conflict handling
-remain future.
+Ticket 0061 implements that standing-inert resolver and landed through merged
+PR #76. Ticket 0062 ratifies the first exact claim-inline predicate edge-lane
+contract in the current candidate documentation patch; no edge-lane runtime
+exists. The next separately reviewed slice is that runtime. Only after it
+lands may a fresh direct-refutation policy contract be considered. Conflict
+handling remains future.
 
 ## Interaction With Contradiction Debt
 
@@ -595,8 +602,10 @@ must not erase truth-bearing contradiction debt or settle factual truth.
     predicate contract ratified by Ticket 0058, and standing-inert evaluator
     implemented by Ticket 0059; routing-only attestation-binding contract
     ratified by Ticket 0060 and its standing-inert resolver implemented by
-    Ticket 0061 in this candidate patch; support/refutation lanes and a
-    direct-refutation contract remain future.
+    Ticket 0061 and landed through merged PR #76; first exact claim-inline
+    predicate edge-lane contract ratified by Ticket 0062 in the current
+    candidate documentation patch; edge-lane runtime next; only after that
+    may a fresh direct-refutation policy contract be considered.
 16. Add contradiction debt with explicit precedence.
 17. Add invalidation and supersession/currentness.
 18. Add EpistemicGate and writer surfaces.

@@ -24,7 +24,11 @@ runtime:
 implemented by Ticket 0059; neutral and standing-inert
 
 attestation-binding runtime:
-future
+implemented by Ticket 0061 and landed through merged PR #76
+
+edge-lane contract:
+ratified by Ticket 0062 in the current candidate documentation patch;
+runtime absent
 ```
 
 This note ratifies one neutral, claim-inline SHA-256 predicate contract
@@ -802,11 +806,11 @@ claim-inline SHA-256 predicate contract (this contract)
   implemented)
 → routing-only attestation-binding contract (Ticket 0060, ratified)
 → routing-only attestation-binding implementation (Ticket 0061,
-  implemented in this candidate patch)
-→ support/refutation lane contract(s)
-→ corresponding standing-inert lane/input implementation(s)
-→ direct-refutation policy contract
-→ direct-refutation runtime
+  implemented and landed through merged PR #76)
+→ first exact claim-inline predicate edge-lane contract (Ticket 0062,
+  ratified in the current candidate documentation patch)
+→ claim-inline predicate edge-lane runtime v0
+→ only then may a fresh direct-refutation policy contract be considered
 ```
 
 No later direct-refutation or support/refutation contract may bundle
@@ -1320,9 +1324,10 @@ runtime is standing-inert and adds no attestation, evidence-kind assumption,
 edge polarity, support, refutation, standing, or contradiction handling.
 Ticket 0060 separately ratifies the routing-only attestation-binding
 contract recorded as future candidate material above, and Ticket 0061
-implements its standing-inert resolver in this candidate patch. The next
-separately reviewed slice is support/refutation lane contracts, followed by
-their standing-inert
-implementations, a direct-refutation policy contract, and any
-direct-refutation runtime. This Ticket 0058 contract ratifies none of
-those later surfaces.
+implements its standing-inert resolver and landed through merged PR #76.
+Ticket 0062 ratifies the first exact claim-inline predicate edge-lane contract
+in the current candidate documentation patch; no edge-lane runtime exists.
+The next separately reviewed slice is claim-inline predicate edge-lane
+runtime v0. Only after that runtime lands may a fresh direct-refutation policy
+contract be considered. This Ticket 0058 contract ratifies none of those later
+surfaces.

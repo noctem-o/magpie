@@ -449,12 +449,14 @@ shell execution is unavailable.
     The existing v2 positive rule and the `DigestMismatch`
     non-authority law are unchanged, and the three refutation-ceiling
     cells remain ceilings only. Direct refutation remains future work.
-    Entries 27-31 record the ratified subject-binding, neutral predicate,
+    Entries 27-32 record the ratified subject-binding, neutral predicate,
     and routing-only attestation-binding contracts plus the standing-inert
-    predicate evaluator and attestation-binding implementations; the
-    remaining progression begins with support/refutation lane contracts
-    and their standing-inert inputs, followed by a
-    direct-refutation policy contract, then runtime. Contradiction debt,
+    predicate evaluator and attestation-binding implementations. Ticket 0061
+    landed through merged PR #76. Ticket 0062 ratifies the first closed,
+    standing-inert claim-inline predicate edge-lane contract in this candidate
+    documentation patch; no edge-lane runtime exists. The remaining
+    progression begins with that runtime. Only after it lands may a fresh
+    direct-refutation policy contract be considered. Contradiction debt,
     invalidation,
     supersession/currentness, `EpistemicGate`, ordinary claim-bearing
     writer, loader, CAS, and filesystem or network ingestion remain
@@ -577,11 +579,12 @@ shell execution is unavailable.
     standing-inert, with no
     attestation, edge polarity, support, refutation, or contradiction
     handling). Ticket 0060 ratifies the routing-only attestation-binding
-    contract and Ticket 0061 implements its standing-inert resolver in this
-    candidate patch. Next are support/refutation lane contract(s) and
-    corresponding standing-inert lane/input implementation(s); then a
-    direct-refutation policy contract; and only then any direct-refutation
-    runtime.
+    contract and Ticket 0061 implements its standing-inert resolver, landed
+    through merged PR #76. Ticket 0062 ratifies the first closed claim-inline
+    predicate edge-lane contract in this candidate documentation patch; its
+    standing-inert runtime is the next separately reviewed slice. Only after
+    that runtime lands may a fresh direct-refutation policy contract be
+    considered.
     Contradiction debt, invalidation,
     supersession/currentness, `EpistemicGate`, ordinary claim-bearing
     writer, loader, CAS, and filesystem or network ingestion remain
@@ -605,7 +608,9 @@ shell execution is unavailable.
     standing, policy, contradiction handling, loader, CAS, filesystem, or
     network behavior. Ticket 0060 separately ratifies the routing-only
     attestation-binding contract, implemented as a standing-inert resolver
-    by Ticket 0061 in this candidate patch.
+    by Ticket 0061 and landed through merged PR #76. Ticket 0062 ratifies the
+    first closed claim-inline predicate edge-lane contract in this candidate
+    documentation patch; no edge-lane runtime exists.
 30. **Inline predicate attestation binding v0 — contract ratified by Ticket
     0060.**
     [`docs/design/inline-predicate-attestation-binding-v0.md`](docs/design/inline-predicate-attestation-binding-v0.md)
@@ -618,8 +623,8 @@ shell execution is unavailable.
     `schema`, `predicate_id`, `subject_claim_id`, and `scope_ref`.
     The
     `StandingReplaySnapshot::resolve_inline_predicate_attestation_v0` method,
-    implemented by Ticket 0061 in this candidate patch, takes only claim and
-    evidence IDs, internally re-fetches both
+    implemented by Ticket 0061 and landed through merged PR #76, takes only
+    claim and evidence IDs, internally re-fetches both
     claim tables and typed evidence from that snapshot, and shares one
     private claim-resolution primitive with the Ticket 0059 evaluator.
     It never accepts a caller-created predicate outcome or receipt and
@@ -632,12 +637,14 @@ shell execution is unavailable.
     family reject one another in both directions. Evidence content hash,
     actor class, summary, and every edge are non-authority here. `Bound`
     has no polarity and grants no contribution, admission, support,
-    refutation, settlement, or standing. Support/refutation lanes,
-    direct-refutation policy, contradiction
-    debt, invalidation, supersession/currentness, `EpistemicGate`, and
-    writer/loader/CAS/filesystem/network behavior remain future.
+    refutation, settlement, or standing. Ticket 0062 separately ratifies the
+    first exact claim-inline predicate edge-lane contract in this candidate
+    documentation patch. Its runtime, direct-refutation policy,
+    contradiction debt, invalidation, supersession/currentness,
+    `EpistemicGate`, and writer/loader/CAS/filesystem/network behavior remain
+    future.
 31. **Inline predicate attestation binding v0 — runtime implemented by Ticket
-    0061 in this candidate patch.**
+    0061 and landed through merged PR #76.**
     [Ticket 0061](tickets/0061-inline-predicate-attestation-binding-implementation.md)
     factors the Ticket 0059 claim-resolution stages into one private
     same-snapshot primitive and adds the snapshot-only
@@ -649,8 +656,24 @@ shell execution is unavailable.
     have deterministic one-way audit JSON. The resolver neither computes nor
     observes the terminal digest relation, reads an edge, assigns polarity,
     creates a contribution, invokes policy, nor changes standing. Evidence
-    content hash, actor class, and summary remain non-authority. The next
-    separately reviewed slice is support/refutation lane contract(s), not lane
-    implementation or policy v4.
+    content hash, actor class, and summary remain non-authority.
+32. **Claim-inline predicate edge lanes v0 — contract ratified by Ticket 0062
+    in this candidate patch.**
+    [`docs/design/claim-inline-predicate-edge-lanes-v0.md`](docs/design/claim-inline-predicate-edge-lanes-v0.md)
+    and
+    [Ticket 0062](tickets/0062-claim-inline-predicate-edge-lanes-contract.md)
+    freeze one exact same-snapshot composition over the claim-owned
+    `sha256_claim_inline_bytes_equals_v0` relation, the Ticket 0061 routing
+    binding, and one exact replayed `supports` or `contradicts` edge. The exact
+    relation/edge matrix yields only `SupportEligible`, `RefutationEligible`,
+    or standing-inert `Ineligible`; structural resolution failures remain
+    distinct and retain both Ticket 0061 and Ticket 0059 nested reasons.
+    Eligible receipts expose only the compiled candidate ceiling (`Settled`
+    for support or `Refuted` for refutation), never achieved standing. No
+    runtime, governed support, governed refutation, aggregation, repetition
+    amplification, contradiction debt, or policy v4 is ratified. The next
+    separately reviewed slice is claim-inline predicate edge-lane runtime v0.
+    Only after that runtime lands may a fresh direct-refutation policy contract
+    be considered.
 
 Conserve the log. Derive the rest.

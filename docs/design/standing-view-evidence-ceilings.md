@@ -5,8 +5,9 @@
 Living doctrine note, originally a proposed design note. PR #33 and
 `StandingResolution` v0 have long landed, and the explicit policies v1, v2,
 and v3 now implement achieved-standing slices on top of this ceiling law.
-V0 itself remains candidate-only, and the v4 direct-refutation runtime
-remains future.
+V0 itself remains candidate-only. Ticket 0062 ratifies only a standing-inert
+edge-lane contract in the current candidate documentation patch; policy v4
+and governed direct refutation remain future.
 
 ## Purpose
 
@@ -237,11 +238,11 @@ prerequisite is now ratified by Ticket 0057 (claim-owned inline subject
 bytes), and the neutral claim-inline SHA-256 predicate contract is now
 ratified by Ticket 0058 and implemented, standing-inert, by Ticket 0059;
 the routing-only attestation-binding contract is now ratified by Ticket 0060
-and remains standing-inert. The remaining progression starts with its
-implementation, then support/refutation lane contract(s) and corresponding
-standing-inert lane/input implementation(s), a
-direct-refutation policy contract, and only then any direct-refutation
-runtime. A bare
+and its standing-inert implementation landed through Ticket 0061 and merged
+PR #76. Ticket 0062 ratifies the first exact claim-inline predicate edge-lane
+contract in the current candidate documentation patch; no edge-lane runtime
+exists. The remaining progression starts with that runtime. Only after it
+lands may a fresh direct-refutation policy contract be considered. A bare
 `contradicts` edge never refutes, and no conflict handling is ratified —
 contradiction debt remains future.
 
@@ -732,11 +733,11 @@ claim-inline SHA-256 predicate contract is now ratified by Ticket 0058
 and implemented, standing-inert, by Ticket 0059.
 Ticket 0060 now ratifies the routing-only attestation-binding contract,
 with no edge, polarity, contribution, or standing meaning. Ticket 0061
-implements that routing-only, standing-inert resolver in this candidate patch.
-The remaining progression — support/refutation lane contract(s) and
-corresponding standing-inert
-lane/input implementation(s), a direct-refutation policy contract, and
-any direct-refutation runtime — remains future.
+implements that routing-only, standing-inert resolver and landed through
+merged PR #76. Ticket 0062 ratifies the first exact claim-inline predicate
+edge-lane contract in the current candidate documentation patch; no edge-lane
+runtime exists. The next separately reviewed slice is that runtime. Only
+after it lands may a fresh direct-refutation policy contract be considered.
 
 1. Keep or land `StandingResolution` v0 as the canonical fail-closed
    explanation surface.
