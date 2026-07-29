@@ -44,7 +44,11 @@ no direct-refutation rule exists
 
 claim-inline SHA-256 predicate:
 contract ratified by Ticket 0058; neutral standing-inert evaluator
-implemented by Ticket 0059; attestation binding remains future
+implemented by Ticket 0059
+
+inline predicate attestation binding:
+routing-only contract ratified by Ticket 0060; standing-inert
+implementation remains future
 ```
 
 An origin-group value in a verified binding remains only a claimed group until
@@ -538,8 +542,10 @@ evidence-relative with no independent subject binding (recorded in its
 documents). The subject-binding prerequisite is now ratified by Ticket
 0057 (claim-owned inline subject bytes); the neutral predicate contract is
 ratified by Ticket 0058 and its standing-inert evaluator is implemented by
-Ticket 0059. Routing-only attestation binding, support/refutation lanes, a
-direct-refutation contract, and conflict handling remain future.
+Ticket 0059. The routing-only attestation-binding contract is ratified by
+Ticket 0060 without edge, polarity, contribution, or standing meaning.
+Its implementation, support/refutation lanes, a direct-refutation
+contract, and conflict handling remain future.
 
 ## Interaction With Contradiction Debt
 
@@ -586,8 +592,9 @@ must not erase truth-bearing contradiction debt or settle factual truth.
 15. Add direct refutation through admitted verifier context — subject
     binding ratified by Ticket 0057 (claim-owned inline bytes), neutral
     predicate contract ratified by Ticket 0058, and standing-inert evaluator
-    implemented by Ticket 0059; routing-only attestation binding,
-    support/refutation lanes, and a direct-refutation contract remain future.
+    implemented by Ticket 0059; routing-only attestation-binding contract
+    ratified by Ticket 0060; its implementation, support/refutation lanes,
+    and a direct-refutation contract remain future.
 16. Add contradiction debt with explicit precedence.
 17. Add invalidation and supersession/currentness.
 18. Add EpistemicGate and writer surfaces.

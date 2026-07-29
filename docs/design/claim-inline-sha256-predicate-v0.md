@@ -17,16 +17,22 @@ DigestEqual / DigestUnequal / ResolutionFailed — ratified as neutral,
 standing-inert vocabulary
 
 policies, standing rules, support, refutation, attestation schemas:
-none ratified
+none ratified by this Ticket 0058 contract; Ticket 0060 separately
+ratifies routing-only attestation binding
 
 runtime:
 implemented by Ticket 0059; neutral and standing-inert
+
+attestation-binding runtime:
+future
 ```
 
 This note ratifies one neutral, claim-inline SHA-256 predicate contract
 over the subject-binding substrate of Ticket 0057. It ratifies no
 standing policy, no support or refutation rule, no evidence attestation
-schema, no edge-polarity meaning, and no runtime. It adds no Rust,
+schema, no edge-polarity meaning, and no runtime. Ticket 0060 separately
+ratifies the routing-only attestation schema and binding contract without
+changing this predicate law. It adds no Rust,
 tests, fixtures, Cargo metadata, dependency, CI, or L0 surface.
 
 ## Purpose
@@ -843,6 +849,16 @@ defining a support or refutation lane, the attestation contract must
 stop rather than proceed. This contract ratifies none of that
 candidate material.
 
+Ticket 0060 subsequently adjudicates those open dimensions. It ratifies
+outer `inline_predicate_attestation`, schema
+`magpie-inline-predicate-attestation-v0`, exact
+`DeterministicVerification`, all four fields as mandatory, strict
+post-unescape duplicate/unknown refusal, one same-replay no-edge binding
+path, an opaque `Bound` / `ResolutionFailed` audit surface, and no
+polarity or standing. That later contract preserves this section as the
+historical Ticket 0058 deferral decision; it does not amend this
+predicate's outcome, receipt, failure, or canonical bytes.
+
 ## Hostile cases
 
 The reference claim C used below: `subject_hex = "616263"` (the exact
@@ -1272,7 +1288,8 @@ fixture regeneration.
   `UnknownSchema` or `UnknownPredicateId`.
 - Confirm the Ticket 0056 arbitrary-byte attack is answered by
   construction and reproduced as the central hostile case.
-- Confirm the attestation deferral states exactly: inherited from
+- Confirm the historical Ticket 0058 attestation deferral states exactly:
+  inherited from
   Ticket 0057 — the four routing/binding fields (`schema`,
   `predicate_id`, `subject_claim_id`, `scope_ref`), `predicate_id`
   equal to the validated claim predicate identity, no alternate subject
@@ -1282,7 +1299,8 @@ fixture regeneration.
   failure precedence, binding mechanics within that already-fixed
   same-replay path, field requiredness, evidence
   kind. Confirm no attestation schema and no edge-polarity meaning is
-  ratified, and the sequence and do-not-bundle law are stated.
+  ratified by Ticket 0058, the separate Ticket 0060 handoff is explicit,
+  and the sequence and do-not-bundle law are stated.
 - Confirm `sha256_bytes_equals_v0`, its parser and trace, policies
   v0-v3, L0, FORMAT, fixtures, and the tour are untouched.
 - Confirm the evaluator boundary has one complete permitted-scope list
@@ -1299,9 +1317,10 @@ outcome/receipt types and closed failure vocabulary, exact canonical outcome
 audit JSON profile, hostile and compatibility tests, and documentation. The
 runtime is standing-inert and adds no attestation, evidence-kind assumption,
 edge polarity, support, refutation, standing, or contradiction handling.
-The next separately reviewed slice is the routing-only attestation-binding
-contract recorded in the attestation decision above, followed by its
-implementation, separately ratified
+Ticket 0060 separately ratifies the routing-only attestation-binding
+contract recorded as future candidate material above. The next separately
+reviewed slice is its implementation, followed by separately ratified
 support/refutation lane contracts and their standing-inert
 implementations, a direct-refutation policy contract, and any
-direct-refutation runtime. This contract ratifies none of those.
+direct-refutation runtime. This Ticket 0058 contract ratifies none of
+those later surfaces.

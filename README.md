@@ -449,12 +449,13 @@ shell execution is unavailable.
     The existing v2 positive rule and the `DigestMismatch`
     non-authority law are unchanged, and the three refutation-ceiling
     cells remain ceilings only. Direct refutation remains future work.
-    Entries 27-29 record the ratified subject-binding and neutral predicate
-    contracts plus the standing-inert evaluator implementation; the remaining
-    progression begins with a routing-only attestation-binding contract and
-    implementation, followed by support/refutation lane contracts and their
-    standing-inert inputs, a direct-refutation policy contract, then
-    runtime. Contradiction debt, invalidation,
+    Entries 27-30 record the ratified subject-binding, neutral predicate,
+    and routing-only attestation-binding contracts plus the standing-inert
+    predicate evaluator implementation; the remaining progression begins
+    with the attestation-binding implementation, followed by
+    support/refutation lane contracts and their standing-inert inputs, a
+    direct-refutation policy contract, then runtime. Contradiction debt,
+    invalidation,
     supersession/currentness, `EpistemicGate`, ordinary claim-bearing
     writer, loader, CAS, and filesystem or network ingestion remain
     future work.
@@ -502,17 +503,19 @@ shell execution is unavailable.
     byte 65, and only after success decode/copy the accepted bounded
     value before character validation. The existing allocating generic
     descriptor-string path remains prohibited for this descriptor.
-    For the new
-    inline-subject path, any future evidence attestation consumed by
-    that path may carry routing and binding fields only and may supply
-    no alternate subject byte source — the Ticket 0056 substitution
-    class is closed by construction — while existing v0 evidence,
+    For the new inline-subject path, the routing-only evidence
+    attestation ratified separately by Ticket 0060 may carry only
+    `schema`, `predicate_id`, `subject_claim_id`, and `scope_ref` and
+    may supply no alternate subject byte source — the Ticket 0056
+    substitution class is closed by construction — while existing v0 evidence,
     including `magpie-verification-witness-v0`, `witness_hex`, and
     `sha256_bytes_equals_v0` behavior, remains unchanged; no global ban
     on byte-bearing evidence is stated. Ticket 0057 itself ratifies no
     predicate, policy, standing rule, refutation, resolver, or runtime;
     Ticket 0059 separately implements only the neutral Ticket 0058
-    evaluator. The external acquired-object and replay-owned subject forms are
+    evaluator, and Ticket 0060 separately ratifies only routing binding,
+    with its runtime still future. The external acquired-object and
+    replay-owned subject forms are
     recorded as unratified future extensions. The predicate contract
     over inline-subject claims follows as entry 28; direct refutation,
     contradiction debt, invalidation, supersession/currentness,
@@ -560,7 +563,9 @@ shell execution is unavailable.
     statement, claim content hash, expected and computed SHA-256) and
     asserts no verified-prefix provenance. No standing policy, support
     or refutation rule, evidence attestation schema, or edge-polarity
-    meaning is ratified. Ticket 0059 implements the predicate evaluator
+    meaning is ratified by Ticket 0058. Ticket 0060 separately ratifies
+    the routing-only attestation schema and binding contract without
+    polarity or standing. Ticket 0059 implements the predicate evaluator
     (borrowed count-only `predicate_id`
     preflight followed by accepted-value decoding, exact
     same-snapshot claim resolution, opaque outcome/receipt/failure
@@ -570,8 +575,8 @@ shell execution is unavailable.
     terminal vectors, and hostile and compatibility tests —
     standing-inert, with no
     attestation, edge polarity, support, refutation, or contradiction
-    handling). The next slice is a routing-only attestation-binding contract,
-    followed by its implementation;
+    handling). Ticket 0060 now ratifies the routing-only
+    attestation-binding contract; its implementation is the next slice;
     then support/refutation lane contract(s) and corresponding
     standing-inert lane/input implementation(s); then a direct-refutation
     policy contract; and only then any direct-refutation runtime.
@@ -596,6 +601,36 @@ shell execution is unavailable.
     are not evaluator inputs, so the Ticket 0056 substitution class remains
     closed. This runtime adds no attestation, polarity, support, refutation,
     standing, policy, contradiction handling, loader, CAS, filesystem, or
-    network behavior. The routing-only attestation-binding contract is next.
+    network behavior. Ticket 0060 separately ratifies the routing-only
+    attestation-binding contract; its implementation is next.
+30. **Inline predicate attestation binding v0 — contract ratified by Ticket
+    0060.**
+    [`docs/design/inline-predicate-attestation-binding-v0.md`](docs/design/inline-predicate-attestation-binding-v0.md)
+    and
+    [Ticket 0060](tickets/0060-inline-predicate-attestation-binding-contract.md)
+    ratify one routing-only same-replay binding path. Exact
+    `DeterministicVerification` evidence metadata contains only outer
+    `inline_predicate_attestation`, whose mandatory
+    `magpie-inline-predicate-attestation-v0` object carries exactly
+    `schema`, `predicate_id`, `subject_claim_id`, and `scope_ref`.
+    A future
+    `StandingReplaySnapshot::resolve_inline_predicate_attestation_v0`
+    method takes only claim and evidence IDs, internally re-fetches both
+    claim tables and typed evidence from that snapshot, and shares one
+    private claim-resolution primitive with the Ticket 0059 evaluator.
+    It never accepts a caller-created predicate outcome or receipt and
+    never computes or exposes `DigestEqual` versus `DigestUnequal`; both
+    relations are equally binding-eligible, while the exact Ticket 0059
+    `ResolutionFailed` reason prevents binding. The opaque outcome is
+    only `Bound` or `ResolutionFailed`, and the successful receipt carries
+    exactly schema, predicate ID, claim ID, evidence ID, and scope. The
+    historical `verification_witness` family and the new attestation
+    family reject one another in both directions. Evidence content hash,
+    actor class, summary, and every edge are non-authority here. `Bound`
+    has no polarity and grants no contribution, admission, support,
+    refutation, settlement, or standing. Runtime implementation,
+    support/refutation lanes, direct-refutation policy, contradiction
+    debt, invalidation, supersession/currentness, `EpistemicGate`, and
+    writer/loader/CAS/filesystem/network behavior remain future.
 
 Conserve the log. Derive the rest.
