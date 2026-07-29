@@ -1175,8 +1175,9 @@ public APIs, failures, vectors, and opacity, implementation must stop.
    DeterministicVerification × (supports | contradicts)`.
 2. The only public authority path is the three-ID
    `StandingReplaySnapshot` method.
-3. Claim, evidence, edge, relation, binding, policy, and audit values cannot be
-   caller-supplied.
+3. Only `claim_id`, `evidence_id`, and `edge_id` may be caller-supplied; the
+   derived claim, evidence, and edge objects, and all relation, binding,
+   policy, and audit values, cannot be caller-supplied.
 4. Claim-owned subject bytes close the Ticket 0056 substitution path; evidence
    supplies no bytes.
 5. The four relation/edge cells are exact and symmetric; mismatches are

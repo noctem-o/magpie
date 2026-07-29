@@ -921,7 +921,7 @@ this section is written.
 | exact unchanged `python tools/check_release_metadata.py` in a temporary VCS-free mirror | pass; all three package inventories consistent (`magpie-log` 18, `magpie-claims` 43, `magpie-episodic` 8 files) |
 | `cargo package -p magpie-log --locked` in the direct checkout | blocked solely by the intentional dirty `README.md`; exit 1 |
 | exact unchanged `cargo package -p magpie-log --locked` in the same VCS-free mirror | pass; 18 files packaged and package verification completed |
-| VCS-free mirror cleanup | pass; exact resolved target `C:\Users\herpe\AppData\Local\Temp\magpie-ticket0062-vcsfree-codex-0062` was verified under the temp root and removed; final existence check false |
+| VCS-free mirror cleanup | pass; exact resolved target `<TEMP_ROOT>\magpie-ticket0062-vcsfree-codex-0062` was verified under the temp root and removed; final existence check false |
 | six vectors through Python | pass; exact literals, lengths, hashes, compact JSON, key order, snake case, no BOM/newline/escaped slash |
 | six vectors through PowerShell/.NET | pass; exact independent literals, lengths, hashes, key order, and byte law |
 | vector-mechanism comparison | pass; all six results agree exactly |
