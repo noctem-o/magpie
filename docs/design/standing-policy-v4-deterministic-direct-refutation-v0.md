@@ -193,3 +193,17 @@ subject-binding contract (claim-invariant byte-subject identity)
 This record ratifies none of those steps. The chronological candidate
 history, review rounds, and adjudication are preserved in
 [`tickets/0056-standing-policy-v4-deterministic-direct-refutation-contract.md`](../../tickets/0056-standing-policy-v4-deterministic-direct-refutation-contract.md).
+
+## Successor status — Ticket 0064
+
+This Ticket 0056 candidate remains withdrawn. Tickets 0057 through 0063 later
+satisfied its subject-binding substrate prerequisite through a different
+claim-owned predicate and standing-inert lane chain. Ticket 0064 is a separate
+new contract over that replacement substrate:
+[`standing-policy-v4-claim-inline-direct-refutation-v0.md`](standing-policy-v4-claim-inline-direct-refutation-v0.md).
+
+Ticket 0064 does not repair or retroactively ratify this candidate. No
+historical identity, finding, counterexample, review result, or withdrawn name
+above is rewritten. Only the sequential policy identity
+`magpie-claims-standing-v4` is reused under the complete new Ticket 0064
+definition; this record remains non-authority.

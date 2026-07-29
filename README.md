@@ -445,20 +445,24 @@ shell execution is unavailable.
     well-formed `contradicts` evidence node can supply unrelated bytes
     and manufacture a negative result, because no record independently
     identifies the claim's subject bytes. The candidate is not ratified:
-    no policy v4, rule, resolver, receipt, or conflict blocker is active.
+    no Ticket 0056 rule, resolver, receipt, or conflict blocker is active.
     The existing v2 positive rule and the `DigestMismatch`
     non-authority law are unchanged, and the three refutation-ceiling
-    cells remain ceilings only. Direct refutation remains future work.
+    cells remain ceilings only. Ticket 0064 now ratifies a separate
+    subject-bound policy-v4 contract; it does not repair or ratify Ticket
+    0056.
     Entries 27-32 record the ratified subject-binding, neutral predicate,
     and routing-only attestation-binding contracts plus the standing-inert
     predicate evaluator and attestation-binding implementations. Ticket 0061
     landed through merged PR #76, and the Ticket 0062 edge-lane contract
     landed through merged PR #77. Ticket 0063 implements that closed,
-    standing-inert runtime in the current candidate patch. Its
+    standing-inert runtime and landed through merged PR #78. Its
     `SupportEligible` and `RefutationEligible` outcomes are lane
-    classifications only; they do not change standing or activate policy v4.
-    The next possible slice is a separately reviewed direct-refutation policy
-    contract. Contradiction debt,
+    classifications only; they do not themselves change standing. Ticket
+    0064 separately ratifies one subject-bound direct-refutation policy-v4
+    contract, but no policy-v4 runtime exists and code currently produces no
+    governed `Refuted` result through it. The next separately reviewed slice
+    is policy-v4 runtime. Contradiction debt,
     invalidation,
     supersession/currentness, `EpistemicGate`, ordinary claim-bearing
     writer, loader, CAS, and filesystem or network ingestion remain
@@ -584,9 +588,10 @@ shell execution is unavailable.
     contract and Ticket 0061 implements its standing-inert resolver, landed
     through merged PR #76. The Ticket 0062 claim-inline predicate edge-lane
     contract landed through merged PR #77, and Ticket 0063 implements its
-    standing-inert runtime in the current candidate patch. A fresh
-    direct-refutation policy contract is the next possible separately reviewed
-    slice.
+    standing-inert runtime, landed through merged PR #78. Ticket 0064
+    separately ratifies one subject-bound direct-refutation policy contract;
+    no policy-v4 runtime exists. Policy-v4 runtime is the next separately
+    reviewed slice.
     Contradiction debt, invalidation,
     supersession/currentness, `EpistemicGate`, ordinary claim-bearing
     writer, loader, CAS, and filesystem or network ingestion remain
@@ -612,8 +617,9 @@ shell execution is unavailable.
     attestation-binding contract, implemented as a standing-inert resolver
     by Ticket 0061 and landed through merged PR #76. The Ticket 0062
     claim-inline predicate edge-lane contract landed through merged PR #77,
-    and Ticket 0063 implements its standing-inert runtime in the current
-    candidate patch.
+    and Ticket 0063 implements its standing-inert runtime, landed through
+    merged PR #78. Ticket 0064 separately ratifies one subject-bound
+    direct-refutation policy contract; runtime remains absent.
 30. **Inline predicate attestation binding v0 — contract ratified by Ticket
     0060.**
     [`docs/design/inline-predicate-attestation-binding-v0.md`](docs/design/inline-predicate-attestation-binding-v0.md)
@@ -642,9 +648,10 @@ shell execution is unavailable.
     has no polarity and grants no contribution, admission, support,
     refutation, settlement, or standing. The Ticket 0062 exact claim-inline
     predicate edge-lane contract landed through merged PR #77, and Ticket 0063
-    implements its standing-inert runtime in the current candidate patch. A
-    direct-refutation policy,
-    contradiction debt, invalidation, supersession/currentness,
+    implements its standing-inert runtime, landed through merged PR #78.
+    Ticket 0064 separately ratifies one subject-bound direct-refutation policy
+    contract, with runtime still absent. Contradiction debt, invalidation,
+    supersession/currentness,
     `EpistemicGate`, and writer/loader/CAS/filesystem/network behavior remain
     future.
 31. **Inline predicate attestation binding v0 — runtime implemented by Ticket
@@ -674,11 +681,13 @@ shell execution is unavailable.
     distinct and retain both Ticket 0061 and Ticket 0059 nested reasons.
     Eligible receipts expose only the compiled candidate ceiling (`Settled`
     for support or `Refuted` for refutation), never achieved standing. Ticket
-    0063 implements this standing-inert runtime in the current candidate patch.
-    The contract and runtime add no governed support, governed `Refuted`,
-    aggregation, repetition amplification, contradiction debt, or policy v4.
+    0063 implements this standing-inert runtime and landed through merged
+    PR #78. The contract and runtime add no governed support, governed
+    `Refuted`, aggregation, repetition amplification, contradiction debt, or
+    policy application. Ticket 0064 separately ratifies one policy-v4 rule,
+    with no runtime in that documentation-only slice.
 33. **Claim-inline predicate edge lanes v0 — runtime implemented by Ticket
-    0063 in the current candidate patch.**
+    0063 and landed through merged PR #78.**
     `StandingReplaySnapshot::resolve_claim_inline_predicate_edge_lane_v0`
     accepts only exact claim, evidence, and edge query IDs. One private
     claim-owned subject resolution feeds the shared Ticket 0061 post-claim
@@ -688,10 +697,42 @@ shell execution is unavailable.
     opaque outcome is exactly `SupportEligible`, `RefutationEligible`,
     `Ineligible`, or `ResolutionFailed`, with exact nested Ticket 0061/0059
     failures and deterministic one-way audit bytes. Eligibility remains
-    standing-inert: policy v2 is unchanged, no policy v4 or governed `Refuted`
-    exists, and there is no contradiction debt, aggregation, writer, or
-    ingestion capability. The next possible slice is a fresh, separately
-    reviewed deterministic direct-refutation policy contract; it is not
-    authorized by this runtime.
+    standing-inert: policy v2 and policy v3 are unchanged, and this lane
+    runtime itself produces no governed `Refuted`. Ticket 0064 separately
+    ratifies one claim-inline deterministic direct-refutation policy-v4 rule,
+    but no policy-v4 runtime exists. There is no contradiction debt,
+    aggregation, writer, or ingestion capability. Policy-v4 runtime is the
+    next separately reviewed slice; it is not supplied by Ticket 0063.
+34. **Standing policy v4 claim-inline direct refutation — contract ratified by
+    Ticket 0064.**
+    [`docs/design/standing-policy-v4-claim-inline-direct-refutation-v0.md`](docs/design/standing-policy-v4-claim-inline-direct-refutation-v0.md)
+    and
+    [Ticket 0064](tickets/0064-standing-policy-v4-claim-inline-direct-refutation-contract.md)
+    ratify exactly one future rule:
+    `StandingPolicyRuleV4::Sha256ClaimInlineBytesDirectRefutationV0`,
+    serialized as `sha256_claim_inline_bytes_direct_refutation_v0`, under
+    policy identity `magpie-claims-standing-v4`. The future public resolver
+    remains explicit on `OriginAdmissionReplayContextV0`, accepts only a
+    requested claim ID and immutable `ResolutionContentClosureV0`, internally
+    inherits the complete policy-v3 result from that same context and closure,
+    and privately derives exact replayed `contradicts` candidates in existing
+    edge-ID order. One claim-owned
+    `sha256_claim_inline_bytes_equals_v0` relation is shared per policy call;
+    each deterministic-verification evidence node binds separately. Only the
+    exact `DigestUnequal × contradicts × RefutationEligible × Some(Refuted)`
+    path may produce one governed `Refuted`, and only when inherited standing
+    is `None`, `Open`, or `Conjectured`. Inherited `Supported` and `Settled`
+    are conservatively preserved for future contradiction policy; inherited
+    governed `Refuted` is preserved without amplification; legacy raw
+    `Refuted` remains quarantined. Public Ticket 0059, 0061, and 0063 outcomes,
+    receipts, clones, inspection enums, and canonical bytes are audit-only and
+    cannot be reinjected as authority. `SupportEligible` remains unused by
+    standing policy. Ticket 0056 remains blocked, its evidence-relative rule
+    and withdrawn names are not revived, and `sha256_bytes_equals_v0` remains
+    unchanged. Ticket 0064 is documentation-only: no policy-v4 runtime exists
+    and current code produces no governed `Refuted` result through this rule.
+    The next separately reviewed slice is policy-v4 runtime. Contradiction
+    debt, invalidation, supersession/currentness, `EpistemicGate`, writer,
+    loader, CAS, filesystem, and network ingestion remain future.
 
 Conserve the log. Derive the rest.

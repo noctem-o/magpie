@@ -39,8 +39,9 @@ conservative aggregation:
 first narrow rule implemented by Ticket 0054; broader rules future
 
 standing policy v4:
-candidate blocked, not ratified (Ticket 0056 subject-binding blocker);
-no direct-refutation rule exists
+Ticket 0056 evidence-relative candidate remains blocked;
+one separate claim-inline direct-refutation rule ratified by Ticket 0064,
+runtime absent
 
 claim-inline SHA-256 predicate:
 contract ratified by Ticket 0058; neutral standing-inert evaluator
@@ -52,7 +53,7 @@ resolver implemented by Ticket 0061 and landed through merged PR #76
 
 claim-inline predicate edge lanes:
 standing-inert contract ratified by Ticket 0062 and landed through merged
-PR #77; runtime implemented by Ticket 0063 in the current candidate patch
+PR #77; runtime implemented by Ticket 0063 and landed through merged PR #78
 ```
 
 An origin-group value in a verified binding remains only a claimed group until
@@ -540,21 +541,23 @@ refutation contribution requires a `refutation_ceiling` cell that permits
 `Refuted`, the non-authority policy checks, and admitted verifier context.
 
 Only the refutation ceiling policy can admit direct `Refuted` contribution. It
-does not make refutation automatic. No such rule is ratified: the Ticket
-0056 candidate was blocked because the existing predicate is
-evidence-relative with no independent subject binding (recorded in its
-documents). The subject-binding prerequisite is now ratified by Ticket
+does not make refutation automatic. The evidence-relative rule proposed by
+Ticket 0056 remains unratified and blocked because the existing predicate has
+no independent subject binding, as recorded in its documents. The
+subject-binding prerequisite is now ratified by Ticket
 0057 (claim-owned inline subject bytes); the neutral predicate contract is
 ratified by Ticket 0058 and its standing-inert evaluator is implemented by
 Ticket 0059. The routing-only attestation-binding contract is ratified by
 Ticket 0060 without edge, polarity, contribution, or standing meaning.
 Ticket 0061 implements that standing-inert resolver and landed through merged
 PR #76. The Ticket 0062 exact claim-inline predicate edge-lane contract landed
-through merged PR #77. Ticket 0063 implements its standing-inert runtime in the
-current candidate patch. `RefutationEligible` remains a lane classification,
-not governed `Refuted`; no aggregation or repetition amplification is added.
-The next possible slice is a fresh, separately reviewed direct-refutation
-policy contract. Conflict handling remains future.
+through merged PR #77. Ticket 0063 implements its standing-inert runtime and
+landed through merged PR #78. `RefutationEligible` remains a lane
+classification, not governed `Refuted`. Ticket 0064 separately ratifies one
+subject-bound policy-v4 rule that may eventually turn an uncontested eligible
+negative path into governed `Refuted`; it adds no runtime, aggregation, or
+repetition amplification. Policy-v4 runtime is the next separately reviewed
+slice. Conflict handling remains future.
 
 ## Interaction With Contradiction Debt
 
@@ -606,8 +609,9 @@ must not erase truth-bearing contradiction debt or settle factual truth.
     Ticket 0061 and landed through merged PR #76; first exact claim-inline
     predicate edge-lane contract ratified by Ticket 0062 and landed through
     merged PR #77; standing-inert edge-lane runtime implemented by Ticket 0063
-    in the current candidate patch; a fresh direct-refutation policy contract
-    may be considered only as a separate review slice.
+    and landed through merged PR #78; one separate subject-bound
+    direct-refutation policy contract ratified by Ticket 0064; policy-v4
+    runtime remains a separate review slice.
 16. Add contradiction debt with explicit precedence.
 17. Add invalidation and supersession/currentness.
 18. Add EpistemicGate and writer surfaces.
