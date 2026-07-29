@@ -5,7 +5,8 @@
 Contract ratified by Ticket 0062 and landed through merged PR #77. Ticket 0063
 implements its standing-inert runtime and landed through merged PR #78.
 Ticket 0064 separately ratifies one policy-v4 claim-inline direct-refutation
-rule; no policy-v4 runtime exists.
+rule and landed through merged PR #79. Ticket 0065 implements that exact
+runtime while leaving these public standing-inert lane outcomes unchanged.
 
 ```text
 predicate:
@@ -29,7 +30,7 @@ unchanged
 
 policy v4:
 not ratified by Ticket 0062; one separate rule later ratified by Ticket 0064,
-with runtime absent
+implemented separately by Ticket 0065
 ```
 
 The exact change classification ratified by the historical Ticket 0062
@@ -1232,16 +1233,10 @@ one-claim-resolution private composition, four-cell matrix, eligible-only
 candidate-ceiling checks, opaque outcomes and receipts, nested failures, and
 canonical vectors and landed through merged PR #78. `SupportEligible` and
 `RefutationEligible` remain standing-inert public lane outcomes. Ticket 0064
-separately ratifies one subject-bound direct-refutation policy-v4 rule, but no
-policy-v4 runtime or code-produced governed `Refuted` result exists.
-
-The next separately reviewed slice is:
-
-```text
-policy-v4 claim-inline direct-refutation runtime
-```
-
-The policy contract is not implemented by the Ticket 0063 lane runtime.
+separately ratifies one subject-bound direct-refutation policy-v4 rule and
+landed through merged PR #79. Ticket 0065 implements that exact policy through
+a private same-snapshot composition seam. The policy contract is not
+implemented by, and does not change, the Ticket 0063 lane runtime.
 `SupportEligible` remains unused by standing policy. Contradiction debt,
 aggregation, the pre-alpha demo, writer behavior, loading, CAS, filesystem,
 and network ingestion remain absent.

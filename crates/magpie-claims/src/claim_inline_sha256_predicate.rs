@@ -178,6 +178,10 @@
 
 mod edge_lane;
 
+pub(crate) use edge_lane::{
+    resolve_claim_inline_predicate_negative_candidate_v4,
+    ResolvedClaimInlinePredicateNegativeCandidateV4,
+};
 pub use edge_lane::{
     ClaimInlinePredicateEdgeLaneEdgeKindV0, ClaimInlinePredicateEdgeLaneFailureV0,
     ClaimInlinePredicateEdgeLaneIneligibleReasonV0, ClaimInlinePredicateEdgeLaneKindV0,
@@ -443,7 +447,7 @@ struct TerminalEvaluationV0 {
 }
 
 #[derive(Clone, Copy)]
-enum ResolvedClaimInlineSha256RelationV0 {
+pub(crate) enum ResolvedClaimInlineSha256RelationV0 {
     DigestEqual,
     DigestUnequal,
 }
@@ -528,14 +532,28 @@ fn evaluate_resolved_claim_inline_sha256_v0(
     resolved: &ResolvedClaimInlineSubjectV0,
 ) -> ResolvedClaimInlineSha256EvaluationV0 {
     let computed_bytes: [u8; 32] = Sha256::digest(&resolved.subject_bytes).into();
-    let relation = if computed_bytes == resolved.expected_bytes {
-        ResolvedClaimInlineSha256RelationV0::DigestEqual
-    } else {
-        ResolvedClaimInlineSha256RelationV0::DigestUnequal
-    };
+    let relation = resolved_claim_inline_sha256_relation_v0(resolved, computed_bytes);
     ResolvedClaimInlineSha256EvaluationV0 {
         relation,
         computed_bytes,
+    }
+}
+
+pub(crate) fn evaluate_resolved_claim_inline_sha256_relation_v0(
+    resolved: &ResolvedClaimInlineSubjectV0,
+) -> ResolvedClaimInlineSha256RelationV0 {
+    let computed_bytes: [u8; 32] = Sha256::digest(&resolved.subject_bytes).into();
+    resolved_claim_inline_sha256_relation_v0(resolved, computed_bytes)
+}
+
+fn resolved_claim_inline_sha256_relation_v0(
+    resolved: &ResolvedClaimInlineSubjectV0,
+    computed_bytes: [u8; 32],
+) -> ResolvedClaimInlineSha256RelationV0 {
+    if computed_bytes == resolved.expected_bytes {
+        ResolvedClaimInlineSha256RelationV0::DigestEqual
+    } else {
+        ResolvedClaimInlineSha256RelationV0::DigestUnequal
     }
 }
 

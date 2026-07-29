@@ -263,6 +263,25 @@ impl ResolutionContentClosureIdentityV0 {
     }
 }
 
+#[cfg(test)]
+pub(crate) fn stage_resolution_content_closure_identity_v0_for_tests(
+    manifest_sha256: &str,
+) -> ResolutionContentClosureIdentityV0 {
+    assert!(
+        manifest_sha256.len() == 64
+            && manifest_sha256
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)),
+        "staged closure manifest must be exactly 64 lowercase hexadecimal characters"
+    );
+    ResolutionContentClosureIdentityV0 {
+        schema: RESOLUTION_CONTENT_CLOSURE_SCHEMA_V0.to_owned(),
+        canonicalization_profile: RESOLUTION_CONTENT_CLOSURE_CANONICALIZATION_PROFILE_V0.to_owned(),
+        digest_algorithm: RESOLUTION_CONTENT_CLOSURE_DIGEST_ALGORITHM_V0.to_owned(),
+        manifest_sha256: manifest_sha256.to_owned(),
+    }
+}
+
 /// Immutable, standing-inert availability closure over two exact key spaces.
 pub struct ResolutionContentClosureV0 {
     artifact_objects: BTreeMap<ResolutionArtifactObjectKeyV0, Vec<u8>>,
@@ -797,6 +816,30 @@ fn sha256_hex(input: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn staged_closure_identity_is_test_only_and_exact() {
+        let identity = stage_resolution_content_closure_identity_v0_for_tests(&"2".repeat(64));
+
+        assert_eq!(identity.schema(), RESOLUTION_CONTENT_CLOSURE_SCHEMA_V0);
+        assert_eq!(
+            identity.canonicalization_profile(),
+            RESOLUTION_CONTENT_CLOSURE_CANONICALIZATION_PROFILE_V0
+        );
+        assert_eq!(
+            identity.digest_algorithm(),
+            RESOLUTION_CONTENT_CLOSURE_DIGEST_ALGORITHM_V0
+        );
+        assert_eq!(identity.manifest_sha256(), "2".repeat(64));
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "staged closure manifest must be exactly 64 lowercase hexadecimal characters"
+    )]
+    fn staged_closure_identity_rejects_noncanonical_digest() {
+        let _ = stage_resolution_content_closure_identity_v0_for_tests(&"g".repeat(64));
+    }
 
     #[test]
     fn typed_identity_equality_uses_all_four_fields() {

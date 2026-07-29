@@ -8,8 +8,10 @@ and v3 now implement achieved-standing slices on top of this ceiling law.
 V0 itself remains candidate-only. The Ticket 0062 standing-inert edge-lane
 contract landed through merged PR #77, and Ticket 0063 implements its runtime
 and landed through merged PR #78. Ticket 0064 separately ratifies one
-claim-inline direct-refutation policy-v4 rule. No policy-v4 runtime or
-code-produced governed `Refuted` exists.
+claim-inline direct-refutation policy-v4 rule and landed through merged
+PR #79. Ticket 0065 implements that exact runtime. Governed `Refuted` may now
+be derived only through the complete Ticket 0064 policy; the ceiling alone
+still grants no standing.
 
 ## Purpose
 
@@ -743,8 +745,10 @@ landed through merged PR #77. Ticket 0063 implements its standing-inert
 runtime and landed through merged PR #78. `SupportEligible` and
 `RefutationEligible` expose candidate ceilings only and do not change achieved
 standing by themselves. Ticket 0064 separately ratifies one exact
-claim-inline direct-refutation policy-v4 rule without runtime. Policy-v4
-runtime is the next separately reviewed slice.
+claim-inline direct-refutation policy-v4 rule and landed through merged
+PR #79. Ticket 0065 implements that exact runtime. `SupportEligible` remains
+standing-inert; inherited `Supported` and `Settled` defer behind the
+conservative contradiction-policy blocker.
 
 1. Keep or land `StandingResolution` v0 as the canonical fail-closed
    explanation surface.

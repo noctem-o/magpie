@@ -111,6 +111,24 @@ impl VerifiedLogPrefixIdentityV0 {
     }
 }
 
+#[cfg(test)]
+pub(crate) fn stage_verified_log_prefix_identity_v0_for_tests(
+    event_count: u64,
+    tip_sha256: &str,
+) -> VerifiedLogPrefixIdentityV0 {
+    assert!(
+        tip_sha256.len() == 64
+            && tip_sha256
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)),
+        "staged verified-prefix tip must be exactly 64 lowercase hexadecimal characters"
+    );
+    VerifiedLogPrefixIdentityV0 {
+        event_count,
+        tip_sha256: tip_sha256.to_owned(),
+    }
+}
+
 /// Co-derived standing, anchor, and exact verified-prefix replay context.
 ///
 /// This context is replay substrate only. It establishes neither binding-byte
@@ -248,6 +266,22 @@ mod tests {
     use magpie_log::{LogReader, LogWriter, MemStore, Payload, Provenance, SigningKey};
 
     const SEED: [u8; 32] = [47; 32];
+
+    #[test]
+    fn staged_verified_prefix_identity_is_test_only_and_exact() {
+        let identity = stage_verified_log_prefix_identity_v0_for_tests(7, &"1".repeat(64));
+
+        assert_eq!(identity.event_count(), 7);
+        assert_eq!(identity.tip_sha256(), "1".repeat(64));
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "staged verified-prefix tip must be exactly 64 lowercase hexadecimal characters"
+    )]
+    fn staged_verified_prefix_identity_rejects_noncanonical_digest() {
+        let _ = stage_verified_log_prefix_identity_v0_for_tests(7, &"A".repeat(64));
+    }
 
     fn identity(
         bundle_kind: &str,
