@@ -29,7 +29,8 @@ policy v4:
 not ratified
 ```
 
-The exact change classification is:
+The exact change classification ratified by the historical Ticket 0062
+documentation-only contract, before Ticket 0063 implementation, was:
 
 ```text
 correctness:

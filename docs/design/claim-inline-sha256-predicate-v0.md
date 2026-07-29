@@ -32,13 +32,14 @@ standing-inert runtime implemented by Ticket 0063 in the current candidate
 patch
 ```
 
-This note ratifies one neutral, claim-inline SHA-256 predicate contract
-over the subject-binding substrate of Ticket 0057. It ratifies no
-standing policy, no support or refutation rule, no evidence attestation
-schema, no edge-polarity meaning, and no runtime. Ticket 0060 separately
-ratifies the routing-only attestation schema and binding contract without
-changing this predicate law. It adds no Rust,
-tests, fixtures, Cargo metadata, dependency, CI, or L0 surface.
+This note records the historical Ticket 0058 contract, which ratified one
+neutral claim-inline SHA-256 predicate and no runtime, standing policy,
+support or refutation rule, evidence-attestation schema, or edge-polarity
+meaning. Ticket 0059 subsequently implemented the neutral predicate runtime.
+Tickets 0060 through 0063 separately ratified and implemented attestation
+binding and standing-inert edge lanes without changing this predicate law.
+The historical Ticket 0058 contract added no Rust, tests, fixtures, Cargo
+metadata, dependency, CI, or L0 surface.
 
 ## Purpose
 
