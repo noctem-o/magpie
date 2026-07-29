@@ -937,6 +937,42 @@ where
     }
 }
 
+fn resolve_bound_edge_kind_v0<EdgeKind, ValidateKind>(
+    snapshot: &StandingReplaySnapshot,
+    claim_id: &str,
+    evidence_id: &str,
+    edge_id: &str,
+    bound_scope_ref: &str,
+    validate_kind: ValidateKind,
+) -> Result<EdgeKind, ClaimInlinePredicateEdgeLaneFailureV0>
+where
+    ValidateKind: FnOnce(&str) -> Result<EdgeKind, ClaimInlinePredicateEdgeLaneFailureV0>,
+{
+    let edge = snapshot
+        .standing()
+        .justification_edge(edge_id)
+        .ok_or(ClaimInlinePredicateEdgeLaneFailureV0::MissingEdge)?;
+    let edge_kind = validate_kind(&edge.edge_kind)?;
+    if edge.source_id.as_bytes() != evidence_id.as_bytes() {
+        return Err(ClaimInlinePredicateEdgeLaneFailureV0::EdgeSourceBindingMismatch);
+    }
+    if edge.target_id.as_bytes() != claim_id.as_bytes() {
+        return Err(ClaimInlinePredicateEdgeLaneFailureV0::EdgeTargetBindingMismatch);
+    }
+    if edge.scope_ref.as_bytes() != bound_scope_ref.as_bytes() {
+        return Err(ClaimInlinePredicateEdgeLaneFailureV0::EdgeScopeBindingMismatch);
+    }
+    Ok(edge_kind)
+}
+
+/// Resolves only the exact `contradicts` half of the closed Ticket 0063 matrix.
+///
+/// This path can never consult the support-ceiling cell, and a correct matrix
+/// result can contain neither a support lane nor
+/// `DigestUnequalDoesNotSupport`. The `unreachable!` branches below therefore
+/// mark internal implementation-invariant violations, not malformed replay
+/// material or representable candidate failures. Focused tests cover these
+/// invariants.
 pub(crate) fn resolve_claim_inline_predicate_negative_candidate_v4(
     snapshot: &StandingReplaySnapshot,
     resolved_claim: &ResolvedClaimInlineSubjectV0,
@@ -978,22 +1014,20 @@ where
         resolve_inline_predicate_attestation_after_claim_v0(snapshot, resolved_claim, evidence_id)
             .map_err(ClaimInlinePredicateEdgeLaneFailureV0::AttestationBindingFailed)?;
 
-    let edge = snapshot
-        .standing()
-        .justification_edge(edge_id)
-        .ok_or(ClaimInlinePredicateEdgeLaneFailureV0::MissingEdge)?;
-    if edge.edge_kind.as_bytes() != b"contradicts" {
-        return Err(ClaimInlinePredicateEdgeLaneFailureV0::UnsupportedEdgeKind);
-    }
-    if edge.source_id.as_bytes() != evidence_id.as_bytes() {
-        return Err(ClaimInlinePredicateEdgeLaneFailureV0::EdgeSourceBindingMismatch);
-    }
-    if edge.target_id.as_bytes() != claim_id.as_bytes() {
-        return Err(ClaimInlinePredicateEdgeLaneFailureV0::EdgeTargetBindingMismatch);
-    }
-    if edge.scope_ref.as_bytes() != binding.scope_ref().as_bytes() {
-        return Err(ClaimInlinePredicateEdgeLaneFailureV0::EdgeScopeBindingMismatch);
-    }
+    resolve_bound_edge_kind_v0(
+        snapshot,
+        claim_id,
+        evidence_id,
+        edge_id,
+        binding.scope_ref(),
+        |edge_kind| {
+            if edge_kind.as_bytes() == b"contradicts" {
+                Ok(())
+            } else {
+                Err(ClaimInlinePredicateEdgeLaneFailureV0::UnsupportedEdgeKind)
+            }
+        },
+    )?;
 
     let predicate_relation = match relation {
         ResolvedClaimInlineSha256RelationV0::DigestEqual => {
@@ -1091,53 +1125,28 @@ impl StandingReplaySnapshot {
             }
         };
 
-        let edge = match self.standing().justification_edge(edge_id) {
-            Some(edge) => edge,
-            None => {
+        let edge_kind = match resolve_bound_edge_kind_v0(
+            self,
+            claim_id,
+            evidence_id,
+            edge_id,
+            binding.scope_ref(),
+            |edge_kind| match edge_kind {
+                "supports" => Ok(ClaimInlinePredicateEdgeLaneEdgeKindV0::Supports),
+                "contradicts" => Ok(ClaimInlinePredicateEdgeLaneEdgeKindV0::Contradicts),
+                _ => Err(ClaimInlinePredicateEdgeLaneFailureV0::UnsupportedEdgeKind),
+            },
+        ) {
+            Ok(edge_kind) => edge_kind,
+            Err(failure) => {
                 return ClaimInlinePredicateEdgeLaneOutcomeV0::resolution_failed(
                     claim_id,
                     evidence_id,
                     edge_id,
-                    ClaimInlinePredicateEdgeLaneFailureV0::MissingEdge,
+                    failure,
                 );
             }
         };
-        let edge_kind = match edge.edge_kind.as_str() {
-            "supports" => ClaimInlinePredicateEdgeLaneEdgeKindV0::Supports,
-            "contradicts" => ClaimInlinePredicateEdgeLaneEdgeKindV0::Contradicts,
-            _ => {
-                return ClaimInlinePredicateEdgeLaneOutcomeV0::resolution_failed(
-                    claim_id,
-                    evidence_id,
-                    edge_id,
-                    ClaimInlinePredicateEdgeLaneFailureV0::UnsupportedEdgeKind,
-                );
-            }
-        };
-        if edge.source_id.as_bytes() != evidence_id.as_bytes() {
-            return ClaimInlinePredicateEdgeLaneOutcomeV0::resolution_failed(
-                claim_id,
-                evidence_id,
-                edge_id,
-                ClaimInlinePredicateEdgeLaneFailureV0::EdgeSourceBindingMismatch,
-            );
-        }
-        if edge.target_id.as_bytes() != claim_id.as_bytes() {
-            return ClaimInlinePredicateEdgeLaneOutcomeV0::resolution_failed(
-                claim_id,
-                evidence_id,
-                edge_id,
-                ClaimInlinePredicateEdgeLaneFailureV0::EdgeTargetBindingMismatch,
-            );
-        }
-        if edge.scope_ref.as_bytes() != binding.scope_ref().as_bytes() {
-            return ClaimInlinePredicateEdgeLaneOutcomeV0::resolution_failed(
-                claim_id,
-                evidence_id,
-                edge_id,
-                ClaimInlinePredicateEdgeLaneFailureV0::EdgeScopeBindingMismatch,
-            );
-        }
 
         let relation = evaluate_resolved_claim_inline_sha256_relation_v0(&resolved_claim);
         let predicate_relation = match relation {
@@ -1471,9 +1480,9 @@ mod tests {
                 v4_test_snapshot(
                     V4_TEST_UNEQUAL_DIGEST,
                     "supports",
-                    V4_TEST_EVIDENCE,
-                    V4_TEST_CLAIM,
-                    V4_TEST_SCOPE,
+                    "evidence-other",
+                    "claim-other",
+                    "scope-other",
                 ),
                 ClaimInlinePredicateEdgeLaneFailureV0::UnsupportedEdgeKind,
             ),
@@ -1482,8 +1491,8 @@ mod tests {
                     V4_TEST_UNEQUAL_DIGEST,
                     "contradicts",
                     "evidence-other",
-                    V4_TEST_CLAIM,
-                    V4_TEST_SCOPE,
+                    "claim-other",
+                    "scope-other",
                 ),
                 ClaimInlinePredicateEdgeLaneFailureV0::EdgeSourceBindingMismatch,
             ),
@@ -1493,7 +1502,7 @@ mod tests {
                     "contradicts",
                     V4_TEST_EVIDENCE,
                     "claim-other",
-                    V4_TEST_SCOPE,
+                    "scope-other",
                 ),
                 ClaimInlinePredicateEdgeLaneFailureV0::EdgeTargetBindingMismatch,
             ),

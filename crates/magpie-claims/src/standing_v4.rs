@@ -1158,6 +1158,12 @@ where
     let candidate_derivation = derive_candidates();
     let has_eligible_candidate = candidate_derivation.has_eligible_candidate;
     let inherited_standing = input.inherited_v3.governed_standing();
+    // Precedence preserves inherited governed Refuted without amplification.
+    // Supported and Settled also remain preserved, with the explicit
+    // contradiction-policy blocker when an eligible negative candidate exists;
+    // only None, Open, and Conjectured may be promoted by this rule. These
+    // exhaustive explicit arms deliberately avoid a wildcard so a future
+    // Status variant requires an explicit policy decision at compile time.
     let (governed_standing, applications, blockers) = match inherited_standing {
         Some(Status::Refuted) => (Some(Status::Refuted), Vec::new(), Vec::new()),
         Some(inherited_status @ (Status::Supported | Status::Settled))

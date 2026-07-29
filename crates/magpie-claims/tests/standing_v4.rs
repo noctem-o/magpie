@@ -364,8 +364,11 @@ fn first_write_wins_duplicate_edge_ids_and_distinct_ids_do_not_amplify() {
 fn candidate_failures_are_independent_and_do_not_short_circuit() {
     for malformed_metadata in [None, Some(r#"{"inline_predicate_attestation":0}"#)] {
         let mut fixture = Fixture::valid_unequal();
-        let mut broken = EvidenceSpec::bound("evidence-broken");
+
+        // `None` deliberately leaves `evidence-broken` unregistered so the
+        // candidate fails with `MissingEvidence`.
         if let Some(metadata) = malformed_metadata {
+            let mut broken = EvidenceSpec::bound("evidence-broken");
             broken.metadata_json = metadata.to_owned();
             fixture.evidence.push(broken);
         }

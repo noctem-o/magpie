@@ -624,6 +624,12 @@ impl StandingResolutionV3 {
     }
 }
 
+/// Sole test-only mutation of the otherwise write-once v3 policy identifier.
+///
+/// This stages the otherwise unreachable
+/// `StandingResolutionFailureV4::InheritedPolicyMismatch` path. It must remain
+/// guarded by `#[cfg(test)]`; production construction never accepts a
+/// caller-selected policy identifier.
 #[cfg(test)]
 pub(crate) fn stage_standing_resolution_v3_policy_id_for_tests(
     resolution: &mut StandingResolutionV3,
