@@ -27,17 +27,19 @@ attestation-binding runtime:
 implemented by Ticket 0061 and landed through merged PR #76
 
 edge-lane contract:
-ratified by Ticket 0062 in the current candidate documentation patch;
-runtime absent
+ratified by Ticket 0062 and landed through merged PR #77;
+standing-inert runtime implemented by Ticket 0063 in the current candidate
+patch
 ```
 
-This note ratifies one neutral, claim-inline SHA-256 predicate contract
-over the subject-binding substrate of Ticket 0057. It ratifies no
-standing policy, no support or refutation rule, no evidence attestation
-schema, no edge-polarity meaning, and no runtime. Ticket 0060 separately
-ratifies the routing-only attestation schema and binding contract without
-changing this predicate law. It adds no Rust,
-tests, fixtures, Cargo metadata, dependency, CI, or L0 surface.
+This note records the historical Ticket 0058 contract, which ratified one
+neutral claim-inline SHA-256 predicate and no runtime, standing policy,
+support or refutation rule, evidence-attestation schema, or edge-polarity
+meaning. Ticket 0059 subsequently implemented the neutral predicate runtime.
+Tickets 0060 through 0063 separately ratified and implemented attestation
+binding and standing-inert edge lanes without changing this predicate law.
+The historical Ticket 0058 contract added no Rust, tests, fixtures, Cargo
+metadata, dependency, CI, or L0 surface.
 
 ## Purpose
 
@@ -808,9 +810,10 @@ claim-inline SHA-256 predicate contract (this contract)
 → routing-only attestation-binding implementation (Ticket 0061,
   implemented and landed through merged PR #76)
 → first exact claim-inline predicate edge-lane contract (Ticket 0062,
-  ratified in the current candidate documentation patch)
-→ claim-inline predicate edge-lane runtime v0
-→ only then may a fresh direct-refutation policy contract be considered
+  ratified and landed through merged PR #77)
+→ claim-inline predicate edge-lane runtime v0 (Ticket 0063,
+  implemented in the current candidate patch, standing-inert)
+→ a fresh direct-refutation policy contract may be separately reviewed
 ```
 
 No later direct-refutation or support/refutation contract may bundle
@@ -1325,9 +1328,9 @@ edge polarity, support, refutation, standing, or contradiction handling.
 Ticket 0060 separately ratifies the routing-only attestation-binding
 contract recorded as future candidate material above, and Ticket 0061
 implements its standing-inert resolver and landed through merged PR #76.
-Ticket 0062 ratifies the first exact claim-inline predicate edge-lane contract
-in the current candidate documentation patch; no edge-lane runtime exists.
-The next separately reviewed slice is claim-inline predicate edge-lane
-runtime v0. Only after that runtime lands may a fresh direct-refutation policy
-contract be considered. This Ticket 0058 contract ratifies none of those later
-surfaces.
+The Ticket 0062 exact claim-inline predicate edge-lane contract landed through
+merged PR #77. Ticket 0063 implements its standing-inert runtime in the current
+candidate patch while preserving this evaluator's public behavior and
+canonical vectors. The next possible slice is a fresh, separately reviewed
+direct-refutation policy contract. This Ticket 0058 contract ratifies none of
+those later surfaces.

@@ -588,9 +588,9 @@ hostile and compatibility tests. It is standing-inert and realizes only
 this contract's resolver plus Ticket 0058's evaluator. Ticket 0060
 separately ratifies the routing-only attestation-binding contract, and Ticket
 0061 implements its standing-inert resolver and landed through merged PR #76
-without changing this note's law. Ticket 0062 ratifies the first closed
-claim-inline predicate edge-lane contract in the current candidate
-documentation patch; no edge-lane runtime exists. The next separately
-reviewed slice is claim-inline predicate edge-lane runtime v0. Only after that
-runtime lands may a fresh direct-refutation policy contract be considered.
-This Ticket 0057 contract ratifies none of those later surfaces.
+without changing this note's law. The Ticket 0062 closed claim-inline
+predicate edge-lane contract landed through merged PR #77. Ticket 0063
+implements its standing-inert runtime in the current candidate patch, without
+changing this note's subject-binding law. The next possible slice is a fresh,
+separately reviewed direct-refutation policy contract. This Ticket 0057
+contract ratifies none of those later surfaces.

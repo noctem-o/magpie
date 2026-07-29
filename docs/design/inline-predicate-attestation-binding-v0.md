@@ -4,9 +4,10 @@
 
 Contract ratified by Ticket 0060. Ticket 0061 implements the routing-only,
 standing-inert runtime and landed through merged PR #76; this note's ratified
-authority law is unchanged. Ticket 0062 ratifies the first exact claim-inline
-predicate edge-lane contract in the current candidate documentation patch;
-no edge-lane runtime exists.
+authority law is unchanged. The Ticket 0062 exact claim-inline predicate
+edge-lane contract landed through merged PR #77, and Ticket 0063 implements
+its standing-inert runtime in the current candidate patch without exposing
+the digest relation to this module.
 
 ```text
 outer evidence-metadata envelope:
@@ -1001,9 +1002,10 @@ Ticket 0060: routing-only attestation-binding contract — ratified
 → Ticket 0061: routing-only attestation-binding implementation —
   implemented and landed through merged PR #76
 → Ticket 0062: first exact claim-inline predicate edge-lane contract —
-  ratified in the current candidate documentation patch
-→ claim-inline predicate edge-lane runtime v0
-→ only then may a fresh direct-refutation policy contract be considered
+  ratified and landed through merged PR #77
+→ Ticket 0063: claim-inline predicate edge-lane runtime v0 —
+  implemented in the current candidate patch, standing-inert
+→ a fresh direct-refutation policy contract may be separately reviewed
 → contradiction debt, invalidation, supersession/currentness, ...
 ```
 

@@ -51,8 +51,8 @@ routing-only contract ratified by Ticket 0060; standing-inert
 resolver implemented by Ticket 0061 and landed through merged PR #76
 
 claim-inline predicate edge lanes:
-standing-inert contract ratified by Ticket 0062 in the current candidate
-documentation patch; runtime absent
+standing-inert contract ratified by Ticket 0062 and landed through merged
+PR #77; runtime implemented by Ticket 0063 in the current candidate patch
 ```
 
 An origin-group value in a verified binding remains only a claimed group until
@@ -549,11 +549,12 @@ ratified by Ticket 0058 and its standing-inert evaluator is implemented by
 Ticket 0059. The routing-only attestation-binding contract is ratified by
 Ticket 0060 without edge, polarity, contribution, or standing meaning.
 Ticket 0061 implements that standing-inert resolver and landed through merged
-PR #76. Ticket 0062 ratifies the first exact claim-inline predicate edge-lane
-contract in the current candidate documentation patch; no edge-lane runtime
-exists. The next separately reviewed slice is that runtime. Only after it
-lands may a fresh direct-refutation policy contract be considered. Conflict
-handling remains future.
+PR #76. The Ticket 0062 exact claim-inline predicate edge-lane contract landed
+through merged PR #77. Ticket 0063 implements its standing-inert runtime in the
+current candidate patch. `RefutationEligible` remains a lane classification,
+not governed `Refuted`; no aggregation or repetition amplification is added.
+The next possible slice is a fresh, separately reviewed direct-refutation
+policy contract. Conflict handling remains future.
 
 ## Interaction With Contradiction Debt
 
@@ -603,9 +604,10 @@ must not erase truth-bearing contradiction debt or settle factual truth.
     implemented by Ticket 0059; routing-only attestation-binding contract
     ratified by Ticket 0060 and its standing-inert resolver implemented by
     Ticket 0061 and landed through merged PR #76; first exact claim-inline
-    predicate edge-lane contract ratified by Ticket 0062 in the current
-    candidate documentation patch; edge-lane runtime next; only after that
-    may a fresh direct-refutation policy contract be considered.
+    predicate edge-lane contract ratified by Ticket 0062 and landed through
+    merged PR #77; standing-inert edge-lane runtime implemented by Ticket 0063
+    in the current candidate patch; a fresh direct-refutation policy contract
+    may be considered only as a separate review slice.
 16. Add contradiction debt with explicit precedence.
 17. Add invalidation and supersession/currentness.
 18. Add EpistemicGate and writer surfaces.

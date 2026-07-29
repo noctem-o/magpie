@@ -2,8 +2,8 @@
 
 ## Status
 
-Contract ratified by Ticket 0062 in this documentation-only candidate patch.
-Runtime is absent and belongs to a later separately reviewed ticket.
+Contract ratified by Ticket 0062 and landed through merged PR #77. Ticket 0063
+implements its standing-inert runtime in the current candidate patch.
 
 ```text
 predicate:
@@ -29,7 +29,8 @@ policy v4:
 not ratified
 ```
 
-The exact change classification is:
+The exact change classification ratified by the historical Ticket 0062
+documentation-only contract, before Ticket 0063 implementation, was:
 
 ```text
 correctness:
@@ -1221,13 +1222,20 @@ Stop rather than implement or widen this contract if:
 - Ticket 0060/0061 opacity prevents sound private composition without
   amending a ratified contract.
 
-## Next slice
+## Implementation handoff and next slice
 
-The next separately reviewed slice is:
+Ticket 0063 implements this contract's exact three-ID snapshot resolver,
+one-claim-resolution private composition, four-cell matrix, eligible-only
+candidate-ceiling checks, opaque outcomes and receipts, nested failures, and
+canonical vectors. `SupportEligible` and `RefutationEligible` remain
+standing-inert. No policy v4 or governed `Refuted` result exists.
+
+The next possible separately reviewed slice is:
 
 ```text
-claim-inline predicate edge-lane runtime v0
+a fresh deterministic direct-refutation policy contract
 ```
 
-It is not policy v4, direct-refutation policy runtime, contradiction debt,
-aggregation, the pre-alpha demo, writer behavior, or ingestion.
+It is not automatically authorized by the Ticket 0063 implementation.
+Contradiction debt, aggregation, the pre-alpha demo, writer behavior, and
+ingestion remain absent.
