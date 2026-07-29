@@ -731,9 +731,10 @@ by Ticket 0057 (claim-owned inline subject bytes), and the neutral
 claim-inline SHA-256 predicate contract is now ratified by Ticket 0058
 and implemented, standing-inert, by Ticket 0059.
 Ticket 0060 now ratifies the routing-only attestation-binding contract,
-with no edge, polarity, contribution, or standing meaning.
-The remaining progression — attestation-binding implementation,
-support/refutation lane contract(s) and corresponding standing-inert
+with no edge, polarity, contribution, or standing meaning. Ticket 0061
+implements that routing-only, standing-inert resolver in this candidate patch.
+The remaining progression — support/refutation lane contract(s) and
+corresponding standing-inert
 lane/input implementation(s), a direct-refutation policy contract, and
 any direct-refutation runtime — remains future.
 

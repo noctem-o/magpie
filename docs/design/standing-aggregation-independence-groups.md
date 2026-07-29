@@ -48,7 +48,7 @@ implemented by Ticket 0059
 
 inline predicate attestation binding:
 routing-only contract ratified by Ticket 0060; standing-inert
-implementation remains future
+resolver implemented by Ticket 0061 in this candidate patch
 ```
 
 An origin-group value in a verified binding remains only a claimed group until
@@ -544,8 +544,9 @@ documents). The subject-binding prerequisite is now ratified by Ticket
 ratified by Ticket 0058 and its standing-inert evaluator is implemented by
 Ticket 0059. The routing-only attestation-binding contract is ratified by
 Ticket 0060 without edge, polarity, contribution, or standing meaning.
-Its implementation, support/refutation lanes, a direct-refutation
-contract, and conflict handling remain future.
+Ticket 0061 implements that standing-inert resolver in this candidate patch.
+Support/refutation lanes, a direct-refutation contract, and conflict handling
+remain future.
 
 ## Interaction With Contradiction Debt
 
@@ -593,8 +594,9 @@ must not erase truth-bearing contradiction debt or settle factual truth.
     binding ratified by Ticket 0057 (claim-owned inline bytes), neutral
     predicate contract ratified by Ticket 0058, and standing-inert evaluator
     implemented by Ticket 0059; routing-only attestation-binding contract
-    ratified by Ticket 0060; its implementation, support/refutation lanes,
-    and a direct-refutation contract remain future.
+    ratified by Ticket 0060 and its standing-inert resolver implemented by
+    Ticket 0061 in this candidate patch; support/refutation lanes and a
+    direct-refutation contract remain future.
 16. Add contradiction debt with explicit precedence.
 17. Add invalidation and supersession/currentness.
 18. Add EpistemicGate and writer surfaces.

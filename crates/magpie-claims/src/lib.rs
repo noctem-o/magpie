@@ -13,6 +13,7 @@ mod artifact_provenance_verifier;
 mod claim_inline_sha256_predicate;
 mod deadbolt_context;
 mod deterministic_verifier_context;
+mod inline_predicate_attestation;
 mod origin_admission_audit;
 mod origin_admission_replay;
 mod origin_binding_verifier;
@@ -62,6 +63,11 @@ pub use deterministic_verifier_context::{
     DeterministicVerifierContextTraceV0, DeterministicVerifierReceiptV0,
     MACHINE_PREDICATE_SCHEMA_V0, MAX_WITNESS_BYTES_V0, SHA256_BYTES_EQUALS_PREDICATE_V0,
     SHA256_BYTES_EQUALS_STATEMENT_PREFIX_V0, VERIFICATION_WITNESS_SCHEMA_V0,
+};
+
+pub use inline_predicate_attestation::{
+    InlinePredicateAttestationBindingFailureV0, InlinePredicateAttestationBindingOutcomeKindV0,
+    InlinePredicateAttestationBindingOutcomeV0, InlinePredicateAttestationBindingReceiptV0,
 };
 
 pub use replay_snapshot::{replay_standing_context, StandingReplaySnapshot};
