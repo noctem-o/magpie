@@ -2,14 +2,17 @@
 
 ## Status
 
-Ratified by documentation-only Ticket 0064. The Tickets 0057-0063
-standing-inert substrate is landed, including Ticket 0063 through merged
-PR #78. No policy-v4 runtime exists in this patch, and current code produces
-no governed `Refuted` result through this rule.
+Ratified by documentation-only Ticket 0064 and landed through merged PR #79.
+The Tickets 0057-0063 standing-inert substrate is landed, including Ticket
+0063 through merged PR #78. Ticket 0065 implements the exact policy-v4 runtime
+specified here.
 
-The next separately reviewed slice is the policy-v4 runtime. Contradiction
-debt, invalidation, supersession/currentness, `EpistemicGate`, writers,
-loaders, CAS, filesystem, and network ingestion remain future.
+The future-tense contract language below is retained as the historical
+Ticket 0064 ratification rather than rewritten as though runtime existed then.
+Ticket 0065 adds only the specified context methods, private composition seam,
+closed audit types, tests, and canonical output. Contradiction debt,
+invalidation, supersession/currentness, `EpistemicGate`, writers, loaders,
+CAS, filesystem, and network ingestion remain future.
 
 ## Exact classification
 
@@ -1247,20 +1250,21 @@ Stop for a new contract if implementation would require:
 - [ ] All nine literals, lengths, and SHA-256 values reproduce independently.
 - [ ] Only the Ticket 0064 changed-path allowlist is touched.
 
-## Runtime handoff
+## Runtime implementation status
 
-Ticket 0064 ratifies policy only. The future runtime slice may add the exact
-context methods, private composition seam, closed types, tests, and canonical
-vectors specified here. It must be separately reviewed.
-
-Until that runtime lands:
+Ticket 0064 remains the policy-only historical ratification. Ticket 0065
+implements the exact context methods, private composition seam, closed types,
+tests, and canonical vectors specified here. Its public integration tests use
+real signed replay and real `ResolutionContentClosureV0::construct` values;
+crate-only hostile and vector tests use narrowly staged identities without
+staging a replay context or closure.
 
 ```text
 policy-v4 runtime:
-absent
+implemented by Ticket 0065
 
 governed Refuted from claim-inline direct refutation:
-absent
+available only under the complete Ticket 0064 rule
 
 SupportEligible standing policy:
 absent

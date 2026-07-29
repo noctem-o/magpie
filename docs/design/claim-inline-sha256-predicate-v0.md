@@ -5,6 +5,12 @@
 Contract ratified by Ticket 0058. Runtime implemented by Ticket 0059 without
 changing this note's ratified predicate law.
 
+Ticket 0064's separate standing-policy-v4 contract landed through merged
+PR #79, and Ticket 0065 implements that exact claim-inline direct-refutation
+runtime. It consumes only a crate-private claim-owned relation and does not
+change this predicate's public API, neutral outcomes, opacity, failure order,
+or canonical vectors. `SupportEligible` remains standing-inert.
+
 ```text
 subject-binding substrate:
 claim-invariant byte-subject identity — ratified by Ticket 0057
@@ -32,8 +38,8 @@ standing-inert runtime implemented by Ticket 0063 and landed through merged
 PR #78
 
 standing policy:
-one separate claim-inline direct-refutation rule ratified by Ticket 0064;
-runtime absent
+one separate claim-inline direct-refutation rule ratified by Ticket 0064
+and merged through PR #79; exact runtime implemented by Ticket 0065
 ```
 
 This note records the historical Ticket 0058 contract, which ratified one
@@ -819,9 +825,9 @@ claim-inline SHA-256 predicate contract (this contract)
   ratified and landed through merged PR #77)
 → claim-inline predicate edge-lane runtime v0 (Ticket 0063,
   implemented and landed through merged PR #78, standing-inert)
-→ claim-inline direct-refutation policy contract (Ticket 0064, ratified;
-  runtime absent)
-→ policy-v4 runtime may be separately reviewed
+→ claim-inline direct-refutation policy contract (Ticket 0064, ratified and
+  landed through merged PR #79)
+→ policy-v4 runtime (Ticket 0065, implemented)
 ```
 
 No later direct-refutation or support/refutation contract may bundle
@@ -1340,7 +1346,6 @@ The Ticket 0062 exact claim-inline predicate edge-lane contract landed through
 merged PR #77. Ticket 0063 implements its standing-inert runtime and landed
 through merged PR #78 while preserving this evaluator's public behavior and
 canonical vectors. Ticket 0064 separately ratifies one subject-bound
-direct-refutation policy contract, without changing this predicate surface.
-No policy-v4 runtime exists; that runtime is the next separately reviewed
-slice. This historical Ticket 0058 contract ratifies none of those later
-surfaces.
+direct-refutation policy contract and landed through merged PR #79. Ticket
+0065 implements that exact runtime without changing this predicate surface.
+This historical Ticket 0058 contract ratifies none of those later surfaces.

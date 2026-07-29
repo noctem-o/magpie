@@ -624,6 +624,14 @@ impl StandingResolutionV3 {
     }
 }
 
+#[cfg(test)]
+pub(crate) fn stage_standing_resolution_v3_policy_id_for_tests(
+    resolution: &mut StandingResolutionV3,
+    policy_id: &'static str,
+) {
+    resolution.policy_id = policy_id;
+}
+
 /// Sealed crate-private input to the one pure v3 composition path.
 ///
 /// Production constructs this only after deriving both nested inputs from one

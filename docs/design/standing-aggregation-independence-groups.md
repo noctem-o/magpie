@@ -40,8 +40,8 @@ first narrow rule implemented by Ticket 0054; broader rules future
 
 standing policy v4:
 Ticket 0056 evidence-relative candidate remains blocked;
-one separate claim-inline direct-refutation rule ratified by Ticket 0064,
-runtime absent
+one separate claim-inline direct-refutation rule ratified by Ticket 0064
+and merged through PR #79; exact runtime implemented by Ticket 0065
 
 claim-inline SHA-256 predicate:
 contract ratified by Ticket 0058; neutral standing-inert evaluator
@@ -554,10 +554,11 @@ PR #76. The Ticket 0062 exact claim-inline predicate edge-lane contract landed
 through merged PR #77. Ticket 0063 implements its standing-inert runtime and
 landed through merged PR #78. `RefutationEligible` remains a lane
 classification, not governed `Refuted`. Ticket 0064 separately ratifies one
-subject-bound policy-v4 rule that may eventually turn an uncontested eligible
-negative path into governed `Refuted`; it adds no runtime, aggregation, or
-repetition amplification. Policy-v4 runtime is the next separately reviewed
-slice. Conflict handling remains future.
+subject-bound policy-v4 rule and landed through merged PR #79. Ticket 0065
+implements its exact direct-refutation runtime without aggregation or
+repetition amplification. Inherited `Supported` and `Settled` are preserved
+behind the conservative contradiction-policy blocker. Conflict handling
+remains future.
 
 ## Interaction With Contradiction Debt
 

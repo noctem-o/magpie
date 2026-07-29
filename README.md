@@ -460,9 +460,9 @@ shell execution is unavailable.
     `SupportEligible` and `RefutationEligible` outcomes are lane
     classifications only; they do not themselves change standing. Ticket
     0064 separately ratifies one subject-bound direct-refutation policy-v4
-    contract, but no policy-v4 runtime exists and code currently produces no
-    governed `Refuted` result through it. The next separately reviewed slice
-    is policy-v4 runtime. Contradiction debt,
+    contract and landed through merged PR #79. Ticket 0065 implements that
+    exact runtime: governed `Refuted` is now derived only through the closed
+    Ticket 0064 rule. Contradiction debt,
     invalidation,
     supersession/currentness, `EpistemicGate`, ordinary claim-bearing
     writer, loader, CAS, and filesystem or network ingestion remain
@@ -589,9 +589,9 @@ shell execution is unavailable.
     through merged PR #76. The Ticket 0062 claim-inline predicate edge-lane
     contract landed through merged PR #77, and Ticket 0063 implements its
     standing-inert runtime, landed through merged PR #78. Ticket 0064
-    separately ratifies one subject-bound direct-refutation policy contract;
-    no policy-v4 runtime exists. Policy-v4 runtime is the next separately
-    reviewed slice.
+    separately ratifies one subject-bound direct-refutation policy contract
+    and landed through merged PR #79; Ticket 0065 implements that exact
+    policy-v4 runtime without changing this predicate surface.
     Contradiction debt, invalidation,
     supersession/currentness, `EpistemicGate`, ordinary claim-bearing
     writer, loader, CAS, and filesystem or network ingestion remain
@@ -619,7 +619,8 @@ shell execution is unavailable.
     claim-inline predicate edge-lane contract landed through merged PR #77,
     and Ticket 0063 implements its standing-inert runtime, landed through
     merged PR #78. Ticket 0064 separately ratifies one subject-bound
-    direct-refutation policy contract; runtime remains absent.
+    direct-refutation policy contract and landed through merged PR #79;
+    Ticket 0065 implements that exact policy-v4 runtime.
 30. **Inline predicate attestation binding v0 — contract ratified by Ticket
     0060.**
     [`docs/design/inline-predicate-attestation-binding-v0.md`](docs/design/inline-predicate-attestation-binding-v0.md)
@@ -650,7 +651,8 @@ shell execution is unavailable.
     predicate edge-lane contract landed through merged PR #77, and Ticket 0063
     implements its standing-inert runtime, landed through merged PR #78.
     Ticket 0064 separately ratifies one subject-bound direct-refutation policy
-    contract, with runtime still absent. Contradiction debt, invalidation,
+    contract and landed through merged PR #79; Ticket 0065 implements that
+    exact runtime. Contradiction debt, invalidation,
     supersession/currentness,
     `EpistemicGate`, and writer/loader/CAS/filesystem/network behavior remain
     future.
@@ -699,20 +701,23 @@ shell execution is unavailable.
     failures and deterministic one-way audit bytes. Eligibility remains
     standing-inert: policy v2 and policy v3 are unchanged, and this lane
     runtime itself produces no governed `Refuted`. Ticket 0064 separately
-    ratifies one claim-inline deterministic direct-refutation policy-v4 rule,
-    but no policy-v4 runtime exists. There is no contradiction debt,
-    aggregation, writer, or ingestion capability. Policy-v4 runtime is the
-    next separately reviewed slice; it is not supplied by Ticket 0063.
+    ratifies one claim-inline deterministic direct-refutation policy-v4 rule
+    and landed through merged PR #79; Ticket 0065 implements that policy
+    without changing Ticket 0063. There is no contradiction debt,
+    aggregation, writer, or ingestion capability.
 34. **Standing policy v4 claim-inline direct refutation — contract ratified by
-    Ticket 0064.**
+    Ticket 0064 and merged through PR #79; runtime implemented by Ticket
+    0065.**
     [`docs/design/standing-policy-v4-claim-inline-direct-refutation-v0.md`](docs/design/standing-policy-v4-claim-inline-direct-refutation-v0.md)
     and
     [Ticket 0064](tickets/0064-standing-policy-v4-claim-inline-direct-refutation-contract.md)
-    ratify exactly one future rule:
+    ratify exactly one rule:
     `StandingPolicyRuleV4::Sha256ClaimInlineBytesDirectRefutationV0`,
     serialized as `sha256_claim_inline_bytes_direct_refutation_v0`, under
-    policy identity `magpie-claims-standing-v4`. The future public resolver
-    remains explicit on `OriginAdmissionReplayContextV0`, accepts only a
+    policy identity `magpie-claims-standing-v4`.
+    [Ticket 0065](tickets/0065-standing-policy-v4-claim-inline-direct-refutation-implementation.md)
+    implements the public resolver on `OriginAdmissionReplayContextV0`. It
+    accepts only a
     requested claim ID and immutable `ResolutionContentClosureV0`, internally
     inherits the complete policy-v3 result from that same context and closure,
     and privately derives exact replayed `contradicts` candidates in existing
@@ -729,10 +734,10 @@ shell execution is unavailable.
     cannot be reinjected as authority. `SupportEligible` remains unused by
     standing policy. Ticket 0056 remains blocked, its evidence-relative rule
     and withdrawn names are not revived, and `sha256_bytes_equals_v0` remains
-    unchanged. Ticket 0064 is documentation-only: no policy-v4 runtime exists
-    and current code produces no governed `Refuted` result through this rule.
-    The next separately reviewed slice is policy-v4 runtime. Contradiction
-    debt, invalidation, supersession/currentness, `EpistemicGate`, writer,
+    unchanged. Ticket 0064 remains the documentation-only historical
+    ratification; Ticket 0065 is its exact runtime implementation. Policies
+    v0-v3 remain unchanged. Contradiction debt, invalidation,
+    supersession/currentness, `EpistemicGate`, writer,
     loader, CAS, filesystem, and network ingestion remain future.
 
 Conserve the log. Derive the rest.
