@@ -28,8 +28,12 @@ implemented by Ticket 0061 and landed through merged PR #76
 
 edge-lane contract:
 ratified by Ticket 0062 and landed through merged PR #77;
-standing-inert runtime implemented by Ticket 0063 in the current candidate
-patch
+standing-inert runtime implemented by Ticket 0063 and landed through merged
+PR #78
+
+standing policy:
+one separate claim-inline direct-refutation rule ratified by Ticket 0064;
+runtime absent
 ```
 
 This note records the historical Ticket 0058 contract, which ratified one
@@ -38,6 +42,8 @@ support or refutation rule, evidence-attestation schema, or edge-polarity
 meaning. Ticket 0059 subsequently implemented the neutral predicate runtime.
 Tickets 0060 through 0063 separately ratified and implemented attestation
 binding and standing-inert edge lanes without changing this predicate law.
+Ticket 0064 separately ratifies one policy rule without changing this
+predicate API, its audit opacity, or its canonical vectors.
 The historical Ticket 0058 contract added no Rust, tests, fixtures, Cargo
 metadata, dependency, CI, or L0 surface.
 
@@ -812,8 +818,10 @@ claim-inline SHA-256 predicate contract (this contract)
 → first exact claim-inline predicate edge-lane contract (Ticket 0062,
   ratified and landed through merged PR #77)
 → claim-inline predicate edge-lane runtime v0 (Ticket 0063,
-  implemented in the current candidate patch, standing-inert)
-→ a fresh direct-refutation policy contract may be separately reviewed
+  implemented and landed through merged PR #78, standing-inert)
+→ claim-inline direct-refutation policy contract (Ticket 0064, ratified;
+  runtime absent)
+→ policy-v4 runtime may be separately reviewed
 ```
 
 No later direct-refutation or support/refutation contract may bundle
@@ -1329,8 +1337,10 @@ Ticket 0060 separately ratifies the routing-only attestation-binding
 contract recorded as future candidate material above, and Ticket 0061
 implements its standing-inert resolver and landed through merged PR #76.
 The Ticket 0062 exact claim-inline predicate edge-lane contract landed through
-merged PR #77. Ticket 0063 implements its standing-inert runtime in the current
-candidate patch while preserving this evaluator's public behavior and
-canonical vectors. The next possible slice is a fresh, separately reviewed
-direct-refutation policy contract. This Ticket 0058 contract ratifies none of
-those later surfaces.
+merged PR #77. Ticket 0063 implements its standing-inert runtime and landed
+through merged PR #78 while preserving this evaluator's public behavior and
+canonical vectors. Ticket 0064 separately ratifies one subject-bound
+direct-refutation policy contract, without changing this predicate surface.
+No policy-v4 runtime exists; that runtime is the next separately reviewed
+slice. This historical Ticket 0058 contract ratifies none of those later
+surfaces.

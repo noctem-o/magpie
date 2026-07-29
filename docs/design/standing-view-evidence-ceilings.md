@@ -7,8 +7,9 @@ Living doctrine note, originally a proposed design note. PR #33 and
 and v3 now implement achieved-standing slices on top of this ceiling law.
 V0 itself remains candidate-only. The Ticket 0062 standing-inert edge-lane
 contract landed through merged PR #77, and Ticket 0063 implements its runtime
-in the current candidate patch. Policy v4 and governed direct refutation
-remain future.
+and landed through merged PR #78. Ticket 0064 separately ratifies one
+claim-inline direct-refutation policy-v4 rule. No policy-v4 runtime or
+code-produced governed `Refuted` exists.
 
 ## Purpose
 
@@ -234,7 +235,7 @@ candidate; external review demonstrated that the existing
 independent subject binding, and the candidate was blocked rather than
 ratified (see
 [`standing-policy-v4-deterministic-direct-refutation-v0.md`](standing-policy-v4-deterministic-direct-refutation-v0.md)).
-Direct refutation therefore remains future: the subject-binding
+The Ticket 0056 evidence-relative rule remains blocked. Its subject-binding
 prerequisite is now ratified by Ticket 0057 (claim-owned inline subject
 bytes), and the neutral claim-inline SHA-256 predicate contract is now
 ratified by Ticket 0058 and implemented, standing-inert, by Ticket 0059;
@@ -242,8 +243,10 @@ the routing-only attestation-binding contract is now ratified by Ticket 0060
 and its standing-inert implementation landed through Ticket 0061 and merged
 PR #76. The Ticket 0062 exact claim-inline predicate edge-lane contract
 landed through merged PR #77, and Ticket 0063 implements its standing-inert
-runtime in the current candidate patch. A fresh direct-refutation policy
-contract may be considered only as a separate review slice. A bare
+runtime and landed through merged PR #78. Ticket 0064 separately ratifies the
+new subject-bound policy contract recorded in
+[`standing-policy-v4-claim-inline-direct-refutation-v0.md`](standing-policy-v4-claim-inline-direct-refutation-v0.md).
+Its runtime remains a separate future slice. A bare
 `contradicts` edge never refutes, lane eligibility is not achieved standing,
 and no conflict handling is ratified — contradiction debt remains future.
 
@@ -737,10 +740,11 @@ with no edge, polarity, contribution, or standing meaning. Ticket 0061
 implements that routing-only, standing-inert resolver and landed through
 merged PR #76. The Ticket 0062 exact claim-inline predicate edge-lane contract
 landed through merged PR #77. Ticket 0063 implements its standing-inert
-runtime in the current candidate patch. `SupportEligible` and
+runtime and landed through merged PR #78. `SupportEligible` and
 `RefutationEligible` expose candidate ceilings only and do not change achieved
-standing. The next possible slice is a fresh, separately reviewed
-direct-refutation policy contract.
+standing by themselves. Ticket 0064 separately ratifies one exact
+claim-inline direct-refutation policy-v4 rule without runtime. Policy-v4
+runtime is the next separately reviewed slice.
 
 1. Keep or land `StandingResolution` v0 as the canonical fail-closed
    explanation surface.
