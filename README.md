@@ -1,743 +1,363 @@
 # Magpie
 
-A local-first, provenance-first research mind. **One signed append-only log is the
-sole source of truth; one verified capability gate is the only thing that may write
-to it; everything else is a derived, regenerable projection.**
+**A local-first, replayable epistemic memory kernel for AI systems.**
 
-The skeleton walks: the bottom of the stack (`magpie-log`, L0, format-frozen and
-golden-pinned), two worked projections (`magpie-claims`, `magpie-episodic`), an
-independent Python verifier, a ratified live seam to `deadbolt`, and a
-fail-closed governed-standing explanation surface whose explicit policies now
-include v1 direct occurrence settlement, v2 deterministic direct support, and
-one narrow v3 external-report corroboration rule. Magpie retains typed claims,
-evidence, and justification edges; applies closed support, refutation, and
-privileged-context policy; and still exposes no ordinary writer, ambient
-promotion mechanism, or implicit latest-policy selector.
+Magpie records what happened, what was claimed, what evidence exists, and what
+an explicit policy is allowed to conclude.
 
-## Run it
+It does **not** treat retrieval, repetition, model confidence, or serialized
+audit output as authority.
+
+> **Conserve the log. Derive the rest.**
+
+Here, *epistemic* means keeping the basis and limits of a conclusion visible.
+*Kernel* means a small set of typed mechanisms, not a finished end-user
+application.
+
+Magpie is a functioning experimental Rust workspace. Current development
+includes explicit standing policies v0 through v4. The latest formal
+owner-created source release remains v0.1.0; this README does not announce a
+v0.2.0 release.
+
+## Why Magpie exists
+
+Memory for an AI system is not just a retrieval problem. A stored item may be
+available without being verified, verified without having useful provenance,
+or well-provenanced without being admitted as an independent contribution.
+Even admitted evidence may be only a candidate for a policy rule, not achieved
+standing.
+
+Magpie keeps these concepts separate:
+
+- **Observation** records what an event said.
+- **Availability** says that exact bytes were supplied to a resolution.
+- **Verification** checks those bytes or a signed history against a named
+  procedure and trust root.
+- **Provenance** connects an artifact to recorded acquisition or derivation.
+- **Origin admission** decides whether a contribution has an admitted origin
+  in an exact comparison namespace.
+- **Candidate eligibility** decides whether evidence may enter a policy rule.
+- **Governed standing** is the conclusion an explicitly selected policy
+  actually achieves.
+
+The signed append-only log is historical authority relative to an externally
+supplied verifying key. Search indexes, claim graphs, standing views, and audit
+traces are derived. They can explain history and policy, but they cannot write
+authority back into the log.
+
+## Current milestone
+
+Current main implements:
+
+- a frozen signed event format with canonical encoding and golden vectors;
+- an append-only, hash-chained log with an independent Python verifier;
+- complete verification before deterministic replay;
+- byte-identical regeneration of derived state;
+- typed claims, evidence, and justification edges;
+- an optional live protocol seam for anchoring sealed Deadbolt execution
+  evidence;
+- immutable resolution-content closure: an exact set of supplied artifact and
+  foreign-bundle bytes;
+- artifact-provenance verification and origin-admission audit;
+- admitted-contribution and support-contribution audits;
+- governed standing policies v0 through v4; and
+- deterministic, one-way audit traces that cannot be reinjected as authority.
+
+This is a working experimental kernel, not a complete memory product.
+
+## Quick start
+
+From the repository root, run the full locked workspace tests:
 
 ```sh
-cargo test                                   # whole workspace, incl. the thesis test
-cargo run --example tour -p magpie-claims    # governed-standing end-to-end tour
+cargo test --workspace --locked
 ```
 
-The tour demonstrates the current vertical thesis: one signed history verifies
-completely and co-replays standing with exact anchor context; policy v0 exposes
-candidate-only standing, explicit policy v1 settles only the exact matched
-Deadbolt occurrence proposition, and explicit policy v2 directly supports one
-exact canonical inline digest proposition after the same-snapshot verifier
-matches. The newer explicit policy v3 corroboration rule (ledger entry 25) is
-not part of this tour, and the tour's output is unchanged by it. A structured
-mismatch and an interpretation claim remain unpromoted, then every snapshot and
-resolution byte regenerates identically after all derived standing state is
-dropped. It does not verify foreign bundle contents or implement general
-aggregation or writer admission.
+Run the deterministic governed-standing tour:
 
-The thesis, as a test (`crates/magpie-claims/tests/regenerable.rs`):
-> build a projection → **drop all derived state** → replay from the log alone →
-> assert the result is **byte-for-byte identical**.
-
-### Release boundary
-
-The human-created `v0.1.0` tag exists and resolves to
-`2bbfbd1f451e35b65e8c89aeaf39801621e484df`. It names the reviewed v0.1.0
-source release, whose format, policy, replay, and architectural milestone is
-defined by
-[`docs/releases/v0.1.0-contract.md`](docs/releases/v0.1.0-contract.md). The
-workspace now has shared, explicitly non-publishable release metadata, and CI
-checks all three package inventories. Only `magpie-log` is verified as a
-standalone archive; `magpie-claims` and `magpie-episodic` remain path-workspace
-members rather than independently registry-resolvable packages. The exact
-source release is versioned `0.1.0` and recorded in
-[`CHANGELOG.md`](CHANGELOG.md). A GitHub prerelease exists for the tag; it is
-not registry publication. No crates.io or other registry publication is
-implied or enabled, and all path-workspace and packageability boundaries remain.
-
-## Layout
-
-```
-magpie/
-  crates/
-    magpie-log/        L0 — the signed, hash-chained, append-only event log (the hoard)
-      src/event.rs         Event model: Provenance, Status spectrum, Payload, EventCore, SignedEvent
-      src/canonical.rs     magpie-core-v1 — the canonical byte encoding (FROZEN; see docs/FORMAT.md)
-      src/hashing.rs       SHA-256 ContentHash (the chain link)
-      src/store.rs         LogStore trait + FileStore (durable) + MemStore (tests/embedding)
-      src/logimpl.rs       LogWriter (the write capability) / LogReader (read-only) / Projection / replay
-      tests/chain.rs       chain integrity, tip recovery, tamper detection, genesis rules
-      tests/golden.rs      golden vectors: pinned hashes, signatures, canonical preimages
-      testdata/            golden-v1.jsonl — the committed fixture chain (nine events, incl. ADR-0002 tags)
-      examples/regen_golden.rs   regenerates the fixture for reviewed format-surface changes
-    magpie-claims/     projection #1: the epistemic claim store, folded from the log
-      src/lib.rs           ClaimsView compatibility projection + public read surfaces
-      src/policy.rs        closed evidence/domain ceilings and support-context policy
-      src/standing.rs      StandingView + fail-closed StandingResolution v0
-      src/replay_snapshot.rs   co-replayed standing + anchor context, standing-inert
-      tests/regenerable.rs the thesis test
-      tests/standing_resolution.rs   adversarial governed-resolution coverage
-      examples/tour.rs     governed v0/v1 standing → hostile controls → byte-identical replay
-    magpie-episodic/   projection #2: SQLite + FTS5 full-text search over events
-      src/lib.rs           EpisodicView : Projection (the only crate that may depend on SQLite)
-      tests/episodic.rs    incl. rebuilt-from-zero == incrementally-built
-  docs/
-    FORMAT.md          the normative format spec — a reimplementation from this page
-                       alone must reproduce the golden vectors
-    portable-base.md   the machine-agnostic base boundary: Magpie runs without Deadbolt
-    seams/deadbolt-anchor-contract.md   the optional Deadbolt anchor protocol contract
-    adr/0001-deadbolt-seam.md   the anchored-hierarchy decision (see seam section below)
-    adr/0002-governed-claim-memory.md   how memory events earn standing
-    design/standing-view-evidence-ceilings.md   evidence/domain ceiling doctrine
-    design/standing-aggregation-independence-groups.md   aggregation doctrine: first v3 rule implemented, broader constraints future
-  tools/
-    verify_chain.py    independent verifier, written from FORMAT.md alone; CI runs it
-                       against the golden fixture with a pinned trust root
+```sh
+cargo run --locked --example tour -p magpie-claims
 ```
 
-## The two invariants, enforced by types (not by convention)
+The frozen tour writes and verifies one signed history, resolves policies
+v0-v2, drops the derived state, replays the history, and checks byte-identical
+regeneration. Policies v3 and v4 are implemented and tested separately; they
+are not part of the frozen tour output.
 
-1. **Append-only.** There is no `update` or `delete`. A correction is a new event that
-   supersedes — which is exactly how the epistemic spectrum records a claim moving
-   `Supported → Refuted`.
-2. **The gate is the only writer.** Only `LogWriter` has `.append()`. Holding a
-   `LogWriter` *is* the write capability. Memory layers are handed a `LogReader`, which
-   exposes no way to write. Projections are pure folds and stay structurally unable
-   to write.
+Verify the golden chain with the independent Python implementation:
 
-## How this meets `deadbolt` (the seam — ratified and live)
+```sh
+python tools/verify_chain.py \
+  crates/magpie-log/testdata/golden-v1.jsonl \
+  ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c
+```
 
-Magpie core is portable and can run without Deadbolt. Deadbolt integration is
-optional but protocol-defined by `docs/seams/deadbolt-anchor-contract.md`; the
-portable base boundary is in `docs/portable-base.md`. The always-on
-librarian/navigator is deliberately future work and is not part of the base
-trust architecture.
+The verifier independently checks canonical encoding, sequence and previous
+hash links, stored hashes, signatures, genesis binding, and payload validity
+against the supplied verifying key.
 
-ADR-0001 (**anchored hierarchy**, ratified 2026-07-02): deadbolt keeps its internal
-witness/evidence machinery unchanged; after each successful **seal-and-verify**, the
-kernel appends one `SegmentAnchored` event (payload tag 5) to this chain, carrying
-the bundle kind, the witness root (verbatim), the hash algorithm, the **foreign**
-canonicalization profile that produced the root, and the run id.
+## How it works
 
-- **A segment that is not anchored is not part of the record.** The Magpie chain is
-  the record of what execution history exists, and in what order.
-- **Two-step verification, one root of trust.** The chain verifies order, signature,
-  and inclusion; a bundle's contents verify locally against its anchored root using
-  deadbolt's own verifier for that profile.
-- **Kind-agnostic by construction.** New deadbolt bundle kinds are new `bundle_kind`
-  strings — never new Magpie payload variants.
+```text
+signed append-only history
+        |
+        v
+verified deterministic replay
+        |
+        +-- episodic/search projection
+        +-- typed claims, evidence, and edges
+        +-- anchors and immutable closure context
+        +-- provenance and origin-admission audits
+        `-- explicit standing policies
+                    |
+                    v
+             governed standing
+```
 
-Status of the deadbolt side (in the deadbolt repo): `cog-anchor` is the only crate
-there that may depend on `magpie-log`, and its `Anchorer::open` is the sole
-`LogWriter` construction site in that estate. Identity creation is explicit and
-fail-closed (`cog anchor init`, refuses to overwrite); emission is fail-open —
-anchoring failure writes a `pending-anchor.json` marker beside the bundle and never
-fails a seal. All four production seal points emit anchors today — kernel witness,
-observation, codelet, and desktop-transaction dry-run: every sealed bundle either
-has an anchor in the log or a `pending-anchor.json` beside it. `cog anchor
-reconcile` (deadbolt ticket 0009, merged) pays the recorded debt idempotently,
-re-verifying every bundle with its own kind's verifier before anchoring — reconcile
-is deliberately the first consumer of anchors, folding an `AnchorSet` projection
-over a chain-verified replay of this log.
+Only signed events are conserved as historical authority. Replay first reads
+one record snapshot, verifies that complete snapshot, and then folds those same
+events into projections. Standing paths that need artifacts or foreign bundles
+also receive an immutable closure of exact bytes; resolution performs no
+ambient filesystem, content-addressed store, or network lookup.
 
-## Governed claim memory (ADR-0002 — additive vocabulary, no new authority)
+The policy path is deliberately staged:
 
-ADR-0002 answers the question the anchor seam intentionally does not answer:
-Deadbolt can prove or refuse occurrence, but what may Magpie believe about that
-evidence?
+1. Exact bytes must be available in the supplied closure.
+2. Named verifiers establish only their exact predicates.
+3. Provenance binds content to recorded acquisition or derivation.
+4. Origin admission evaluates attributed origin under explicit policy.
+5. Contribution audits retain complete, typed eligibility decisions.
+6. An explicitly selected standing policy may produce governed standing.
 
-The rule is deliberately conservative: a memory event earns standing through a
-governed write path and deterministic replay into `StandingView`. Standing is not
-stored as mutable truth, and `SegmentAnchored` remains occurrence/inclusion
-evidence, not interpretation truth.
+Verification is not provenance. Provenance is not origin separation. Origin
+separation is not statistical independence. Eligibility is not achieved
+standing.
 
-The log now knows three additive payload tags:
+## Governed standing policies
 
-- tag 6, `ClaimAssertedV2`: registers a scoped claim node;
-- tag 7, `EvidenceRegistered`: registers typed evidence under a deterministic
-  ceiling;
-- tag 8, `JustificationEdgeRecorded`: records a closed-vocabulary support,
-  contradiction, lineage, invalidation, supersession, or ratification edge.
+Standing is a policy result such as `Conjectured`, `Supported`, `Settled`, or
+`Refuted`. Raw serialized status is retained for historical audit, but governed
+standing comes only from a named resolver.
 
-These are format vocabulary, not a permission system. `StandingView` retains
-the typed replay tables. `StandingResolution v0` is the canonical governed read
-surface: it parses the target claim's closed `claim_domain` fail-closed,
-quarantines legacy raw status, and explains candidate support ceilings under the
-fixed `magpie-claims-standing-v0` policy.
+| Policy | Authority added | Result and boundary |
+| --- | --- | --- |
+| v0 | Candidate explanation, ceilings, and blockers | Explains eligible-looking evidence without promoting it. |
+| v1 | Exact same-replay Deadbolt occurrence/inclusion rule | A matching five-field anchor occurrence may achieve `Settled` for that exact proposition. |
+| v2 | One exact deterministic direct-support rule | A matched `sha256_bytes_equals_v0` candidate may achieve `Supported`, never `Settled`. |
+| v3 | One exact `ExternalSource` x `ExternalReport` corroboration rule | At least two distinct admitted origin groups in one exact comparison namespace may achieve `Supported`, never `Settled`; this is not a statistical-independence claim. |
+| v4 | One exact subject-bound deterministic direct-refutation rule | The eligible negative lane may achieve governed `Refuted` under conservative inherited-standing precedence. |
 
-Candidate is not policy-eligible, admitted, aggregated, or achieved standing.
-The closed policy currently provides:
+These are explicit versioned surfaces, not an ambient sequence in which every
+new version silently replaces the last. There is no implicit
+`resolved_standing_latest` selector.
 
-- `support_ceiling(EvidenceKind, ClaimDomain)`;
-- `refutation_ceiling(EvidenceKind, ClaimDomain)`;
-- `support_context_requirement(EvidenceKind, ClaimDomain)`.
+### Why v4 is subject-bound
 
-Human ratification still requires future replayable admission. Policy v0
-remains candidate-only and still returns `Conjectured`. Explicit snapshot-only
-v1 settles only the exact structured proposition that a five-field Deadbolt
-occurrence identity appears in the same verified replay. Explicit snapshot-only
-v2 directly supports one exact canonical `sha256_bytes_equals_v0` proposition
-after same-snapshot deterministic verification. That direct contribution is
-`Supported`, not `Settled`, and is not aggregation. Explicit policy v3
-(ratified by Ticket 0053, implemented by Ticket 0054, merged via PR #68)
-resolves through the same verified replay context and an immutable closure: a
-complete internally derived support audit with at least two distinct admitted
-origin groups in one exact `OriginComparisonNamespaceV0` lane contributes
-governed `Supported`, never `Settled`, to the exact requested `ExternalReport`
-claim. That corroboration rule is the only implemented aggregation rule.
-Broader aggregation, refutation application, contradiction debt, invalidation,
-supersession/currentness, `EpistemicGate`, and ordinary claim-bearing writer
-surfaces remain future work. The low-level `LogWriter` append capability
-already exists.
+An earlier proposed v4 path, recorded in Ticket 0056, exposed an
+evidence-relative substitution failure. Evidence could supply unrelated
+`witness_hex` bytes; inequality against the expected digest would then show
+only that those evidence-selected bytes differed, not that the claim's subject
+was false. That path was not ratified.
 
-## Development workflow
+The implemented v4 path closes the substitution:
 
-Magpie uses a maker/checker loop for ordinary agent work:
+- the claim owns both the exact subject bytes and expected digest;
+- evidence supplies routing and binding, never alternate subject bytes;
+- one claim-owned digest relation is evaluated per policy call;
+- each candidate evidence and `contradicts` edge binds separately; and
+- parse or binding failure is a resolution failure, never digest inequality or
+  falsity.
 
-- Claude decides the bounded change and writes a ticket under `.agent-runs\pending\`;
-- Codex implements that ticket through `scripts\codex-delegate.ps1`, the delegation boundary;
-- Claude reviews the resulting diff and tests;
-- a human holds sole merge authority.
+Only the exact `DigestUnequal` + `contradicts` + `RefutationEligible` lane with
+the compiled `Refuted` ceiling can produce governed `Refuted`. Inherited
+`None`, `Open`, or `Conjectured` may promote. Inherited `Supported` and
+`Settled` are preserved behind an explicit contradiction-policy blocker.
+Inherited governed `Refuted` is preserved without another application.
+Legacy raw `Refuted` remains audit-only and cannot authorize the result.
 
-The wrapper is not edited during ordinary work, and Codex output is never committed or
-merged automatically.
+`SupportEligible` remains standing-inert in v4. The rule is direct and
+non-amplifying: several eligible candidates remain visible in the trace but
+produce at most one policy application.
 
-On native Windows, validation commands are normally run by the human reviewer if Codex
-shell execution is unavailable.
+## Core guarantees
 
-## Honest notes
+### Append-only historical authority
 
-- **Canonical encoding is `magpie-core-v1`** — a fixed binary codec (big-endian
-  integers, length-prefixed UTF-8, tagged enums, magic-prefixed), spec'd in
-  `docs/FORMAT.md` and pinned by golden vectors in CI. The format is **frozen**:
-  tags 5-8 were added under §3's additive-evolution rule, with older golden hashes
-  and signatures unchanged. The store stays JSON-lines; stored bytes are never the
-  hash preimage. Every chain begins with a **genesis event** (seq 0) declaring the
-  profile and the verifying key, written automatically when a writer opens an
-  empty store. Signatures are made over `magpie-sig-v1 || hash` — domain-separated,
-  so this key's log signatures can't be confused with anything else it signs.
-- **`MemStore` is single-threaded** (`Rc`/`RefCell`). `FileStore` is the durable one; swap
-  to `Arc`/`Mutex` only after a design conversation — single-threaded is currently a choice.
-- **Keys are dev-grade everywhere.** `magpie-log` takes a `SigningKey` from the
-  caller; deadbolt's anchor identity is a bare hex seed file created by
-  `cog anchor init`. Real custody (keyring/HSM, rotation) is deliberately deferred
-  and honestly labelled wherever it appears.
-- **No knowledge graph.** The wiki, when it exists, is a downstream projection.
+There is no update or delete operation on the log. A correction must be a
+later signed event, so the prior record remains inspectable. The log itself
+does not decide that a later event invalidates, supersedes, or becomes the
+current interpretation of an earlier one.
 
-## Next steps (from the architecture ledger; kept honest as things land)
+The genesis event makes the chain self-describing, but trust in the supplied
+verifying key remains external.
 
-1. ~~Canonical codec~~ — **done**: `magpie-core-v1`, genesis, signature domain
-   separation, golden vectors, `docs/FORMAT.md`, independent Python verifier in CI.
-2. ~~Episodic projection~~ — **done**: `magpie-episodic`, SQLite + FTS5, pure fold.
-3. ~~Deadbolt seam~~ — **ratified and live**: ADR-0001, `SegmentAnchored` tag 5,
-   deadbolt-side `Anchorer` emitting at the kernel witness seal point.
-4. ~~Reconcile pass~~ — **done** (deadbolt PR #320): verify-then-anchor,
-   idempotent, first consumer of anchors. The seam is complete end to end.
-5. ~~ADR-0002 groundwork~~ — **landed**: governed claim memory ADR, `StandingView`
-   v0 skeleton, boundary tests, and additive tags 6-8 with verifier/golden coverage.
-6. ~~Standing replay structure~~ — **landed**: typed claim, evidence, and
-   justification edge tables make ADR-0002 graph material regenerable.
-7. ~~Fail-closed standing policy foundation~~ — **landed**: closed support and
-   refutation ceilings, support-context requirements, and deterministic
-   `StandingResolution v0` traces without promotion.
-8. ~~Exact Deadbolt context and replay prerequisites~~ — **landed**: strict
-   structured occurrence matching and single-snapshot verified replay.
-9. ~~First achieved-standing slice~~ — **done**: co-replayed standing and anchor
-   context now feed one explicit `magpie-claims-standing-v1` direct-proof rule
-   for exact Deadbolt occurrence/inclusion. The v0 resolver remains unchanged.
-   The governed-standing public tour now executes this boundary in CI.
-   Aggregation beyond the first narrow policy-v3 rule (entry 25),
-   contradiction debt, invalidation, and supersession remain separate later
-   phases.
-10. **v0.1.0 source release tagged** — the semantic contract,
-    non-publishable metadata, package inventories, changelog, and coordinated
-    workspace version are complete. `magpie-log` alone is standalone-verified;
-    dependent crates remain path-workspace members. The human-created `v0.1.0`
-    tag names reviewed source commit `2bbfbd1f451e35b65e8c89aeaf39801621e484df`;
-    this does not imply registry publication.
-11. **Replayable deterministic-verifier admission contract — landed.** The
-    contract fixes one exact predicate, same-snapshot trusted construction,
-    receipt boundary, and future policy-v2 admission rule.
-12. **Standing-inert deterministic verifier context — landed.** Strict schemas,
-    canonical statement/content-hash binding, bounded witness checking, and
-    snapshot-only receipt traces now derive deterministic audit material with
-    no standing effect.
-13. **Explicit policy-v2 deterministic direct support and composition
-    hardening — landed.**
-    `magpie-claims-standing-v2` preserves the exact Deadbolt v1 settlement rule
-    and adds one `sha256_bytes_equals_v0` direct contribution that reaches
-    `Supported` only after the existing same-snapshot verifier returns
-    `Matched`. Repeated successful paths do not amplify or settle. PR #48
-    also makes inherited v0/v1 composition mismatches fail closed without
-    changing the frozen policy surfaces.
-14. **Artifact provenance and origin-admission architecture — landed.** Ticket
-    0037 and `docs/design/artifact-provenance-origin-admission.md` define the
-    replayable authority substrate and preserve the explicit `(H, P, M)`
-    resolution boundary.
-15. **Exact acquisition/direct-derivation protocol — landed.** Ticket 0038 and
-    `docs/design/artifact-acquisition-derivation-bundle-v0.md` ratify the two
-    sibling bundle/schema identities, canonical JSON bytes, SHA-256 roots,
-    full anchor matching, and standing-inert verifier outcomes.
-16. **Portable artifact-provenance verification — implemented by Ticket
-    0039.** Exact acquisition and direct-derivation fixtures now exercise a
-    duplicate-aware fixed-schema parser, purpose-built canonical encoder,
-    selector-bound same-snapshot replay verification, and closed audit traces.
-    Exact matches remain audit context only: they establish neither source
-    identity, transformation correctness, truth nor standing. Production
-    `ResolutionContentClosureV0` construction is implemented separately by
-    Ticket 0041. The public explicit-slice APIs remain unchanged; Ticket 0045
-    adds only crate-private closure-aware reuse for origin-binding composition.
-    Origin admission is implemented separately by Ticket 0048 and the
-    admitted-contribution audit by Ticket 0050. The first narrow standing
-    policy v3 aggregation rule is implemented later by Ticket 0054 (entry
-    25); broader aggregation, refutation, contradiction debt, invalidation,
-    supersession, `EpistemicGate`, and ordinary claim-bearing writer
-    surfaces remain later.
-17. **Resolution content closure v0 contract — landed.**
-    [`docs/design/resolution-content-closure-v0.md`](docs/design/resolution-content-closure-v0.md)
-    and [Ticket 0040](tickets/0040-resolution-content-closure-v0.md) now specify
-    the exact finite keyed availability universe, canonical manifest and
-    closure identity used as input `M` for deterministic resolution. The
-    public artifact-provenance verifier methods still receive explicit optional
-    byte slices. Origin admission is implemented separately by Ticket 0048 and
-    admitted-contribution audit by Ticket 0050. The first narrow standing
-    policy v3 aggregation rule is implemented later by Ticket 0054 (entry
-    25); conservative aggregation beyond that rule and ordinary
-    claim-bearing writer surfaces remain future work.
-18. **Resolution content closure v0 implementation — landed.** Exact bounded
-    construction now collapses identical duplicates, rejects deterministic
-    conflicts, owns immutable keyed bytes, and exposes exact read-only lookup.
-    Its purpose-built canonical manifest and four-field typed identity
-    reproduce the pinned vectors. No loader exists. Public artifact-provenance
-    verification remains explicit-slice based; Ticket 0045 reuses the same
-    reviewed pipeline through a private exact-closure composition seam.
-19. **Origin-binding verifier v0 — implemented and standing-inert.**
-    [`docs/design/origin-binding-bundle-v0.md`](docs/design/origin-binding-bundle-v0.md)
-    and [Ticket 0045](tickets/0045-standing-inert-origin-binding-verifier-v0.md)
-    now have strict two-family parsing, exact immutable-closure lookup,
-    canonical root and same-replay anchor verification, exact claim/evidence/
-    edge contribution revalidation, nested artifact-provenance composition,
-    artifact coherence, and private-construction audit receipts. Matched
-    receipts verify claimed governance content only. The compiled authority
-    classification and standing-inert origin-admission fold are implemented
-    separately by Ticket 0048, and the admitted-contribution audit is
-    implemented by Ticket 0050. The first narrow standing policy v3
-    aggregation rule — one exact lane, same-origin collapse, and a
-    distinct-group threshold — is implemented later by Ticket 0054 (entry
-    25); conservative aggregation beyond that rule, the ordinary
-    claim-bearing writer, `EpistemicGate`, and their standing effects remain
-    future work.
-20. **Origin-admission audit v0 — implemented by Ticket 0048.**
-    [`docs/design/origin-admission-audit-v0.md`](docs/design/origin-admission-audit-v0.md)
-    and [Ticket 0046](tickets/0046-origin-admission-audit-v0-contract.md)
-    freeze the contract; [Ticket 0048](tickets/0048-origin-admission-audit-v0-implementation.md)
-    implements complete same-replay candidate auditing over exact verified-
-    prefix and closure identities. The fixed `magpie-origin-admission-v0`
-    policy selects one exact trusted authority pair, globally fails admission
-    closed when any candidate binding bytes are unavailable, classifies every
-    candidate deterministically, collapses duplicate trusted assignments
-    without amplification, detects trusted conflicts, scopes eligible
-    unresolved blockers to one exact contribution and namespace, and emits
-    deterministic standing-inert audit bytes. It establishes origin-group
-    assignment only. It creates no support, aggregation, statistical
-    independence or standing. The admitted-contribution audit is implemented
-    by Ticket 0050. The first narrow standing policy v3 aggregation rule
-    is implemented later by Ticket 0054 (entry 25); it establishes
-    corroboration separation, never statistical independence. Conservative
-    aggregation beyond that rule, `EpistemicGate`, an ordinary claim-bearing
-    writer, loader, CAS, and filesystem or network ingestion remain future
-    work.
-21. **Origin-admission replay substrate v0 — implemented by Ticket 0047.**
-    One-read verified
-    replay now returns an exact event-count and chain-tip summary while
-    preserving the existing replay API. A separately versioned origin-
-    admission replay context co-derives that exact prefix identity with the
-    unchanged standing and anchor projections, then provides crate-private,
-    complete deterministic enumeration of supported acquisition and derivation
-    origin-binding anchor candidates. Exact repeated anchor occurrences remain
-    attached without candidate or authority amplification. Ticket 0048 consumes
-    this exact same-replay carrier for the complete standing-inert
-    `OriginAdmissionAuditV0`; the substrate itself still grants no origin
-    admission or standing authority.
-22. **Admitted-contribution audit v0 — implemented by Ticket 0050.**
-    [`docs/design/admitted-contribution-audit-v0.md`](docs/design/admitted-contribution-audit-v0.md)
-    and [Ticket 0049](tickets/0049-admitted-contribution-audit-v0-contract.md)
-    freeze the contract implemented by
-    [Ticket 0050](tickets/0050-admitted-contribution-audit-v0-implementation.md).
-    Runtime now audits every replay-derived justification edge in exact edge-ID
-    order, preserves exact first-failure reasons, selects one exact
-    `ExternalSource × ExternalReport` lane, binds asserted evidence
-    `content_hash` to the exact verified artifact identity, derives
-    `OriginAdmissionAuditV0` internally from the same context and closure, and
-    fails all downstream admission closed when origin admission is globally
-    incomplete. Exact conflict, unresolved, absent and admitted dispositions
-    serialize as deterministic standing-inert audit bytes, while distinct
-    contributions assigned to one origin group remain distinct. The
-    support-contribution contract is ratified separately by Ticket 0051.
-    The first narrow standing policy v3 aggregation rule is implemented
-    later by Ticket 0054 (entry 25); it establishes corroboration
-    separation, never statistical independence. Conservative aggregation
-    beyond that rule, `EpistemicGate`, an ordinary claim-bearing writer,
-    loader, CAS, and filesystem or network ingestion remain future work. No
-    support or standing changed.
-23. **Support-contribution audit v0 — contract ratified by Ticket 0051,
-    runtime implemented by Ticket 0052.**
-    [`docs/design/support-contribution-audit-v0.md`](docs/design/support-contribution-audit-v0.md)
-    and [Ticket 0051](tickets/0051-support-contribution-audit-v0-contract.md)
-    freeze internal same-context admitted-audit composition, exact upstream
-    identity validation, complete candidate/top-level alignment, one exact
-    `ExternalSource × ExternalReport` positive lane, exact ceiling and
-    support-context drift checks, one-to-one support-input projection,
-    complete global failure behavior, deterministic ordering and
-    serialization, and preservation of distinct same-origin contributions.
-    [Ticket 0052](tickets/0052-support-contribution-audit-v0-implementation.md)
-    implements `OriginAdmissionReplayContextV0::resolve_support_contribution_audit_v0`
-    through one crate-private composition path with the four crate-private
-    origin-binding grammar seams, five canonical fixtures and the reserved
-    hostile-test suite. The contract introduces no aggregation or standing
-    effect. The first narrow standing policy v3 aggregation rule is
-    implemented later by Ticket 0054 (entry 25); it establishes
-    corroboration separation, never statistical independence. Conservative
-    aggregation beyond that rule, `EpistemicGate`, ordinary claim-bearing
-    writer, loader, CAS, and filesystem or network ingestion remain future
-    work.
-24. **Historical review remediation contract.**
-    [`docs/design/historical-review-remediation-ledger.md`](docs/design/historical-review-remediation-ledger.md)
-    and [Ticket 0043](tickets/0043-historical-review-remediation-contract.md)
-    ratify the remaining doctrine corrections from the PR #1-54 review audit
-    and classify the bounded follow-up work. No runtime behavior changes
-    there. Two of its dedicated follow-ups have since progressed: PR #56
-    landed the legacy raw versus inherited governed `Refuted` regression
-    coverage without changing production standing behavior, and PR #57
-    removed parsed-event retention for verification-only and writer-recovery
-    verification, while `LogStore::read_records` raw-record materialisation
-    remains future interface work. The ledger's section 5 records the exact
-    status.
-25. **Standing policy v3 external-report corroboration v0 — contract
-    ratified by Ticket 0053, runtime implemented by Ticket 0054.**
-    [`docs/design/standing-policy-v3-external-report-corroboration-v0.md`](docs/design/standing-policy-v3-external-report-corroboration-v0.md)
-    and [Ticket 0053](tickets/0053-standing-policy-v3-external-report-corroboration-contract.md)
-    ratify the first explicit standing policy v3 aggregation rule: one exact
-    `ExternalSource × ExternalReport` corroboration rule over one exact
-    `OriginComparisonNamespaceV0` lane, requiring at least two distinct
-    admitted origin groups for governed `Supported`, never `Settled`.
-    With identity-valid inherited v2, governed `Settled`, `Refuted`, and
-    `Supported` are preserved; inherited claim or policy identity mismatches
-    yield no top-level standing; legacy raw status remains quarantined;
-    same-origin contributions remain visible but count once. [Ticket
-    0054](tickets/0054-standing-policy-v3-external-report-corroboration-implementation.md)
-    implements that one narrow rule through the same verified replay context:
-    a complete internally derived support audit with at least two distinct
-    admitted origin groups in the exact requested claim's lane may contribute
-    governed `Supported`, never `Settled`. Ticket 0054's implementation head
-    `f030be8ff329c93fd7138d6f831bb44cc42e9409` merged via PR #68 at merge
-    commit `7720a2749f3b85f95e38580d0af4fd26c6f02658` on 2026-07-23.
-    Corroboration separation remains distinct from statistical independence.
-    Refutation aggregation, contradiction debt, invalidation, supersession
-    and currentness policy, general source-standing propagation,
-    `EpistemicGate`, ordinary claim-bearing writer, loader, CAS, and
-    filesystem or network ingestion remain future work.
-26. **Direct-refutation subject-binding blocker — recorded by Ticket
-    0056.**
-    [`docs/design/standing-policy-v4-deterministic-direct-refutation-v0.md`](docs/design/standing-policy-v4-deterministic-direct-refutation-v0.md)
-    and [Ticket 0056](tickets/0056-standing-policy-v4-deterministic-direct-refutation-contract.md)
-    record the first direct-refutation contract candidate and why it is
-    blocked. External review demonstrated that the existing
-    `sha256_bytes_equals_v0` predicate is evidence-relative: an arbitrary
-    well-formed `contradicts` evidence node can supply unrelated bytes
-    and manufacture a negative result, because no record independently
-    identifies the claim's subject bytes. The candidate is not ratified:
-    no Ticket 0056 rule, resolver, receipt, or conflict blocker is active.
-    The existing v2 positive rule and the `DigestMismatch`
-    non-authority law are unchanged, and the three refutation-ceiling
-    cells remain ceilings only. Ticket 0064 now ratifies a separate
-    subject-bound policy-v4 contract; it does not repair or ratify Ticket
-    0056.
-    Entries 27-32 record the ratified subject-binding, neutral predicate,
-    and routing-only attestation-binding contracts plus the standing-inert
-    predicate evaluator and attestation-binding implementations. Ticket 0061
-    landed through merged PR #76, and the Ticket 0062 edge-lane contract
-    landed through merged PR #77. Ticket 0063 implements that closed,
-    standing-inert runtime and landed through merged PR #78. Its
-    `SupportEligible` and `RefutationEligible` outcomes are lane
-    classifications only; they do not themselves change standing. Ticket
-    0064 separately ratifies one subject-bound direct-refutation policy-v4
-    contract and landed through merged PR #79. Ticket 0065 implements that
-    exact runtime: governed `Refuted` is now derived only through the closed
-    Ticket 0064 rule. Contradiction debt,
-    invalidation,
-    supersession/currentness, `EpistemicGate`, ordinary claim-bearing
-    writer, loader, CAS, and filesystem or network ingestion remain
-    future work.
-27. **Claim-inline subject binding v0 — contract ratified by Ticket
-    0057.**
-    [`docs/design/claim-inline-subject-binding-v0.md`](docs/design/claim-inline-subject-binding-v0.md)
-    and [Ticket 0057](tickets/0057-claim-inline-subject-binding-contract.md)
-    ratify the subject-binding prerequisite identified by Ticket 0056:
-    an `ExactMachineCheckable` claim owns exactly one immutable byte
-    subject through claim-owned strict bounded inline hex and separately
-    owns an expected terminal SHA-256 operand — exactly 64 lowercase
-    hex characters, no prefix, uppercase, or whitespace, validated
-    before canonical statement construction — in the new
-    `magpie-machine-predicate-inline-bytes-v0` schema. The expected
-    operand does not independently commit to or identify the subject.
-    The complete descriptor — schema, predicate identity, expected
-    operand, and subject bytes — is carried injectively in the canonical
-    statement. The canonical encoding is injective; SHA-256 is not —
-    binding is the exact direct three-way statement comparison
-    `StandingClaim.statement == TypedClaimNode.statement == the
-    descriptor-derived canonical statement`, with
-    `ClaimAssertedV2.content_hash` recomputed separately as the
-    SHA-256 of the exact statement bytes; collision resistance is
-    assumed and hash equality alone never establishes descriptor or
-    statement equality. Subject resolution re-fetches the typed claim
-    from the same verified replay snapshot, parses the outer envelope
-    and nested descriptor in that order, and decodes the subject from
-    the claim alone. The descriptor is nested as
-    `machine_predicate_inline_bytes` beside `claim_domain` in the
-    established two-key metadata envelope: exactly those two outer keys
-    and no others, duplicate keys rejected at both levels, no
-    descriptor fields at the outer level, and `claim_domain`
-    revalidated by the existing strict parser. `predicate_id` is a
-    closed `[a-z0-9_]+` identifier bounded by the compiled
-    `MAX_PREDICATE_ID_BYTES_V0 = 64` constant after the
-    missing/wrong-type/empty checks and before character validation,
-    canonical statement construction, or any resolver-owned allocation
-    or copy attributable to the identifier. Inputs already allocated or
-    copied by upstream replay/application code before resolver entry are
-    outside that law and cannot be undone; the resolver may inspect but
-    not mutate or extend them. Ticket 0059's evaluator satisfies
-    the inherited law with a borrowed two-pass or equivalent count-only
-    preflight: retain bounded non-identifier scalar decoding/counting
-    state only, copy no complete or partial identifier, reject decoded
-    byte 65, and only after success decode/copy the accepted bounded
-    value before character validation. The existing allocating generic
-    descriptor-string path remains prohibited for this descriptor.
-    For the new inline-subject path, the routing-only evidence
-    attestation ratified separately by Ticket 0060 may carry only
-    `schema`, `predicate_id`, `subject_claim_id`, and `scope_ref` and
-    may supply no alternate subject byte source — the Ticket 0056
-    substitution class is closed by construction — while existing v0 evidence,
-    including `magpie-verification-witness-v0`, `witness_hex`, and
-    `sha256_bytes_equals_v0` behavior, remains unchanged; no global ban
-    on byte-bearing evidence is stated. Ticket 0057 itself ratifies no
-    predicate, policy, standing rule, refutation, resolver, or runtime;
-    Ticket 0059 separately implements only the neutral Ticket 0058
-    evaluator, Ticket 0060 separately ratifies only routing binding, and
-    Ticket 0061 implements that routing-only binding without adding
-    polarity or standing. The external acquired-object and
-    replay-owned subject forms are
-    recorded as unratified future extensions. The predicate contract
-    over inline-subject claims follows as entry 28; direct refutation,
-    contradiction debt, invalidation, supersession/currentness,
-    `EpistemicGate`, ordinary claim-bearing writer, loader, CAS, and
-    filesystem or network ingestion remain future work.
-28. **Claim-inline SHA-256 predicate v0 — contract ratified by Ticket
-    0058.**
-    [`docs/design/claim-inline-sha256-predicate-v0.md`](docs/design/claim-inline-sha256-predicate-v0.md)
-    and [Ticket 0058](tickets/0058-claim-inline-sha256-predicate-contract.md)
-    ratify one neutral, standing-inert predicate over the Ticket 0057
-    claim-inline subject-binding substrate: the exact proposition
-    `SHA-256(exact decoded claim-owned inline subject bytes) == the
-    exact claim-owned expected_sha256 value`, evaluated only on subject
-    bytes resolved from the exact replayed claim under Ticket 0057's
-    law — never from evidence, edges, callers, closures, or audit
-    values. The predicate identity `sha256_claim_inline_bytes_equals_v0`
-    is new and compiled into the Ticket 0059 evaluator;
-    `sha256_bytes_equals_v0` and the v0 family keep their
-    evidence-local meaning, with the versioning boundary fail-closed
-    in both directions. The implemented evaluation hangs on the
-    same verified `StandingReplaySnapshot` and takes only a claim ID: strict outer-envelope and descriptor parsing, compiled
-    predicate-identity equality, descriptor-derived canonical
-    statement, exact three-way direct statement binding, separate
-    content-hash recomputation, and bounded claim-only subject decode
-    precede the terminal 32-byte digest comparison. The closed neutral
-    outcome vocabulary is `DigestEqual`,
-    `DigestUnequal`, and `ResolutionFailed`, exposed read-only by an
-    opaque outcome value that only the evaluator constructs. Callers may
-    inspect its kind, borrow the exact requested claim ID for every
-    outcome, and borrow its receipt or failure reason. Successful
-    outcomes use the receipt's sole claim ID; a failed outcome retains
-    the query key only as attribution and does not assert that the claim
-    existed. Callers cannot construct or reclassify the outcome, replace
-    its requested claim ID, move a receipt between terminal classes,
-    deserialize or mutate it, or re-present any audit value as
-    authority; caller-constructible kind and failure vocabulary carries
-    no authority:
-    `DigestEqual` is not `Supported` or `Settled`, `DigestUnequal` is
-    not `Refuted`, and every parse, binding, or decode failure is
-    `ResolutionFailed`, never a negative result — the Ticket 0056
-    arbitrary-byte attack yields `DigestEqual` for the true claim
-    because evidence and edges are never evaluator inputs. The
-    private-construction receipt carries exactly eight audit fields
-    (predicate schema and identity, claim ID, scope, canonical
-    statement, claim content hash, expected and computed SHA-256) and
-    asserts no verified-prefix provenance. No standing policy, support
-    or refutation rule, evidence attestation schema, or edge-polarity
-    meaning is ratified by Ticket 0058. Ticket 0060 separately ratifies
-    the routing-only attestation schema and binding contract without
-    polarity or standing. Ticket 0059 implements the predicate evaluator
-    (borrowed count-only `predicate_id`
-    preflight followed by accepted-value decoding, exact
-    same-snapshot claim resolution, opaque outcome/receipt/failure
-    surfaces, neutral digest evaluation, exact canonical outcome audit
-    JSON profile
-    `magpie-claim-inline-sha256-predicate-outcome-json-v0` with pinned
-    terminal vectors, and hostile and compatibility tests —
-    standing-inert, with no
-    attestation, edge polarity, support, refutation, or contradiction
-    handling). Ticket 0060 ratifies the routing-only attestation-binding
-    contract and Ticket 0061 implements its standing-inert resolver, landed
-    through merged PR #76. The Ticket 0062 claim-inline predicate edge-lane
-    contract landed through merged PR #77, and Ticket 0063 implements its
-    standing-inert runtime, landed through merged PR #78. Ticket 0064
-    separately ratifies one subject-bound direct-refutation policy contract
-    and landed through merged PR #79; Ticket 0065 implements that exact
-    policy-v4 runtime without changing this predicate surface.
-    Contradiction debt, invalidation,
-    supersession/currentness, `EpistemicGate`, ordinary claim-bearing
-    writer, loader, CAS, and filesystem or network ingestion remain
-    future work.
-29. **Claim-inline SHA-256 predicate v0 — runtime implemented by Ticket
-    0059.**
-    `StandingReplaySnapshot::evaluate_sha256_claim_inline_bytes_equals_v0`
-    accepts only one requested claim ID, re-fetches both claim tables from
-    that snapshot, and evaluates only the exact decoded claim-owned inline
-    subject bytes against the exact claim-owned expected digest. A
-    purpose-built borrowed parser validates the complete JSON envelope,
-    post-unescape duplicate keys, and the frozen 33-stage failure order. Its
-    count-only first pass rejects decoded predicate-ID byte 65 before any
-    resolver-owned identifier copy; accepted identifiers are materialized only
-    in the second pass. The opaque evaluator-created outcome is exactly
-    `DigestEqual`, `DigestUnequal`, or `ResolutionFailed`, with deterministic
-    one-way audit bytes under
-    `magpie-claim-inline-sha256-predicate-outcome-json-v0`. Evidence and edges
-    are not evaluator inputs, so the Ticket 0056 substitution class remains
-    closed. This runtime adds no attestation, polarity, support, refutation,
-    standing, policy, contradiction handling, loader, CAS, filesystem, or
-    network behavior. Ticket 0060 separately ratifies the routing-only
-    attestation-binding contract, implemented as a standing-inert resolver
-    by Ticket 0061 and landed through merged PR #76. The Ticket 0062
-    claim-inline predicate edge-lane contract landed through merged PR #77,
-    and Ticket 0063 implements its standing-inert runtime, landed through
-    merged PR #78. Ticket 0064 separately ratifies one subject-bound
-    direct-refutation policy contract and landed through merged PR #79;
-    Ticket 0065 implements that exact policy-v4 runtime.
-30. **Inline predicate attestation binding v0 — contract ratified by Ticket
-    0060.**
-    [`docs/design/inline-predicate-attestation-binding-v0.md`](docs/design/inline-predicate-attestation-binding-v0.md)
-    and
-    [Ticket 0060](tickets/0060-inline-predicate-attestation-binding-contract.md)
-    ratify one routing-only same-replay binding path. Exact
-    `DeterministicVerification` evidence metadata contains only outer
-    `inline_predicate_attestation`, whose mandatory
-    `magpie-inline-predicate-attestation-v0` object carries exactly
-    `schema`, `predicate_id`, `subject_claim_id`, and `scope_ref`.
-    The
-    `StandingReplaySnapshot::resolve_inline_predicate_attestation_v0` method,
-    implemented by Ticket 0061 and landed through merged PR #76, takes only
-    claim and evidence IDs, internally re-fetches both
-    claim tables and typed evidence from that snapshot, and shares one
-    private claim-resolution primitive with the Ticket 0059 evaluator.
-    It never accepts a caller-created predicate outcome or receipt and
-    never computes or exposes `DigestEqual` versus `DigestUnequal`; both
-    relations are equally binding-eligible, while the exact Ticket 0059
-    `ResolutionFailed` reason prevents binding. The opaque outcome is
-    only `Bound` or `ResolutionFailed`, and the successful receipt carries
-    exactly schema, predicate ID, claim ID, evidence ID, and scope. The
-    historical `verification_witness` family and the new attestation
-    family reject one another in both directions. Evidence content hash,
-    actor class, summary, and every edge are non-authority here. `Bound`
-    has no polarity and grants no contribution, admission, support,
-    refutation, settlement, or standing. The Ticket 0062 exact claim-inline
-    predicate edge-lane contract landed through merged PR #77, and Ticket 0063
-    implements its standing-inert runtime, landed through merged PR #78.
-    Ticket 0064 separately ratifies one subject-bound direct-refutation policy
-    contract and landed through merged PR #79; Ticket 0065 implements that
-    exact runtime. Contradiction debt, invalidation,
-    supersession/currentness,
-    `EpistemicGate`, and writer/loader/CAS/filesystem/network behavior remain
-    future.
-31. **Inline predicate attestation binding v0 — runtime implemented by Ticket
-    0061 and landed through merged PR #76.**
-    [Ticket 0061](tickets/0061-inline-predicate-attestation-binding-implementation.md)
-    factors the Ticket 0059 claim-resolution stages into one private
-    same-snapshot primitive and adds the snapshot-only
-    `resolve_inline_predicate_attestation_v0` route. A strict borrowed parser
-    accepts only the exact four-field `inline_predicate_attestation` envelope,
-    retains the frozen failure precedence, and enforces exact predicate, claim,
-    and scope binding. The opaque resolver-created outcome is `Bound` or
-    `ResolutionFailed`; its five-field receipt and exact failure attribution
-    have deterministic one-way audit JSON. The resolver neither computes nor
-    observes the terminal digest relation, reads an edge, assigns polarity,
-    creates a contribution, invokes policy, nor changes standing. Evidence
-    content hash, actor class, and summary remain non-authority.
-32. **Claim-inline predicate edge lanes v0 — contract ratified by Ticket 0062
-    and landed through merged PR #77.**
-    [`docs/design/claim-inline-predicate-edge-lanes-v0.md`](docs/design/claim-inline-predicate-edge-lanes-v0.md)
-    and
-    [Ticket 0062](tickets/0062-claim-inline-predicate-edge-lanes-contract.md)
-    freeze one exact same-snapshot composition over the claim-owned
-    `sha256_claim_inline_bytes_equals_v0` relation, the Ticket 0061 routing
-    binding, and one exact replayed `supports` or `contradicts` edge. The exact
-    relation/edge matrix yields only `SupportEligible`, `RefutationEligible`,
-    or standing-inert `Ineligible`; structural resolution failures remain
-    distinct and retain both Ticket 0061 and Ticket 0059 nested reasons.
-    Eligible receipts expose only the compiled candidate ceiling (`Settled`
-    for support or `Refuted` for refutation), never achieved standing. Ticket
-    0063 implements this standing-inert runtime and landed through merged
-    PR #78. The contract and runtime add no governed support, governed
-    `Refuted`, aggregation, repetition amplification, contradiction debt, or
-    policy application. Ticket 0064 separately ratifies one policy-v4 rule,
-    with no runtime in that documentation-only slice.
-33. **Claim-inline predicate edge lanes v0 — runtime implemented by Ticket
-    0063 and landed through merged PR #78.**
-    `StandingReplaySnapshot::resolve_claim_inline_predicate_edge_lane_v0`
-    accepts only exact claim, evidence, and edge query IDs. One private
-    claim-owned subject resolution feeds the shared Ticket 0061 post-claim
-    binding helper, one exact `StandingView::justification_edge` lookup, one
-    claim-owned digest relation, the frozen four-cell relation/edge matrix,
-    and only the corresponding eligible candidate-ceiling invariant. The
-    opaque outcome is exactly `SupportEligible`, `RefutationEligible`,
-    `Ineligible`, or `ResolutionFailed`, with exact nested Ticket 0061/0059
-    failures and deterministic one-way audit bytes. Eligibility remains
-    standing-inert: policy v2 and policy v3 are unchanged, and this lane
-    runtime itself produces no governed `Refuted`. Ticket 0064 separately
-    ratifies one claim-inline deterministic direct-refutation policy-v4 rule
-    and landed through merged PR #79; Ticket 0065 implements that policy
-    without changing Ticket 0063. There is no contradiction debt,
-    aggregation, writer, or ingestion capability.
-34. **Standing policy v4 claim-inline direct refutation — contract ratified by
-    Ticket 0064 and merged through PR #79; runtime implemented by Ticket
-    0065.**
-    [`docs/design/standing-policy-v4-claim-inline-direct-refutation-v0.md`](docs/design/standing-policy-v4-claim-inline-direct-refutation-v0.md)
-    and
-    [Ticket 0064](tickets/0064-standing-policy-v4-claim-inline-direct-refutation-contract.md)
-    ratify exactly one rule:
-    `StandingPolicyRuleV4::Sha256ClaimInlineBytesDirectRefutationV0`,
-    serialized as `sha256_claim_inline_bytes_direct_refutation_v0`, under
-    policy identity `magpie-claims-standing-v4`.
-    [Ticket 0065](tickets/0065-standing-policy-v4-claim-inline-direct-refutation-implementation.md)
-    implements the public resolver on `OriginAdmissionReplayContextV0`. It
-    accepts only a
-    requested claim ID and immutable `ResolutionContentClosureV0`, internally
-    inherits the complete policy-v3 result from that same context and closure,
-    and privately derives exact replayed `contradicts` candidates in existing
-    edge-ID order. One claim-owned
-    `sha256_claim_inline_bytes_equals_v0` relation is shared per policy call;
-    each deterministic-verification evidence node binds separately. Only the
-    exact `DigestUnequal × contradicts × RefutationEligible × Some(Refuted)`
-    path may produce one governed `Refuted`, and only when inherited standing
-    is `None`, `Open`, or `Conjectured`. Inherited `Supported` and `Settled`
-    are conservatively preserved for future contradiction policy; inherited
-    governed `Refuted` is preserved without amplification; legacy raw
-    `Refuted` remains quarantined. Public Ticket 0059, 0061, and 0063 outcomes,
-    receipts, clones, inspection enums, and canonical bytes are audit-only and
-    cannot be reinjected as authority. `SupportEligible` remains unused by
-    standing policy. Ticket 0056 remains blocked, its evidence-relative rule
-    and withdrawn names are not revived, and `sha256_bytes_equals_v0` remains
-    unchanged. Ticket 0064 remains the documentation-only historical
-    ratification; Ticket 0065 is its exact runtime implementation. Policies
-    v0-v3 remain unchanged. Contradiction debt, invalidation,
-    supersession/currentness, `EpistemicGate`, writer,
-    loader, CAS, filesystem, and network ingestion remain future.
+### Capability-based low-level writing
 
-Conserve the log. Derive the rest.
+`LogWriter` holds the signing key and is the low-level append capability.
+`LogReader` and projection types expose no append method. The optional Deadbolt
+anchor path has a reviewed writer boundary, but Magpie does not yet provide an
+ordinary governed claim/evidence writer or `EpistemicGate`.
+
+### Regenerable, same-replay projections
+
+Authoritative resolution uses one completely verified record snapshot.
+Derived claim, anchor, and episodic state can be dropped and rebuilt from that
+history. Same-replay composition prevents a result from mixing observations
+from different log prefixes.
+
+### Audit is not authority
+
+Standing and contribution traces are deterministic, serializable explanations.
+Authority-bearing audit types have no public deserialization or caller-supplied
+resolver path. Serialized audit output is one-way: it can be inspected, stored
+elsewhere, or compared, but not fed back in as authority.
+
+### Failure is not falsity
+
+Missing bytes, malformed metadata, an unknown kind, a failed signature, a
+binding mismatch, or incomplete audit state cannot manufacture a negative
+fact. Failures remain typed failures.
+
+### Repetition does not amplify without policy
+
+Repeated anchors, evidence, or audit outcomes do not become stronger merely
+through multiplicity. Policy v3 counts distinct admitted origin groups and
+counts same-origin multiplicity once. Policy v4 emits at most one direct
+application regardless of how many eligible candidates are retained.
+
+### Policy selection is explicit
+
+Each standing policy has a stable identifier and resolver. Callers choose the
+version they intend to apply; Magpie does not silently select a latest policy.
+
+## Workspace
+
+### `magpie-log`
+
+The signed append-only history:
+
+- frozen canonical encoding and event vocabulary;
+- hash chaining and Ed25519 signatures;
+- `LogWriter` and read-only `LogReader`;
+- durable `FileStore` and in-memory `MemStore`; and
+- golden vectors, complete verification, and deterministic replay.
+
+### `magpie-claims`
+
+The epistemic policy projection:
+
+- typed claim, evidence, and justification-edge graph;
+- immutable content closure plus provenance and origin-audit substrate;
+- governed standing policies v0-v4; and
+- deterministic standing traces and canonical one-way audit output.
+
+### `magpie-episodic`
+
+A rebuildable SQLite event projection with FTS5 full-text search. It provides
+deterministic log-order search over replayed events. It is useful as a search
+surface, but it is not a second source of authority and has no write path back
+to the log.
+
+## Deadbolt integration
+
+Magpie remains portable without Deadbolt. The optional integration is defined
+by protocol rather than a Rust crate dependency.
+
+`SegmentAnchored` records the exact identity of a sealed foreign bundle:
+`bundle_kind`, `witness_root`, `witness_algorithm`,
+`canonicalization_profile`, and `run_id`. Magpie verifies the signed event's
+chain order, signature, and inclusion. Verification of the foreign bundle's
+contents remains the responsibility of the appropriate foreign verifier.
+
+New foreign bundle kinds remain values of the `bundle_kind` string. They do
+not require new Magpie payload variants.
+
+## What Magpie is not
+
+Magpie is not:
+
+- a chatbot or autonomous research agent;
+- a vector database or mutable knowledge graph;
+- a general-purpose truth engine;
+- a statistical-independence oracle;
+- an automatic contradiction resolver;
+- a crawler or public ingestion service;
+- a production key-management system; or
+- a system with ambient latest-policy selection.
+
+## Current boundaries
+
+### Implemented
+
+- signed historical authority and deterministic replay;
+- rebuildable search and typed evidence projections;
+- immutable closure, provenance verification, and origin admission;
+- direct positive standing and narrow external-report corroboration;
+- subject-bound deterministic direct refutation; and
+- deterministic explanations with one-way audit output.
+
+### Future
+
+- an ordinary governed claim/evidence writer and `EpistemicGate`;
+- an acquisition loader and content-addressed store;
+- filesystem or network ingestion;
+- contradiction debt and broader conflict policy;
+- invalidation, supersession, and currentness semantics;
+- broader source-standing propagation;
+- a read-only librarian or research navigator; and
+- production key custody and rotation.
+
+The contradiction lifecycle is a natural next architectural arc, not an
+implemented behavior or an approved implementation ticket. Future work may
+change these boundaries only through explicit contracts and review.
+
+## Documentation map
+
+- [Signed event format](docs/FORMAT.md) - canonical bytes, payload tags, and
+  frozen vectors.
+- [Portable base](docs/portable-base.md) - the dependency-minimal core and
+  optional seams.
+- [Deadbolt anchor contract](docs/seams/deadbolt-anchor-contract.md) - the
+  protocol and writer boundary.
+- [ADR 0001](docs/adr/0001-deadbolt-seam.md) - why foreign execution evidence
+  is anchored through a minimal payload.
+- [ADR 0002](docs/adr/0002-governed-claim-memory.md) - typed governed claim
+  memory and raw-status quarantine.
+- [Standing ceilings](docs/design/standing-view-evidence-ceilings.md) -
+  evidence domains, candidate ceilings, and future boundaries.
+- [Provenance and origin admission](docs/design/artifact-provenance-origin-admission.md) -
+  the staged authority model.
+- [Policy v3](docs/design/standing-policy-v3-external-report-corroboration-v0.md) -
+  the exact external-report corroboration rule.
+- [Policy v4](docs/design/standing-policy-v4-claim-inline-direct-refutation-v0.md) -
+  subject-bound direct refutation and conservative precedence.
+- [v0.1.0 release contract](docs/releases/v0.1.0-contract.md) - the frozen
+  formal source-release boundary.
+- [Tickets](tickets/) - detailed implementation records and review history.
+
+## Development
+
+The principal local validation surface is:
+
+```sh
+cargo fmt --all --check
+cargo test --workspace --locked
+cargo test --doc --locked
+cargo clippy --workspace --all-targets --locked -- -D warnings
+python tools/check_release_metadata.py
+```
+
+The workspace also carries focused hostile and integration tests for
+provenance, origin admission, policies v3 and v4, raw-status quarantine,
+same-replay binding, failure ordering, non-amplification, and canonical audit
+vectors.
+
+Changes should remain small, typed, replayable, and explicit about authority.
+See [AGENTS.md](AGENTS.md) for repository working rules.
+
+## Release status
+
+v0.1.0 is the latest formal owner-created source release. Current main has
+advanced beyond that milestone into a prospective v0.2-shaped development
+state. This README does not imply a v0.2.0 tag or release, registry
+publication, or package availability.
