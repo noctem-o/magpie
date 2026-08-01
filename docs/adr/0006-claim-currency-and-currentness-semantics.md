@@ -92,9 +92,10 @@ claim-level summary from per-assertion facet output as a convenience
 view; that summary is identified by the full coordinates of the facet it
 derives from, is never stored, and is never canonical.
 
-**3. `supersedes` records lineage. Nothing more.** The edge records that
-an attributed actor registered one item as the successor of another. Its
-currency consequence belongs to resolver policy, not to the edge.
+**3. `supersedes` records lineage — nothing more as recorded history.**
+The edge records that an attributed actor registered one item as the
+successor of another. Its standing and currency consequences belong to
+separately governed resolver policies, never to the edge itself.
 
 **4. `invalidates` remains limited to evidence targets.** The settled
 ADR-0002 consequence stands — an eligible invalidation deactivates the
@@ -152,7 +153,13 @@ provenance authority of its own.
 A withdrawal act does not move any currency answer by itself — a policy
 decides what a recorded withdrawal means for applicability, just as it
 decides what a recorded supersession means. No act reaches around policy
-to set its own interpretation.
+to set its own interpretation. Any currency consequence derived from a
+withdrawal is confined to the exact assertion act that withdrawal
+targets (ADR-0005): it may not alter the applicability of another
+actor's assertion, another assertion act by the same actor, or the
+shared claim identity merely because they express the same proposition.
+A broader delegated or organisational effect requires future identity
+and governance doctrine and an explicit amendment.
 
 ## Supersession semantics
 
@@ -173,6 +180,18 @@ consequence of supersession belongs to resolver policy: one policy may
 treat superseded material as no longer applicable within a scope; another
 may keep it applicable. The edge compels nothing — a self-executing
 supersession would be authority smuggled into vocabulary.
+
+A `supersedes` edge records attributed lineage and executes no
+consequence by itself. A named standing policy may separately determine
+whether an exact-scope, authority-eligible supersession discharges
+contradiction debt for the affected material, preserving ADR-0002's
+standing rule; such a policy pins its target and lineage binding, exact
+scope requirements, and actor-authority interpretation through its own
+policy version. Until such a standing policy is ratified, a raw
+supersession edge discharges no debt. A named currency policy may
+independently determine the relationship's applicability consequence.
+Each consequence is pinned through the coordinates of the resolver that
+produces it; neither projection consumes the other.
 
 ADR-0002's standing fold rule — "superseded claims preserve lineage but
 should not remain current unless explicitly ratified under the new
@@ -239,19 +258,19 @@ deactivates no contribution, asserts no falsity, creates no
 contradiction, deletes neither evidence nor relationships, rewrites no
 history, erases no audit record, and remains inspectable history.
 
-**Coordinate closure.** Any currency policy that activates invalidation
-must pin the complete invalidation-eligibility rule through its policy
-version — the rule and its version, the exact target-binding rules, the
-exact scope-binding rules, the actor-authority interpretation rules, and
-any immutable configuration necessary to interpret them. All variable
-eligibility inputs, including recorded attribution, delegation, or
-authority material if later admitted, must come from the verified
-snapshot. The resolver may consult no mutable ambient identity store,
-permission database, unversioned trust configuration, or external
-current-authority lookup. If a future eligibility design cannot be
-reproduced from the existing snapshot, policy-version, and
-resolver-identity coordinates, the coordinate model must be amended
-before that design is activated.
+**Coordinate closure.** Any resolver policy that applies invalidation's
+consequence must pin the complete invalidation-eligibility rule through
+its own selected policy version — the rule and its version, the exact
+target-binding rules, the exact scope-binding rules, the actor-authority
+interpretation rules, and any immutable configuration necessary to
+interpret them. All variable eligibility inputs, including recorded
+attribution, delegation, or authority material if later admitted, must
+come from that resolver's verified snapshot. The resolver may consult no
+mutable ambient identity store, permission database, unversioned trust
+configuration, or external current-authority lookup. If a future
+eligibility design cannot be reproduced from the existing snapshot,
+policy-version, and resolver-identity coordinates, the coordinate model
+must be amended before that design is activated.
 
 This ADR does not extend invalidation beyond evidence. The self-directed
 case for assertions is already covered by withdrawal (ADR-0005). Removing
@@ -272,6 +291,57 @@ Invalidation remains distinct from:
   contribution;
 - **deletion** — an append-only record admits no deletion.
 
+## Consequence ownership across facets
+
+A recorded act or relationship may be relevant to several projections.
+Recorded history, standing interpretation, and currency interpretation
+are three different things: the same recorded relationship may be input
+to standing and currency resolvers, but its standing consequence is
+governed only by standing coordinates and its currency consequence only
+by currency coordinates.
+
+**Consumer-policy ownership.** Any resolver policy that applies a
+consequence from withdrawal, supersession, invalidation, or
+contradiction must pin every eligibility rule used for that consequence
+through that resolver's selected policy version. All variable historical
+inputs used by eligibility must come from that resolver's verified
+snapshot. No eligibility rule may consult mutable ambient identity,
+permission, or trust state.
+
+- **Standing policy ownership.** A standing policy that deactivates
+  evidence contribution or discharges contradiction debt must pin the
+  complete relevant eligibility semantics through the standing policy
+  version: invalidation eligibility, supersession eligibility, target
+  binding, exact scope binding, actor-authority interpretation, and any
+  immutable rule configuration.
+- **Currency policy ownership.** A currency policy that derives
+  applicability consequences from withdrawal, supersession, or
+  invalidation must independently pin its eligibility and interpretation
+  semantics through the currency policy version.
+- **Shared profiles.** A future reusable eligibility profile may be
+  referenced by multiple policies, but it must have a stable identity
+  and version, each consuming policy must pin the exact version, use by
+  one policy does not bind another, no ambient "current eligibility
+  profile" is permitted, and no resolver may consume another facet's
+  output as eligibility authority.
+
+Doctrine permits; nothing in this table is active by permission alone.
+Every consequence requires a separately ratified policy with
+policy-pinned eligibility, and none follows from vocabulary presence.
+
+| Recorded input | Possible standing interpretation | Possible currency interpretation |
+| --- | --- | --- |
+| Withdrawal | no automatic effect; any future effect requires a ratified standing policy with policy-pinned eligibility | target-local applicability effect under a separately governed currency policy |
+| Supersession | eligible contradiction-debt resolution under a standing policy; policy-pinned eligibility required | exact-scope applicability interpretation under a currency policy |
+| Invalidation | eligible support- and contradiction-contribution deactivation under a standing policy; policy-pinned eligibility required | applicability interpretation only if separately governed by a currency policy |
+| Contradiction | typed blocker and debt under standing policy | no automatic currency effect |
+
+> A recorded act or relationship may be interpreted by multiple
+> resolvers, but each resolver owns only its own projection, pins every
+> eligibility rule through its own policy coordinates, and never
+> consumes another facet as authority. Information may move downstream;
+> authority does not.
+
 ## Currentness resolver boundary
 
 - **Deterministic replay.** The same coordinates yield identical typed
@@ -291,6 +361,21 @@ Invalidation remains distinct from:
 - **No act creation.** The resolver interprets history; it does not
   create acts. Interpretation never produces withdrawal, supersession, or
   invalidation acts — ADR-0005's resolver boundary carried into currency.
+
+## Compatibility with the legacy standing surface
+
+`StandingCurrentness` in the existing standing-policy v0–v4 resolution
+surfaces is a legacy compatibility field, not an ADR-0006 currency
+facet. Under the current implementations the field is never computed
+from recorded history: the base resolver constructs it as `Unknown`,
+and successor policies propagate the inherited value (failure paths
+quarantine foreign inherited surfaces to `Unknown`), so no log-derived
+resolution carries `Current`. Future currency work must not
+populate or reinterpret it as canonical currentness. ADR-0006 currency
+requires a separate per-material, coordinate-complete output surface.
+Removing, repurposing, or changing the canonical serialization of the
+legacy field requires a separate compatibility, format, and vector
+review.
 
 ## Permanent non-definition
 

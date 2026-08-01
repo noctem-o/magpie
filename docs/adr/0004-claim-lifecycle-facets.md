@@ -10,8 +10,8 @@ lifecycle should be understood as later documents and policies reference
 it, we decide that a claim has no stored lifecycle state — the record
 holds acts, and lifecycle is a derived facet view over verified history —
 to achieve a lifecycle vocabulary that cannot silently become authority,
-accepting that withdrawal and currency semantics remain separate future
-decisions.
+accepting that representation and implementation of withdrawal and
+currency semantics remain separate future decisions.
 
 This ADR invents nothing. ADR-0002 already decided that standing is not
 stored as an authoritative mutable field and that corrections are new
@@ -67,12 +67,14 @@ and verified snapshot
 
 ### Currency facets — what later acts mark
 
-- `supersedes` and `invalidates` exist as edge vocabulary; their semantics
-  are deferred doctrine.
-- Currentness, when defined by the future lifecycle ADR, is a derived
-  view: a later event may mark an earlier one superseded, but both remain
-  in the record, and "current" is always a resolver-relative,
-  snapshot-relative answer.
+- `supersedes` and `invalidates` exist as edge vocabulary; ADR-0006
+  establishes their non-self-executing boundaries.
+- Currentness is governed by ADR-0006 as a derived, coordinate-bound
+  applicability facet: a later event may mark an earlier one superseded,
+  but both remain in the record, and "current" is always a
+  resolver-relative, snapshot-relative answer. Representation, concrete
+  eligibility policies, resolver algorithms, encoding, and runtime
+  implementation remain deferred.
 - There are no time semantics: the log is ordered, not clocked, and no
   wall-clock staleness exists.
 
@@ -109,10 +111,12 @@ settle claims by existing.
   them.
 - The boundary contracts and the admission exploration set govern their
   domains unchanged; this ADR narrows nothing and widens nothing.
-- Three decisions remain separate and future, and are not this ADR's
-  content: withdrawal vocabulary (through the freeze ritual), currency
-  semantics (the contradiction-and-currency lifecycle ADR), and admission
-  or rejection of the terms "neutralization" and "staleness".
+- Currency and currentness doctrine is now governed by ADR-0006, which
+  resolves the currency decision this ADR deferred. Separate and future
+  decisions remain: withdrawal vocabulary representation (through the
+  freeze ritual), concrete eligibility policies, actor-authority and
+  identity doctrine, runtime and encoding, and admission or rejection of
+  the terms "neutralization" and "staleness".
 
 ## Confirmation
 
