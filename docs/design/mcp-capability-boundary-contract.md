@@ -32,11 +32,13 @@ The base invariant applies unchanged:
 
 A capability description is:
 
-- a description of an available interface operation.
+- a description of an available interface operation — interface metadata,
+  not an object capability or authority token in the `LogWriter` sense.
 
 It is never:
 
 - a source of truth;
+- recorded history or a derived projection;
 - evidence;
 - standing;
 - permission to modify Magpie.
@@ -57,8 +59,9 @@ never:
 - a substitute for governed admission.
 
 The MCP layer cannot create authority merely by exposing a tool.
-Vocabulary presence grants no authority — and a capability list is
-vocabulary.
+Capability descriptions are interface metadata, not epistemic vocabulary:
+they join no closed vocabulary — `actor_class`, `evidence_kind`, and
+`edge_kind` remain closed — and vocabulary presence grants no authority.
 
 ## 3. Read capability boundary
 
@@ -69,6 +72,10 @@ Before `EpistemicGate` exists:
 - no ordinary claim-bearing or evidence-bearing write capabilities exist;
 - no hidden write paths exist through annotations, memory, caches, or
   server-side state.
+
+Agent conversation memory, client state, caches, and annotations outside
+Magpie are not Magpie history; material becomes history only through the
+governed admission path.
 
 The Deadbolt seam rule is preserved: separately reviewed capability seams
 retain exactly the authority granted by their own contracts, and wrapping
@@ -82,7 +89,9 @@ contracts unchanged:
 - results are computed from a verified record snapshot or log prefix;
 - responses carry recorded provenance per the provenance response contract;
 - derived projections remain subordinate to the signed append-only log;
-- failure semantics apply — failure is not falsity.
+- failure semantics apply — failure is not falsity. An advertised
+  capability may still fail, and an unavailable or invalid request produces
+  a typed failure, never evidence against the underlying record.
 
 Holding a capability does not remove a single provenance requirement.
 
