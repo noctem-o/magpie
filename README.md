@@ -343,6 +343,9 @@ change these boundaries only through explicit contracts and review.
 - [Admission boundary scenario analysis](docs/design/admission-boundary-scenario-analysis.md) -
   a worked external-occurrence example stress-testing the unresolved
   boundary (exploration, not doctrine).
+- [Admission boundary minimal semantics](docs/design/admission-boundary-minimal-semantics.md) -
+  the minimum semantic claim admission may make (exploration / ADR draft,
+  not doctrine).
 - [ADR 0001](docs/adr/0001-deadbolt-seam.md) - why foreign execution evidence
   is anchored through a minimal payload.
 - [ADR 0002](docs/adr/0002-governed-claim-memory.md) - typed governed claim
