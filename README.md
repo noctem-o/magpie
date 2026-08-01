@@ -319,7 +319,7 @@ change these boundaries only through explicit contracts and review.
   optional seams.
 - [Deadbolt anchor contract](docs/seams/deadbolt-anchor-contract.md) - the
   protocol and writer boundary.
-- [MCP boundary contract](docs/seams/mcp-boundary-contract.md) - the agent
+- [MCP boundary contract](docs/design/mcp-boundary-contract.md) - the agent
   and tool interface boundary: reads, proposals, and no authority.
 - [ADR 0001](docs/adr/0001-deadbolt-seam.md) - why foreign execution evidence
   is anchored through a minimal payload.
