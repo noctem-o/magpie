@@ -355,6 +355,9 @@ change these boundaries only through explicit contracts and review.
 - [Epistemic pipeline separation contract](docs/design/epistemic-pipeline-separation-contract.md) -
   the connected separation model: transformations and authority ownership
   per pipeline stage (proposed contract).
+- [Epistemic boundary map](docs/design/epistemic-boundary-map.md) -
+  orientation: which existing boundary owns a given question (reference,
+  not doctrine).
 - [ADR 0001](docs/adr/0001-deadbolt-seam.md) - why foreign execution evidence
   is anchored through a minimal payload.
 - [ADR 0002](docs/adr/0002-governed-claim-memory.md) - typed governed claim
