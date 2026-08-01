@@ -107,7 +107,8 @@ prefix the projection was built from remains the authority coordinate.
 
 ## 6. Failure and incomplete provenance
 
-- Missing provenance is a failure condition, reported as such.
+- A derived response missing required provenance is a failure condition,
+  reported as such.
 - Incomplete provenance must not silently become a normal answer: a
   response that cannot identify its derivation coordinates is a typed
   failure, not a degraded-but-ordinary result.
