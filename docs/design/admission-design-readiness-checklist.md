@@ -63,8 +63,8 @@ and can explain:
 
 - what admission decides;
 - what admission explicitly does not decide;
-- what belongs to structural validation (L0's domain);
-- what belongs to standing resolution (the named resolvers' domain).
+- what belongs to structural validation;
+- what belongs to standing resolution.
 
 These are recorded as readiness criteria; this document does not answer
 them.
