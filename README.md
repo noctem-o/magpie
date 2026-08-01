@@ -337,6 +337,9 @@ change these boundaries only through explicit contracts and review.
 - [Admission boundary threat model](docs/design/admission-boundary-threat-model.md) -
   how a future admission mechanism could accidentally violate doctrine
   (exploration, not doctrine).
+- [Admission design readiness checklist](docs/design/admission-design-readiness-checklist.md) -
+  what must be answered before any admission mechanism is designed
+  (exploration, not doctrine).
 - [ADR 0001](docs/adr/0001-deadbolt-seam.md) - why foreign execution evidence
   is anchored through a minimal payload.
 - [ADR 0002](docs/adr/0002-governed-claim-memory.md) - typed governed claim
