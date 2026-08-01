@@ -40,7 +40,7 @@ What exists:
 - an external occurrence, outside Magpie;
 - whatever external provenance the governing process recorded on its own
   side;
-- at most, recorded attribution of the self-asserted kind — asserted data,
+- at most, recorded attribution from the external process — asserted data,
   not verified identity.
 
 What does not exist:
@@ -96,8 +96,8 @@ If a record is admitted, what has changed:
 - the occurrence's reference is now part of Magpie history, at a specific
   chain position, signed and hash-chained like every event;
 - its recorded attribution is preserved as asserted data;
-- it is now *available* to replay, projections, and explicitly selected
-  resolvers.
+- it may become available to replay, projections, and explicitly selected
+  resolvers according to their governed inputs.
 
 What has not changed — what the record is not implied to be:
 
