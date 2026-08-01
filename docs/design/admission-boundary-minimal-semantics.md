@@ -2,10 +2,10 @@
 
 ## Status
 
-Design exploration / ADR draft. Docs-only. No admission mechanism exists,
-and none is defined here. This document is not an ADR: it decides nothing.
-Any adoption of an admission semantics requires explicit governance — an
-ADR or contract amendment — per the readiness checklist's gate. ADR-0002,
+Design exploration. Docs-only. No admission mechanism exists, and none is
+defined here. This document decides nothing. Any future adoption of an
+admission semantics requires explicit governance — an ADR or contract
+amendment — per the readiness checklist's gate. ADR-0002,
 the ratified MCP contracts, and the admission exploration documents govern
 wherever this note touches them.
 
@@ -96,7 +96,8 @@ historical record
 ```
 
 What changes at this transition: material that was outside the record
-becomes part of it — signed, hash-chained, positioned, and permanent.
+becomes part of the append-only historical record — signed, hash-chained,
+and positioned.
 
 What does not change: the material's epistemic situation. Admission alters
 where the material lives, never what it means. Meaning is downstream
@@ -122,8 +123,8 @@ historical record
 
 - Structural validation belongs to L0: canonical form, closed-vocabulary
   conformance, chain integrity. This document does not redesign any of it.
-- Admission, whatever it minimally is, sits after that: structural
-  validity is a precondition a boundary can assume, not a job it repeats.
+- This exploration treats structural validity as a prerequisite boundary,
+  not as an admission responsibility.
 - What remains outside both: all epistemic evaluation (§5), and all
   questions of meaning, relevance, and trust.
 
