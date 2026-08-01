@@ -15,10 +15,11 @@ policy decision and that delegation is deferred to identity doctrine.
 ## Context and problem statement
 
 Actors change their minds. Doctrine has edge kinds for invalidation,
-supersession, and contradiction, but no way for an actor to retract *their
-own* assertion. Without a withdrawal act, retraction pressure will be
-served by misuse: `invalidates` aimed at one's own claim (a truth-flavoured
-gesture), or worse, a desire to edit history.
+supersession, and contradiction, but no way for an actor to withdraw
+*their own* assertion. Without a withdrawal act, that need will be served
+by misuse: `invalidates` aimed at one's own claim — an interpretation
+that incorrectly gives withdrawal truth-evaluating semantics — or worse,
+a desire to edit history.
 
 ADR-0004 bounded the concept without defining it: withdrawal may record a
 retraction by an attributed actor and may never assert the falsity of what
@@ -82,8 +83,10 @@ above, not silently chosen.
 - An actor may withdraw only its own assertion acts. Withdrawal directed
   at another actor's acts is invalid by construction.
 - Attribution remains recorded, asserted data — never verified identity.
-- Resolvers, verifiers-as-resolvers, and systems do not withdraw; they are
-  read-side or produce their own act kinds under their own governance.
+- Resolvers and systems do not withdraw: writers and actors create
+  recorded acts under authority, while resolvers interpret recorded
+  history — interpretation creates no withdrawal acts. A verification
+  process gains no withdrawal authority merely by observing evidence.
 - Delegation and organisational withdrawal (an organisation retracting a
   member's statement) are deferred to identity and governance doctrine;
   this ADR decides nothing about them.
@@ -111,6 +114,8 @@ Withdrawal is not:
 - **falsity** — it records cessation of endorsement, never untruth;
 - **invalidation** — that is a different edge with different semantics;
 - **contradiction** — it names no conflict and no winner;
+- **supersession** — it establishes no replacement material and no
+  lineage;
 - **deletion** — the record is append-only;
 - **historical correction** — the prior act remains inspectable and
   unchanged;
