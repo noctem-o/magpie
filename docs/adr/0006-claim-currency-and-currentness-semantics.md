@@ -58,7 +58,7 @@ either becomes load-bearing.
    assertion/material?
 3. What does `supersedes` assert, and what does it not assert?
 4. What does `invalidates` assert, and over which targets?
-5. May a currency policy inspect recorded time metadata?
+5. May a currency policy derive currency from recorded time metadata?
 6. What is the boundary of a currentness resolver?
 
 ## Decision
@@ -95,15 +95,17 @@ derives from, is never stored, and is never canonical.
 an attributed actor registered one item as the successor of another. Its
 currency consequence belongs to resolver policy, not to the edge.
 
-**4. `invalidates` remains scoped to evidence.** The settled ADR-0002
-rule stands — invalidated evidence contributes no support on replay — and
-this ADR does not extend invalidation to claims, assertion acts, or
-relationship edges.
+**4. `invalidates` remains limited to evidence targets.** The settled
+ADR-0002 consequence stands — an eligible invalidation removes the
+target evidence's support contribution on replay — and this ADR does not
+extend invalidation to claims, assertion acts, or relationship edges.
 
-**5. Recorded time creates no currency semantics by itself.** The log is
-ordered, not clocked. A future explicitly named policy may inspect
-recorded metadata such as timestamps; "latest timestamp determines
-currentness" is forbidden.
+**5. Recorded time creates no currency semantics.** The log is ordered,
+not clocked. A currency policy governed by this ADR must not derive
+applicability from timestamps, age, elapsed duration, recency,
+expiration, decay, or wall-clock cutoffs. Any future time-aware currency
+policy requires an explicit amendment to ADR-0004 and ADR-0006 before
+implementation.
 
 **6. The currentness resolver is a pure function of coordinates.**
 `resolver(record snapshot, policy version, resolver identity)
@@ -170,6 +172,13 @@ treat superseded material as no longer applicable within a scope; another
 may keep it applicable. The edge compels nothing — a self-executing
 supersession would be authority smuggled into vocabulary.
 
+ADR-0002's standing fold rule — "superseded claims preserve lineage but
+should not remain current unless explicitly ratified under the new
+scope" — is standing doctrine, unamended here. It does not bind currency
+policy: currentness is a separate facet from standing (ADR-0003), and a
+currency policy's treatment of superseded material is decided by that
+policy, not by the standing fold.
+
 **Target scope.** The edge relates recorded material. What it may
 reference, and how, is a representation question deferred to the
 vocabulary freeze ritual; this ADR defines doctrine, not payloads.
@@ -185,9 +194,39 @@ self-promote into currency.
 
 ## Invalidation semantics
 
-The settled core, from ADR-0002: invalidation of evidence removes the
-target's support contribution during replay. It does not delete evidence;
-it does not assert falsity; the target remains in the record.
+**Recorded history.** An attributed `invalidates` edge is recorded
+history: it exists in the append-only record, inspectable forever. Its
+presence is a recorded fact, not an authority.
+
+**Eligibility.** The presence of an `invalidates` edge is not sufficient
+to remove support. ADR-0002 states the consequence of invalidation; it
+does not establish what makes an invalidation eligible. That consequence
+applies only when a separately governed invalidation-eligibility rule
+determines that the recorded edge is eligible, including all required
+target, scope, and actor-authority conditions. This ADR defines no such
+actor-authority or identity policy. Until an invalidation-eligibility
+rule is ratified, no write path, fold, or resolver may activate
+invalidation effects from a recorded `invalidates` edge.
+
+**Scope binding.** Under the v1 exact-match scope model, an invalidation
+may affect only a support contribution whose invalidation edge, target
+evidence, and relevant support relationship are all exact-match equal in
+scope — the same exact-match discipline the standing fold already applies
+to support evaluation. A scope mismatch is ineligible and removes no
+support. Scope inheritance, containment, wildcard matching, and
+cross-scope invalidation are not defined. A mismatch is not falsity, not
+contradiction, not negative evidence, not authority to suppress support,
+and not permission to guess scope equivalence.
+
+**Consequence.** Only an eligible invalidation removes support: under
+ADR-0002, an eligible invalidation removes the target evidence's support
+contribution during replay. It does not delete evidence; it does not
+assert falsity; the target remains in the record.
+
+**Non-effects.** An ineligible or scope-mismatched invalidation removes
+no support, asserts no falsity, creates no contradiction automatically,
+deletes neither the edge nor its target, and remains inspectable
+history.
 
 This ADR does not extend invalidation beyond evidence. The self-directed
 case for assertions is already covered by withdrawal (ADR-0005). Removing
@@ -258,10 +297,15 @@ Invalidation is not:
 - Vocabulary freeze items: representation-level ratification of the
   tags 6–8 sketches; any future invalidation target extension; currency
   facet naming.
+- The invalidation-eligibility rule — the target, scope, and
+  actor-authority conditions under which a recorded `invalidates` edge's
+  consequence activates — together with the identity and authority
+  doctrine it depends on.
 - Currency facet field naming and output encoding.
 - Resolver algorithm details.
-- Future policy specifics, including the rules of any policy that
-  inspects recorded time metadata.
+- Future policy specifics.
+- Any time-aware currency policy — admissible only after explicit
+  amendment of ADR-0004 and this ADR.
 - Any claim-level summary derivation convention, if one is ever wanted.
 
 ## References
