@@ -106,9 +106,9 @@ What has not changed — what the record is not implied to be:
 - not a policy decision.
 
 What the admitted material remains, until a resolver says otherwise under
-an explicit policy version: a recorded proposition, resolver input, and
-externally attributed material — and any view of it remains a projection,
-subordinate to the log.
+an explicit policy version: a recorded historical item, potential resolver
+input, and externally attributed material — and any view of it remains a
+projection, subordinate to the log.
 
 Preserved without qualification:
 
