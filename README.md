@@ -327,6 +327,8 @@ change these boundaries only through explicit contracts and review.
   what queries and query results may and may not be.
 - [Provenance response contract](docs/design/provenance-response-contract.md) -
   what must accompany a Magpie-derived response.
+- [MCP capability boundary contract](docs/design/mcp-capability-boundary-contract.md) -
+  what capability discovery may and may not mean.
 - [ADR 0001](docs/adr/0001-deadbolt-seam.md) - why foreign execution evidence
   is anchored through a minimal payload.
 - [ADR 0002](docs/adr/0002-governed-claim-memory.md) - typed governed claim
