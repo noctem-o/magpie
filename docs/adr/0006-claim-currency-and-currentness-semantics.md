@@ -4,17 +4,18 @@
 
 ## Summary / Y-statement
 
-In the context of a record that accumulates currency-relevant acts —
-supersession edges, invalidation edges, and withdrawal acts — alongside
-the assertions they describe, facing the risk that "current" hardens into
-stored lifecycle state or into ambient-latest authority that no policy
-chose and no snapshot can audit, we decide that currentness is a derived
-facet: recorded acts supply the history, and a resolver at explicit
-snapshot and policy coordinates computes which recorded material is
-applicable — never writing currentness back into the record — to achieve
-currency answers that are replayable, policy-auditable, and able to
-disagree legitimately, accepting that "current" has no global answer,
-that multiple policies may coexist over the same record, and that every
+In the context of a record that accumulates attributed acts — assertions
+and withdrawals — and recorded relationships — supersession and
+invalidation edges — facing the risk that "current" hardens into stored
+lifecycle state or into ambient-latest authority that no policy chose and
+no snapshot can audit, we decide that currentness is a derived facet:
+recorded acts and relationships supply the history, and a named resolver
+at explicit snapshot, policy-version, and resolver-identity coordinates
+computes which recorded material is applicable — never writing
+currentness back into the record — to achieve currency answers that are
+replayable, policy-auditable, and able to disagree legitimately,
+accepting that "current" has no global answer, that multiple resolvers
+and policies may coexist over the same record, and that every
 representation question waits for the vocabulary freeze ritual.
 
 ## Context and problem statement
@@ -36,9 +37,9 @@ ADR-0002 settled one invalidation rule — invalidated evidence contributes
 no support — and the contradiction rule: contradiction creates debt and
 blocks settlement. The rest has no ratified semantics: what `supersedes`
 asserts, whether `invalidates` reaches beyond evidence, and what
-"current" means when a resolver answers a question. Working sketches
-exist in the tags 6–8 implementation plan ("supersedes preserves lineage
-and makes old material non-current under the same exact scope";
+"current" means when a resolver evaluates recorded material. Working
+sketches exist in the tags 6–8 implementation plan ("supersedes preserves
+lineage and makes old material non-current under the same exact scope";
 "invalidates removes support contribution on replay"), but sketches are
 not doctrine.
 
@@ -63,9 +64,12 @@ either becomes load-bearing.
 ## Decision
 
 **1. "Current" means resolver-relative applicability.** A currency answer
-is the output of a named resolver, running a named policy version, over a
-named snapshot. Applicability is always applicability to a question under
-a policy, never a property of the record itself. Rejected readings:
+is the output of a named resolver, running an explicitly selected policy
+version, over a verified record snapshot — reproducible from exactly
+those coordinates: snapshot, policy version, resolver identity.
+Applicability is always applicability under an explicitly selected policy
+to recorded material within the scope that policy evaluates; it is never
+a property of the record itself. Rejected readings:
 
 - *latest recorded assertion* — latest is a property of log ordering, not
   of applicability; adopting it makes recency a policy nobody chose;
@@ -77,14 +81,15 @@ a policy, never a property of the record itself. Rejected readings:
   undefined word and collapses currency into standing, smuggling the
   fold's support accounting into a facet that must stay policy-explicit.
 
-**2. The currency facet is per-assertion/material.** Each relevant
-assertion or material receives a currency interpretation under the
-resolver. The facet does not elect one current item per claim: a
-claim-level single answer would become a canonical truth carrier, which
-Magpie's multiplicity, provenance, and actor-separation doctrine forbids.
-A policy may derive a claim-level summary from per-assertion annotations
-as a convenience view; that summary is identified by its policy version,
-is never stored, and is never canonical.
+**2. The currency facet is per-assertion/material.** Here, "material"
+means any recorded item a policy takes as input. Each relevant assertion
+or item receives a currency interpretation under the resolver. The facet
+does not elect one current item per claim: a claim-level single answer
+would become a canonical truth carrier, which Magpie's multiplicity,
+provenance, and actor-separation doctrine forbids. A policy may derive a
+claim-level summary from per-assertion facet output as a convenience
+view; that summary is identified by the full coordinates of the facet it
+derives from, is never stored, and is never canonical.
 
 **3. `supersedes` records lineage. Nothing more.** The edge records that
 an attributed actor registered one item as the successor of another. Its
@@ -101,8 +106,8 @@ recorded metadata such as timestamps; "latest timestamp determines
 currentness" is forbidden.
 
 **6. The currentness resolver is a pure function of coordinates.**
-`resolver(record snapshot, policy version) -> currentness facet`, with
-the boundary stated below.
+`resolver(record snapshot, policy version, resolver identity)
+-> currentness facet`, with the boundary stated below.
 
 **7. Withdrawal, supersession, invalidation, and contradiction are
 distinct recorded acts and relationships.** Withdrawal changes neither
@@ -116,20 +121,23 @@ relationships: assertions, withdrawals, and edges such as `supersedes`
 and `invalidates`. Views are computed. Currentness is a view. No event
 writes a currency outcome; no reader trusts a stored one.
 
-**Coordinates.** Every currency answer carries its snapshot and policy
-version. The facet is computed over the verified record prefix ending at
-the snapshot, under the named policy. Later events can never change an
-earlier snapshot's answer.
+**Coordinates.** A currency answer has exactly three coordinates: the
+verified record snapshot, the explicitly selected policy version, and the
+named resolver identity. The facet is computed over the verified record
+prefix ending at the snapshot, under the selected policy, by the named
+resolver. Later events can never change an earlier snapshot's answer.
 
 **No stored current state.** `claim.current = true` and
 `claim.status = active` are forbidden shapes. The invariant:
 
-> Currency acts are recorded history; currentness is never recorded.
-> Currentness exists only as resolver output at explicit snapshot and
-> policy coordinates.
+> Acts and relationships bearing on currency are recorded history;
+> currentness is never recorded. Currentness exists only as resolver
+> output at explicit snapshot, policy-version, and resolver-identity
+> coordinates.
 
-**Determinism.** Same snapshot plus same policy version produces
-identical facet output — the replay discipline the standing view already
+**Determinism.** The same coordinates produce identical typed facet
+output. Once a canonical encoding is ratified, the serialized output must
+also be byte-identical — the replay discipline the standing view already
 pins.
 
 **The facet is not evidence.** Facet output never re-enters the record as
@@ -145,7 +153,8 @@ to set its own interpretation.
 ## Supersession semantics
 
 `A supersedes B` records that an attributed actor registered A as the
-successor of B. It is a lineage fact.
+successor of B. It is a recorded lineage relationship, not a
+self-executing currency judgment.
 
 It does **not** mean:
 
@@ -182,32 +191,35 @@ it does not assert falsity; the target remains in the record.
 
 This ADR does not extend invalidation beyond evidence. The self-directed
 case for assertions is already covered by withdrawal (ADR-0005). Removing
-the contribution of another actor's claim, assertion, or edge is a
-stronger power whose authority rules are undeveloped, and conservative
-doctrine admits no scope that existing acts cannot yet justify. Any
-extension requires a future ADR and the vocabulary freeze ritual.
+the contribution of a claim, assertion, or edge is a stronger power whose
+authority rules are undeveloped, and conservative doctrine admits no
+scope that existing acts cannot yet justify. Any extension requires a
+future ADR and the vocabulary freeze ritual.
 
 Invalidation remains distinct from:
 
-- **falsity** — no act asserts falsity; truth-adjacent judgment is
-  standing and verity resolver output;
+- **falsity** — invalidation asserts no falsity; any epistemic conclusion
+  remains the output of a separately governed resolver;
 - **contradiction** — contradiction signals conflict and creates debt
   while removing nothing; invalidation removes contribution and creates
   no debt. The bookkeeping runs in opposite directions;
-- **withdrawal** — withdrawal is self-directed cessation of endorsement;
-  invalidation is other-directed challenge to contribution;
+- **withdrawal** — withdrawal records an actor's cessation of endorsement
+  of its own assertion; invalidation removes support contribution from
+  evidence;
 - **deletion** — an append-only record admits no deletion.
 
 ## Currentness resolver boundary
 
-- **Deterministic replay.** Same snapshot plus same policy version yields
-  the same facet, byte-identical.
+- **Deterministic replay.** The same coordinates yield identical typed
+  facet output; byte-identical serialization follows only once a
+  canonical encoding is ratified.
 - **Snapshot relativity.** The resolver reads only the verified record
   prefix ending at the snapshot. Later events never change an earlier
   snapshot's output.
-- **Policy relativity.** Two policy versions over one snapshot may return
-  different facets. Both are valid answers, each identified by its policy
-  version. Neither is "the" answer.
+- **Policy relativity.** Two policy versions, or two resolvers, over one
+  snapshot may return different facets. Both are coordinate-bound policy
+  outputs, each identified by its full coordinates; neither is the
+  ambient answer.
 - **Coexistence of projections.** Any number of resolvers and policies
   may operate over one record. No currentness projection becomes
   universal authority — an authoritative projection is the ambient-latest
@@ -256,8 +268,8 @@ Invalidation is not:
 
 - ADR-0002 — fold rules, contradiction debt, invalidated evidence
   contributes no support, corrections are new events;
-- ADR-0003 — the canonical definition of standing: resolver output over a
-  verified snapshot under an explicit policy;
+- ADR-0003 — the canonical definition of standing and its three resolver
+  coordinates;
 - ADR-0004 — lifecycle facets; the currency seed sentence; the log is
   ordered, not clocked;
 - ADR-0005 — the withdrawal boundary; resolvers interpret history and do

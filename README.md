@@ -372,6 +372,9 @@ change these boundaries only through explicit contracts and review.
   derived facet views, never stored state.
 - [ADR 0005](docs/adr/0005-claim-withdrawal-acts.md) - withdrawal as a
   self-targeted act that never asserts falsity.
+- [ADR 0006](docs/adr/0006-claim-currency-and-currentness-semantics.md) -
+  currentness as a derived, coordinate-bound applicability facet;
+  supersession as lineage without self-executing authority.
 - [Standing ceilings](docs/design/standing-view-evidence-ceilings.md) -
   evidence domains, candidate ceilings, and future boundaries.
 - [Provenance and origin admission](docs/design/artifact-provenance-origin-admission.md) -
