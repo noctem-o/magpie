@@ -54,7 +54,7 @@ Information may move downstream. Authority does not.
 | --- | --- | --- |
 | May this enter history? | Admission boundary (`admission-record-boundary-contract`, `admission-boundary-minimal-semantics`) | truth, evidence, standing, policy decisions |
 | Where is canonical history? | Signed append-only log; `LogWriter` sole append authority (ADR-0001) | projections, caches, side stores |
-| What may an interface expose? | MCP boundary contract; librarian and query contracts | authority of any kind |
+| What may an interface expose? | MCP boundary contract; librarian and query contracts | epistemic, historical, or standing authority |
 | Is tool availability meaningful? | Capability boundary contract | permission, endorsement, grants |
 | What accompanies a derived answer? | Provenance response contract | trust, identity, authority |
 | Is recorded material evidence? | Evidence admission boundary contract | admission itself |
@@ -62,7 +62,7 @@ Information may move downstream. Authority does not.
 | Can agents decide? | AgentProposer boundary contract — agents propose only | settlement, evidence status, authority |
 | Can provenance establish trust? | Provenance response contract — no | trust, identity |
 | How do the stages compose? | Epistemic pipeline separation contract | any single-stage authority over another stage |
-| What could violate all of this? | Admission threat model; readiness checklist | (explorations, not doctrine) |
+| What could violate these boundaries? | Admission threat model and readiness checklist — explorations identifying failure modes and constraints | mechanisms, doctrine |
 
 ## 3. Forbidden collapses index
 
