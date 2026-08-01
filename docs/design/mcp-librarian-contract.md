@@ -34,11 +34,14 @@ README's "read-only librarian or research navigator" given its contract.
 - It is an optional interface for agents and tools: LLM clients, agent
   harnesses, and editor or tool integrations.
 - It exposes verified Magpie state and derived projections. Nothing else.
-- It is never a source of truth. Every answer is derived from a verified
-  record snapshot and remains reproducible from recorded history.
+- It is never a source of truth. Answers about Magpie state are derived
+  from a verified record snapshot and remain reproducible from recorded
+  history.
 - It has no write path of any kind — no ordinary writes (none exist before
   `EpistemicGate`), and no back-door writes through caches, annotations, or
-  server-side state.
+  server-side state. This restriction scopes the librarian surface only:
+  separately reviewed capability seams, such as Deadbolt anchoring, continue
+  to obey their own contracts, exactly as the boundary contract provides.
 
 ## 2. Allowed read operations
 
@@ -61,7 +64,9 @@ The librarian may not:
   write tools of any kind;
 - present retrieved material as settled truth — records are exposed as
   recorded history and resolver outputs, with their provenance;
-- adjudicate, merge, or editorialize across records.
+- adjudicate, merge, infer authority, or editorialize across records.
+  Agents remain free to reason over what the librarian returns; the
+  librarian must not convert retrieval into Magpie authority.
 
 ## 3. Required provenance
 
