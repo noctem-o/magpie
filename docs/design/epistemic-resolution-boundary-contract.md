@@ -39,10 +39,14 @@ The base invariant applies unchanged:
 
 ## 1. Standing boundary
 
-Evidence interpretation ≠ standing resolution.
+Evidence interpretation ≠ standing resolution. Standing ≠ truth.
+
+Three things stay distinct: the standing resolver (a named mechanism that
+computes), the standing result (its deterministic derived output over
+verified history), and the epistemic status reported from that output. A
+resolver output is a derived view, never a truth assertion.
 
 - Evidence-related material may become resolver input.
-- Resolver output is a deterministic derived view over verified history.
 - Standing resolution does not mutate history.
 - Standing resolution does not create evidence.
 - Standing resolution does not create policy.
@@ -52,9 +56,8 @@ Evidence interpretation ≠ standing resolution.
 
 The resolver owns:
 
-- producing a standing result from verified history;
-- applying an explicitly selected policy version;
-- producing reproducible derived output.
+- evaluating verified history under an explicitly selected policy version;
+- producing a reproducible standing result as derived output.
 
 The resolver does not own:
 
@@ -90,7 +93,9 @@ one its own contract defines, and none is skipped.
 
 ## 5. Projection boundary
 
-Standing results are derived projections. They are not:
+Standing results are derived projections, tied to the verified record
+snapshot and selected policy version they were computed from — never
+"current truth" or an ambient latest state. They are not:
 
 - history;
 - new evidence;
@@ -98,8 +103,8 @@ Standing results are derived projections. They are not:
 - replacement records.
 
 The signed append-only log remains the source of replay; every standing
-result is recomputable from a verified record snapshot and subordinate to
-it.
+result is recomputable from its stated coordinates and subordinate to
+them.
 
 ## 6. AgentProposer implications
 
