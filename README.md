@@ -331,6 +331,9 @@ change these boundaries only through explicit contracts and review.
   what capability discovery may and may not mean.
 - [AgentProposer boundary contract](docs/design/agent-proposer-boundary-contract.md) -
   the semantic weight of agent proposals before governed admission.
+- [Admission boundary questions](docs/design/admission-boundary-questions.md) -
+  unresolved questions and invariants for a future governed admission
+  boundary (exploration, not doctrine).
 - [ADR 0001](docs/adr/0001-deadbolt-seam.md) - why foreign execution evidence
   is anchored through a minimal payload.
 - [ADR 0002](docs/adr/0002-governed-claim-memory.md) - typed governed claim
