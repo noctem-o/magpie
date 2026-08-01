@@ -59,9 +59,11 @@ suggestion as an event, a projection as authority, or a query as a write —
 is an architectural violation, not an implementation detail.
 
 1. **Events submitted to Magpie** are signed historical records. Only these
-   become history. The log is append-only: there is no update or delete; a
-   correction is a later signed event, and the prior record remains
-   inspectable.
+   become history, and they enter only through the pipeline of §3: a client
+   submits draft proposal material, and the governed admission path
+   constructs, validates, signs, and appends the canonical event. The log is
+   append-only: there is no update or delete; a correction is a later signed
+   event, and the prior record remains inspectable.
 2. **Queries** are read-only requests against a verified replay or its
    derived projections. A query never mutates anything. Typed failures stay
    typed failures — a missing artifact, a malformed record, or an unknown
