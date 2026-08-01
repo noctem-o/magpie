@@ -164,7 +164,8 @@ against the stronger statements:
 - "This material is trustworthy."
 - "This material should affect standing."
 
-The first is the only statement admission may make. The others exceed its
+The first is the strongest semantic statement admission may make. The
+others exceed its
 role, each for a doctrinal reason: truth is not Magpie's to assert at a
 boundary (humans settle nothing epistemically, and a gate settles less);
 support belongs to a named resolver under an explicit policy version;
