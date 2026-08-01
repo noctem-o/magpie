@@ -340,6 +340,9 @@ change these boundaries only through explicit contracts and review.
 - [Admission design readiness checklist](docs/design/admission-design-readiness-checklist.md) -
   what must be answered before any admission mechanism is designed
   (exploration, not doctrine).
+- [Admission boundary scenario analysis](docs/design/admission-boundary-scenario-analysis.md) -
+  a worked external-occurrence example stress-testing the unresolved
+  boundary (exploration, not doctrine).
 - [ADR 0001](docs/adr/0001-deadbolt-seam.md) - why foreign execution evidence
   is anchored through a minimal payload.
 - [ADR 0002](docs/adr/0002-governed-claim-memory.md) - typed governed claim
