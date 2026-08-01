@@ -34,11 +34,13 @@ for lifecycle as a whole.
 Three facet families organize that view:
 
 - **Historical facets** — what was recorded.
-- **Epistemic facets** — what a resolver concluded.
+- **Epistemic facets** — what a resolver derives under an explicit policy
+  and verified snapshot.
 - **Currency facets** — what later acts mark.
 
 Each family is derived. None is stored. No facet transition exists;
-facets are recomputed views, not states.
+facets are recomputed views, not states. New acts may alter future facet
+projections without modifying prior records.
 
 ## The three facet families
 
@@ -53,10 +55,11 @@ facets are recomputed views, not states.
   may record a retraction by an attributed actor; it may never assert the
   falsity of what it retracts.
 
-### Epistemic facets — what a resolver concluded
+### Epistemic facets — what a resolver derives under an explicit policy
+and verified snapshot
 
-- Standing is defined canonically by ADR-0003: the deterministic output of
-  a named resolver over a verified record snapshot under an explicitly
+- Standing remains governed by ADR-0003: it is the deterministic output
+  of a named resolver over a verified record snapshot under an explicitly
   selected policy version.
 - Contradiction evaluation follows ADR-0002's fold rules and the
   implemented policies v0–v4. Contradiction debt is a typed blocker, not
@@ -84,11 +87,18 @@ Lifecycle is not:
 - **authority** — a facet view is derived state and carries none;
 - **a settlement path** — no facet settles a claim.
 
+### Facet non-authority invariant
+
+A lifecycle facet is a projection over recorded acts and evidence; it
+cannot create, replace, or strengthen the evidence from which it is
+derived. Facets are views: they do not become evidence, and they do not
+settle claims by existing.
+
 ## Rejected alternatives
 
-- **Stored lifecycle fields**, or status-transition events treated as
-  truth — ADR-0002 rejected stored standing; this ADR rejects the same
-  shape for lifecycle.
+- **Stored lifecycle fields**, or lifecycle events interpreted as direct
+  truth mutation — ADR-0002 rejected stored standing; this ADR rejects
+  the same shape for lifecycle.
 - **Time-based staleness** — the record is ordered, not clocked.
 - **Numeric currency, freshness, or debt quantities** — the no-scoring
   doctrine forbids them.
