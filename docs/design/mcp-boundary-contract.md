@@ -77,9 +77,9 @@ is an architectural violation, not an implementation detail.
    rebuildable, never authority.
 4. **Agent-generated suggestions** are drafts. A suggestion an agent produces
    in MCP conversation is not an event, has no standing, and carries no
-   epistemic authority until it enters the governed path and is recorded as
-   an attributed event. Its authority then comes solely from that recorded
-   event and policy evaluation — never from the suggesting model.
+   epistemic authority until it enters the governed admission path and is
+   recorded as an attributed event. Its authority then comes solely from that
+   recorded event and policy evaluation — never from the suggesting model.
 
 ## 3. Write boundary
 
@@ -166,8 +166,9 @@ This document adds, and the layer it bounds may add, none of the following:
 - an MCP server implementation, SDK, transport code, or MCP dependencies;
 - new schemas, payload tags, canonical-encoding, golden-vector, or verifier
   changes;
-- changes to actor, evidence, or edge vocabularies (all three are closed;
-  extending them is an amendment through their existing governance path);
+- changes to actor, evidence, or edge vocabularies or to the closed
+  claim-domain vocabulary (all are closed; extending any of them is an
+  amendment through its existing governance path);
 - autonomous memory ingestion;
 - embeddings, vector search, or retrieval scoring;
 - scoring systems, numeric confidence values, or truth claims;
