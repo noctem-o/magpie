@@ -52,8 +52,9 @@ standing resolver
 epistemic status
 ```
 
-Each transition changes representation or produces a derived view. No
-transition increases authority.
+Each transition either establishes historical membership, changes
+representation, or produces a derived view. No transition increases
+authority.
 
 ## 2. Authority ownership
 
