@@ -368,6 +368,8 @@ change these boundaries only through explicit contracts and review.
   memory and raw-status quarantine.
 - [ADR 0003](docs/adr/0003-canonical-definition-of-standing.md) - the
   canonical definition of standing.
+- [ADR 0004](docs/adr/0004-claim-lifecycle-facets.md) - lifecycle as
+  derived facet views, never stored state.
 - [Standing ceilings](docs/design/standing-view-evidence-ceilings.md) -
   evidence domains, candidate ceilings, and future boundaries.
 - [Provenance and origin admission](docs/design/artifact-provenance-origin-admission.md) -
