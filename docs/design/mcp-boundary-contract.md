@@ -32,7 +32,9 @@ It may:
   snapshot or its derived projections);
 - expose deterministic projections (search, claim graph, standing views,
   traces);
-- submit governed proposals once an approved write path exists (§3).
+- submit proposals to an approved governed admission path once such a write
+  path exists (§3) — MCP does not own admission and does not decide whether
+  something enters Magpie history.
 
 It may not:
 
@@ -40,8 +42,8 @@ It may not:
   historical authority;
 - create authority — speaking for a model, aggregating many clients, or
   persisting server-side state grants nothing;
-- replace governance — admission and policy live kernel-side, never in
-  protocol handling;
+- replace governance — admission and policy evaluation live in Magpie's
+  governed core, never in protocol handling;
 - adjudicate standing (§4);
 - represent model output as Magpie knowledge (§2, category 4).
 
