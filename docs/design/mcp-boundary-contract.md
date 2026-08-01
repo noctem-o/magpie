@@ -32,9 +32,9 @@ It may:
   snapshot or its derived projections);
 - expose deterministic projections (search, claim graph, standing views,
   traces);
-- submit proposals to an approved governed admission path once such a write
-  path exists (§3) — MCP does not own admission and does not decide whether
-  something enters Magpie history.
+- submit draft proposal material to an approved governed admission path
+  once such a write path exists (§3) — MCP does not own admission and does
+  not decide whether something enters Magpie history.
 
 It may not:
 
@@ -98,12 +98,13 @@ is an architectural violation, not an implementation detail.
   server that wraps such a seam gains no new authority by doing so.
 
 The MCP layer may therefore: submit draft proposal material (through the
-governed path, once it exists); query existing Magpie state; and request
-explanations or projections. MCP submits drafts only. The governed admission
-path constructs, validates, signs, and appends any historical event; MCP
-clients never submit canonical records, signed events, or append-ready log
-material, and `LogWriter` remains the sole append capability. The chain of
-custody is: agent suggestion → proposal → governed admission → signed event
+governed admission path, once it exists); query existing Magpie state; and
+request explanations or projections. MCP submits drafts only. The governed
+admission path constructs, validates, signs, and appends any historical
+event; MCP clients never submit canonical records, signed events, or
+append-ready log material, and `LogWriter` remains the sole append
+capability. The chain of custody is: agent suggestion → draft proposal
+material → governed admission → constructed canonical event → signed append
 → history. Standing and contribution traces are deterministic, one-way audit
 output: they can be inspected, stored, and compared, but not fed back in as
 authority.
