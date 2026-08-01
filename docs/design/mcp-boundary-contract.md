@@ -67,11 +67,14 @@ is an architectural violation, not an implementation detail.
    typed failures — a missing artifact, a malformed record, or an unknown
    kind is a failure report, never a negative fact. Failure is not falsity.
 3. **Derived projections** are regenerable views: search indexes, claim
-   graphs, standing views, audit traces. They can be dropped and rebuilt
-   byte-identically from recorded history. They explain history; they never
-   write authority back into it. Anything an MCP server caches, indexes, or
-   summarizes is itself a projection — droppable, rebuildable, never
-   authority.
+   graphs, standing views, audit traces. Their outputs and query semantics
+   are deterministically reproducible from recorded history; their storage
+   representations (SQLite pages, index layouts, server caches) are not
+   canonical. Only the recorded history and its canonical encodings carry
+   authority. Projections remain droppable and rebuildable; they explain
+   history and never write authority back into it. Anything an MCP server
+   caches, indexes, or summarizes is itself a projection — droppable,
+   rebuildable, never authority.
 4. **Agent-generated suggestions** are drafts. A suggestion an agent produces
    in MCP conversation is not an event, has no standing, and carries no
    epistemic authority until it enters the governed path and is recorded as
@@ -88,15 +91,22 @@ is an architectural violation, not an implementation detail.
   invokes the raw append capability, keeping L0 structural validation
   separate from epistemic policy (ADR-0002 rollout;
   `historical-review-remediation-ledger` §5.3).
-- Before `EpistemicGate` exists, MCP implementations are read-only. A
-  pre-gate MCP server may expose state and projections; it exposes no write
-  tools.
+- Before `EpistemicGate` exists, ordinary claim-bearing or evidence-bearing
+  MCP write tools remain unavailable; a pre-gate MCP server may expose state
+  and projections only. Separately reviewed capability seams — such as
+  Deadbolt anchoring — continue to obey their own contracts, and an MCP
+  server that wraps such a seam gains no new authority by doing so.
 
-The MCP layer may therefore: submit proposed records and events (through the
+The MCP layer may therefore: submit draft proposal material (through the
 governed path, once it exists); query existing Magpie state; and request
-explanations or projections. Standing and contribution traces are
-deterministic, one-way audit output: they can be inspected, stored, and
-compared, but not fed back in as authority.
+explanations or projections. MCP submits drafts only. The governed admission
+path constructs, validates, signs, and appends any historical event; MCP
+clients never submit canonical records, signed events, or append-ready log
+material, and `LogWriter` remains the sole append capability. The chain of
+custody is: agent suggestion → proposal → governed admission → signed event
+→ history. Standing and contribution traces are deterministic, one-way audit
+output: they can be inspected, stored, and compared, but not fed back in as
+authority.
 
 ## 4. Standing boundary
 
@@ -136,9 +146,11 @@ This contract deliberately leaves room for:
 - **Future multi-agent workflows** — Claude, Codex, Kimi, local models, and
   others enter through the same governed path under the same closed
   vocabulary; no client family is privileged.
-- **Future provenance projections** — MCP responses should expose recorded
-  provenance rather than summarize it away; richer provenance-graph
-  projections remain open.
+- **Future provenance projections** — responses derived from Magpie state
+  must identify their underlying recorded provenance. Convenience summaries
+  are allowed, but a summary cannot replace provenance: an agent must never
+  receive an opaque conclusion detached from its source history. Richer
+  provenance-graph projections remain open.
 
 Each of these is a future layer requiring its own reviewed contract; none of
 them enters by default through an interface layer. Future epistemic features
@@ -154,8 +166,8 @@ This document adds, and the layer it bounds may add, none of the following:
 - an MCP server implementation, SDK, transport code, or MCP dependencies;
 - new schemas, payload tags, canonical-encoding, golden-vector, or verifier
   changes;
-- changes to actor or evidence vocabularies (both are closed; extending them
-  is an amendment there first);
+- changes to actor, evidence, or edge vocabularies (all three are closed;
+  extending them is an amendment through their existing governance path);
 - autonomous memory ingestion;
 - embeddings, vector search, or retrieval scoring;
 - scoring systems, numeric confidence values, or truth claims;
@@ -185,7 +197,7 @@ This document adds, and the layer it bounds may add, none of the following:
   authority that belongs only to Magpie's governed core? If any section
   admits doubt, the contract is incomplete.
 - Confirm §3 routes every write through the governed path and that pre-gate
-  MCP is read-only.
+  MCP exposes no ordinary claim-bearing or evidence-bearing write tools.
 - Confirm the four categories of §2 stay distinct.
 - Confirm terminology matches README, ADR-0002, `docs/FORMAT.md`, the v0.1.0
   contract, and the Deadbolt anchor contract: `LogWriter`, `EpistemicGate`,
