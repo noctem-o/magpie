@@ -84,7 +84,7 @@ Lifecycle is not:
 - **a state machine** — facets are recomputed views, not transitions;
 - **time** — no clock, no decay;
 - **a score** — no numeric freshness, debt, or currency;
-- **authority** — a facet view is derived state and carries none;
+- **authority** — a facet view is a derived projection and carries none;
 - **a settlement path** — no facet settles a claim.
 
 ### Facet non-authority invariant
