@@ -321,6 +321,8 @@ change these boundaries only through explicit contracts and review.
   protocol and writer boundary.
 - [MCP boundary contract](docs/design/mcp-boundary-contract.md) - the agent
   and tool interface boundary: reads, proposals, and no authority.
+- [MCP librarian contract](docs/design/mcp-librarian-contract.md) - the
+  read-only query surface: verified state, traces, and provenance.
 - [ADR 0001](docs/adr/0001-deadbolt-seam.md) - why foreign execution evidence
   is anchored through a minimal payload.
 - [ADR 0002](docs/adr/0002-governed-claim-memory.md) - typed governed claim
