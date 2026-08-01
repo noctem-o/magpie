@@ -50,6 +50,9 @@ Information may move downstream. Authority does not.
 
 ## 2. Ownership map
 
+Owning a question means responsibility for answering it — never authority
+over another boundary's domain.
+
 | Question | Owning boundary | Explicitly not owned |
 | --- | --- | --- |
 | May this enter history? | Admission boundary (`admission-record-boundary-contract`, `admission-boundary-minimal-semantics`) | truth, evidence, standing, policy decisions |
@@ -91,8 +94,8 @@ When implementing a feature, ask which single question it raises:
 - Does this create agent output? → AgentProposer questions.
 - Does this create derived state? → projection rules.
 
-This is routing, not process: it assigns a question to its owner, and
-imposes no workflow.
+This is routing, not process: it assigns a question to its owner, imposes
+no workflow, and is no substitute for reading the owning contract.
 
 ## 5. Open questions
 
