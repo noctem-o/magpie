@@ -42,7 +42,8 @@ later, under the governing documents.
 ## 2. Query classes
 
 Three conceptual query categories are permitted. They name kinds of reads,
-not data formats.
+not data formats, and every one is answered from a verified record snapshot
+or its derived projections.
 
 - **Record queries** retrieve what the log records: recorded claims,
   evidence, and justification edges, including their recorded attribution
@@ -53,8 +54,10 @@ not data formats.
 - **Provenance queries** retrieve recorded lineage: origin-admission
   information, event ancestry within the chain, and recorded attribution.
 
-No other query category is licensed by this contract. A read that cannot be
-framed as one of these three is out of scope for the librarian surface.
+The set is closed under this contract: a read that cannot be framed as one
+of these three is not a librarian query. Extending the set is an amendment
+to this contract through the governing documents' review path, not an
+implementation-time decision.
 
 ## 3. Query authority boundary
 
