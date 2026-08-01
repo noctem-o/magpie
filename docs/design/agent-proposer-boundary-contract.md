@@ -60,9 +60,9 @@ A proposal is not automatically:
 The existence of generated content grants no authority. Model output, agent
 output, summaries, annotations, and suggestions do not enter Magpie
 epistemic structures merely because they exist. Per the boundary contract's
-four-way separation, such content is an agent-generated suggestion until it
-is submitted as draft proposal material and admitted through the governed
-path.
+four-way separation, such content is an agent-generated suggestion: it
+remains non-authoritative unless a separately governed admission path
+admits it.
 
 ## 3. Vocabulary protection
 
@@ -86,7 +86,7 @@ The future path is:
 AgentProposer
     |
     v
-proposal / suggestion (draft proposal material)
+agent-generated proposal or suggestion material
     |
     v
 future governed admission mechanism
@@ -144,8 +144,7 @@ contracts.
 
 ## Non-goals
 
-This document adds, and the surface it bounds may add, none of the
-following:
+This document adds none of the following:
 
 - an `EpistemicGate` implementation or admission mechanism design;
 - agent identity systems, authentication, permissions, or capability
@@ -168,8 +167,9 @@ projection, and failure rules.
 
 - Could an engineer build proposal tooling against this contract without
   giving generated content authority?
-- Do proposals remain draft material until governed admission, with
-  `LogWriter` as the sole append capability?
+- Do agent-generated proposals remain non-authoritative until a governed
+  admission path exists, with `LogWriter` remaining the sole append
+  authority?
 - Are all four closed vocabularies protected from agent-generated
   extension?
 - Is attribution still recorded rather than verified identity?
