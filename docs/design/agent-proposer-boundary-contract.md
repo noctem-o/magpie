@@ -99,14 +99,14 @@ This contract defines none of that mechanism. It does not define
 `EpistemicGate` internals, staging, or review flow. It establishes only
 that proposal generation and historical admission are separate concerns:
 generation happens outside Magpie's authority, admission happens through
-the governed path, and `LogWriter` remains the sole append capability.
+the governed path, and `LogWriter` remains the sole append authority.
 
 ## 5. Provenance requirements
 
 Any future admitted agent-originated material must preserve provenance per
 the provenance response contract and the boundary contract: recorded
-attribution through the closed vocabularies, attached to a verified record
-snapshot once admitted.
+attribution through the closed vocabularies, with snapshot and record
+coordinates carried as those contracts define.
 
 This contract introduces no:
 
