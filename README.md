@@ -303,7 +303,9 @@ Magpie is not:
 - an acquisition loader and content-addressed store;
 - filesystem or network ingestion;
 - contradiction debt and broader conflict policy;
-- invalidation, supersession, and currentness semantics;
+- runtime representation, eligibility policies, and resolver implementation
+  for invalidation, supersession, and currentness under the settled ADR-0006
+  boundaries;
 - broader source-standing propagation;
 - a read-only librarian or research navigator; and
 - production key custody and rotation.

@@ -127,5 +127,6 @@ facet model describes them exactly as they are.
 - ADR-0003 — the canonical definition of standing;
 - `docs/design/admission-boundary-questions.md` and the admission
   exploration set — the unresolved admission boundary;
-- README future boundaries — deferred invalidation, supersession, and
-  currentness semantics.
+- README future boundaries — deferred representation, eligibility policy,
+  and implementation of invalidation, supersession, and currentness under
+  ADR-0006.

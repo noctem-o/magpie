@@ -35,7 +35,8 @@ What remains unsettled is the currency facet itself. The frozen edge
 vocabulary of FORMAT §3 already contains `supersedes` and `invalidates`.
 ADR-0002 settled one invalidation rule — invalidated evidence contributes
 no support — and the contradiction rule: contradiction creates debt and
-blocks settlement. The rest has no ratified semantics: what `supersedes`
+blocks settlement until resolved by invalidation, supersession, or
+ratification. The rest has no ratified semantics: what `supersedes`
 asserts, whether `invalidates` reaches beyond evidence, and what
 "current" means when a resolver evaluates recorded material. Working
 sketches exist in the tags 6–8 implementation plan ("supersedes preserves
@@ -96,9 +97,10 @@ an attributed actor registered one item as the successor of another. Its
 currency consequence belongs to resolver policy, not to the edge.
 
 **4. `invalidates` remains limited to evidence targets.** The settled
-ADR-0002 consequence stands — an eligible invalidation removes the
-target evidence's support contribution on replay — and this ADR does not
-extend invalidation to claims, assertion acts, or relationship edges.
+ADR-0002 consequence stands — an eligible invalidation deactivates the
+target evidence's contribution, support and contradiction alike, within
+the exact affected scope on replay — and this ADR does not extend
+invalidation to claims, assertion acts, or relationship edges.
 
 **5. Recorded time creates no currency semantics.** The log is ordered,
 not clocked. A currency policy governed by this ADR must not derive
@@ -183,9 +185,14 @@ policy, not by the standing fold.
 reference, and how, is a representation question deferred to the
 vocabulary freeze ritual; this ADR defines doctrine, not payloads.
 
-**Scope equality.** Succession may be recorded as scope-bound. Whether
-succession across differing scopes carries currency meaning is a policy
-decision, not an edge property.
+**Scope equality.** Under the v1 exact-match scope model, a supersession
+relationship may affect currency only when the supersession edge,
+predecessor, and successor satisfy the required exact scope equality. A
+mismatch remains recorded lineage but has no currency effect. A
+mismatched relationship is not malformed history: it remains attributed,
+recorded, auditable, and non-self-executing. Cross-scope supersession
+requires an explicit amendment to ADR-0002 and ADR-0006 before
+activation.
 
 **Cycles.** A supersession cycle is degenerate lineage. The record keeps
 it without comment; a resolver policy must treat cycles
@@ -199,34 +206,52 @@ history: it exists in the append-only record, inspectable forever. Its
 presence is a recorded fact, not an authority.
 
 **Eligibility.** The presence of an `invalidates` edge is not sufficient
-to remove support. ADR-0002 states the consequence of invalidation; it
-does not establish what makes an invalidation eligible. That consequence
-applies only when a separately governed invalidation-eligibility rule
-determines that the recorded edge is eligible, including all required
-target, scope, and actor-authority conditions. This ADR defines no such
-actor-authority or identity policy. Until an invalidation-eligibility
-rule is ratified, no write path, fold, or resolver may activate
-invalidation effects from a recorded `invalidates` edge.
+to deactivate contribution. ADR-0002 states the consequence of
+invalidation; it does not establish what makes an invalidation eligible.
+That consequence applies only when a separately governed
+invalidation-eligibility rule determines that the recorded edge is
+eligible, including all required target, scope, and actor-authority
+conditions. This ADR defines no such actor-authority or identity policy.
+Until an invalidation-eligibility rule is ratified, no write path, fold,
+or resolver may activate invalidation effects from a recorded
+`invalidates` edge.
 
 **Scope binding.** Under the v1 exact-match scope model, an invalidation
-may affect only a support contribution whose invalidation edge, target
-evidence, and relevant support relationship are all exact-match equal in
+may affect only a contribution whose invalidation edge, target evidence,
+and relevant contribution relationship are all exact-match equal in
 scope — the same exact-match discipline the standing fold already applies
-to support evaluation. A scope mismatch is ineligible and removes no
-support. Scope inheritance, containment, wildcard matching, and
+to support evaluation. A scope mismatch is ineligible and deactivates
+nothing. Scope inheritance, containment, wildcard matching, and
 cross-scope invalidation are not defined. A mismatch is not falsity, not
 contradiction, not negative evidence, not authority to suppress support,
 and not permission to guess scope equivalence.
 
-**Consequence.** Only an eligible invalidation removes support: under
-ADR-0002, an eligible invalidation removes the target evidence's support
-contribution during replay. It does not delete evidence; it does not
-assert falsity; the target remains in the record.
+**Consequence.** Only an eligible invalidation has consequence: under
+ADR-0002, an eligible invalidation makes the target evidence ineligible
+to contribute within the exact affected scope. This deactivates both
+support contribution and contradiction contribution sourced from that
+evidence. It does not delete the evidence or its recorded relationships,
+erase audit history, assert falsity, or mutate the record. The resolver
+consequence changes; history does not.
 
-**Non-effects.** An ineligible or scope-mismatched invalidation removes
-no support, asserts no falsity, creates no contradiction automatically,
-deletes neither the edge nor its target, and remains inspectable
-history.
+**Non-effects.** An ineligible or scope-mismatched invalidation
+deactivates no contribution, asserts no falsity, creates no
+contradiction, deletes neither evidence nor relationships, rewrites no
+history, erases no audit record, and remains inspectable history.
+
+**Coordinate closure.** Any currency policy that activates invalidation
+must pin the complete invalidation-eligibility rule through its policy
+version — the rule and its version, the exact target-binding rules, the
+exact scope-binding rules, the actor-authority interpretation rules, and
+any immutable configuration necessary to interpret them. All variable
+eligibility inputs, including recorded attribution, delegation, or
+authority material if later admitted, must come from the verified
+snapshot. The resolver may consult no mutable ambient identity store,
+permission database, unversioned trust configuration, or external
+current-authority lookup. If a future eligibility design cannot be
+reproduced from the existing snapshot, policy-version, and
+resolver-identity coordinates, the coordinate model must be amended
+before that design is activated.
 
 This ADR does not extend invalidation beyond evidence. The self-directed
 case for assertions is already covered by withdrawal (ADR-0005). Removing
@@ -240,11 +265,11 @@ Invalidation remains distinct from:
 - **falsity** — invalidation asserts no falsity; any epistemic conclusion
   remains the output of a separately governed resolver;
 - **contradiction** — contradiction signals conflict and creates debt
-  while removing nothing; invalidation removes contribution and creates
-  no debt. The bookkeeping runs in opposite directions;
+  while deactivating nothing; invalidation deactivates contribution and
+  creates no debt;
 - **withdrawal** — withdrawal records an actor's cessation of endorsement
-  of its own assertion; invalidation removes support contribution from
-  evidence;
+  of its own assertion; invalidation deactivates an evidence item's
+  contribution;
 - **deletion** — an append-only record admits no deletion.
 
 ## Currentness resolver boundary
