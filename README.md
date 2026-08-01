@@ -137,7 +137,8 @@ standing.
 
 Standing is a policy result such as `Conjectured`, `Supported`, `Settled`, or
 `Refuted`. Raw serialized status is retained for historical audit, but governed
-standing comes only from a named resolver.
+standing comes only from a named resolver. Standing is defined canonically by
+[ADR 0003](docs/adr/0003-canonical-definition-of-standing.md).
 
 | Policy | Authority added | Result and boundary |
 | --- | --- | --- |
@@ -365,6 +366,8 @@ change these boundaries only through explicit contracts and review.
   is anchored through a minimal payload.
 - [ADR 0002](docs/adr/0002-governed-claim-memory.md) - typed governed claim
   memory and raw-status quarantine.
+- [ADR 0003](docs/adr/0003-canonical-definition-of-standing.md) - the
+  canonical definition of standing.
 - [Standing ceilings](docs/design/standing-view-evidence-ceilings.md) -
   evidence domains, candidate ceilings, and future boundaries.
 - [Provenance and origin admission](docs/design/artifact-provenance-origin-admission.md) -
