@@ -329,6 +329,8 @@ change these boundaries only through explicit contracts and review.
   what must accompany a Magpie-derived response.
 - [MCP capability boundary contract](docs/design/mcp-capability-boundary-contract.md) -
   what capability discovery may and may not mean.
+- [AgentProposer boundary contract](docs/design/agent-proposer-boundary-contract.md) -
+  the semantic weight of agent proposals before governed admission.
 - [ADR 0001](docs/adr/0001-deadbolt-seam.md) - why foreign execution evidence
   is anchored through a minimal payload.
 - [ADR 0002](docs/adr/0002-governed-claim-memory.md) - typed governed claim
