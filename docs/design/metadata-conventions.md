@@ -135,12 +135,16 @@ does not change that rule.
 
 ## Edge metadata
 
-The namespaced targeting convention for `source_id` / `target_id`
-(`claim:<claim_id>`, `evidence:<evidence_id>`, `edge:<edge_id>`) and objections as
-`invalidates` / `contradicts` edges are defined in the ceilings note's
-"edge targeting and objections" section, not here. `metadata_json` on an edge MAY
-carry advisory annotation keys, but must not smuggle in a schema the codec is
-expected to parse.
+Tag 8 `source_id` and `target_id` remain opaque, frozen strings under
+`magpie-core-v1`. The namespaced reference syntax (`claim:<claim_id>`,
+`evidence:<evidence_id>`, `edge:<edge_id>`) remains advisory and grants no
+target eligibility or consequence. Under Accepted ADR-0006, an eligible
+`invalidates` edge may target evidence only; it may not target a support edge
+or any other relationship edge. The former relationship-edge invalidation
+convention was historical exploration and is retired, non-governing guidance.
+This note makes no decision about whether `contradicts` may ever target a
+relationship edge. `metadata_json` on an edge MAY carry advisory annotation
+keys, but must not smuggle in a schema the codec is expected to parse.
 
 ## Enforcement status
 

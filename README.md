@@ -304,7 +304,7 @@ Magpie is not:
 - filesystem or network ingestion;
 - contradiction debt and broader conflict policy;
 - runtime representation, eligibility policies, and resolver implementation
-  for invalidation, supersession, and currentness under the settled ADR-0006
+  for invalidation, supersession, and currentness under the Accepted ADR-0006
   boundaries;
 - broader source-standing propagation;
 - a read-only librarian or research navigator; and
@@ -375,7 +375,8 @@ change these boundaries only through explicit contracts and review.
 - [ADR 0005](docs/adr/0005-claim-withdrawal-acts.md) - withdrawal as a
   self-targeted act that never asserts falsity.
 - [ADR 0006](docs/adr/0006-claim-currency-and-currentness-semantics.md) -
-  currentness as a derived, coordinate-bound applicability facet;
+  accepted doctrine defining currentness as a derived, coordinate-bound
+  applicability facet;
   supersession as lineage without self-executing authority.
 - [Standing ceilings](docs/design/standing-view-evidence-ceilings.md) -
   evidence domains, candidate ceilings, and future boundaries.

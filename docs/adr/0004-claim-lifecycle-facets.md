@@ -1,6 +1,6 @@
 # ADR-0004: Claim Lifecycle Facets
 
-**Status:** Proposed
+**Status:** Accepted (ratified by George, 2026-08-02)
 
 ## Summary / Y-statement
 

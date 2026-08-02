@@ -1,6 +1,6 @@
 # ADR-0003: Canonical Definition of Standing
 
-**Status:** Proposed
+**Status:** Accepted (ratified by George, 2026-08-02)
 
 ## Summary / Y-statement
 

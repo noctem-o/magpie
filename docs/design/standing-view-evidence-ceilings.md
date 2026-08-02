@@ -2,9 +2,13 @@
 
 ## Status
 
-Living doctrine note, originally a proposed design note. PR #33 and
-`StandingResolution` v0 have long landed, and the explicit policies v1, v2,
-and v3 now implement achieved-standing slices on top of this ceiling law.
+Design note with implemented ceiling guidance and historical rollout context.
+Accepted ADRs govern every overlapping constitutional boundary; this note
+cannot amend or override them. In particular, Accepted ADR-0006 governs
+invalidation targets and retires the earlier relationship-edge invalidation
+exploration recorded here. PR #33 and `StandingResolution` v0 have long landed,
+and the explicit policies v1, v2, and v3 now implement achieved-standing slices
+on top of this ceiling law.
 V0 itself remains candidate-only. The Ticket 0062 standing-inert edge-lane
 contract landed through merged PR #77, and Ticket 0063 implements its runtime
 and landed through merged PR #78. Ticket 0064 separately ratifies one
@@ -532,7 +536,11 @@ This prevents future ceiling escalation by classification drift.
 
 ### invalidates
 
-- May remove or neutralize contribution from a source in a future semantics PR.
+- Under Accepted ADR-0006, an eligible `invalidates` edge may target evidence
+  only; it may not target a claim, assertion act, support edge, or any other
+  relationship edge.
+- Edge presence has no self-executing consequence. Eligibility and resolver
+  implementation remain separately governed future work.
 - Does not delete events.
 - Must preserve historical lineage.
 
@@ -544,20 +552,20 @@ This prevents future ceiling escalation by classification drift.
 
 ### edge targeting and objections
 
-`JustificationEdgeRecorded` source/target references may later target claims,
-evidence, or edges by policy. The future interpretation convention over the
-opaque string refs is namespaced:
+Tag 8 `JustificationEdgeRecorded` source and target references remain opaque,
+frozen strings under `magpie-core-v1`. The advisory namespaced syntax remains:
 
 - `claim:<claim_id>`
 - `evidence:<evidence_id>`
 - `edge:<edge_id>`
 
-This is a future interpretation convention over opaque string refs, not a format
-change; the L0 encoding of `source_id` / `target_id` stays an opaque string.
-
-Edge targeting lets an objection be represented without a new event type: an
-objection is an `invalidates` or `contradicts` edge targeting a support edge. For
-example, `edge:e2 invalidates edge:e1 because e1 has a scope mismatch`.
+These prefixes are advisory syntax, not target eligibility or authority, and
+they do not change the opaque L0 encoding of `source_id` or `target_id`.
+Accepted ADR-0006 permits an eligible `invalidates` edge to target evidence
+only. The former relationship-edge invalidation convention and example were
+historical exploration; they are retired, non-governing, and must not be
+implemented. This note makes no decision about whether `contradicts` may ever
+target a relationship edge.
 
 ## Scope rules
 

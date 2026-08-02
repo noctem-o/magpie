@@ -1,6 +1,6 @@
 # ADR-0005: Claim Withdrawal Acts
 
-**Status:** Proposed
+**Status:** Accepted (ratified by George, 2026-08-02)
 
 ## Summary / Y-statement
 

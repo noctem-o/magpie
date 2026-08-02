@@ -1,6 +1,6 @@
 # ADR-0002: A Memory Event Earns Standing via a Governed Write Path and Deterministic Projection
 
-**Status:** Proposed
+**Status:** Accepted (ratified by George, 2026-08-02)
 
 ADR-0002 amends ADR-0001. It does not supersede ADR-0001's anchored
 hierarchy: Deadbolt still seals evidence and anchors occurrence into Magpie;

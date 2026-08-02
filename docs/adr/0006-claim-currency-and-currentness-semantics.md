@@ -1,6 +1,6 @@
 # ADR-0006: Claim Currency and Currentness Semantics
 
-**Status:** Proposed
+**Status:** Accepted (ratified by George, 2026-08-02)
 
 ## Summary / Y-statement
 
@@ -202,6 +202,11 @@ assigns standing consequences to standing policy; ADR-0006 assigns
 applicability and currentness consequences to currency policy. Ratification
 has only the consequence granted by the policy consuming it and is not
 ambient authority. No broader part of ADR-0002 is superseded.
+
+As throughout this accepted ADR stack, a later ADR governs only the
+boundaries it explicitly decides; compatible earlier doctrine remains in
+force. Historical design notes and implementation plans may record ancestry
+or future work, but they do not amend or override an accepted ADR.
 
 **Target scope.** The existing tag 8 `source_id` and `target_id` fields and
 their canonical encoding are frozen. Which semantic target kinds those IDs
