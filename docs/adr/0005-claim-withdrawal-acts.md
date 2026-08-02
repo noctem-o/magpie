@@ -120,7 +120,10 @@ Withdrawal is not:
 - **historical correction** — the prior act remains inspectable and
   unchanged;
 - **an automatic standing change** — standing remains a resolver output;
-- **an automatic currentness change** — currency semantics are deferred;
+- **an automatic currentness change** — ADR-0006 governs currentness; a
+  withdrawal act changes no currency result by itself, and any effect
+  remains the exact-target-local output of an explicitly selected currency
+  policy;
 - **evidence removal** — the withdrawn act remains in history and in
   projections until a policy says otherwise;
 - **authority over other actors' acts** — self-targeting only;
@@ -132,8 +135,9 @@ Withdrawal is not:
   edge, target-identity scheme, reason fields, actor-class constraints).
 - Standing and fold interpretation of withdrawn assertions (future policy
   ADR).
-- Currentness interaction (deferred contradiction-and-currency lifecycle
-  ADR).
+- Concrete currency-policy treatment, resolver algorithm, representation,
+  canonical encoding, runtime output surface, and tests and vectors for
+  withdrawal under ADR-0006's exact-target-local boundary.
 - Delegation and organisational withdrawal (identity / governance
   doctrine).
 
@@ -143,6 +147,8 @@ Withdrawal is not:
 - ADR-0003 — the canonical definition of standing;
 - ADR-0004 — lifecycle facets; the withdrawal bound this ADR defines
   within;
+- ADR-0006 — currentness and currency semantics, including the
+  exact-target-local interpretation boundary for withdrawal;
 - `docs/FORMAT.md` §3 — the frozen payload vocabulary and its evolution
   rule;
 - `docs/design/historical-review-remediation-ledger.md` — scoped claim
