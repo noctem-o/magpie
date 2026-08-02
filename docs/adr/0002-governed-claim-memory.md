@@ -150,8 +150,7 @@ The small vocabulary is intentionally restrictive to prevent relation slop.
 
 ## Scope references
 
-Future typed claim and ratification events use `scope_ref: String` as a v1
-design rule.
+Tags 6–8 use `scope_ref: String` as a v1 design rule.
 
 - `scope_ref` is an opaque exact-match string in v1.
 - There is no inheritance, containment, lattice, ontology, wildcard, or prefix
@@ -168,16 +167,31 @@ The intended fold is semantic only in this ADR.
 - Projection uses stable ordering.
 - Standing derives from claims, typed evidence, and justification edges.
 - Invalidated evidence contributes no support.
-- Superseded claims preserve lineage but should not remain current unless
-  explicitly ratified under the new scope.
-- Contradiction creates debt and blocks `Settled` until resolved by
-  invalidation, supersession, or ratification.
+- A recorded `supersedes` edge preserves attributed lineage; predecessor
+  and successor remain in append-only history, inspectable and unchanged.
+- Edge presence has no self-executing standing or currency consequence.
+- Any contradiction-debt or other standing consequence of supersession
+  belongs to an explicitly selected standing policy under ADR-0003
+  standing coordinates.
+- Any applicability or currentness consequence of supersession belongs to
+  an explicitly selected currency policy under ADR-0006 coordinates.
+- Ratification has only the consequence granted by the explicitly selected
+  policy that consumes it; it is not ambient authority.
+- Contradiction creates debt and blocks `Settled` until the explicitly
+  selected standing policy determines that eligible invalidation,
+  supersession, or ratification resolves it.
 - Cyclic justification must not self-support.
 - Acyclic, well-founded support is required.
 - A single low-ceiling evidence kind cannot promote a claim beyond its
   ceiling.
 - Multiple independent evidence records may promote standing only under
   explicit fold rules; ADR-0002 does not invent probabilistic fusion.
+
+ADR-0006 supersedes only this ADR's former `StandingView` sentence that
+superseded claims "should not remain current unless explicitly ratified under
+the new scope." That sentence conflated standing and currentness; the facet
+ownership above replaces it. ADR-0006 does not otherwise supersede ADR-0002,
+and the v1 exact-match scope rules remain unchanged.
 
 `StandingView` is a small deterministic fold. It is not a Dung, JTMS, ATMS, AGM,
 or probability engine.
@@ -190,29 +204,30 @@ Existing tags 0-5 remain unchanged.
   asserted initial status, not current truth.
 - `EvidenceRecorded`: legacy untyped evidence note. It may weakly support the
   target claim, with a ceiling no higher than `Supported` unless re-registered
-  by a future typed evidence event.
+  by a governed typed `EvidenceRegistered` event.
 - `ClaimStatusChanged`: legacy/manual standing judgment. New ordinary writers
   should not emit it. It remains for compatibility only and is a known
   pre-`EpistemicGate` gap: new governed paths must not use it as a way for
   humans or agents to settle truth by decree.
 - `Note`: ignored by `StandingView` unless a future ADR says otherwise.
 - `SegmentAnchored`: execution evidence anchor, not itself a claim. It may be
-  cited by future typed evidence or justification events. It is occurrence
+  cited by typed evidence or justification events. It is occurrence
   evidence, not interpretation truth.
 
-## Provisional future event tags
+## Frozen tags 6–8
 
-ADR-0002 proposes these additive tags for a later implementation:
+ADR-0002 introduced these additive tags:
 
 - tag 6: `ClaimAssertedV2`
 - tag 7: `EvidenceRegistered`
 - tag 8: `JustificationEdgeRecorded`
 
-These tags are proposed by ADR-0002 but not added by this change. Adding them
-later requires updating `docs/FORMAT.md`, canonical encoding, golden vectors,
-verifier support, and explicit projection match arms. Existing tag encodings
-0-5 must remain unchanged. Golden events 0-5 must remain unchanged. No wildcard
-match arms should be introduced in projections.
+They are implemented, and `docs/FORMAT.md` freezes their exact fields and
+canonical encodings under `magpie-core-v1`. Existing fields and bytes are not
+provisional and must not be reinterpreted. Any future representation change
+must be additive under FORMAT's evolution rules, preserve every existing tag
+encoding and golden record, and use explicit projection match arms rather than
+wildcards.
 
 ## Confirmation / enforcement tests
 
@@ -243,7 +258,8 @@ Negative / deferred:
 
 - v1 uses coarse evidence ceilings.
 - `scope_ref` is opaque and exact-match only.
-- Typed claim/evidence/edge events still require a future format addition.
+- Any additional typed claim, evidence, or edge representation requires
+  additive format evolution; tags 6–8 remain frozen.
 - No full belief-revision or argumentation machinery exists yet.
 
 ## Rejected alternatives
@@ -264,20 +280,20 @@ Negative / deferred:
 1. Land this docs-only ADR package.
 2. Implement a `StandingView` skeleton over existing v0 events only.
 3. Add the ADR-0002 enforcement tests against the v0-compatible `StandingView`.
-4. Only then implement additive tags 6-8:
+4. Implement additive tags 6–8 (completed):
 
    - `ClaimAssertedV2`
    - `EvidenceRegistered`
    - `JustificationEdgeRecorded`
 
-5. When tags 6-8 are implemented, update `docs/FORMAT.md`, canonical encoding,
-   golden vectors, independent verifier support, and explicit projection match
-   arms in the same reviewed code PR.
+5. Freeze tags 6–8 in `docs/FORMAT.md`, canonical encoding, golden vectors,
+   independent verifier support, and explicit projection match arms in the
+   same reviewed code PR (completed).
 6. Add `EpistemicGate` / governed write admission.
 7. Only then expose governed write surfaces.
 
-The fold and its tests come before the new write vocabulary because ADR-0002's
-own rule is that standing must be earned before it is trusted.
+The fold and its tests preceded tags 6–8 because ADR-0002's own rule is that
+standing must be earned before it is trusted.
 
 If implementing this requires editing Rust, canonical encoding, golden vectors,
 verifier code, or Deadbolt during this docs-only package, stop and report why

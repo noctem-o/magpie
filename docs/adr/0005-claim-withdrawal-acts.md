@@ -35,8 +35,8 @@ Two canonical invariants:
 
 > **Withdrawal is an act; standing remains a resolver output.**
 
-And the target rule: withdrawal targets an attributed assertion act, never
-a claim object.
+And the target rule: every valid withdrawal deterministically identifies
+exactly one prior attributed assertion act, never a claim object.
 
 This ADR admits no vocabulary. If a new event, tag, or edge representation
 is required to express withdrawal, that representation is a decision of
@@ -64,8 +64,9 @@ withdrawal joins it; it does not erase anything.
 
 ## Target semantics
 
-The target of a withdrawal is the withdrawing actor's own prior assertion
-act.
+The target of a withdrawal is exactly one of the withdrawing actor's own prior
+assertion acts under whatever future identity and authority doctrine is
+ratified.
 
 Claims are shared proposition identities — scoped, first-write-retained
 records that multiple actors may assert alike. Assertions are actor
@@ -74,9 +75,14 @@ a shared object; withdrawing an assertion preserves multiplicity and
 provenance: actor A's withdrawal of A's assertion says nothing about actor
 B's assertion of the same proposition.
 
-How a withdrawal references its target (event-level identity versus
-claim-level naming) is representation — decided through the freeze ritual
-above, not silently chosen.
+A valid target reference must be immutable and replayable, and injective over
+the eligible assertion acts within the governed target domain. Claim-level
+naming alone is insufficient whenever multiple eligible assertion acts can
+share that claim identity. Concrete encoding remains deferred: a future
+representation may use event identity or another immutable, replayable
+coordinate that satisfies the one-act rule. No resolver may choose "latest",
+choose by timestamp, affect all matching acts, or infer a target from ambient
+state.
 
 ## Attribution rules
 
@@ -131,8 +137,9 @@ Withdrawal is not:
 
 ## Deferred decisions
 
-- Vocabulary representation of the withdrawal act (freeze ritual: tag or
-  edge, target-identity scheme, reason fields, actor-class constraints).
+- Additive vocabulary representation of the withdrawal act (freeze ritual:
+  tag or edge, the immutable one-act target coordinate required above, reason
+  fields, actor-class constraints).
 - Standing and fold interpretation of withdrawn assertions (future policy
   ADR).
 - Concrete currency-policy treatment, resolver algorithm, representation,

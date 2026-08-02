@@ -15,8 +15,8 @@ computes which recorded material is applicable — never writing
 currentness back into the record — to achieve currency answers that are
 replayable, policy-auditable, and able to disagree legitimately,
 accepting that "current" has no global answer, that multiple resolvers
-and policies may coexist over the same record, and that every
-representation question waits for the vocabulary freeze ritual.
+and policies may coexist over the same record, and that any additional
+representation must follow FORMAT's additive evolution rules.
 
 ## Context and problem statement
 
@@ -31,18 +31,16 @@ ADR-0005 settled withdrawal: an attributed act targeting the actor's own
 assertion act, asserting no falsity, determining neither standing nor
 currentness by itself.
 
-What remains unsettled is the currency facet itself. The frozen edge
-vocabulary of FORMAT §3 already contains `supersedes` and `invalidates`.
-ADR-0002 settled one invalidation rule — invalidated evidence contributes
-no support — and the contradiction rule: contradiction creates debt and
-blocks settlement until resolved by invalidation, supersession, or
-ratification. The rest has no ratified semantics: what `supersedes`
-asserts, whether `invalidates` reaches beyond evidence, and what
-"current" means when a resolver evaluates recorded material. Working
-sketches exist in the tags 6–8 implementation plan ("supersedes preserves
-lineage and makes old material non-current under the same exact scope";
-"invalidates removes support contribution on replay"), but sketches are
-not doctrine.
+Before this ADR, the currency facet itself remained unsettled. FORMAT §3
+already froze tags 6–8 and their exact field encodings under
+`magpie-core-v1`, including the `supersedes` and `invalidates` edge
+vocabulary. ADR-0002 settled one invalidation rule — invalidated evidence
+contributes no support — and the contradiction rule: contradiction creates
+debt and blocks settlement until the explicitly selected standing policy
+determines that eligible invalidation, supersession, or ratification resolves
+it. Historical implementation-plan statements about how those edges might be
+interpreted were semantic sketches, not doctrine and never mutable
+representations of the frozen tags.
 
 Without a boundary, "current" is where hidden authority enters. A reader
 who treats the latest recorded assertion as current has installed a
@@ -158,6 +156,10 @@ withdrawal is confined to the exact assertion act that withdrawal
 targets (ADR-0005): it may not alter the applicability of another
 actor's assertion, another assertion act by the same actor, or the
 shared claim identity merely because they express the same proposition.
+Under ADR-0005, any valid withdrawal must identify exactly one prior assertion
+act through an immutable, replayable target coordinate. A currency resolver
+may not disambiguate a claim-level reference by choosing "latest", consulting
+timestamps or ambient state, or affecting all matching assertion acts.
 A broader delegated or organisational effect requires future identity
 and governance doctrine and an explicit amendment.
 
@@ -193,16 +195,19 @@ independently determine the relationship's applicability consequence.
 Each consequence is pinned through the coordinates of the resolver that
 produces it; neither projection consumes the other.
 
-ADR-0002's standing fold rule — "superseded claims preserve lineage but
-should not remain current unless explicitly ratified under the new
-scope" — is standing doctrine, unamended here. It does not bind currency
-policy: currentness is a separate facet from standing (ADR-0003), and a
-currency policy's treatment of superseded material is decided by that
-policy, not by the standing fold.
+ADR-0006 supersedes only ADR-0002's former `StandingView` wording that
+superseded claims "should not remain current unless explicitly ratified under
+the new scope." That wording conflated standing and currentness. ADR-0002 now
+assigns standing consequences to standing policy; ADR-0006 assigns
+applicability and currentness consequences to currency policy. Ratification
+has only the consequence granted by the policy consuming it and is not
+ambient authority. No broader part of ADR-0002 is superseded.
 
-**Target scope.** The edge relates recorded material. What it may
-reference, and how, is a representation question deferred to the
-vocabulary freeze ritual; this ADR defines doctrine, not payloads.
+**Target scope.** The existing tag 8 `source_id` and `target_id` fields and
+their canonical encoding are frozen. Which semantic target kinds those IDs
+may denote remains deferred. If a future target representation cannot be
+expressed without reinterpreting existing fields, it must be additive under
+FORMAT's evolution rules. This ADR defines doctrine, not a new payload.
 
 **Scope equality.** Under the v1 exact-match scope model, a supersession
 relationship may affect currency only when the supersession edge,
@@ -277,7 +282,8 @@ case for assertions is already covered by withdrawal (ADR-0005). Removing
 the contribution of a claim, assertion, or edge is a stronger power whose
 authority rules are undeveloped, and conservative doctrine admits no
 scope that existing acts cannot yet justify. Any extension requires a
-future ADR and the vocabulary freeze ritual.
+future ADR and, where representation is needed, additive evolution under
+FORMAT.
 
 Invalidation remains distinct from:
 
@@ -401,12 +407,12 @@ Invalidation is not:
 
 ## Deferred decisions
 
-- Payload representation for `supersedes` and `invalidates` semantics —
-  target kinds, any additional fields — through the vocabulary freeze
-  ritual.
-- Vocabulary freeze items: representation-level ratification of the
-  tags 6–8 sketches; any future invalidation target extension; currency
-  facet naming.
+- Existing tags 6–8 and their exact field encodings are frozen under
+  `magpie-core-v1`; existing fields and bytes are not mutable sketches and
+  must not be reinterpreted.
+- Any future representation required for unique withdrawal targets,
+  supersession or invalidation targets, or currency output must be additive
+  and follow FORMAT's evolution rules.
 - The invalidation-eligibility rule — the target, scope, and
   actor-authority conditions under which a recorded `invalidates` edge's
   consequence activates — together with the identity and authority
@@ -432,5 +438,6 @@ Invalidation is not:
   rule;
 - `docs/design/historical-review-remediation-ledger.md` — the historical
   remediation ledger;
-- `docs/design/adr-0002-tags-6-8-implementation-plan.md` — the tags 6–8
-  exploration sketches for `supersedes` and `invalidates`.
+- `docs/design/adr-0002-tags-6-8-implementation-plan.md` — historical
+  semantic exploration for `supersedes` and `invalidates`; it does not
+  reopen the frozen tag encodings.
