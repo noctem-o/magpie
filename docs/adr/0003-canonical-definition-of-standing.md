@@ -1,6 +1,6 @@
 # ADR-0003: Canonical Definition of Standing
 
-**Status:** Proposed
+**Status:** Accepted (ratified by George, 2026-08-02)
 
 ## Summary / Y-statement
 
@@ -70,14 +70,18 @@ Standing is not:
   agents propose but cannot settle;
 - **endorsement** — a standing result reports a policy conclusion; it
   approves nothing;
-- **currentness** — "current" is not a standing property; currentness is
-  separate, deferred doctrine.
+- **currentness** — "current" is not a standing property; currentness is a
+  separate derived facet governed by ADR-0006 and is never inferred from
+  standing.
 
 ## Relationship to existing documents
 
 - ADR-0001 and ADR-0002 govern their domains unchanged; this ADR depends
   on them and amends neither. ADR-0002 decides how memory earns standing;
   this ADR defines what standing is.
+- ADR-0006 governs currentness and currency semantics as a separate
+  resolver-derived facet; it does not amend the definition of standing
+  established here.
 - The README gains a pointer to this ADR in its governed-standing section;
   its existing wording remains true and stays.
 - Ratified contracts and exploration documents are not retrofitted. Their
