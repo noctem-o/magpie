@@ -140,10 +140,26 @@ An authority binding is not any of the following by itself:
 The selected architecture is a **separate authority-binding object** that
 references the immutable identity of the exact origin-binding statement and
 authenticates the complete assignment subject defined below. It is carried as
-foreign material selected by an existing `SegmentAnchored` occurrence in `H`,
-resolved from `M`, and verified under the explicit authority coordinate `A`.
-`SegmentAnchored` establishes occurrence and inclusion only; the separate
-authority verifier establishes authentication and authorization.
+foreign material whose exact selector is independently designated under `A`,
+whose required `SegmentAnchored` occurrence is established in `H`, whose bytes
+are resolved from `M`, and whose authority decision is verified under the
+explicit authority coordinate `A`. `SegmentAnchored` establishes occurrence
+and inclusion only; it neither designates the object nor authenticates or
+authorizes its assignment.
+
+```text
+designation under A
++ required exact occurrence in H
+-> candidate-universe membership
+
+designation under A
++ no required occurrence in H
+-> no candidate-universe membership
+
+occurrence in H
++ no designation under A
+-> no candidate-universe membership
+```
 
 | Alternative | Decision | Reason |
 | --- | --- | --- |
@@ -266,6 +282,293 @@ detection.
 
 ## Verification and replay coordinates
 
+### Authenticated candidate designation
+
+An authority-looking anchor occurrence is not a completeness-blocking authority
+candidate:
+
+```text
+authority-looking anchor occurrence
+!= completeness-blocking authority candidate
+```
+
+Candidate-designation authority and origin-group assignment authority are
+separate roles. Authentication identifies a credential under the selected
+coordinates; it does not by itself authorize either role:
+
+```text
+authentication
+!= authorization
+
+authenticated grouping authority
+!= candidate-designation authority
+
+authenticated identity
++ grouping-assignment authorization
+-> may issue only the exact grouping assignments permitted by that scope
+
+authenticated identity
++ candidate-designation authorization
+-> may issue only the exact candidate designations permitted by that scope
+
+grouping-assignment authorization
+!= candidate-designation authorization
+
+grouping-assignment authorization
++ no candidate-designation authorization
+-> cannot establish candidate completeness
+```
+
+A credential may hold both roles only when the selected profile under `A`
+explicitly and independently authorizes both exact scopes. Shared identity or
+key material does not collapse the scopes. An authenticated grouping authority
+cannot create completeness-blocking candidates merely by:
+
+- signing a designation set;
+- referencing an authority object;
+- using the same key that signs grouping assignments;
+- embedding a designation claim inside an origin-binding or authority object;
+- appearing in a trusted grouping-assignment profile; or
+- being named by `authority.kind` or `authority.reference`.
+
+Only a candidate-designation authorization path selected under `A` grants that
+role. Neither the claimant nor an authority or designation object may designate
+itself as completeness-blocking.
+
+Define the semantic designation subject as:
+
+```text
+AuthorityCandidateDesignation = (
+  exact_authority_object_selector_or_identity,
+  exact_origin_binding_identity,
+  exact_GovernedAssignmentKey
+)
+```
+
+The designation binds enough information before authority-object bytes are
+loaded to identify exactly which `GovernedAssignmentKey` may become incomplete.
+It establishes only:
+
+```text
+this exact selector must be considered when proving the exact governed
+assignment conflict domain complete under the selected coordinates
+```
+
+It does not authorize an origin group. The designated authority object must
+still pass the complete authority-binding verification law before it can supply
+an assignment:
+
+```text
+candidate designation
+!= authority decision
+
+candidate designation
+!= group authorization
+
+candidate designation
+!= support
+
+candidate designation
+!= standing
+```
+
+Exactly two modes may make the complete candidate-designation set authoritative.
+
+#### Mode 1: direct external commitment
+
+```text
+external selection of A
+directly fixes the exact immutable candidate-designation-set identity
+-> that exact set is authoritative for candidate completeness
+```
+
+Authority in this mode comes from external selection of the complete `A`
+coordinate. The set identity must commit to one complete finite set. No object
+inside the set selects or authenticates itself, and no mutable alias, current
+set, or object-carried label can select or replace that identity.
+
+#### Mode 2: authenticated designation issuer
+
+```text
+A selects exact profile, root, and verification-material coordinates
++ the selected profile authenticates an issuer
++ the verified authorization path grants that issuer exact
+  candidate-designation authority
++ the verified set identity matches the set identity selected by A
+-> the set is authoritative for candidate completeness
+```
+
+Successful issuer authentication is insufficient by itself. The selected
+profile must verify authorization for the exact candidate-designation role and
+scope. That scope must cover issuance of each exact
+`AuthorityCandidateDesignation` entry and cannot authorize an origin group,
+issue a grouping assignment, alter `P` or `A`, add an unrelated governed key,
+designate an object outside its verified scope, or grant generic admission,
+writer, standing, or truth authority.
+
+When this mode is used, the verified designation result must retain for audit:
+
+- the exact authenticated candidate-designation-authority identity;
+- the exact verified authorization-scope identity;
+- the exact authorization-path or equivalent immutable verification identity;
+- the exact candidate-designation-set identity; and
+- the complete producing `H + P + M + A` coordinates.
+
+These deterministically derived identities do not add a fifth top-level replay
+coordinate when the material from which they are derived is fully committed by
+the selected `A`. A correctly signed set whose issuer lacks the exact
+candidate-designation authorization is not authoritative:
+
+```text
+authenticated issuer
++ no exact candidate-designation authorization
+-> designation-universe verification failure
+-> no authority-bound decisions
+```
+
+Because `A` selected this set as the candidate-universe authority, that failure
+is not non-designated incidental material; it prevents establishment of the
+candidate universe.
+
+The exact future representation may use a manifest, authenticated index,
+foreign bundle, or equivalent finite structure. This ADR does not choose that
+wire mechanism. Whatever representation is selected, candidate-designation
+authority cannot originate from:
+
+- a `SegmentAnchored` occurrence alone;
+- bundle-kind or profile resemblance;
+- authority-object or origin-binding fields;
+- claimant references;
+- caller-supplied candidate lists, caller-selected subsets, or available-only
+  enumeration;
+- successful parsing, signature count, or reviewer count;
+- event order, timestamps, lexical order, or arrival order;
+- mutable registries, ambient keyrings, directory or filesystem discovery, or
+  network lookup; or
+- a current, latest, default, or compatible designation state.
+
+The complete candidate universe is:
+
+```text
+DesignatedAuthorityCandidateUniverse(H, P, A)
+=
+every exact authority-object selector that:
+
+1. is present in the complete immutable designation set selected by A;
+2. is designated for an exact origin-binding identity and
+   GovernedAssignmentKey under P and A; and
+3. has the required exact occurrence in H.
+```
+
+Membership is fixed before availability or object verification is evaluated.
+It is independent of candidate-byte availability, a candidate's claimed group,
+signer or reviewer identity, signature count, parse success, event order,
+caller preference, and whether another candidate already produced a favourable
+decision. Every designated candidate occurring in `H` enters the exact per-key
+universe. No caller-supplied subset is permitted.
+
+A designation is not evidence that its authority object occurred in Magpie
+history:
+
+```text
+designation
+!= occurrence
+
+designation under A
++ required exact occurrence in H
+-> candidate membership
+
+designation under A
++ no required occurrence in H
+-> designation remains audit-visible
+-> not a candidate at snapshot H
+-> no assignment incompleteness
+-> no authority-bound assignment
+
+occurrence in H
++ no designation under A
+-> no candidate membership
+```
+
+Designation without the required occurrence must not be treated as missing
+candidate bytes, make its governed key incomplete, block an unrelated valid
+decision, create conflict, become negative evidence, lower inherited standing,
+or trigger an ambient object lookup. A later verified prefix containing the
+required occurrence has a different `H` and may therefore produce a different
+candidate universe under the same other coordinates.
+
+```text
+available candidates
+!= complete candidate universe
+
+authority-looking anchors
+!= designated candidate universe
+
+caller-selected subset
+!= complete candidate universe
+```
+
+Candidate-byte incompleteness is assignment-scoped because the designation
+exposes the exact governed key without loading those bytes:
+
+```text
+designated candidate for key K
++ required occurrence in H
++ candidate bytes unavailable
+-> authority evaluation for K is incomplete
+-> no partial positive authority-bound result for K
+
+missing designated candidate for K1
+!= incompleteness authority over unrelated K2
+```
+
+An unrelated key may resolve only when its own complete designated candidate
+universe is available, verified, and conflict-free.
+
+The designation universe itself is a resolver-level prerequisite. If the
+selected designation set is unavailable, its immutable identity does not match
+`A`, its required authentication or exact candidate-designation role and scope
+authorization under the selected profile and root fails, it is malformed or
+internally ambiguous, or one authority selector is designated for incompatible
+origin-binding identities or governed keys, the resolver cannot establish the
+candidate universe:
+
+```text
+designation universe unavailable or invalid
+-> authority-bound audit cannot establish completeness
+-> no authority-bound decisions are emitted
+```
+
+No future serialized variant name is selected here. The set's exact bytes may
+be carried by `M`, by the immutable verification-material closure committed in
+`A`, by an anchored foreign object, or by another finite immutable
+representation selected by the implementation contract. Its exact identity is
+always part of `A`; it is never selected from an evaluated object; and replay
+performs no ambient lookup. The same `H + P + M + A` therefore observes the
+same complete designation set.
+
+A non-designated authority-looking occurrence remains audit-visible but cannot
+block completeness:
+
+```text
+authority-looking anchor in H
++ no exact designation under selected A
+-> visible non-designated material
+-> not completeness-blocking
+-> no authority-bound assignment
+-> no veto over a separately valid designated candidate
+```
+
+Non-designated material cannot create conflict, amplify standing, lower
+inherited standing, or become negative evidence. Byte-identical or semantically
+identical designations collapse structurally and create neither another
+candidate nor authority weight. The same exact authority-object selector
+designated for incompatible origin-binding identities or
+`GovernedAssignmentKey` values makes the designation universe invalid. No
+sequence, timestamp, signature count, reviewer count, lexical order, or arrival
+order selects a winner. A designation conflict is a failure to establish an
+unambiguous candidate universe, not an origin-group conflict.
+
 The authority-bearing resolver has four explicit deterministic inputs:
 
 ```text
@@ -287,15 +590,26 @@ read authority objects from an ambient source.
 A = (
   authority_verification_profile_identity,
   authority_trust_root_identity,
-  authority_verification_material_closure_identity
+  authority_verification_material_closure_identity,
+  authority_candidate_designation_set_identity
 )
 ```
 
-The last component commits to any finite root, intermediate, authorization, or
-equivalent verification material required by the selected profile and not
-already committed by `M`. The root identity must commit to immutable material,
-not resolve a mutable alias. Repeating a profile or root label inside an
-authority object is only a consistency assertion and cannot select `A`.
+The verification-material component commits to any finite root, intermediate,
+authorization, or equivalent verification material required by the selected
+profile and not already committed by `M`. The candidate-designation-set
+identity is externally selected as part of `A`, commits to one finite immutable
+complete designation set, and is not a mutable alias. The root identity must
+commit to immutable material, not resolve a mutable alias. Repeating a profile,
+root, or designation-set label inside an authority object is only a consistency
+assertion and cannot select `A`.
+
+In authenticated-issuer mode, the verification-material closure or equivalent
+immutable material committed under `A` must contain everything needed to verify
+the designation issuer identity, its immutable authorization path, its exact
+candidate-designation authorization scope, and the designation-set
+authentication. No issuer, set, or ambient resolver state may supply an
+uncommitted authorization input.
 
 The replay law is:
 
@@ -315,12 +629,21 @@ contribution results, aggregation inputs, and standing inputs. Each must carry:
 - `P`: the selected authority-bound origin-admission policy identity;
 - `M`: the immutable resolution-content closure identity; and
 - `A`: the complete authority-verification coordinate identity, including the
-  authority verification profile identity, immutable trust-root identity, and
-  authority verification-material closure identity.
+  authority verification profile identity, immutable trust-root identity,
+  authority verification-material closure identity, and exact immutable
+  authority-candidate-designation-set identity.
 
 A complete typed coordinate object may represent `H`, `P`, `M`, and `A`
 together. No component may be omitted. This ADR does not choose that object's
 wire schema or Rust type.
+
+In authenticated-issuer mode, the audit trace must additionally retain the
+derived designation-authority, authorization-scope, authorization-path, and set
+identities required above. Two results using equal designation-set bytes but
+different verified designation-authority scopes or authorization material are
+different authority-bound results; those differences must be committed by a
+different `A`. Identical `A` coordinates commit identical material and derive
+the same trace under the replay law.
 
 A result's assignment content is not its replay identity:
 
@@ -332,8 +655,9 @@ equal assignment content
 Two outputs containing the same contribution, namespace, and origin group are
 distinct authority-bound results when produced under different verified
 prefixes, authority-bound policies, content closures, authority profiles,
-trust roots, or verification-material closures. The group assignment alone is
-never sufficient provenance for an authority-bearing result.
+trust roots, verification-material closures, or candidate-designation-set
+identities. The group assignment alone is never sufficient provenance for an
+authority-bearing result.
 
 Before composition, every downstream authority-bearing consumer must exact-match
 the producer's `H + P + M + A` identities against the expected producing
@@ -379,14 +703,18 @@ lookup, or "latest authority" selection may affect replay.
 
 The minimum verification sequence is:
 
-1. derive the complete candidate universe from `H` under `P`;
-2. resolve exact foreign bytes only from `M` and the immutable material
+1. establish the exact complete candidate-designation set selected by `A`
+   through a supported mode, including exact issuer-role and scope verification
+   in authenticated-issuer mode;
+2. derive the complete per-key candidate universe from that set and exact
+   occurrences in `H`;
+3. resolve designated candidate bytes only from `M` and immutable material
    committed by `A`;
-3. verify the current origin-binding statement as a claimant assertion;
-4. verify the separate authority object under externally selected `A`;
-5. require exact equality for every `AuthorityBindingSubject` coordinate; and
-6. expose an authority-bound admitted-origin result only after all prior steps
-   complete.
+4. verify origin-binding statements as claimant assertions;
+5. verify authority objects under externally selected `A`;
+6. require exact equality for every `AuthorityBindingSubject` coordinate;
+7. fold all complete valid decisions for each `GovernedAssignmentKey`; and
+8. emit no positive result for an incomplete or conflicting key.
 
 Transport signatures, Magpie log signatures, foreign witness roots, and the
 authority authentication may all be useful at different layers. Their counts
@@ -397,7 +725,8 @@ must not be combined into authority or origin multiplicity.
 `A` pins authority interpretation to one snapshot. A mutable "current authority
 key" must not alter a prior result. Root or profile rotation creates a new,
 explicitly versioned authority coordinate; it is a different evaluation, not an
-update to the old one.
+update to the old one. Changing the candidate-designation-set identity likewise
+creates a new `A` and a different evaluation.
 
 Later revocation, supersession, or changed organisational membership cannot
 rewrite `same H + same P + same M + same A`. A future policy may evaluate a
@@ -435,8 +764,16 @@ variants are deferred; their meaning is not.
 | Condition | Audit result | Authority-bound result |
 | --- | --- | --- |
 | No authority object is designated for a claimant origin binding | Visible absence; the claimant assertion may remain in compatibility audit output | No authority-bound admitted origin |
-| An authority-object candidate is present in `H`, but its bytes are missing from `M` | Authority-bound candidate universe is incomplete; no partial authority-bound decisions are emitted | None |
-| A required authority object or verification-material object is unavailable | Authority-bound audit is incomplete; no network or ambient fallback is attempted | None |
+| Authority-looking anchor in `H` with no exact designation under selected `A` | Visible non-designated material; no incompleteness and no conflict | None; it cannot veto a separately valid designated candidate |
+| Exact selector is designated under selected `A`, but its required occurrence is absent from `H` | Designation visible; selector is not a candidate at this snapshot; no incompleteness | None |
+| Designated authority selector for key `K` occurs in `H`, but its bytes are unavailable | The exact `GovernedAssignmentKey` `K` is incomplete; unrelated complete keys may still resolve | None for `K`; no partial positive result or group winner for `K` |
+| Selected candidate-designation set is unavailable | The complete authority candidate universe cannot be established; resolver-level audit incompleteness | No authority-bound decisions |
+| Candidate-designation-set identity differs from selected `A` | Visible wrong-coordinate material; the selected universe is not established | No authority-bound decisions under selected `A` |
+| Required designation-set verification under the selected mode fails, or the set is malformed or internally ambiguous | Resolver-level designation-universe failure | No authority-bound decisions |
+| Candidate-designation set is authenticated to an identity that lacks exact designation authorization | Designation-universe verification failure | No authority-bound decisions |
+| Duplicate byte-identical or semantically identical designations | All occurrences may remain visible; the designation collapses structurally | One candidate designation, no additional authority weight |
+| One authority selector is designated for incompatible origin-binding identities or governed keys | Designation universe is invalid; no sequence, timestamp, count, or lexical winner | No authority-bound decisions |
+| A required verification-material object committed by selected `A` is unavailable | Resolver-level authority verification is incomplete; no network or ambient fallback is attempted | No authority-bound decisions |
 | Malformed authority object | Definitively rejected and retained in audit | That object supplies no decision |
 | Unsupported authority profile | Resolver/profile failure under selected `A` | No authority-bound decisions |
 | Unknown or non-immutable trust root | Resolver/root failure under selected `A` | No authority-bound decisions |
@@ -451,13 +788,26 @@ variants are deferred; their meaning is not.
 | Valid decision under another root or profile | Visible but ineligible under selected `A`; it cannot select a new `A` | None under selected `A` |
 | Claimant-only v0 admitted origin | Visible as compatibility output only | Not authority-bound |
 
-Definitively invalid, mismatched, or wrong-coordinate objects cannot veto a
-separate complete valid decision for its exact subject. Unavailable eligible
-candidate bytes make the authority-bound audit incomplete because a verifier
-cannot prove the candidate universe conflict-free. Incompleteness or rejection
-may prevent positive amplification; it must not lower inherited standing,
-create refutation, become a veto, choose a write-order winner, or trigger an
-ambient fallback.
+Definitively invalid, mismatched, wrong-coordinate, or non-designated objects
+cannot veto a separate complete valid decision for its exact subject. Missing
+bytes for a designated candidate make only its exact `GovernedAssignmentKey`
+incomplete because the resolver cannot prove that key's candidate universe
+conflict-free. No available subset is folded for that key. A missing candidate
+for one key has no incompleteness authority over an unrelated key whose own
+complete designated universe is available, verified, and conflict-free.
+
+Failure to establish the selected designation universe is different: an
+unavailable, wrong-identity, malformed, or ambiguous designation set, or failed
+required authentication or authorization, prevents the resolver from
+identifying any complete candidate universe, so the authority-bound audit emits
+no authority-bound decisions.
+Authentication of a designation-set issuer does not cure missing exact role or
+scope authorization. Grouping-assignment authority does not satisfy
+candidate-designation authorization, even when both would use the same
+authenticated identity or key.
+Neither assignment-scoped nor resolver-level incompleteness is refutation,
+negative evidence, invalidation, or a lowering of inherited standing. It
+selects no write-order winner and triggers no ambient fallback.
 
 Multiple identical authority bindings do not amplify. Multiple valid
 conflicting assignments have no sequence, timestamp, reviewer-count,
@@ -518,6 +868,12 @@ If this ADR is accepted:
 - Those outputs are not reinterpreted as independently authority-bound. A v3
   distinct-group count remains evidence of what current v3 counted, not proof
   of authenticated corroboration separation.
+- Current v0 derives candidates through shape matching over anchor kind,
+  algorithm, and profile. It has no externally authenticated candidate
+  designation, no candidate-designation-set identity in `A`, and no
+  assignment-scoped designation law. That candidate-completeness behavior
+  remains compatibility-only and cannot satisfy, be coerced into, or be wrapped
+  by convention as the authority-bound successor contract.
 - A new authority-bearing origin-admission policy must have a distinct explicit
   policy identity and a result type that cannot accept, coerce, deserialize, or
   alias a claimant-only v0 admitted origin.
@@ -553,12 +909,20 @@ public policy and type boundary must be additive and unambiguous.
 | 5. Two identical authority decisions are present | Both occurrences are visible and collapse | One assignment | At most one group membership for that assignment | No duplicate amplification | Occurrence, signature, and reviewer counts are not origins |
 | 6. Two valid authority decisions assign conflicting groups to the same key | Terminal conflict is visible with both groups | None for that key | Zero for that key | No amplification and no winner | Sequence, timestamp, lexical order, and counts are non-authoritative |
 | 7. A decision is valid under the wrong authority root or profile | Visible as wrong-coordinate material | None under selected `A` | Zero under selected `A` | No amplification | Objects cannot change the externally selected profile or root |
-| 8. An authority object is unavailable | Candidate and missing bytes are visible; audit is incomplete | None; no partial results | Zero | No partial positive amplification | Complete conflict-free authority verification is unavailable |
+| 8. A required authority-verification-material object committed by selected `A` is unavailable | The exact missing material and inability to evaluate selected `A` completely are visible; resolver-level verification is incomplete | No authority-bound decisions | Zero | No positive amplification; inherited standing is unchanged | No network, ambient keyring, mutable registry, or fallback source is used; incompleteness is not refutation or negative evidence |
 | 9. A current v0 admitted group is offered to a future authority-bearing policy | Compatibility input and type/policy rejection are visible | None | Zero | No amplification | Additive policy and type gates forbid claimant-only input |
 | 10. Two signatures or reviewers are treated as two origins | Signatures/reviewers remain visible; identical decisions collapse | One exact assignment if otherwise valid | At most one group membership | No count amplification | Signer multiplicity is not origin multiplicity |
 | 11. One authenticated authority assigns two exact contributions to two groups | Two exact verified decisions are visible | Both assignments admitted | Two authority-bound groups within the same exact comparison namespace | May satisfy a later explicit threshold; never settles by itself | The policy authorizes each exact assignment; this is corroboration separation, not proof of independence |
 | 12. Authority rotation occurs after an earlier snapshot | Earlier result retains its pinned `A`; later material is outside that snapshot | Same result for the earlier coordinates | Same as the earlier replay | Byte-identical earlier standing input/result | A mutable current key cannot rewrite an earlier snapshot; a new root/profile creates new coordinates |
-| 13. An authority-bound admitted-origin result produced under one `H + P + M + A` set is presented to a support or standing consumer selecting a different prefix, policy, closure, authority profile, trust root, or verification-material closure | Producer and consumer coordinates remain visible, including the exact mismatch | Producer result remains scoped to its own coordinates; downstream composition is rejected | Zero through the mismatched input | No positive amplification; inherited standing is not lowered | Equal assignment content is not coordinate equality, and the mismatch is not refutation, invalidation, contradiction, or negative evidence |
+| 13. An authority-bound admitted-origin result produced under one `H + P + M + A` set is presented to a support or standing consumer selecting a different prefix, policy, closure, authority profile, trust root, verification-material closure, or candidate-designation-set identity | Producer and consumer coordinates remain visible, including the exact mismatch | Producer result remains scoped to its own coordinates; downstream composition is rejected | Zero through the mismatched input | No positive amplification; inherited standing is not lowered | Equal assignment content is not coordinate equality, and the mismatch is not refutation, invalidation, contradiction, or negative evidence |
+| 14. A claimant records an authority-looking `SegmentAnchored` selector that is absent from the designation set selected by `A`, and its bytes are unavailable | The anchor remains visible as non-designated material | None; no incompleteness and no veto over a separate valid designated decision | Zero | No standing effect | Occurrence without external designation has no candidate or completeness authority |
+| 15. The designation set in `A` designates a selector for key `K`, the selector occurs in `H`, but its bytes are unavailable | The exact designation, occurrence, missing bytes, and incomplete key are visible | None for `K`; no partial positive result or group winner | Zero for `K`; unrelated complete keys may resolve | No amplification for `K`; inherited standing is unchanged | Membership precedes availability, and incompleteness is scoped by the designation's exact governed key |
+| 16. A caller supplies only available designated candidates and omits an unavailable designated selector that could conflict | The caller subset and complete designation-controlled universe remain distinguishable | Caller subset is rejected; the affected key remains incomplete | Zero for the affected key | No partial positive amplification | The complete set selected by `A`, not availability or caller preference, controls enumeration |
+| 17. A result produced under one candidate-designation-set identity is composed under another `A` with a different set identity | The exact producer and consumer designation-set identities and mismatch remain visible | Composition rejected | Zero through the mismatched input | No positive amplification; inherited standing is unchanged | Candidate-designation-set identity is a producing coordinate, and mismatch is not refutation or negative evidence |
+| 18. The same authority-object selector is designated for incompatible governed keys or origin-binding identities | The incompatible designations remain visible; the designation universe is invalid | None; no order-based winner | Zero | No positive amplification | Candidate designation must be unambiguous before authority-object verification; sequence, timestamp, reviewer, signature, and lexical order are non-authoritative |
+| 19. An authority authenticated and authorized for exact origin-group assignments signs or emits a candidate-designation set without separately verified candidate-designation authorization | The identity, grouping scope, and attempted set remain visible; designation-set authority verification fails | No candidate universe is established and no authority-bound decisions are emitted | Zero | No positive amplification | Grouping-assignment authorization is not transposed into candidate-designation authority |
+| 20. External selection of `A` directly commits to one exact immutable complete candidate-designation-set identity without relying on an issuer carried by the set | The exact directly selected set identity and complete producing coordinates remain visible | The set is authoritative for candidate completeness; designation alone supplies no group assignment | Zero from designation alone | No standing effect from designation alone | Accepted intentionally: objects inside the set cannot alter its identity or select another set, and replay remains deterministic under `H + P + M + A` |
+| 21. `A` designates an authority-object selector for key `K`, but snapshot `H` contains no required exact `SegmentAnchored` occurrence for it | The designation and absent occurrence remain visible | The selector is not a candidate at `H`; `K` is not incomplete merely from designation, and no assignment is emitted | Zero | No standing effect; unrelated decisions are unaffected | Designation is not occurrence; a later prefix containing the occurrence has a different `H` |
 
 ## Relationship to existing ADRs and contracts
 
@@ -591,7 +955,10 @@ does not edit them:
    compiled selection of exact `human-review` plus
    `authority:origin-review-v0` supplies trust, must be narrowed to
    compatibility label selection. Sections 11, 15, and 19 must state that
-   current v0 `OriginAdmitted` is not independently authority-bound.
+   current v0 `OriginAdmitted` is not independently authority-bound. Sections
+   6–8's shape-matched candidate universe and global byte-completeness gate must
+   remain compatibility behavior and must not define the authority-bound
+   successor's candidate designation or assignment-scoped incompleteness.
 2. Any living language that calls equality with that pair independently
    trusted authority must distinguish fixed vocabulary selection from
    authentication.
@@ -632,6 +999,10 @@ Positive consequences:
   cross-policy, cross-profile, and cross-root substitution;
 - detachable authority-bound outputs retain complete producing coordinates and
   cannot be substituted merely because assignment content is equal;
+- claimants cannot manufacture completeness-blocking candidates merely by
+  anchoring authority-looking selectors;
+- an unavailable designated candidate suppresses only its exact governed
+  assignment key while unrelated complete keys may resolve;
 - current serialized outputs remain reproducible and byte-stable;
 - invalid or duplicate authority material cannot amplify standing; and
 - the architecture remains consistent with anchored foreign bundles without a
@@ -640,11 +1011,14 @@ Positive consequences:
 Costs and constraints:
 
 - a separate authority object, verifier profile, trust coordinate, immutable
-  verification-material closure, and additive policy/result boundary must be
+  verification-material closure, finite immutable complete candidate-
+  designation-set representation, and additive policy/result boundary must be
   contracted and implemented;
-- unavailable authority material can make the authority-bound audit incomplete
-  and therefore withhold positive amplification;
-- operators must select and retain immutable authority coordinates for replay;
+- unavailable designated authority material can make its exact governed key
+  incomplete, while failure to establish the designation universe prevents all
+  authority-bound decisions;
+- operators must select and retain immutable authority coordinates, including
+  the candidate-designation-set identity, for replay;
   and
 - existing v0/v3 APIs remain available for historical replay, so consumers need
   an explicit quarantine boundary rather than relying on names or convention.
@@ -656,6 +1030,10 @@ Costs and constraints:
   representation, not authorization.
 - **Treat an anchor as authority.** Inclusion does not prove the right to make
   the assignment.
+- **Treat every shape-matching authority-looking anchor as a candidate.** That
+  lets unauthenticated material manufacture completeness-blocking authority.
+- **Use caller-selected, referenced, or available-only candidates.** A
+  favourable subset can hide a missing conflicting decision.
 - **Authenticate only the current origin-binding object.** This erases the
   claimant/authority ownership boundary and invites silent v0 reinterpretation.
 - **Trust a key carried by the authority object.** That lets the claimant choose
@@ -685,8 +1063,17 @@ contract after this ADR is accepted:
   contribution policies, and standing policy;
 - exact immutable closure representation for root, intermediate, delegation,
   revocation, or equivalent verification material;
-- exact verifier API, private-construction boundary, serialized audit variants,
-  candidate indexing, and deterministic failure precedence;
+- exact finite candidate-designation-set representation, canonicalization,
+  identity verification, and, when applicable, authentication mechanism;
+- whether the first implementation supports direct external commitment,
+  authenticated designation issuance, or both, and for issuer mode the exact
+  designation-authority, authorization-path, and authorization-scope identity
+  representations;
+- exact representation of the selector-to-origin-binding and
+  `GovernedAssignmentKey` designation tuple;
+- exact candidate-universe enumeration, assignment-scoped incompleteness
+  representation, designation-universe failure precedence, verifier API,
+  private-construction boundary, and serialized audit variants;
 - exact representation of the complete coordinate-bearing result and the
   cross-coordinate checks at every downstream authority-bearing type boundary;
 - exact storage and transport mechanism, provided it uses finite immutable
@@ -734,18 +1121,56 @@ minimum pin:
 
 1. the exact authority object and immutable identity;
 2. the exact bound subject and equality checks;
-3. the complete external authority coordinate `A`;
-4. the finite candidate and content universe under `H + P + M + A`;
-5. closed fail-closed audit outcomes and conflict precedence;
-6. additive policy and type quarantine from current v0/v3 output;
-7. a coordinate-bearing authority-bound output type that retains the exact
-   identities of `H`, `P`, `M`, and `A`;
-8. hostile cross-coordinate tests that independently reject a wrong `H`, wrong
-   `P`, wrong `M`, wrong authority profile, wrong trust root, and wrong
-   verification-material closure, plus identical assignment content produced
-   under different coordinates;
-9. hostile tests for every scenario in this ADR; and
-10. compatibility and documentation reconciliation.
+3. the exact distinction between grouping-assignment authorization and
+   candidate-designation authorization, including the law that authentication
+   alone grants neither role;
+4. whether the first implementation supports direct external commitment,
+   authenticated designation issuance, or both;
+5. for authenticated-issuer mode, the exact designation-authority identity,
+   immutable authorization-path identity, exact authorization-scope identity,
+   and failure behavior when issuer authentication succeeds but exact role or
+   scope authorization fails;
+6. the complete external authority coordinate `A`, including one exact finite
+   immutable candidate-designation-set identity;
+7. the exact `AuthorityCandidateDesignation` tuple binding an authority-object
+   selector or identity, origin-binding identity, and `GovernedAssignmentKey`;
+8. the exact rule deriving all and only designated candidates with required
+   occurrences in `H` under `P` and `A`;
+9. proof that candidate membership is fixed before and independently of
+   availability, parsing, authentication outcome, and caller selection;
+10. snapshot-relative designated-but-no-occurrence behavior that creates no
+    candidate, incompleteness, assignment, conflict, or ambient lookup;
+11. assignment-key-scoped incompleteness for unavailable designated candidates;
+12. whole-audit failure when the selected designation universe is unavailable,
+    wrong-coordinate, malformed, ambiguous, or fails required authentication
+    or authorization;
+13. closed fail-closed audit outcomes, authority-decision conflict precedence,
+    and distinct designation-universe failure precedence;
+14. additive policy and type quarantine from current v0/v3 output;
+15. a coordinate-bearing authority-bound output type that retains the exact
+    identities of `H`, `P`, `M`, and the complete four-component `A`, including
+    its candidate-designation-set identity, with authenticated-issuer outputs
+    also retaining the required derived designation-authority audit identities;
+16. hostile cross-coordinate tests that independently reject a wrong `H`, wrong
+    `P`, wrong `M`, wrong authority profile, wrong trust root, wrong
+    verification-material closure, and wrong candidate-designation-set
+    identity, plus identical assignment content produced under different
+    coordinates;
+17. hostile authorization-role tests proving that grouping authority alone
+    cannot designate candidates and that a signed designation set from an
+    authenticated but unauthorized issuer establishes no candidate universe;
+18. hostile candidate-designation tests covering:
+    - an undesignated missing authority-looking anchor;
+    - a designated selector without its required occurrence in `H`;
+    - a designated missing candidate;
+    - an available-only or caller-selected subset;
+    - a wrong candidate-designation-set identity;
+    - duplicate and conflicting designations; and
+    - a missing candidate for one key while an unrelated key remains complete;
+19. hostile tests distinguishing resolver-level missing authority-verification
+    material from assignment-scoped missing candidate bytes;
+20. hostile tests for every scenario in this ADR; and
+21. compatibility and documentation reconciliation.
 
 Only a later runtime change, hostile-test suite, compatibility review, and
 accepted contract can implement this decision. The audit disposition can then
