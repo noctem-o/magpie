@@ -870,6 +870,11 @@ future librarian or query response that exposes an authority-bearing
 conclusion. A downstream policy's own identity remains separately explicit; it
 does not replace or reconstruct the producer's `P`.
 
+For a downstream standing consumer, this producer-coordinate obligation does
+not alter the consumer's canonical standing coordinates under ADR-0003. The
+cross-ADR reconciliation gate below must also be satisfied before an authority-
+bound input can affect governed standing.
+
 ```text
 authority-bound result coordinates
 != selected consumer coordinates
@@ -1147,6 +1152,7 @@ public policy and type boundary must be additive and unambiguous.
 | 26. Two implementations use the same profile label or purported immutable identity but differ in mode, algorithm handling, subject equality, authorization rules, extension behavior, failure precedence, result semantics, or audit semantics | The semantic divergence is visible as a non-conforming profile identity or implementation | No common authority-bound evaluation exists under that purported identity | Zero | No positive amplification | One immutable profile identity must commit one complete normative semantic profile; different semantics require different identities and `A` coordinates |
 | 27. A resolver tries direct commitment and authenticated issuance, combines them, chooses whichever succeeds, or permits one proof to compensate for failure of the other | The prohibited combined or try-both path is visible as non-conforming behavior | None under ADR-0007 | Zero | No positive amplification | ADR-0007 authorizes exactly two separate modes with no cross-mode combination or fallback; any combined semantics require a separately proposed and ratified ADR |
 | 28. The same record bytes are presented under different log-verification profiles or different externally selected historical verifying keys | Both verification contexts and the mismatch or rejection remain visible | Different `H` coordinates or verification rejection; never one nominally identical evaluation | Zero through any mismatched input | No positive amplification | `H` commits the record snapshot, log-verification interpretation, and historical trust coordinate; historical log trust is distinct from authority trust in `A` |
+| 29. An authority-bound contribution carrying complete `H + P + M + A` is presented to a future standing consumer whose selected standing coordinates do not commit or exact-match `M` and `A` | The producer and its complete coordinates remain visible | Downstream composition is rejected | Zero through the rejected input | No positive amplification; inherited standing is unchanged | ADR-0003 is not permission to erase producing authority coordinates, and ADR-0007 does not silently amend ADR-0003 |
 
 ## Relationship to existing ADRs and contracts
 
@@ -1158,9 +1164,12 @@ contract merely by existing.
   the anchor remains occurrence and inclusion evidence, not authentication.
 - ADR-0002's no-hidden-authority boundary and separation of standing from truth
   are reinforced.
-- ADR-0003's coordinate-bound standing definition remains intact. An
-  authority-bound contribution would be an explicit input to a later named
-  standing policy, not ambient authority.
+- ADR-0003's coordinate-bound standing definition and exactly three canonical
+  standing coordinates remain intact. ADR-0007 defines the producing and
+  composition coordinates of authority-bound inputs and results; it does not
+  silently replace or expand ADR-0003's canonical definition. An authority-
+  bound contribution would be an explicit input to a later named standing
+  policy, not ambient authority.
 - ADR-0004 and ADR-0005 remain orthogonal; lifecycle and attributed withdrawal
   acts do not authenticate grouping authority.
 - ADR-0006's explicit policy-selection and compatibility laws are followed, but
@@ -1168,6 +1177,59 @@ contract merely by existing.
 - The current origin-binding, origin-admission, admitted-contribution,
   support-contribution, and standing-v3 contracts remain accurate records of
   current v0/v3 behavior until separately reconciled after acceptance.
+
+### ADR-0003 authority-bound standing reconciliation gate
+
+An authority-bound producer's coordinates remain mandatory at a downstream
+standing boundary:
+
+```text
+authority-bound input produced under H + P + M + A
++ downstream standing consumer
+-> consumer retains and exact-matches the complete producing H + P + M + A
+```
+
+A standing policy or resolver may not retain only the assignment, group, or
+`H`; omit `M` or `A`; reconstruct a producing coordinate from fields; infer it
+from ambient resolver context; substitute a current, latest, default,
+compatible, or mutable coordinate; or treat equal result content as coordinate
+equality. The existing mismatch law continues to apply:
+
+```text
+authority-bound result coordinates
+!= selected consumer coordinates
+-> composition rejected
+-> zero positive amplification
+```
+
+This producer-input composition law is not a decision about how a future
+standing policy reconciles those coordinates with ADR-0003. Before any
+authority-bound contribution may affect governed standing, a separately
+reviewed and owner-ratified contract must establish one of exactly two
+permissible outcomes:
+
+1. **Outcome A — existing-coordinate closure.** An explicit closed contract
+   demonstrates that the selected ADR-0003 standing snapshot, policy-version,
+   and resolver identities commit transitively and unambiguously to the
+   complete selected authority-bound input universe and every producing
+   `H + P + M + A` coordinate required for replay.
+2. **Outcome B — separate amendment.** ADR-0003 is separately amended and
+   owner-ratified before the authority-bound standing policy is implemented.
+
+ADR-0007 chooses neither outcome. A resolver name, documentation convention,
+wrapper, caller assertion, mutable registry, or implementation configuration
+cannot satisfy Outcome A. Its proof obligation is semantic and replay-complete;
+naming a resolver does not by itself commit arbitrary external inputs.
+
+```text
+no accepted cross-ADR coordinate reconciliation
+-> no authority-bound standing consumer
+-> no positive standing amplification from authority-bound inputs
+```
+
+This is a future implementation gate. It neither disables nor reinterprets
+current standing-v3, which remains claimant-label compatibility behavior under
+its existing contract and coordinates.
 
 ## Required reconciliation if accepted
 
@@ -1451,8 +1513,13 @@ minimum pin:
     - a missing candidate for one key while an unrelated key remains complete;
 24. hostile tests distinguishing resolver-level missing authority-verification
     material from assignment-scoped missing candidate bytes;
-25. hostile tests for every scenario in this ADR; and
-26. compatibility and documentation reconciliation.
+25. hostile tests for every scenario in this ADR;
+26. compatibility and documentation reconciliation; and
+27. before any authority-bound input affects governed standing, a separately
+    reviewed and owner-ratified cross-ADR coordinate contract that establishes
+    exactly Outcome A or Outcome B from the ADR-0003 reconciliation gate,
+    retains and exact-matches every producing `H + P + M + A`, and hostile-tests
+    omitted, reconstructed, ambient, mutable, and mismatched `M` and `A` inputs.
 
 Only a later runtime change, hostile-test suite, compatibility review, and
 accepted contract can implement this decision. The audit disposition can then
