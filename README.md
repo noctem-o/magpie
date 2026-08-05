@@ -378,6 +378,9 @@ change these boundaries only through explicit contracts and review.
   accepted doctrine defining currentness as a derived, coordinate-bound
   applicability facet;
   supersession as lineage without self-executing authority.
+- [ADR 0007](docs/adr/0007-authority-bound-origin-corroboration.md) -
+  proposed doctrine requiring independently verified authority binding before
+  origin groups may create corroboration separation.
 - [Standing ceilings](docs/design/standing-view-evidence-ceilings.md) -
   evidence domains, candidate ceilings, and future boundaries.
 - [Provenance and origin admission](docs/design/artifact-provenance-origin-admission.md) -
