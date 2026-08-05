@@ -248,7 +248,11 @@ The coordinates mean:
   origin-admission policy selected by the consumer. It is not inferred from the
   object or aliased to current v0.
 - `exact_authority_verification_profile_identity` selects the complete
-  verification and authorization rules.
+  verification and authorization rules, including the exact candidate-
+  designation authority mode, its mode-specific rules, and deterministic
+  failure precedence. The same nominal profile label cannot carry different
+  mode semantics; different semantics require different immutable profile
+  identities.
 - `exact_externally_selected_authority_trust_coordinate` immutably identifies
   the root material or equivalent explicit trust coordinate under which the
   profile authenticates the grouping authority. A mutable name such as
@@ -372,9 +376,59 @@ candidate designation
 != standing
 ```
 
-Exactly two modes may make the complete candidate-designation set authoritative.
+The candidate-designation authority mode is a closed semantic selected only by
+the exact `authority_verification_profile_identity` in `A`:
+
+```text
+CandidateDesignationAuthorityMode =
+  DirectExternalCommitment
+  | AuthenticatedDesignationIssuer
+  | ExplicitCombinedMode
+
+authority_verification_profile_identity
+-> exactly one closed candidate-designation authority mode
+
+candidate-designation authority mode
+!= property inferred from the evaluated set
+```
+
+These names identify semantic alternatives only. This ADR chooses no serialized
+mode names or numeric identifiers.
+
+Mode selection is not mode detection. `A` selects one exact authority
+verification profile identity; that profile fixes the applicable mode; and the
+resolver evaluates only that mode. Selection must not depend on set contents,
+the presence or absence of a signature, authentication success or failure,
+issuer identity, caller preference, resolver configuration, available material,
+event order, a mutable registry, an environment variable, an implementation
+default, fallback behavior, or a current or latest mode.
+
+```text
+selected mode fails
+-> selected mode's fail-closed result
+-> no cross-mode fallback
+```
+
+An implementation may support multiple modes only through multiple distinct
+immutable authority-verification-profile identities, each with one closed
+interpretation. For example, a direct-mode profile and an issuer-mode profile
+must have different identities:
+
+```text
+profile D
+-> DirectExternalCommitment
+
+profile I
+-> AuthenticatedDesignationIssuer
+
+support for multiple modes
+!= runtime choice among modes under one profile
+```
 
 #### Mode 1: direct external commitment
+
+This mode applies only when the exact `authority_verification_profile_identity`
+in `A` selects `DirectExternalCommitment`.
 
 ```text
 external selection of A
@@ -387,7 +441,18 @@ coordinate. The set identity must commit to one complete finite set. No object
 inside the set selects or authenticates itself, and no mutable alias, current
 set, or object-carried label can select or replace that identity.
 
+A signature or issuer claim attached to the set remains audit-visible but does
+not switch modes or add designation authority. Issuer authentication or
+authorization is not consulted in a `DirectExternalCommitment` evaluation. A
+future explicit combined profile may require it, but that would select a
+different mode, profile identity, and `A`. Its presence, absence, success, or
+failure cannot trigger issuer-mode behavior. Exact set identity, completeness,
+and immutable-content requirements continue to apply.
+
 #### Mode 2: authenticated designation issuer
+
+This mode applies only when the exact `authority_verification_profile_identity`
+in `A` selects `AuthenticatedDesignationIssuer`.
 
 ```text
 A selects exact profile, root, and verification-material coordinates
@@ -405,6 +470,14 @@ scope. That scope must cover issuance of each exact
 issue a grouping assignment, alter `P` or `A`, add an unrelated governed key,
 designate an object outside its verified scope, or grant generic admission,
 writer, standing, or truth authority.
+
+The candidate-designation-set identity in `A` is necessary coordinate binding,
+but it is not sufficient designation authority in this mode. Exact issuer
+authentication and exact candidate-designation authorization remain mandatory.
+Failure of either requirement is designation-universe verification failure and
+cannot fall back to direct external commitment. The same set accepted under a
+direct-mode profile would be evaluated under a different profile identity and
+therefore a different `A`.
 
 When this mode is used, the verified designation result must retain for audit:
 
@@ -429,6 +502,22 @@ authenticated issuer
 Because `A` selected this set as the candidate-universe authority, that failure
 is not non-designated incidental material; it prevents establishment of the
 candidate universe.
+
+#### Explicit combined mode
+
+This ADR does not design a combined profile. A future
+`ExplicitCombinedMode` is permitted only under its own distinct immutable
+authority-verification-profile identity. That profile must define a complete
+truth table or equivalent closed rule before evaluation, including whether
+direct commitment, issuer authentication, and issuer authorization are each
+required; whether their proofs are conjunctive or disjunctive; which failures
+are terminal; whether one proof can compensate for failure of another; and the
+deterministic failure precedence.
+
+None of those answers may be inferred from set contents, signature presence,
+observed verification success or failure, caller preference, or implementation
+configuration. A combined-mode profile is one closed mode, not permission to
+attempt primary modes in sequence or choose whichever succeeds.
 
 The exact future representation may use a manifest, authenticated index,
 foreign bundle, or equivalent finite structure. This ADR does not choose that
@@ -595,6 +684,23 @@ A = (
 )
 ```
 
+The `authority_verification_profile_identity` component commits to the exact
+`CandidateDesignationAuthorityMode`, the complete mode-specific verification
+and authorization rules, deterministic failure precedence, and whether direct
+external commitment, authenticated designation issuance, or one explicitly
+closed combined interpretation applies. The mode is part of the immutable
+semantics of that profile identity, not a fifth field in `A`:
+
+```text
+same nominal profile label
++ different candidate-designation mode semantics
+-> forbidden
+
+different candidate-designation mode semantics
+-> different authority_verification_profile_identity
+-> different A
+```
+
 The verification-material component commits to any finite root, intermediate,
 authorization, or equivalent verification material required by the selected
 profile and not already committed by `M`. The candidate-designation-set
@@ -615,7 +721,14 @@ The replay law is:
 
 ```text
 same H + same P + same M + same A
--> byte-identical authority-bound origin-admission result
+-> same candidate-designation authority mode
+-> same mode-specific verification path
+-> byte-identical authority-bound origin-admission result and audit trace
+
+different candidate-designation authority mode
+-> different authority_verification_profile_identity
+-> different A
+-> different authority-bound evaluation
 ```
 
 ### Coordinate-bearing authority outputs
@@ -632,6 +745,11 @@ contribution results, aggregation inputs, and standing inputs. Each must carry:
   authority verification profile identity, immutable trust-root identity,
   authority verification-material closure identity, and exact immutable
   authority-candidate-designation-set identity.
+
+Retaining `A` therefore retains the exact candidate-designation authority mode
+through the immutable semantics of its profile identity. The mode is not
+reconstructed from the designation set or recorded as an ambient consumer
+choice.
 
 A complete typed coordinate object may represent `H`, `P`, `M`, and `A`
 together. No component may be omitted. This ADR does not choose that object's
@@ -658,6 +776,16 @@ prefixes, authority-bound policies, content closures, authority profiles,
 trust roots, verification-material closures, or candidate-designation-set
 identities. The group assignment alone is never sufficient provenance for an
 authority-bearing result.
+
+The same designation-set identity does not erase a mode-coordinate difference:
+
+```text
+same authority_candidate_designation_set_identity
++ different authority_verification_profile_identity selecting a different mode
+-> different A
+-> composition rejected
+-> zero positive amplification
+```
 
 Before composition, every downstream authority-bearing consumer must exact-match
 the producer's `H + P + M + A` identities against the expected producing
@@ -688,6 +816,10 @@ No downstream consumer may:
 - substitute a current, latest, default, compatible, or mutable-alias
   coordinate;
 - omit `A` because authentication occurred elsewhere; or
+- reinterpret the producer under another mode, infer mode from set shape or
+  attached signatures, treat different mode profiles as coordinate-compatible,
+  or erase the profile identity while retaining only the designation-set
+  identity; or
 - treat equal serialized assignment content as proof that coordinates match.
 
 A result that omits any producing coordinate is not an authority-bearing
@@ -704,8 +836,9 @@ lookup, or "latest authority" selection may affect replay.
 The minimum verification sequence is:
 
 1. establish the exact complete candidate-designation set selected by `A`
-   through a supported mode, including exact issuer-role and scope verification
-   in authenticated-issuer mode;
+   using only the exact mode fixed by `A`'s authority-verification-profile
+   identity, with no mode detection or fallback, including exact issuer-role
+   and scope verification when that selected mode requires it;
 2. derive the complete per-key candidate universe from that set and exact
    occurrences in `H`;
 3. resolve designated candidate bytes only from `M` and immutable material
@@ -769,6 +902,9 @@ variants are deferred; their meaning is not.
 | Designated authority selector for key `K` occurs in `H`, but its bytes are unavailable | The exact `GovernedAssignmentKey` `K` is incomplete; unrelated complete keys may still resolve | None for `K`; no partial positive result or group winner for `K` |
 | Selected candidate-designation set is unavailable | The complete authority candidate universe cannot be established; resolver-level audit incompleteness | No authority-bound decisions |
 | Candidate-designation-set identity differs from selected `A` | Visible wrong-coordinate material; the selected universe is not established | No authority-bound decisions under selected `A` |
+| Material is valid under a different candidate-designation mode or profile | Visible wrong-profile or wrong-coordinate material | None under selected `A` |
+| Authenticated-designation-issuer mode is selected, but exact issuer authentication or candidate-designation authorization fails | Designation-universe verification failure | No authority-bound decisions; no fallback to direct external commitment |
+| Direct-external-commitment mode is selected and the exact set identity is valid, while the set also carries issuer or signature metadata | Metadata remains visible but does not select or change the mode | Evaluated only under direct-external-commitment rules |
 | Required designation-set verification under the selected mode fails, or the set is malformed or internally ambiguous | Resolver-level designation-universe failure | No authority-bound decisions |
 | Candidate-designation set is authenticated to an identity that lacks exact designation authorization | Designation-universe verification failure | No authority-bound decisions |
 | Duplicate byte-identical or semantically identical designations | All occurrences may remain visible; the designation collapses structurally | One candidate designation, no additional authority weight |
@@ -805,6 +941,9 @@ Authentication of a designation-set issuer does not cure missing exact role or
 scope authorization. Grouping-assignment authority does not satisfy
 candidate-designation authorization, even when both would use the same
 authenticated identity or key.
+Failure or mismatch under the profile-selected candidate-designation mode never
+triggers another mode. Conversely, issuer or signature metadata cannot switch a
+direct-mode evaluation into issuer mode.
 Neither assignment-scoped nor resolver-level incompleteness is refutation,
 negative evidence, invalidation, or a lowering of inherited standing. It
 selects no write-order winner and triggers no ambient fallback.
@@ -923,6 +1062,10 @@ public policy and type boundary must be additive and unambiguous.
 | 19. An authority authenticated and authorized for exact origin-group assignments signs or emits a candidate-designation set without separately verified candidate-designation authorization | The identity, grouping scope, and attempted set remain visible; designation-set authority verification fails | No candidate universe is established and no authority-bound decisions are emitted | Zero | No positive amplification | Grouping-assignment authorization is not transposed into candidate-designation authority |
 | 20. External selection of `A` directly commits to one exact immutable complete candidate-designation-set identity without relying on an issuer carried by the set | The exact directly selected set identity and complete producing coordinates remain visible | The set is authoritative for candidate completeness; designation alone supplies no group assignment | Zero from designation alone | No standing effect from designation alone | Accepted intentionally: objects inside the set cannot alter its identity or select another set, and replay remains deterministic under `H + P + M + A` |
 | 21. `A` designates an authority-object selector for key `K`, but snapshot `H` contains no required exact `SegmentAnchored` occurrence for it | The designation and absent occurrence remain visible | The selector is not a candidate at `H`; `K` is not incomplete merely from designation, and no assignment is emitted | Zero | No standing effect; unrelated decisions are unaffected | Designation is not occurrence; a later prefix containing the occurrence has a different `H` |
+| 22. Authenticated-designation-issuer mode is selected by the profile in `A`; the set identity matches `A`, but the issuer lacks exact candidate-designation authorization | The set, issuer, and failed scope authorization remain visible; designation-universe verification fails | No authority-bound decisions; no reinterpretation as direct external commitment | Zero | No positive amplification | Failure under the selected issuer mode is fail-closed and cannot trigger cross-mode fallback |
+| 23. Direct-external-commitment mode is selected by the profile in `A`, and the exact set also carries a signature or issuer claim | The signature or issuer claim remains visible but does not change the selected mode | Evaluated only under direct-external-commitment rules | Zero from metadata alone | No issuer-derived standing effect | Set contents do not select mode, and no issuer-role inference occurs |
+| 24. The same immutable designation set is evaluated once under a direct-mode profile and once under an authenticated-issuer-mode profile | Both profile identities, both `A` coordinates, and the difference remain visible | Distinct authority-bound evaluations; cross-profile composition is rejected | Zero through a mismatched composition | No positive amplification from cross-profile reuse | Different mode semantics require different profile identities and therefore different `A` coordinates |
+| 25. Two resolvers receive identical `H + P + M + A`, but one attempts direct mode and the other attempts issuer mode based on local configuration or observed authentication success | The divergence is a non-conforming implementation behavior | Only the mode fixed by the selected profile is eligible; conforming resolvers produce the same result | Zero through any non-conforming cross-mode path | No positive amplification from a locally selected mode | Mode is immutable profile semantics, not a resolver choice or success-dependent fallback |
 
 ## Relationship to existing ADRs and contracts
 
@@ -1034,6 +1177,10 @@ Costs and constraints:
   lets unauthenticated material manufacture completeness-blocking authority.
 - **Use caller-selected, referenced, or available-only candidates.** A
   favourable subset can hide a missing conflicting decision.
+- **Detect or fall back between designation modes at runtime.** Set contents,
+  signature presence, verification outcome, caller preference, and resolver
+  configuration are not replay coordinates; mode is fixed by the selected
+  immutable authority-verification-profile identity.
 - **Authenticate only the current origin-binding object.** This erases the
   claimant/authority ownership boundary and invites silent v0 reinterpretation.
 - **Trust a key carried by the authority object.** That lets the claimant choose
@@ -1065,10 +1212,11 @@ contract after this ADR is accepted:
   revocation, or equivalent verification material;
 - exact finite candidate-designation-set representation, canonicalization,
   identity verification, and, when applicable, authentication mechanism;
-- whether the first implementation supports direct external commitment,
-  authenticated designation issuance, or both, and for issuer mode the exact
-  designation-authority, authorization-path, and authorization-scope identity
-  representations;
+- concrete profile identifiers, serialized mode names, whether the first
+  implementation ships one mode-specific profile or multiple distinct
+  mode-specific profiles, whether a future combined profile is ever introduced,
+  and, for issuer mode, the exact designation-authority, authorization-path,
+  and authorization-scope identity representations;
 - exact representation of the selector-to-origin-binding and
   `GovernedAssignmentKey` designation tuple;
 - exact candidate-universe enumeration, assignment-scoped incompleteness
@@ -1086,6 +1234,11 @@ contract after this ADR is accepted:
 Those decisions may choose among cryptographic mechanisms that satisfy this
 ADR. They may not weaken the exact subject, external trust selection, replay
 law, fail-closed behavior, additive compatibility boundary, or narrow grant.
+The coordinate that commits mode semantics is not deferred: one immutable
+authority-verification-profile identity has one closed mode interpretation,
+different mode semantics require different profile identities, selected-mode
+failure cannot trigger another mode, and identical `H + P + M + A` selects the
+same mode-specific path and result.
 
 ## Non-goals
 
@@ -1124,42 +1277,65 @@ minimum pin:
 3. the exact distinction between grouping-assignment authorization and
    candidate-designation authorization, including the law that authentication
    alone grants neither role;
-4. whether the first implementation supports direct external commitment,
-   authenticated designation issuance, or both;
-5. for authenticated-issuer mode, the exact designation-authority identity,
+4. the exact `CandidateDesignationAuthorityMode` as immutable semantics of the
+   selected `authority_verification_profile_identity`, including complete
+   mode-specific verification and authorization rules and deterministic
+   failure precedence;
+5. distinct immutable profile identities for different mode semantics, with
+   support for multiple modes expressed only as multiple explicit profiles;
+6. a complete truth table or equivalent closed deterministic rule under a
+   distinct profile identity for any future combined mode, including whether
+   direct commitment and issuer authentication or authorization are required,
+   how their proofs relate, and which failures are terminal;
+7. prohibition of runtime mode detection, caller- or configuration-selected
+   mode, success-dependent mode choice, and cross-mode fallback;
+8. which one or more explicit mode-specific profiles the first implementation
+   ships, without leaving mode choice open while evaluating any one profile;
+9. for authenticated-issuer mode, the exact designation-authority identity,
    immutable authorization-path identity, exact authorization-scope identity,
    and failure behavior when issuer authentication succeeds but exact role or
    scope authorization fails;
-6. the complete external authority coordinate `A`, including one exact finite
-   immutable candidate-designation-set identity;
-7. the exact `AuthorityCandidateDesignation` tuple binding an authority-object
-   selector or identity, origin-binding identity, and `GovernedAssignmentKey`;
-8. the exact rule deriving all and only designated candidates with required
-   occurrences in `H` under `P` and `A`;
-9. proof that candidate membership is fixed before and independently of
-   availability, parsing, authentication outcome, and caller selection;
-10. snapshot-relative designated-but-no-occurrence behavior that creates no
+10. the complete external authority coordinate `A`, including one exact finite
+    immutable candidate-designation-set identity;
+11. the exact `AuthorityCandidateDesignation` tuple binding an authority-object
+    selector or identity, origin-binding identity, and `GovernedAssignmentKey`;
+12. the exact rule deriving all and only designated candidates with required
+    occurrences in `H` under `P` and `A`;
+13. proof that candidate membership is fixed before and independently of
+    availability, parsing, authentication outcome, and caller selection;
+14. snapshot-relative designated-but-no-occurrence behavior that creates no
     candidate, incompleteness, assignment, conflict, or ambient lookup;
-11. assignment-key-scoped incompleteness for unavailable designated candidates;
-12. whole-audit failure when the selected designation universe is unavailable,
+15. assignment-key-scoped incompleteness for unavailable designated candidates;
+16. whole-audit failure when the selected designation universe is unavailable,
     wrong-coordinate, malformed, ambiguous, or fails required authentication
     or authorization;
-13. closed fail-closed audit outcomes, authority-decision conflict precedence,
-    and distinct designation-universe failure precedence;
-14. additive policy and type quarantine from current v0/v3 output;
-15. a coordinate-bearing authority-bound output type that retains the exact
+17. closed fail-closed audit outcomes, authority-decision conflict precedence,
+    distinct designation-universe failure precedence, and deterministic
+    mode-specific failure precedence;
+18. additive policy and type quarantine from current v0/v3 output;
+19. a coordinate-bearing authority-bound output type that retains the exact
     identities of `H`, `P`, `M`, and the complete four-component `A`, including
-    its candidate-designation-set identity, with authenticated-issuer outputs
-    also retaining the required derived designation-authority audit identities;
-16. hostile cross-coordinate tests that independently reject a wrong `H`, wrong
+    its profile-bound mode and candidate-designation-set identity, with
+    authenticated-issuer outputs also retaining the required derived
+    designation-authority audit identities;
+20. hostile cross-coordinate tests that independently reject a wrong `H`, wrong
     `P`, wrong `M`, wrong authority profile, wrong trust root, wrong
     verification-material closure, and wrong candidate-designation-set
     identity, plus identical assignment content produced under different
     coordinates;
-17. hostile authorization-role tests proving that grouping authority alone
+21. hostile cross-mode tests proving that:
+    - identical `H + P + M + A` always selects the same mode;
+    - issuer failure cannot fall back to direct external commitment;
+    - signature or issuer metadata cannot switch direct mode to issuer mode;
+    - the same designation set under different mode profiles produces different
+      `A` coordinates;
+    - outputs from different mode profiles fail downstream coordinate matching;
+      and
+    - implementation configuration cannot alter the selected mode;
+22. hostile authorization-role tests proving that grouping authority alone
     cannot designate candidates and that a signed designation set from an
     authenticated but unauthorized issuer establishes no candidate universe;
-18. hostile candidate-designation tests covering:
+23. hostile candidate-designation tests covering:
     - an undesignated missing authority-looking anchor;
     - a designated selector without its required occurrence in `H`;
     - a designated missing candidate;
@@ -1167,10 +1343,10 @@ minimum pin:
     - a wrong candidate-designation-set identity;
     - duplicate and conflicting designations; and
     - a missing candidate for one key while an unrelated key remains complete;
-19. hostile tests distinguishing resolver-level missing authority-verification
+24. hostile tests distinguishing resolver-level missing authority-verification
     material from assignment-scoped missing candidate bytes;
-20. hostile tests for every scenario in this ADR; and
-21. compatibility and documentation reconciliation.
+25. hostile tests for every scenario in this ADR; and
+26. compatibility and documentation reconciliation.
 
 Only a later runtime change, hostile-test suite, compatibility review, and
 accepted contract can implement this decision. The audit disposition can then
