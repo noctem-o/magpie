@@ -1124,7 +1124,7 @@ does not edit them:
 7. `docs/design/admitted-contribution-audit-v0.md` and
    `docs/design/support-contribution-audit-v0.md` must clarify that carrying a
    v0 group preserves upstream compatibility data and does not authenticate it.
-8. Tickets 0046 and 0048–0053 remain historical implementation records. A new
+8. Tickets 0046 and 0048–0054 remain historical implementation records. A new
    implementation contract must supersede their authority-bearing
    interpretation rather than rewriting those records.
 
@@ -1373,7 +1373,7 @@ ledger to Partially remediated, Scheduled, or Closed.
 - `docs/design/admitted-contribution-audit-v0.md`.
 - `docs/design/support-contribution-audit-v0.md`.
 - ADR-0001 through ADR-0006.
-- Tickets 0037, 0042, 0046, 0048, 0049, 0050, 0051, 0052, and 0053.
+- Tickets 0037, 0042, 0046, 0048, 0049, 0050, 0051, 0052, 0053, and 0054.
 - `crates/magpie-claims/src/origin_binding_verifier.rs`.
 - `crates/magpie-claims/src/origin_admission_audit.rs`.
 - `crates/magpie-claims/src/admitted_contribution_audit.rs`.
