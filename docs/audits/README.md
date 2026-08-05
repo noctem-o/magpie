@@ -40,9 +40,10 @@ changing the historical audit record.
 
 
 
+* [audit-disposition-2026-08.md](audit-disposition-2026-08.md) — living current-main finding disposition index; it does not amend or replace the historical audit ledgers.
+
 Current finding disposition, remediation ownership, and implementation status
 
 must be recorded separately. Do not infer them by editing these audit records.
-
 
 
