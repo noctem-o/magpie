@@ -247,12 +247,11 @@ The coordinates mean:
 - `exact_origin_admission_policy_identity` is the explicit authority-bound
   origin-admission policy selected by the consumer. It is not inferred from the
   object or aliased to current v0.
-- `exact_authority_verification_profile_identity` selects the complete
-  verification and authorization rules, including the exact candidate-
-  designation authority mode, its mode-specific rules, and deterministic
-  failure precedence. The same nominal profile label cannot carry different
-  mode semantics; different semantics require different immutable profile
-  identities.
+- `exact_authority_verification_profile_identity` immutably commits to the
+  complete normative verification, authorization, result, and audit semantics,
+  including the exact candidate-designation authority mode. The same nominal
+  profile label cannot carry different semantics; different semantics require
+  different immutable profile identities.
 - `exact_externally_selected_authority_trust_coordinate` immutably identifies
   the root material or equivalent explicit trust coordinate under which the
   profile authenticates the grouping authority. A mutable name such as
@@ -377,13 +376,13 @@ candidate designation
 ```
 
 The candidate-designation authority mode is a closed semantic selected only by
-the exact `authority_verification_profile_identity` in `A`:
+the exact `authority_verification_profile_identity` in `A`. ADR-0007 authorizes
+exactly two candidate-designation authority modes:
 
 ```text
 CandidateDesignationAuthorityMode =
   DirectExternalCommitment
   | AuthenticatedDesignationIssuer
-  | ExplicitCombinedMode
 
 authority_verification_profile_identity
 -> exactly one closed candidate-designation authority mode
@@ -425,6 +424,13 @@ support for multiple modes
 != runtime choice among modes under one profile
 ```
 
+ADR-0007 authorizes no combined, try-both, threshold, compensating, conjunctive,
+disjunctive, or success-dependent selection semantics across these modes. Any
+future semantics that combine direct commitment with issuer authentication or
+issuer authorization, permit one proof to compensate for another, or otherwise
+relate the two modes require a separately proposed and ratified ADR. They are
+not pre-authorized by assigning a new profile identity under this ADR.
+
 #### Mode 1: direct external commitment
 
 This mode applies only when the exact `authority_verification_profile_identity`
@@ -444,10 +450,11 @@ set, or object-carried label can select or replace that identity.
 A signature or issuer claim attached to the set remains audit-visible but does
 not switch modes or add designation authority. Issuer authentication or
 authorization is not consulted in a `DirectExternalCommitment` evaluation. A
-future explicit combined profile may require it, but that would select a
-different mode, profile identity, and `A`. Its presence, absence, success, or
-failure cannot trigger issuer-mode behavior. Exact set identity, completeness,
-and immutable-content requirements continue to apply.
+signature's or issuer claim's presence, absence, success, or failure cannot
+trigger issuer-mode behavior. Exact set identity, completeness, and
+immutable-content requirements continue to apply. Combining direct commitment
+with issuer verification is outside ADR-0007 and requires a separately proposed
+and ratified ADR.
 
 #### Mode 2: authenticated designation issuer
 
@@ -503,21 +510,12 @@ Because `A` selected this set as the candidate-universe authority, that failure
 is not non-designated incidental material; it prevents establishment of the
 candidate universe.
 
-#### Explicit combined mode
-
-This ADR does not design a combined profile. A future
-`ExplicitCombinedMode` is permitted only under its own distinct immutable
-authority-verification-profile identity. That profile must define a complete
-truth table or equivalent closed rule before evaluation, including whether
-direct commitment, issuer authentication, and issuer authorization are each
-required; whether their proofs are conjunctive or disjunctive; which failures
-are terminal; whether one proof can compensate for failure of another; and the
-deterministic failure precedence.
-
-None of those answers may be inferred from set contents, signature presence,
-observed verification success or failure, caller preference, or implementation
-configuration. A combined-mode profile is one closed mode, not permission to
-attempt primary modes in sequence or choose whichever succeeds.
+Failure under `AuthenticatedDesignationIssuer` cannot be reinterpreted as
+direct external commitment merely because `A` also commits the exact set
+identity. Conversely, direct-mode failure cannot be retried under issuer rules.
+Any future rule that combines, orders, thresholds, or chooses between the two
+authorized modes is outside this ADR and requires a separately proposed and
+ratified ADR.
 
 The exact future representation may use a manifest, authenticated index,
 foreign bundle, or equivalent finite structure. This ADR does not choose that
@@ -661,11 +659,50 @@ unambiguous candidate universe, not an origin-group conflict.
 The authority-bearing resolver has four explicit deterministic inputs:
 
 ```text
-H = exact completely verified Magpie log prefix
+H = exact verified-history coordinate
 P = explicit authority-bound origin-admission policy identity
 M = immutable resolution-content closure identity
 A = exact authority verification coordinate
 ```
+
+`H` is not merely an identity of record bytes detached from the procedure and
+trust context under which those bytes were verified. It commits, directly or
+transitively, to:
+
+- the exact complete record snapshot or log-prefix identity;
+- the exact log-verification profile identity and its complete immutable
+  normative verification interpretation; and
+- the exact externally selected historical verifying-key or trust-root
+  coordinate used to establish that verified history.
+
+The concrete representation remains deferred, but its semantic closure does
+not:
+
+```text
+same record bytes
++ different log-verification profile semantics
+-> different H or verification rejection
+
+same record bytes
++ different externally selected historical trust root
+-> different H or verification rejection
+
+same H
+-> same record snapshot
+-> same log-verification interpretation
+-> same historical trust coordinate
+```
+
+A human-readable log-profile label, implementation default, or mutable verifier
+configuration is not the required identity and cannot vary the interpretation
+of one `H`.
+
+The historical log-verification trust coordinate committed by `H` and the
+authority-verification trust-root coordinate committed by `A` serve different
+roles and must not be collapsed. The former authenticates verified Magpie
+history; it grants no origin-group assignment or candidate-designation
+authority. This clarification changes neither the frozen log format nor its
+signature-verification rules.
 
 `M` must commit to the finite bytes of every origin-binding and
 authority-binding object, plus any other foreign content the selected policy
@@ -684,22 +721,53 @@ A = (
 )
 ```
 
-The `authority_verification_profile_identity` component commits to the exact
-`CandidateDesignationAuthorityMode`, the complete mode-specific verification
-and authorization rules, deterministic failure precedence, and whether direct
-external commitment, authenticated designation issuance, or one explicitly
-closed combined interpretation applies. The mode is part of the immutable
-semantics of that profile identity, not a fifth field in `A`:
+The `authority_verification_profile_identity` component commits to one complete
+immutable normative semantic profile:
 
 ```text
-same nominal profile label
-+ different candidate-designation mode semantics
--> forbidden
+authority_verification_profile_identity
+-> exactly one immutable AuthorityVerificationProfileSemantics
+```
 
-different candidate-designation mode semantics
+`AuthorityVerificationProfileSemantics` names a semantic commitment, not a
+serialized schema or Rust type selected by this ADR.
+
+Those committed semantics include, at minimum:
+
+- the candidate-designation authority mode;
+- authority-object and envelope verification rules;
+- subject construction and exact-equality rules;
+- authentication rules;
+- grouping-assignment authorization rules;
+- candidate-designation authorization rules;
+- candidate-designation-set interpretation;
+- accepted algorithm identifiers and algorithm constraints;
+- extension and unknown-field behavior;
+- deterministic verification and failure precedence;
+- result semantics; and
+- audit-trace semantics.
+
+The mode is part of that complete immutable profile semantics, not a fifth field
+in `A`. A profile identity is not merely a stable label:
+
+```text
+same authority_verification_profile_identity
+-> same complete normative profile semantics
+
+different normative profile semantics
 -> different authority_verification_profile_identity
 -> different A
 ```
+
+A human-readable profile label, package or implementation version, resolver
+name, environment setting, mutable registry entry, current or latest profile
+alias, caller assertion, or object-carried profile label is not sufficient to
+identify these semantics. The future implementation contract may choose an
+immutable identifier or content commitment, but replay may not resolve profile
+semantics through mutable or ambient state. The profile identity commits the
+rules for using the separately selected authority trust root; it does not
+supply, select, or collapse the distinct `authority_trust_root_identity`
+component of `A`.
 
 The verification-material component commits to any finite root, intermediate,
 authorization, or equivalent verification material required by the selected
@@ -721,6 +789,7 @@ The replay law is:
 
 ```text
 same H + same P + same M + same A
+-> same verified-history interpretation
 -> same candidate-designation authority mode
 -> same mode-specific verification path
 -> byte-identical authority-bound origin-admission result and audit trace
@@ -738,7 +807,9 @@ must retain the exact identities of all four producing coordinates. This law
 applies to detachable authority-bound audits, admitted-origin results,
 contribution results, aggregation inputs, and standing inputs. Each must carry:
 
-- `H`: the verified Magpie log-prefix identity;
+- `H`: the exact verified-history coordinate, committing the complete record
+  snapshot, log-verification profile, and externally selected historical trust
+  coordinate;
 - `P`: the selected authority-bound origin-admission policy identity;
 - `M`: the immutable resolution-content closure identity; and
 - `A`: the complete authority-verification coordinate identity, including the
@@ -747,9 +818,11 @@ contribution results, aggregation inputs, and standing inputs. Each must carry:
   authority-candidate-designation-set identity.
 
 Retaining `A` therefore retains the exact candidate-designation authority mode
-through the immutable semantics of its profile identity. The mode is not
-reconstructed from the designation set or recorded as an ambient consumer
-choice.
+and complete normative authority-verification semantics through the immutable
+semantics of its profile identity. Retaining `H` retains the complete verified-
+history interpretation, not only record-byte identity. Neither the mode nor the
+history interpretation is reconstructed from evaluated content or ambient
+consumer state.
 
 A complete typed coordinate object may represent `H`, `P`, `M`, and `A`
 together. No component may be omitted. This ADR does not choose that object's
@@ -771,11 +844,12 @@ equal assignment content
 ```
 
 Two outputs containing the same contribution, namespace, and origin group are
-distinct authority-bound results when produced under different verified
-prefixes, authority-bound policies, content closures, authority profiles,
-trust roots, verification-material closures, or candidate-designation-set
-identities. The group assignment alone is never sufficient provenance for an
-authority-bearing result.
+distinct authority-bound results when produced under different record
+snapshots, log-verification profiles, historical trust coordinates,
+authority-bound policies, content closures, authority profiles, authority trust
+roots, verification-material closures, or candidate-designation-set identities.
+The group assignment alone is never sufficient provenance for an authority-
+bearing result.
 
 The same designation-set identity does not erase a mode-coordinate difference:
 
@@ -795,6 +869,11 @@ construction, standing policies, provenance or explanation output, and any
 future librarian or query response that exposes an authority-bearing
 conclusion. A downstream policy's own identity remains separately explicit; it
 does not replace or reconstruct the producer's `P`.
+
+For a downstream standing consumer, this producer-coordinate obligation does
+not alter the consumer's canonical standing coordinates under ADR-0003. The
+cross-ADR reconciliation gate below must also be satisfied before an authority-
+bound input can affect governed standing.
 
 ```text
 authority-bound result coordinates
@@ -855,11 +934,12 @@ must not be combined into authority or origin multiplicity.
 
 ### Rotation, delegation, and revocation boundary
 
-`A` pins authority interpretation to one snapshot. A mutable "current authority
-key" must not alter a prior result. Root or profile rotation creates a new,
-explicitly versioned authority coordinate; it is a different evaluation, not an
-update to the old one. Changing the candidate-designation-set identity likewise
-creates a new `A` and a different evaluation.
+`H + A` pin the verified-history and authority interpretations for one exact
+evaluation. A mutable "current authority key" must not alter a prior result.
+Authority-root or authority-profile rotation creates a new, explicitly
+versioned authority coordinate; it is a different evaluation, not an update to
+the old one. Changing the candidate-designation-set identity likewise creates a
+new `A` and a different evaluation.
 
 Later revocation, supersession, or changed organisational membership cannot
 rewrite `same H + same P + same M + same A`. A future policy may evaluate a
@@ -903,6 +983,8 @@ variants are deferred; their meaning is not.
 | Selected candidate-designation set is unavailable | The complete authority candidate universe cannot be established; resolver-level audit incompleteness | No authority-bound decisions |
 | Candidate-designation-set identity differs from selected `A` | Visible wrong-coordinate material; the selected universe is not established | No authority-bound decisions under selected `A` |
 | Material is valid under a different candidate-designation mode or profile | Visible wrong-profile or wrong-coordinate material | None under selected `A` |
+| One nominal profile label or purported immutable identity is assigned different normative semantics | Non-conforming profile identity; the selected verification path cannot be established | No authority-bound decisions under that purported identity |
+| A resolver combines, tries both, thresholds, compensates, or chooses between direct and issuer modes | Non-conforming resolver behavior outside ADR-0007 | No authority-bound decisions under ADR-0007 |
 | Authenticated-designation-issuer mode is selected, but exact issuer authentication or candidate-designation authorization fails | Designation-universe verification failure | No authority-bound decisions; no fallback to direct external commitment |
 | Direct-external-commitment mode is selected and the exact set identity is valid, while the set also carries issuer or signature metadata | Metadata remains visible but does not select or change the mode | Evaluated only under direct-external-commitment rules |
 | Required designation-set verification under the selected mode fails, or the set is malformed or internally ambiguous | Resolver-level designation-universe failure | No authority-bound decisions |
@@ -922,6 +1004,7 @@ variants are deferred; their meaning is not.
 | Duplicate byte-identical or semantically identical valid decisions | All occurrences remain visible; the decision collapses structurally | One assignment, never amplification |
 | Multiple valid conflicting groups for one `GovernedAssignmentKey` | Terminal conflict, independent of event order, timestamp, or lexical order | No assignment for that key |
 | Valid decision under another root or profile | Visible but ineligible under selected `A`; it cannot select a new `A` | None under selected `A` |
+| The same record bytes are presented under a different log-verification profile or externally selected historical trust coordinate | Verified-history coordinate mismatch or log-verification rejection | None under the selected `H` |
 | Claimant-only v0 admitted origin | Visible as compatibility output only | Not authority-bound |
 
 Definitively invalid, mismatched, wrong-coordinate, or non-designated objects
@@ -1066,6 +1149,10 @@ public policy and type boundary must be additive and unambiguous.
 | 23. Direct-external-commitment mode is selected by the profile in `A`, and the exact set also carries a signature or issuer claim | The signature or issuer claim remains visible but does not change the selected mode | Evaluated only under direct-external-commitment rules | Zero from metadata alone | No issuer-derived standing effect | Set contents do not select mode, and no issuer-role inference occurs |
 | 24. The same immutable designation set is evaluated once under a direct-mode profile and once under an authenticated-issuer-mode profile | Both profile identities, both `A` coordinates, and the difference remain visible | Distinct authority-bound evaluations; cross-profile composition is rejected | Zero through a mismatched composition | No positive amplification from cross-profile reuse | Different mode semantics require different profile identities and therefore different `A` coordinates |
 | 25. Two resolvers receive identical `H + P + M + A`, but one attempts direct mode and the other attempts issuer mode based on local configuration or observed authentication success | The divergence is a non-conforming implementation behavior | Only the mode fixed by the selected profile is eligible; conforming resolvers produce the same result | Zero through any non-conforming cross-mode path | No positive amplification from a locally selected mode | Mode is immutable profile semantics, not a resolver choice or success-dependent fallback |
+| 26. Two implementations use the same profile label or purported immutable identity but differ in mode, algorithm handling, subject equality, authorization rules, extension behavior, failure precedence, result semantics, or audit semantics | The semantic divergence is visible as a non-conforming profile identity or implementation | No common authority-bound evaluation exists under that purported identity | Zero | No positive amplification | One immutable profile identity must commit one complete normative semantic profile; different semantics require different identities and `A` coordinates |
+| 27. A resolver tries direct commitment and authenticated issuance, combines them, chooses whichever succeeds, or permits one proof to compensate for failure of the other | The prohibited combined or try-both path is visible as non-conforming behavior | None under ADR-0007 | Zero | No positive amplification | ADR-0007 authorizes exactly two separate modes with no cross-mode combination or fallback; any combined semantics require a separately proposed and ratified ADR |
+| 28. The same record bytes are presented under different log-verification profiles or different externally selected historical verifying keys | Both verification contexts and the mismatch or rejection remain visible | Different `H` coordinates or verification rejection; never one nominally identical evaluation | Zero through any mismatched input | No positive amplification | `H` commits the record snapshot, log-verification interpretation, and historical trust coordinate; historical log trust is distinct from authority trust in `A` |
+| 29. An authority-bound contribution carrying complete `H + P + M + A` is presented to a future standing consumer whose selected standing coordinates do not commit or exact-match `M` and `A` | The producer and its complete coordinates remain visible | Downstream composition is rejected | Zero through the rejected input | No positive amplification; inherited standing is unchanged | ADR-0003 is not permission to erase producing authority coordinates, and ADR-0007 does not silently amend ADR-0003 |
 
 ## Relationship to existing ADRs and contracts
 
@@ -1077,9 +1164,12 @@ contract merely by existing.
   the anchor remains occurrence and inclusion evidence, not authentication.
 - ADR-0002's no-hidden-authority boundary and separation of standing from truth
   are reinforced.
-- ADR-0003's coordinate-bound standing definition remains intact. An
-  authority-bound contribution would be an explicit input to a later named
-  standing policy, not ambient authority.
+- ADR-0003's coordinate-bound standing definition and exactly three canonical
+  standing coordinates remain intact. ADR-0007 defines the producing and
+  composition coordinates of authority-bound inputs and results; it does not
+  silently replace or expand ADR-0003's canonical definition. An authority-
+  bound contribution would be an explicit input to a later named standing
+  policy, not ambient authority.
 - ADR-0004 and ADR-0005 remain orthogonal; lifecycle and attributed withdrawal
   acts do not authenticate grouping authority.
 - ADR-0006's explicit policy-selection and compatibility laws are followed, but
@@ -1087,6 +1177,59 @@ contract merely by existing.
 - The current origin-binding, origin-admission, admitted-contribution,
   support-contribution, and standing-v3 contracts remain accurate records of
   current v0/v3 behavior until separately reconciled after acceptance.
+
+### ADR-0003 authority-bound standing reconciliation gate
+
+An authority-bound producer's coordinates remain mandatory at a downstream
+standing boundary:
+
+```text
+authority-bound input produced under H + P + M + A
++ downstream standing consumer
+-> consumer retains and exact-matches the complete producing H + P + M + A
+```
+
+A standing policy or resolver may not retain only the assignment, group, or
+`H`; omit `M` or `A`; reconstruct a producing coordinate from fields; infer it
+from ambient resolver context; substitute a current, latest, default,
+compatible, or mutable coordinate; or treat equal result content as coordinate
+equality. The existing mismatch law continues to apply:
+
+```text
+authority-bound result coordinates
+!= selected consumer coordinates
+-> composition rejected
+-> zero positive amplification
+```
+
+This producer-input composition law is not a decision about how a future
+standing policy reconciles those coordinates with ADR-0003. Before any
+authority-bound contribution may affect governed standing, a separately
+reviewed and owner-ratified contract must establish one of exactly two
+permissible outcomes:
+
+1. **Outcome A — existing-coordinate closure.** An explicit closed contract
+   demonstrates that the selected ADR-0003 standing snapshot, policy-version,
+   and resolver identities commit transitively and unambiguously to the
+   complete selected authority-bound input universe and every producing
+   `H + P + M + A` coordinate required for replay.
+2. **Outcome B — separate amendment.** ADR-0003 is separately amended and
+   owner-ratified before the authority-bound standing policy is implemented.
+
+ADR-0007 chooses neither outcome. A resolver name, documentation convention,
+wrapper, caller assertion, mutable registry, or implementation configuration
+cannot satisfy Outcome A. Its proof obligation is semantic and replay-complete;
+naming a resolver does not by itself commit arbitrary external inputs.
+
+```text
+no accepted cross-ADR coordinate reconciliation
+-> no authority-bound standing consumer
+-> no positive standing amplification from authority-bound inputs
+```
+
+This is a future implementation gate. It neither disables nor reinterprets
+current standing-v3, which remains claimant-label compatibility behavior under
+its existing contract and coordinates.
 
 ## Required reconciliation if accepted
 
@@ -1138,6 +1281,8 @@ Positive consequences:
 
 - authority comes from an externally selected, replayable verifier boundary,
   not claimant vocabulary;
+- immutable profile and verified-history identities prevent nominal labels or
+  equal record bytes from hiding different verification semantics;
 - the exact subject blocks cross-contribution, cross-namespace, cross-group,
   cross-policy, cross-profile, and cross-root substitution;
 - detachable authority-bound outputs retain complete producing coordinates and
@@ -1181,6 +1326,11 @@ Costs and constraints:
   signature presence, verification outcome, caller preference, and resolver
   configuration are not replay coordinates; mode is fixed by the selected
   immutable authority-verification-profile identity.
+- **Authorize combined or try-both designation semantics under ADR-0007.**
+  Direct commitment and authenticated issuance are the only two authorized
+  modes. Conjunction, disjunction, thresholding, compensation, ordered attempts,
+  or success-dependent selection requires a separately proposed and ratified
+  ADR.
 - **Authenticate only the current origin-binding object.** This erases the
   claimant/authority ownership boundary and invites silent v0 reinterpretation.
 - **Trust a key carried by the authority object.** That lets the claimant choose
@@ -1205,18 +1355,23 @@ contract after this ADR is accepted:
 
 - exact authority-object schema, canonicalization profile, bundle kind, size
   bound, witness or signature envelope, and algorithm set;
-- exact identifiers for the authority verification profile, trust-coordinate
-  representation, authority-bound origin-admission policy, downstream
-  contribution policies, and standing policy;
+- exact immutable representation of the authority verification profile
+  identity, trust-coordinate representation, authority-bound origin-admission
+  policy, downstream contribution policies, and standing policy, provided the
+  profile identity commits the complete normative semantics fixed above;
+- exact representation of `H` as a complete verified-history coordinate,
+  provided it commits the record snapshot, log-verification profile identity,
+  and externally selected historical trust coordinate without changing the
+  frozen log format;
 - exact immutable closure representation for root, intermediate, delegation,
   revocation, or equivalent verification material;
 - exact finite candidate-designation-set representation, canonicalization,
   identity verification, and, when applicable, authentication mechanism;
-- concrete profile identifiers, serialized mode names, whether the first
-  implementation ships one mode-specific profile or multiple distinct
-  mode-specific profiles, whether a future combined profile is ever introduced,
-  and, for issuer mode, the exact designation-authority, authorization-path,
-  and authorization-scope identity representations;
+- concrete profile identifiers, serialized names for the two authorized modes,
+  whether the first implementation ships one mode-specific profile or distinct
+  profiles for both authorized modes, and, for issuer mode, the exact
+  designation-authority, authorization-path, and authorization-scope identity
+  representations;
 - exact representation of the selector-to-origin-binding and
   `GovernedAssignmentKey` designation tuple;
 - exact candidate-universe enumeration, assignment-scoped incompleteness
@@ -1234,11 +1389,15 @@ contract after this ADR is accepted:
 Those decisions may choose among cryptographic mechanisms that satisfy this
 ADR. They may not weaken the exact subject, external trust selection, replay
 law, fail-closed behavior, additive compatibility boundary, or narrow grant.
-The coordinate that commits mode semantics is not deferred: one immutable
-authority-verification-profile identity has one closed mode interpretation,
-different mode semantics require different profile identities, selected-mode
-failure cannot trigger another mode, and identical `H + P + M + A` selects the
-same mode-specific path and result.
+The semantic closure of `H` and the coordinate that commits authority-profile
+semantics are not deferred. One immutable authority-verification-profile
+identity has one complete normative semantic interpretation and exactly one of
+the two modes authorized here. Different normative semantics require different
+profile identities, selected-mode failure cannot trigger another mode, and any
+combined semantics require a separately proposed and ratified ADR. One `H`
+commits one record snapshot, log-verification interpretation, and historical
+trust coordinate. Identical `H + P + M + A` selects the same verified-history
+interpretation, mode-specific path, result, and audit trace.
 
 ## Non-goals
 
@@ -1277,26 +1436,32 @@ minimum pin:
 3. the exact distinction between grouping-assignment authorization and
    candidate-designation authorization, including the law that authentication
    alone grants neither role;
-4. the exact `CandidateDesignationAuthorityMode` as immutable semantics of the
-   selected `authority_verification_profile_identity`, including complete
-   mode-specific verification and authorization rules and deterministic
-   failure precedence;
-5. distinct immutable profile identities for different mode semantics, with
-   support for multiple modes expressed only as multiple explicit profiles;
-6. a complete truth table or equivalent closed deterministic rule under a
-   distinct profile identity for any future combined mode, including whether
-   direct commitment and issuer authentication or authorization are required,
-   how their proofs relate, and which failures are terminal;
+4. the complete immutable `AuthorityVerificationProfileSemantics` committed by
+   the selected `authority_verification_profile_identity`, including every
+   verification, subject-equality, authentication, authorization, designation-
+   set, algorithm, extension, failure-precedence, result, and audit-trace rule
+   fixed above and exactly one authorized `CandidateDesignationAuthorityMode`;
+5. distinct immutable profile identities for the direct and issuer mode
+   semantics, with support for both authorized modes expressed only as multiple
+   explicit profiles;
+6. prohibition of any combined, try-both, compensating, threshold, conjunctive,
+   disjunctive, or success-dependent designation-mode semantics under ADR-0007,
+   with any such future semantics requiring a separately proposed and ratified
+   ADR;
 7. prohibition of runtime mode detection, caller- or configuration-selected
    mode, success-dependent mode choice, and cross-mode fallback;
-8. which one or more explicit mode-specific profiles the first implementation
-   ships, without leaving mode choice open while evaluating any one profile;
+8. whether the first implementation ships a profile for one authorized mode or
+   distinct explicit profiles for both, without leaving mode choice open while
+   evaluating any one profile;
 9. for authenticated-issuer mode, the exact designation-authority identity,
    immutable authorization-path identity, exact authorization-scope identity,
    and failure behavior when issuer authentication succeeds but exact role or
    scope authorization fails;
-10. the complete external authority coordinate `A`, including one exact finite
-    immutable candidate-designation-set identity;
+10. the complete replay identities: an `H` that commits the exact record
+    snapshot, log-verification profile identity, and externally selected
+    historical trust coordinate, and the four-component external authority
+    coordinate `A`, including one exact finite immutable candidate-designation-
+    set identity;
 11. the exact `AuthorityCandidateDesignation` tuple binding an authority-object
     selector or identity, origin-binding identity, and `GovernedAssignmentKey`;
 12. the exact rule deriving all and only designated candidates with required
@@ -1315,18 +1480,21 @@ minimum pin:
 18. additive policy and type quarantine from current v0/v3 output;
 19. a coordinate-bearing authority-bound output type that retains the exact
     identities of `H`, `P`, `M`, and the complete four-component `A`, including
-    its profile-bound mode and candidate-designation-set identity, with
-    authenticated-issuer outputs also retaining the required derived
+    `H`'s complete verified-history interpretation and `A`'s profile-bound
+    complete normative semantics, mode, and candidate-designation-set identity,
+    with authenticated-issuer outputs also retaining the required derived
     designation-authority audit identities;
 20. hostile cross-coordinate tests that independently reject a wrong `H`, wrong
-    `P`, wrong `M`, wrong authority profile, wrong trust root, wrong
+    `P`, wrong `M`, wrong authority profile, wrong authority trust root, wrong
     verification-material closure, and wrong candidate-designation-set
     identity, plus identical assignment content produced under different
-    coordinates;
+    coordinates and equal record bytes verified under a different log profile
+    or historical trust coordinate;
 21. hostile cross-mode tests proving that:
     - identical `H + P + M + A` always selects the same mode;
     - issuer failure cannot fall back to direct external commitment;
     - signature or issuer metadata cannot switch direct mode to issuer mode;
+    - combining or trying both modes is non-conforming under ADR-0007;
     - the same designation set under different mode profiles produces different
       `A` coordinates;
     - outputs from different mode profiles fail downstream coordinate matching;
@@ -1345,8 +1513,13 @@ minimum pin:
     - a missing candidate for one key while an unrelated key remains complete;
 24. hostile tests distinguishing resolver-level missing authority-verification
     material from assignment-scoped missing candidate bytes;
-25. hostile tests for every scenario in this ADR; and
-26. compatibility and documentation reconciliation.
+25. hostile tests for every scenario in this ADR;
+26. compatibility and documentation reconciliation; and
+27. before any authority-bound input affects governed standing, a separately
+    reviewed and owner-ratified cross-ADR coordinate contract that establishes
+    exactly Outcome A or Outcome B from the ADR-0003 reconciliation gate,
+    retains and exact-matches every producing `H + P + M + A`, and hostile-tests
+    omitted, reconstructed, ambient, mutable, and mismatched `M` and `A` inputs.
 
 Only a later runtime change, hostile-test suite, compatibility review, and
 accepted contract can implement this decision. The audit disposition can then
