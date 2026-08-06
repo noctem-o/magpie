@@ -825,6 +825,14 @@ the contribution has been counted
 standing has changed
 ```
 
+Carrying the upstream v0 `origin_group` across this typed boundary preserves
+deterministic compatibility data. It does not authenticate the group, create
+grouping authority, or independently establish source identity, and the value
+does not become authority-bound because it crossed a typed audit boundary.
+The upstream group originates from claimant-label compatibility admission;
+the future authority-bound successor requires its own additive types and
+complete `H + P + M + A` coordinates under ADR-0007.
+
 ## Public audit surface
 
 The runtime exposes exactly these six public types:

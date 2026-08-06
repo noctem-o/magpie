@@ -1701,6 +1701,15 @@ the report is true
 the group is independent
 ```
 
+Carrying the v0 group forward preserves the upstream claimant-label
+compatibility classification; it does not authenticate organisational origin,
+establish source independence, or grant standing by itself, and the value
+cannot enter a future authority-bound successor by wrapper, alias, shape
+equivalence, or caller assertion. The authority-bound successor requires
+ADR-0007's accepted semantics, separately implemented authority-bound origin
+admission, complete producer-coordinate retention, and the ADR-0003
+reconciliation gate.
+
 ## SupportContributionAuditV0 surface
 
 Freeze this exact conceptual field order:
