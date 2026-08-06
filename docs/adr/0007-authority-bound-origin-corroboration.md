@@ -1,6 +1,6 @@
 # ADR-0007: Authority-Bound Origin Corroboration
 
-**Status:** Proposed
+**Status:** Accepted (ratified by George, 2026-08-06)
 
 ## Summary / Y-statement
 
@@ -16,9 +16,9 @@ replayed from finite immutable inputs. We accept an additive authority-bound
 policy path and preserve current v0 and standing-v3 outputs only under their
 existing claimant-label compatibility semantics.
 
-This is a proposal for owner review. Owner ratification and a later, separately
-reviewed implementation are required before this decision can govern runtime
-origin admission or standing.
+This ADR is Accepted doctrine. Acceptance does not implement the decision:
+runtime remains gated on the separately reviewed implementation contract,
+hostile-test suite, and compatibility review required below.
 
 ## Context and problem statement
 
@@ -1082,7 +1082,7 @@ This ADR chooses additive versioning: preserve current outputs as historical or
 compatibility-only and introduce a new explicitly versioned authority-bound
 policy path.
 
-If this ADR is accepted:
+Under this accepted ADR:
 
 - `OriginAdmissionAuditV0`, its canonical bytes, its `OriginAdmitted` results,
   admitted-contribution v0, support-contribution v0, and standing-v3 results
@@ -1156,8 +1156,8 @@ public policy and type boundary must be additive and unambiguous.
 
 ## Relationship to existing ADRs and contracts
 
-This Proposed ADR does not silently amend an Accepted ADR or a ratified design
-contract merely by existing.
+Acceptance of this ADR does not silently amend another Accepted ADR or a
+ratified design contract.
 
 - ADR-0001's anchored hierarchy remains intact. Existing `SegmentAnchored`
   events may record a future authority object without a new L0 payload tag, but
@@ -1176,7 +1176,7 @@ contract merely by existing.
   its currentness and invalidation decision does not ratify origin authority.
 - The current origin-binding, origin-admission, admitted-contribution,
   support-contribution, and standing-v3 contracts remain accurate records of
-  current v0/v3 behavior until separately reconciled after acceptance.
+  current v0/v3 behavior until separately reconciled.
 
 ### ADR-0003 authority-bound standing reconciliation gate
 
@@ -1231,11 +1231,11 @@ This is a future implementation gate. It neither disables nor reinterprets
 current standing-v3, which remains claimant-label compatibility behavior under
 its existing contract and coordinates.
 
-## Required reconciliation if accepted
+## Required living-contract reconciliation
 
-Acceptance would require a separate documentation change that explicitly
-narrows or supersedes the following living-contract statements. This proposal
-does not edit them:
+Acceptance requires a separate documentation change that explicitly
+narrows or supersedes the following living-contract statements. This ADR does
+not edit them:
 
 1. `docs/design/origin-admission-audit-v0.md` §5, especially the statement that
    compiled selection of exact `human-review` plus
@@ -1271,9 +1271,9 @@ does not edit them:
    implementation contract must supersede their authority-bearing
    interpretation rather than rewriting those records.
 
-No reconciliation may be applied as if this ADR were already accepted. The
-separate reconciliation review must preserve historical replay and identify
-every authority-bearing consumer.
+Acceptance does not itself apply that reconciliation. The separate
+reconciliation review must preserve historical replay and identify every
+authority-bearing consumer.
 
 ## Consequences
 
@@ -1401,7 +1401,7 @@ interpretation, mode-specific path, result, and audit trace.
 
 ## Non-goals
 
-This ADR and its documentation-only proposal do not provide or authorize:
+This documentation-only ADR does not provide or authorize:
 
 - runtime implementation;
 - new Rust types;
@@ -1424,11 +1424,16 @@ This ADR and its documentation-only proposal do not provide or authorize:
 
 ## Acceptance and implementation gates
 
-This ADR remains Proposed until an owner explicitly ratifies it. This prompt,
-green tests, existing code, merged audit documents, or the presence of this file
-do not constitute ratification.
+This ADR is Accepted doctrine, ratified by George on 2026-08-06. Acceptance
+does not implement authority-bound origin admission, change current v0 or
+standing-v3 semantics, satisfy the ADR-0003 standing-reconciliation gate, or
+remediate A-024. Green tests, existing code, merged audit documents, and the
+presence of this file do not constitute implementation. A separately reviewed
+implementation contract, runtime change, hostile-test suite, compatibility
+review, and objective evidence remain required before this decision can govern
+runtime.
 
-After owner ratification, a separately reviewed implementation contract must at
+After acceptance, a separately reviewed implementation contract must at
 minimum pin:
 
 1. the exact authority object and immutable identity;
@@ -1525,11 +1530,11 @@ Only a later runtime change, hostile-test suite, compatibility review, and
 accepted contract can implement this decision. The audit disposition can then
 be reassessed on evidence.
 
-ADR-0007 addresses the doctrine gap identified by A-024. A Proposed ADR does
-not remediate the current runtime finding. A-024 remains **Confirmed** until
-accepted doctrine, runtime changes, hostile tests, and compatibility review are
-all complete. This documentation change must not move the audit disposition
-ledger to Partially remediated, Scheduled, or Closed.
+ADR-0007 addresses the doctrine gap identified by A-024. Accepted doctrine
+does not remediate the current runtime finding. A-024 remains **Confirmed**
+until runtime changes, hostile tests, and compatibility review are all
+complete. This ADR's acceptance must not move the audit disposition ledger to
+Partially remediated, Scheduled, or Closed.
 
 ## References
 
