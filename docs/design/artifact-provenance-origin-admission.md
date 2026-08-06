@@ -654,7 +654,7 @@ exact contribution identity
 + verified artifact identity
 + verified acquisition and required derivation lineage
 + exact verified origin-binding statement
-+ explicit trusted authority under one origin-admission policy
++ the origin-admission policy's compiled compatibility label selection
 + no unresolved conflict
 -> one admitted origin group
 ```
