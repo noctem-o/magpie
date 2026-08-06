@@ -3,8 +3,14 @@
 ## 1. Status
 
 Ratified documentation-only architecture contract. Ticket 0046 records this
-decision. Runtime origin admission, exact verified-prefix construction,
-candidate enumeration and `OriginAdmissionAuditV0` remain future work.
+decision, and Ticket 0048 implements the runtime. The implemented current v0
+behavior is claimant-label compatibility behavior: its authority-pair match is
+compiled compatibility label selection, not independently authenticated
+authority, and its `OriginAdmitted` output is not independently authority-
+bound. ADR-0007 (Accepted 2026-08-06) defines the separate authority-binding
+object and `H + P + M + A` coordinate boundary for any future authority-bound
+successor. A-024 remains **Confirmed** until that successor and its runtime
+evidence exist.
 
 The exact base of this contract is the post-PR-#58 main commit:
 
@@ -29,14 +35,19 @@ one selected origin-binding selector
 That is necessary verification machinery, but it cannot by itself prove that
 the caller presented the complete set of potentially conflicting bindings.
 Origin admission requires a complete replay-derived candidate universe, one
-selected policy, one independently trusted authority path and an audit bound to
-the exact log prefix and immutable closure used.
+selected policy, one authority path and an audit bound to the exact log prefix
+and immutable closure used. Under current v0 the authority path is compiled
+compatibility label selection; an independently authenticated authority path
+exists only in the future ADR-0007 successor.
 
 The central laws are:
 
 ```text
 verified origin binding
 != trusted authority
+
+exact authority-label equality
+!= authenticated grouping authority
 
 trusted origin assignment
 != support contribution
@@ -56,12 +67,15 @@ The positive construction is:
 ```text
 complete replay-anchored candidate universe
 + exact selected policy
-+ independently selected authority trust
++ compiled authority-label selection under that policy
 + deterministic duplicate/conflict handling
 + exact verified-prefix identity
 + immutable closure identity
 -> reproducible standing-inert origin-admission audit
 ```
+
+The authority-path term in that construction is compatibility label selection
+under current v0, not independently authenticated authority.
 
 ## 3. Deterministic input law
 
@@ -116,9 +130,9 @@ V0 has no runtime policy parameter, registry, alias, implicit latest policy,
 environment override, bundle-selected implementation or caller-selected
 policy.
 
-## 5. Exact trusted grouping-authority path v0
+## 5. Exact compiled grouping-authority label selection v0
 
-The selected policy trusts exactly one claimed authority pair:
+The selected policy matches exactly one claimed authority pair:
 
 ```text
 authority.kind:
@@ -128,8 +142,14 @@ authority.reference:
 authority:origin-review-v0
 ```
 
-Trust comes from the compiled policy's exact selection of this pair. The
-bundle merely names the pair and cannot trust itself.
+Selection comes from the compiled policy's exact equality with this pair. The
+bundle merely names the pair and cannot select or authenticate itself. This is
+compiled compatibility label selection: it prevents policy-label substitution,
+but it does not authenticate the claimant, authorize an issuer, or
+independently bind grouping authority. The matched claim remains a claimant
+assertion, and admissions under this section are claimant-label compatibility
+admissions. Authenticated grouping authority requires the separate ADR-0007
+authority-binding object verified under explicit `H + P + M + A` coordinates.
 
 The pair authorizes only:
 
@@ -195,6 +215,13 @@ support. Extra closure objects without a matching candidate anchor are outside
 Magpie's accepted record and do not enter the audit.
 
 This law makes a favourable caller-selected subset an impossible API shape.
+
+This shape-matched, replay-derived candidate universe and the global
+byte-completeness gate of section 8 are current v0 compatibility behavior.
+They do not define the ADR-0007 successor's authority candidate designation,
+finite designation set under `A`, assignment-key-scoped incompleteness, or
+resolver-level designation-universe verification, and this section does not
+retrofit those semantics into v0.
 
 ## 7. Candidate-enumeration implementation boundary
 
@@ -353,7 +380,10 @@ those classifications. Neither classification is an admission or veto.
 ## 11. Trusted assignment fold
 
 Only matched `OriginBindingReceiptV0` values satisfying both exact selected
-policy equality and exact trusted-authority equality enter the fold.
+policy equality and exact trusted-authority equality enter the fold. "Trusted"
+here names the compiled compatibility label selection of section 5, not
+authenticated authority: assignments this fold produces are claimant-label
+compatibility admissions.
 
 The exact grouping key is:
 
@@ -470,6 +500,13 @@ It does not mean that the contribution supports the claim, the contribution is
 true, the origin group is a publisher, the origin is statistically independent,
 the group is reputable, another group is independent, the claim reaches any
 standing, or aggregation has occurred.
+
+Current v0 `OriginAdmitted` is a claimant-label compatibility admission. It is
+not independently authority-bound, not authenticated origin-group admission,
+and not authorization by an external grouping authority, and it is not
+eligible for silent use in a future authority-bound path by wrapper, alias,
+field resemblance, or caller assertion. The future ADR-0007 successor must
+carry its own explicit coordinate set.
 
 The audit remains standing-inert derived material.
 
@@ -729,7 +766,11 @@ variant spelling: snake_case
 
 Serialized audits, decisions, admitted-origin values, conflicts, candidate
 audits, receipts and identities are audit output only. No resolver accepts one
-as authority or as a substitute for replay and closure inputs.
+as authority or as a substitute for replay and closure inputs. No current v0
+audit, decision, or admitted-origin value becomes authority-bound by its field
+shape, label equality, or later convention; the ADR-0007 authority-bound
+successor requires its own additive types and complete `H + P + M + A`
+coordinates.
 
 ## 20. Deterministic ordering
 
@@ -928,8 +969,10 @@ independently reviewable.
 
 - Confirm the selected policy is exactly `magpie-origin-admission-v0` and
   bundle content cannot select code.
-- Confirm the only trusted authority pair is exact `human-review` plus
-  `authority:origin-review-v0` and grants grouping authority only.
+- Confirm the only compiled authority-label pair is exact `human-review` plus
+  `authority:origin-review-v0`, that its match is compatibility label
+  selection rather than authenticated grouping authority, and that it admits
+  only one exact contribution-scoped origin-group assignment.
 - Confirm candidates come from the complete same-replay anchor index and no
   caller candidate list or closure enumeration substitutes for it.
 - Confirm unsupported anchor families remain outside v0 without negotiating

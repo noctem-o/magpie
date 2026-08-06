@@ -158,6 +158,17 @@ not prove acquisition, acquisition does not prove source identity, a source
 descriptor does not admit an origin, and an admitted origin does not create a
 support contribution.
 
+ADR-0007 (Accepted 2026-08-06) now supplies the accepted doctrine for this
+seam: a separate, independently owned authority-binding object, verified under
+an externally selected `H + P + M + A` coordinate set, authorizes an exact
+origin-group assignment. Under that doctrine the origin-binding object remains
+claimant-owned assertion; the authority object is separately owned and
+verified; candidate-designation authority and grouping-assignment authority
+remain separate roles; and no current v0 output enters the future
+authority-bound successor by wrapper, alias, field resemblance, or caller
+assertion. Until that successor is separately implemented, the current v0
+path remains claimant-label compatibility behavior.
+
 ## 5. Architectural decision
 
 The first implementation will reuse the anchored hierarchy:
@@ -402,13 +413,21 @@ A later policy may admit one group only after:
 - the origin-binding bundle is present, anchored, and profile-verified;
 - the binding targets the exact contribution identity and origin-comparison
   namespace;
-- the binding authority is trusted under an explicit origin-admission policy;
-  and
+- the binding's claimed authority pair matches the explicit origin-admission
+  policy's compiled compatibility label selection; and
 - no unresolved conflicting binding exists.
 
 Admission is still not a support contribution. It authorizes only an exact
 grouping statement for one contribution inside the named comparison namespace
 under the named policy.
+
+Under current v0 that admission is claimant-label compatibility admission: it
+does not authenticate the issuer, authorize an external grouping authority, or
+independently bind origin authority, and it cannot enter a future
+authority-bound path by wrapper, alias, matching fields, or caller assertion.
+The ADR-0007 successor replaces the label-match condition with a separately
+owned authority-binding object verified under explicit `H + P + M + A`
+coordinates.
 
 ## 7. Anchored foreign-bundle model
 
@@ -692,6 +711,12 @@ The following laws apply:
 Policy choice must be explicit in versioned code or a separately ratified
 contract. Log-carried data and caller inputs cannot negotiate authority.
 
+ADR-0007 (Accepted 2026-08-06) fixes the accepted authority seam for origin
+grouping: a separate authority-binding object, an externally selected
+authority-verification profile and trust coordinate, and the complete
+`H + P + M + A` replay coordinates. Its candidate-designation authority and
+grouping-assignment authority remain separate roles.
+
 ## 12. Duplicate and conflict handling
 
 ### Exact duplicate binding
@@ -815,14 +840,24 @@ conservative aggregation
 
 Closure construction and exact lookup are implemented without a loader or
 verifier wiring. The origin-binding wire contract is ratified by Ticket 0042;
-its verifier, origin admission and every later step remain future work. The
-admitted-contribution audit is a future standing-inert
-explanation surface.
+its verifier and the origin-admission, admitted-contribution, and
+support-contribution audits are implemented by later tickets. The
+admitted-contribution audit is a standing-inert explanation surface,
+implemented by Ticket 0050.
 It will revalidate one exact policy-eligible contribution and associate it with
 its admitted origin result while preserving every unresolved prerequisite. It
 is derived deterministically from `(verified log prefix H, explicit policy
 identities P, immutable resolution content closure M)`, reports potential
 aggregation input, and does not create support or standing.
+
+The landed admitted-contribution and support-contribution audits carry the
+admitted v0 group as deterministic compatibility data; they authenticate
+nothing about it. Policy v3's distinct-group counting over that basis is
+claimant-label compatibility corroboration, not independently authenticated
+separation. The authority-bound successor path is additive and requires
+ADR-0007's accepted semantics, separately implemented authority-bound origin
+admission, complete producer-coordinate retention, and the ADR-0003
+reconciliation gate.
 
 Policy v2 direct support is not aggregation. Origin admission is not support.
 One admitted group is not aggregation. Missing, malformed, conflicting,

@@ -5,7 +5,8 @@
 Ratified exact protocol contract. Ticket 0042 is the documentation-only slice
 that freezes the first origin-binding foreign-bundle protocol.
 
-This document defines exact statements for a future standing-inert verifier.
+This document defines exact statements for the standing-inert origin-binding
+verifier, whose runtime landed separately.
 It implements no parser, encoder, fixture, verifier, receipt type, closure-to-
 verifier wiring, origin admission, authority trust, contribution admission,
 support, standing, policy v3, aggregation, loader, CAS, filesystem or network
@@ -484,9 +485,16 @@ The canonical bundle contains no `trusted`, `verified`, `approved`,
 `authority_is_valid` field. It contains no signer public key, certificate or
 trust root capable of bootstrapping its own authority.
 
-A signer or authority named inside an exact canonical anchored bundle remains
-untrusted until a separate explicit origin-admission policy trusts that exact
-authority claim.
+`authority.kind`, `authority.reference`, and `origin_group` are
+claimant-supplied assertions. Their canonical form, protocol syntax, exact
+equality, occurrence in anchored bytes, provenance, and presence under the
+compiled origin-admission pair do not independently authenticate or authorize
+their issuer. A signer or authority named inside an exact canonical anchored
+bundle remains untrusted claimant data. The current origin-admission policy's
+exact match of that claim is compiled compatibility label selection, not
+authentication or authorization. Authenticated grouping authority requires the
+separate authority-binding object and explicit authority coordinate defined by
+ADR-0007.
 
 ## 14. Artifact identity and exact provenance selectors
 
@@ -802,7 +810,12 @@ matched origin-binding receipt
 ```
 
 Only a separately selected explicit versioned origin-admission policy may
-decide whether `authority.kind + authority.reference` is trusted.
+decide whether `authority.kind + authority.reference` is trusted. Under the
+current v0 policy that decision is compiled compatibility label selection: it
+authenticates no issuer and grants no corroboration authority. Corroboration
+authority requires the separate ADR-0007 authority boundary — a distinctly
+owned authority-binding object verified under explicit `H + P + M + A`
+coordinates.
 
 ## 22. Duplicate and conflict doctrine
 
@@ -838,7 +851,12 @@ conflict.
 
 Two distinct contributions with different admitted groups in one namespace
 may later provide policy-recognised corroboration separation. This contract
-admits neither group and creates no support.
+admits neither group and creates no support. Under the current v0 path those
+groups originate from claimant-label compatibility admission, so any
+separation they supply is claimant-label compatibility corroboration, not
+authenticated organisational, causal, statistical, or editorial independence.
+Authority-bound corroboration separation requires the additive ADR-0007
+successor path.
 
 ## 23. Normative canonical vectors
 
