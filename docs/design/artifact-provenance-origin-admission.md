@@ -402,7 +402,7 @@ origin group, make evidence or claims true, or create support.
 ### 6.9 Admitted origin result
 
 An admitted origin result is a replay-derived policy outcome, not caller input.
-A later policy may admit one group only after:
+The implemented v0 origin-admission policy admits one group only after:
 
 - the contribution path is structurally revalidated;
 - the relevant exact artifact identity is present;
@@ -417,7 +417,7 @@ A later policy may admit one group only after:
   policy's compiled compatibility label selection; and
 - no unresolved conflicting binding exists.
 
-Admission is still not a support contribution. It authorizes only an exact
+Admission is still not a support contribution. It produces only an exact
 grouping statement for one contribution inside the named comparison namespace
 under the named policy.
 
@@ -824,18 +824,19 @@ evidence.
 
 ## 14. Interaction with standing and aggregation
 
-Tickets 0040 and 0041 land the first two steps of the corrected implementation
-sequence:
+Tickets 0040 and 0041 landed the first two steps of the corrected
+implementation sequence; every listed stage has since landed or been ratified
+as marked:
 
 ```text
-ResolutionContentClosureV0 contract — landed
-ResolutionContentClosureV0 implementation — landed
-exact origin-binding bundle contract — this slice
-origin-binding verifier — next
-standing-inert origin-admission audit
-admitted-contribution audit
-policy-v3 contract
-conservative aggregation
+ResolutionContentClosureV0 contract — landed (Ticket 0040)
+ResolutionContentClosureV0 implementation — landed (Ticket 0041)
+exact origin-binding bundle contract — landed (Ticket 0042)
+origin-binding verifier — landed (Ticket 0045)
+standing-inert origin-admission audit — landed (Ticket 0048)
+admitted-contribution audit — landed (Ticket 0050)
+policy-v3 contract — ratified (Ticket 0053)
+conservative aggregation — first exact v3 rule landed (Ticket 0054)
 ```
 
 Closure construction and exact lookup are implemented without a loader or
@@ -844,7 +845,7 @@ its verifier and the origin-admission, admitted-contribution, and
 support-contribution audits are implemented by later tickets. The
 admitted-contribution audit is a standing-inert explanation surface,
 implemented by Ticket 0050.
-It will revalidate one exact policy-eligible contribution and associate it with
+It revalidates one exact policy-eligible contribution and associates it with
 its admitted origin result while preserving every unresolved prerequisite. It
 is derived deterministically from `(verified log prefix H, explicit policy
 identities P, immutable resolution content closure M)`, reports potential

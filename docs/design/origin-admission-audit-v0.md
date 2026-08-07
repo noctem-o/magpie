@@ -225,9 +225,12 @@ retrofit those semantics into v0.
 
 ## 7. Candidate-enumeration implementation boundary
 
-The future implementation may add the smallest crate-private deterministic
-enumeration seam over `DeadboltAnchorIndex`. The seam must enumerate the actual
-index co-derived by the same replay.
+Ticket 0048 implements this boundary: the crate-private deterministic
+enumeration seam
+`OriginAdmissionReplayContextV0::origin_binding_candidates_v0()` over
+`DeadboltAnchorIndex`, and the public `resolve_origin_admission_audit_v0()`
+resolver. The seam must enumerate the actual index co-derived by the same
+replay.
 
 It must not:
 
