@@ -23,8 +23,8 @@ verifier integration exists.
 [`origin-binding-bundle-v0.md`](origin-binding-bundle-v0.md) are this slice.
 They ratify the exact two-sibling-family origin-binding statement contract.
 They add no parser, verifier, origin admission, authority trust, standing or
-writer capability. Origin-binding verification and origin admission remain
-future work.
+writer capability. Origin-binding verification and origin admission are
+implemented by later tickets (section 14).
 
 ## 2. Purpose
 
