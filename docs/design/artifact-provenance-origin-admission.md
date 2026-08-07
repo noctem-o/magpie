@@ -16,12 +16,14 @@ capability is implemented by these contracts.
 Ticket 0040 ratified the separate immutable resolution-content-closure
 contract, and Ticket 0041 implements its bounded construction, canonical
 manifest, typed identity and exact read-only lookup. That availability surface
-remains standing-inert and untrusted. At the Ticket 0041 boundary, no loader,
-orchestrator wiring, or verifier integration had landed; the standing-inert
-provenance verifier (Ticket 0039), origin-binding verifier (Ticket 0045),
-replay substrate (Ticket 0047), and origin-admission audit (Ticket 0048)
-subsequently landed under their separately reviewed tickets. This contract
-introduces no ambient loader or orchestrator authority.
+remains standing-inert and untrusted. At the Ticket 0041 boundary, Ticket
+0039's standing-inert artifact-provenance verifier had already landed, but
+the closure was not wired into that verifier and no loader or orchestrator
+wiring had landed. The origin-binding verifier (Ticket 0045), same-replay
+verified-prefix and candidate-enumeration substrate (Ticket 0047), and
+origin-admission audit (Ticket 0048) subsequently landed under their
+separately reviewed tickets. This contract introduces no ambient loader or
+orchestrator authority.
 
 [Ticket 0042](../../tickets/0042-origin-binding-bundle-v0.md) and
 [`origin-binding-bundle-v0.md`](origin-binding-bundle-v0.md) are this slice.
