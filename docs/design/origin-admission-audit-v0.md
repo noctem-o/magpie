@@ -151,14 +151,14 @@ assertion, and admissions under this section are claimant-label compatibility
 admissions. Authenticated grouping authority requires the separate ADR-0007
 authority-binding object verified under explicit `H + P + M + A` coordinates.
 
-The pair authorizes only:
+Under the selected policy, a pair match admits only:
 
 ```text
 one exact contribution-scoped origin-group assignment
 ```
 
-It does not authorize claim truth, evidence truth, publisher identity, source
-quality, support, standing, settlement, statistical independence,
+The match does not authorize claim truth, evidence truth, publisher identity,
+source quality, support, standing, settlement, statistical independence,
 aggregation, writer access or any adjacent proposition.
 
 Any other exact pair is `origin-binding authority untrusted`. A matched
