@@ -12,7 +12,8 @@ verifier wiring, origin admission, authority trust, contribution admission,
 support, standing, policy v3, aggregation, loader, CAS, filesystem or network
 access, writer authority, or Magpie L0 payload.
 
-The current implementation substrate ends at:
+At Ticket 0042 ratification time, the available implementation substrate ended
+at:
 
 ```text
 exact artifact identity
@@ -21,7 +22,10 @@ exact artifact identity
 ```
 
 This contract adds the exact governance statement shape, not runtime
-capability.
+capability. The standing-inert origin-binding verifier (Ticket 0045), the
+same-replay verified-prefix and candidate-enumeration substrate (Ticket 0047),
+and the `OriginAdmissionAuditV0` runtime (Ticket 0048) subsequently landed
+under their separately reviewed tickets.
 
 ## 2. Purpose and relationship to Tickets 0037-0041
 
