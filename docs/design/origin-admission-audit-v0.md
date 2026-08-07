@@ -172,8 +172,8 @@ grants authority.
 
 ## 6. Complete replay-derived candidate universe
 
-The future audit accepts no caller-supplied binding selectors, receipts or
-candidate list. It derives candidates exclusively from the complete
+The implemented audit accepts no caller-supplied binding selectors, receipts
+or candidate list. It derives candidates exclusively from the complete
 `DeadboltAnchorIndex` co-produced by the same accepted replay as the standing
 projection.
 
@@ -225,12 +225,13 @@ retrofit those semantics into v0.
 
 ## 7. Candidate-enumeration implementation boundary
 
-Ticket 0048 implements this boundary: the crate-private deterministic
-enumeration seam
-`OriginAdmissionReplayContextV0::origin_binding_candidates_v0()` over
-`DeadboltAnchorIndex`, and the public `resolve_origin_admission_audit_v0()`
-resolver. The seam must enumerate the actual index co-derived by the same
-replay.
+Ticket 0047 implements this boundary's crate-private deterministic
+enumeration seam,
+`OriginAdmissionReplayContextV0::origin_binding_candidates_v0()`, over the
+same replay-derived `DeadboltAnchorIndex`. Ticket 0048 implements
+`OriginAdmissionAuditV0` and the public `resolve_origin_admission_audit_v0()`
+resolver that consumes that substrate. The seam must enumerate the actual
+index co-derived by the same replay.
 
 It must not:
 
@@ -293,7 +294,7 @@ pipeline. The audit must not duplicate or reinterpret:
 - artifact-coherence checks; or
 - receipt construction.
 
-The future implementation may refactor the existing private pipeline to return
+The implementation may refactor the existing private pipeline to return
 a crate-private evaluation result containing validated intermediate audit
 material. The public surfaces remain unchanged:
 
@@ -515,7 +516,7 @@ The audit remains standing-inert derived material.
 
 ## 16. Exact verified-prefix identity
 
-The future audit binds the exact accepted Magpie prefix with:
+The implemented audit binds the exact accepted Magpie prefix with:
 
 ```text
 VerifiedLogPrefixIdentityV0 {
@@ -544,9 +545,10 @@ The implementation must not obtain the tip by calling verification and replay
 separately. No second `read_records()` call is permitted.
 
 The existing private retained `VerifiedSnapshot` already carries verified
-events and tip. A future implementation may expose that information through an
-additive replay-summary API or a separately versioned origin-resolution
-snapshot/context. It must preserve unchanged:
+events and tip. Ticket 0047 exposes that information through the additive
+`LogReader::replay_with_summary` API and the separately versioned
+`OriginAdmissionReplayContextV0` origin-resolution context. That exposure
+preserves unchanged:
 
 ```text
 LogReader::replay
@@ -580,10 +582,10 @@ The closure identity binds availability input `M`. It does not prove that
 objects verified successfully, prove a key matched its bytes, reconstruct raw
 objects, or grant authority.
 
-## 18. Future public audit surface
+## 18. Public audit surface
 
-All field and variant orders in this section are normative for the future
-derived audit JSON.
+All field and variant orders in this section are normative for the derived
+audit JSON emitted by the landed Ticket 0048 runtime.
 
 ### 18.1 VerifiedLogPrefixIdentityV0
 
@@ -752,9 +754,9 @@ magpie-origin-admission-v0
 
 The top-level audit alone exposes `canonical_bytes()`.
 
-## 19. Construction and authority properties of future types
+## 19. Construction and authority properties of the public types
 
-Every future public type above has private fields, read-only getters,
+Every public type above has private fields, read-only getters,
 deterministic equality and deterministic `Serialize`. None has `Deserialize`
 or a public constructor from serialized material. Trusted construction occurs
 only through the same-snapshot replay and immutable-closure audit path.
@@ -825,15 +827,14 @@ BOM and no trailing newline. Unsigned integers use shortest decimal form.
 
 No raw artifact or foreign-bundle bytes are serialized into the audit.
 
-The implementation PR must pin literal byte fixtures for:
+Ticket 0046's documentation-only contract added no fixtures. The Ticket 0048
+implementation pins literal byte fixtures for:
 
 - one admitted origin;
 - duplicate trusted bindings collapsing to one assignment;
 - trusted conflict;
 - scoped unresolved eligible binding; and
 - globally incomplete candidate universe.
-
-This documentation-only PR adds no fixtures.
 
 ## 22. Standing-inert boundary
 
@@ -857,7 +858,9 @@ standing policy, settlement or writer authority.
 
 ## 23. Required hostile implementation tests
 
-The future implementation must prove at least:
+The implementation is required to preserve, and the landed Ticket 0048 hostile
+tests in `crates/magpie-claims/tests/origin_admission_audit.rs` prove, at
+least:
 
 ```text
 caller supplies only favourable selector
@@ -948,6 +951,8 @@ fixture, Cargo, release, CI or L0 surfaces.
 
 ## 25. Recommended implementation sequence
 
+At ratification time, the recommended implementation sequence was:
+
 ```text
 Slice 1:
 same-snapshot verified-prefix identity
@@ -964,9 +969,10 @@ admitted-contribution audit
 -> conservative aggregation
 ```
 
-A later implementation may combine Slices 1 and 2 only if the verified-prefix,
-candidate-universe, authority and fold boundaries and their tests remain
-independently reviewable.
+Slice 1 landed separately as Ticket 0047 (origin-admission replay substrate)
+and Slice 2 as Ticket 0048 (audit runtime), keeping the verified-prefix,
+candidate-universe, authority and fold boundaries and their tests
+independently reviewable. The later stages landed as Tickets 0049-0054.
 
 ## 26. Reviewer checklist
 
@@ -998,7 +1004,7 @@ independently reviewable.
   snapshot with no second `read_records()` call.
 - Confirm projection canonical bytes are not treated as log-prefix identity.
 - Confirm the complete four-field closure identity is retained.
-- Confirm every future public value is private-construction, serialization-only
+- Confirm every public value is private-construction, serialization-only
   audit material with deterministic order and no `Deserialize`.
 - Confirm the audit remains standing-inert and policy v2 does not consume it.
 - Confirm no runtime capability, fixture, code, L0, standing, closure or
