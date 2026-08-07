@@ -404,6 +404,11 @@ origin group, make evidence or claims true, or create support.
 An admitted origin result is a replay-derived policy outcome, not caller input.
 The implemented v0 origin-admission policy admits one group only after:
 
+- the complete replay-derived v0 origin-binding candidate universe is
+  byte-complete in closure `M`: any unavailable candidate makes the audit
+  globally incomplete (`IncompleteCandidateUniverse`) and yields zero
+  contribution decisions and zero admitted origins, even for a contribution
+  whose own prerequisites are complete;
 - the contribution path is structurally revalidated;
 - the relevant exact artifact identity is present;
 - required artifact bytes are available and hash correctly;
@@ -427,7 +432,13 @@ independently bind origin authority, and it cannot enter a future
 authority-bound path by wrapper, alias, matching fields, or caller assertion.
 The ADR-0007 successor replaces the label-match condition with a separately
 owned authority-binding object verified under explicit `H + P + M + A`
-coordinates.
+coordinates. The v0 replay-derived candidate universe is not the successor's
+designation universe:
+
+```text
+v0 replay candidate universe
+!= ADR-0007 authority candidate designation set
+```
 
 ## 7. Anchored foreign-bundle model
 
@@ -604,7 +615,8 @@ same H + same P + same M
 -> same derived result
 ```
 
-The future output must disclose or bind the verified log-tip or prefix identity,
+The deterministic resolution output must disclose or bind the verified log-tip
+or prefix identity,
 every applicable policy identity, and the resolution-content-closure identity.
 No ambient CAS lookup, filesystem scan, remote fetch, callback, network lookup,
 plugin invocation, database query, second Magpie replay, lazy population,
@@ -786,9 +798,10 @@ assignment above.
 
 ## 13. Conceptual audit outcomes
 
-The future audit surface must use a closed, stage-specific vocabulary. Exact
-Rust enum names are deferred, but the following distinctions may not be
-collapsed into Boolean `verified` or `independent` fields.
+The audit surface must use a closed, stage-specific vocabulary. Exact
+Rust enum names were deferred to the implementing tickets, but the following
+distinctions may not be collapsed into Boolean `verified` or `independent`
+fields.
 
 | stage | required outcome | meaning and fail-closed effect |
 | --- | --- | --- |
@@ -833,6 +846,7 @@ ResolutionContentClosureV0 contract — landed (Ticket 0040)
 ResolutionContentClosureV0 implementation — landed (Ticket 0041)
 exact origin-binding bundle contract — landed (Ticket 0042)
 origin-binding verifier — landed (Ticket 0045)
+origin-admission replay substrate and candidate enumeration — landed (Ticket 0047)
 standing-inert origin-admission audit — landed (Ticket 0048)
 admitted-contribution audit — landed (Ticket 0050)
 policy-v3 contract — ratified (Ticket 0053)
@@ -896,7 +910,7 @@ policy concepts.
 
 ## 15. Hostile examples
 
-| example | future fail-closed result |
+| example | required fail-closed result |
 | --- | --- |
 | One wire report appears at 100 URLs. | Many acquisitions and byte-identical or derivative artifacts may exist. URLs create no corroboration and there is not automatically more than one origin group. |
 | The syndicated report is represented by Contribution A and Contribution B, both admitted as `wire-report-17` under the same policy/claim/scope namespace. | This is valid same-origin grouping, not a conflict. The contributions remain distinct, and a later aggregation policy may count their shared group at most once. |
@@ -979,24 +993,30 @@ These are conceptual influences, not dependencies or compatibility claims:
 This contract introduces no dependency on, protocol compatibility with, or
 implementation promise for those standards.
 
-## 18. Future implementation sequence
+## 18. Implementation sequence status
+
+The sequence below was this contract's forward plan at Ticket 0042
+ratification time. Every stage has since landed under its own separately
+reviewed ticket:
 
 1. `ResolutionContentClosureV0` contract — landed by Ticket 0040.
 2. `ResolutionContentClosureV0` implementation and hostile tests — landed by
    Ticket 0041.
-3. Exact two-family origin-binding bundle contract — this slice, ratified by
-   Ticket 0042.
-4. Standing-inert origin-binding verifier — next.
-5. Standing-inert origin-admission audit.
-6. Admitted-contribution audit.
-7. Policy-v3 contract.
-8. Conservative aggregation.
+3. Exact two-family origin-binding bundle contract — ratified by Ticket 0042,
+   documentation-only; it implemented no runtime itself.
+4. Standing-inert origin-binding verifier — landed by Ticket 0045 (PR #58).
+5. Origin-admission replay substrate and deterministic candidate enumeration —
+   landed by Ticket 0047.
+6. Standing-inert `OriginAdmissionAuditV0` runtime — landed by Ticket 0048.
+7. Admitted-contribution audit — contract ratified by Ticket 0049, runtime
+   landed by Ticket 0050.
+8. Support-contribution audit — contract ratified by Ticket 0051, runtime
+   landed by Ticket 0052.
+9. Policy-v3 contract — ratified by Ticket 0053.
+10. First exact policy-v3 runtime — landed by Ticket 0054.
 
-The immediate next PR is step 4 only. It must verify the exact origin-binding
-contract without adding a loader, origin-admission rule, standing effect or
-writer authority. Steps 5-8 remain future work. Every step before policy-v3
-remains standing-inert; this contract still defines no aggregation threshold
-or achieved-standing change.
+Every step before policy-v3 remains standing-inert; this contract still
+defines no aggregation threshold or achieved-standing change.
 
 ## 19. Frozen surfaces and explicit non-goals
 
@@ -1049,8 +1069,8 @@ authority table, conflict fold, support rule, standing rule or runtime wiring.
 - Confirm all trusted context is same-snapshot, root-matched, profile-verified,
   and reproducible from explicit `(H, P, M)` inputs.
 - Confirm `ResolutionContentClosureV0` is finite, immutable, untrusted, bound in
-  future audit output, and never supplemented by ambient CAS, filesystem, or
-  network lookup.
+  the landed audit output, and never supplemented by ambient CAS, filesystem,
+  or network lookup.
 - Confirm origin assignment is exact and contribution-scoped with no wildcard
   or publisher-global reuse.
 - Confirm duplicates do not amplify and conflicts admit zero groups.
