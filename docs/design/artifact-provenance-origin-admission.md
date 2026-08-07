@@ -8,7 +8,7 @@ This note defines doctrine and implementation order only. Ticket 0037 is
 documentation-only. [Ticket 0038](../../tickets/0038-artifact-acquisition-derivation-bundle-v0.md)
 and
 [`artifact-acquisition-derivation-bundle-v0.md`](artifact-acquisition-derivation-bundle-v0.md)
-now pin the proposed first exact acquisition/direct-derivation protocol; they
+now pin the first exact acquisition/direct-derivation protocol; they
 also implement no runtime capability. No artifact, acquisition, derivation,
 origin-binding, origin-admission, contribution, aggregation, or writer
 capability is implemented by these contracts.
@@ -16,8 +16,12 @@ capability is implemented by these contracts.
 Ticket 0040 ratified the separate immutable resolution-content-closure
 contract, and Ticket 0041 implements its bounded construction, canonical
 manifest, typed identity and exact read-only lookup. That availability surface
-remains standing-inert and untrusted. No loader, orchestrator wiring or
-verifier integration exists.
+remains standing-inert and untrusted. At the Ticket 0041 boundary, no loader,
+orchestrator wiring, or verifier integration had landed; the standing-inert
+provenance verifier (Ticket 0039), origin-binding verifier (Ticket 0045),
+replay substrate (Ticket 0047), and origin-admission audit (Ticket 0048)
+subsequently landed under their separately reviewed tickets. This contract
+introduces no ambient loader or orchestrator authority.
 
 [Ticket 0042](../../tickets/0042-origin-binding-bundle-v0.md) and
 [`origin-binding-bundle-v0.md`](origin-binding-bundle-v0.md) are this slice.
@@ -28,8 +32,9 @@ implemented by later tickets (section 14).
 
 ## 2. Purpose
 
-Magpie can retain structurally valid evidence and exact foreign-bundle anchors.
-It cannot yet establish the authority path between:
+At Ticket 0037 ratification time, Magpie could retain structurally valid
+evidence and exact foreign-bundle anchors, but could not yet establish the
+authority path between:
 
 ```text
 evidence is structurally present
@@ -41,9 +46,17 @@ and:
 this exact contribution may count as belonging to one admitted origin group
 ```
 
-That missing path must be explicit before support aggregation. Otherwise a
+That missing path had to be explicit before support aggregation. Otherwise a
 producer could manufacture apparent corroboration with fresh metadata, URLs,
 digests, signatures, publisher labels, or duplicated reports.
+
+A v0 origin-admission path has since landed (Tickets 0042, 0045, 0047 and
+0048), but its authority labels and origin groups remain claimant assertions
+admitted through compiled compatibility-label selection. It does not establish
+the independently authenticated grouping authority required by ADR-0007:
+under current v0 a producer can still manufacture apparent corroboration with
+fresh claimant labels, which is audit finding A-024 and remains **Confirmed**.
+The authority-bound successor remains future and additive.
 
 This contract freezes the distinctions needed to prevent that authority
 transposition:
@@ -98,7 +111,7 @@ an exact derivation relation establishes lineage
 a governed origin-binding bundle may assign one exact contribution path
 to one opaque origin group
 
-only a later explicit standing policy may count admitted origin groups
+only an explicit standing policy may count admitted origin groups
 ```
 
 ## 3. Current substrate
@@ -137,13 +150,17 @@ identities. The policy-v2 `sha256_bytes_equals_v0` rule checks inline witness
 bytes under one exact proposition; it does not establish external artifact
 identity or acquisition history.
 
-## 4. Missing authority seam
+## 4. Independently authenticated authority seam
 
 The current aggregation note correctly rejects self-declared independence
-metadata. It does not yet define the replayable mechanism that can authorize an
-origin assignment.
+metadata. At Ticket 0037 ratification time, no replayable mechanism could
+authorize an origin assignment at all; a v0 origin-admission mechanism has
+since landed with claimant-label compatibility semantics (Tickets 0042, 0045,
+0047 and 0048). The seam that remains missing is narrower: independently
+owned, independently authenticated, coordinate-bound, authority-designated
+grouping authorization.
 
-The missing seam has four separate questions:
+The original seam analysis had four separate questions:
 
 1. What exact artifact bytes are in question?
 2. What governed acquisition or explicit transformation relates those bytes to
@@ -159,7 +176,8 @@ descriptor does not admit an origin, and an admitted origin does not create a
 support contribution.
 
 ADR-0007 (Accepted 2026-08-06) now supplies the accepted doctrine for this
-seam: a separate, independently owned authority-binding object, verified under
+remaining seam: a separate, independently owned authority-binding object,
+verified under
 an externally selected `H + P + M + A` coordinate set, authorizes an exact
 origin-group assignment. Under that doctrine the origin-binding object remains
 claimant-owned assertion; the authority object is separately owned and
@@ -171,10 +189,10 @@ path remains claimant-label compatibility behavior.
 
 ## 5. Architectural decision
 
-The first implementation will reuse the anchored hierarchy:
+The first implementation reused the anchored hierarchy:
 
-> Governed artifact-acquisition, derivation and origin-binding authority will
-> be represented by explicit versioned foreign bundles sealed and verified at
+> Governed artifact-acquisition, derivation and origin-binding authority are
+> represented by explicit versioned foreign bundles sealed and verified at
 > the governed boundary, then committed to Magpie through the existing
 > `SegmentAnchored` occurrence/inclusion seam.
 
@@ -197,9 +215,10 @@ Consequences:
 - `SegmentAnchored` does not verify foreign contents.
 - The bundle's profile-specific verifier establishes its exact contents
   relative to the named profile and matched anchor.
-- Later origin-admission policy decides whether a verified origin-binding
-  statement may influence grouping.
-- Later standing policy decides whether an admitted group may affect standing.
+- The explicit origin-admission policy decides whether a verified
+  origin-binding statement may influence grouping.
+- The explicit standing policy decides whether an admitted group may affect
+  standing.
 
 Only explicitly selected, versioned, root-matched, and verified bundle families
 may participate. This decision is not permission to interpret arbitrary
@@ -231,7 +250,7 @@ and multiple acquisition occurrences. Different byte strings are not
 automatically different origins.
 
 The first implementation must use an exact versioned representation before
-using artifact identity as verified context. Ticket 0038 proposes exact
+using artifact identity as verified context. Ticket 0038 ratified exact
 `algorithm = "sha256"` identities for only its acquisition/direct-derivation
 v0 families. That local selection does not reinterpret historical
 `content_hash` values or create a global algorithm registry.
@@ -239,7 +258,7 @@ v0 families. That local selection does not reinterpret historical
 ### 6.2 Acquisition occurrence
 
 An acquisition occurrence records that a governed acquisition profile obtained
-or imported one exact artifact. A future acquisition bundle must bind at
+or imported one exact artifact. An acquisition bundle must bind at
 minimum:
 
 - a versioned statement schema;
@@ -395,8 +414,8 @@ selectors, `origin_admission_policy_id`, `origin_group`, claimed
 namespace is derived rather than serialized. V0 contains no rationale,
 arbitrary metadata, optional selector or trust Boolean.
 
-Exact canonical and anchored verification will establish only a verified
-governance assertion. It will not trust the claimed authority, admit the
+Exact canonical and anchored verification establish only a verified
+governance assertion. They do not trust the claimed authority, admit the
 origin group, make evidence or claims true, or create support.
 
 ### 6.9 Admitted origin result
@@ -487,9 +506,9 @@ produce a root represented as exactly 64 lowercase hexadecimal characters,
 corresponding to 32 root bytes.
 ```
 
-Ticket 0038's proposed first profile names the exact `witness_algorithm` value
+Ticket 0038's first profile names the exact `witness_algorithm` value
 `sha256` and uses the required representation. That selection is local to the
-two proposed v0 sibling families. A scheme that requires a different root width
+two v0 sibling families. A scheme that requires a different root width
 or encoding cannot reuse the existing seam unchanged; it requires a future ADR
 and potentially an explicit L0 evolution decision.
 
@@ -644,10 +663,10 @@ prefix and the new closure remain visible in the resolution input. Neither case
 rewrites the result for an earlier `(H, P, M)` tuple.
 
 Existing v0, v1, and v2 policies and snapshot/resolution bytes remain frozen.
-The first implementation may reuse the existing same-snapshot anchor index, but
-must not mutate or silently widen those derived-byte surfaces. Any new snapshot
-or context type required later must be separately versioned. Its public API
-shape is future work.
+The landed implementations reused the existing same-snapshot anchor index and
+did not mutate or silently widen those derived-byte surfaces. Any further
+snapshot or context type must be separately versioned. Its public API shape is
+future work.
 
 ## 10. Contribution-scoped origin admission
 
@@ -742,7 +761,7 @@ policy:
 - do not amplify; and
 - do not necessarily create a conflict.
 
-The later audit may retain every occurrence while deriving one exact assignment.
+The landed audit may retain every occurrence while deriving one exact assignment.
 
 ### Conflicting binding
 
@@ -764,8 +783,8 @@ Until then, unresolved conflict fails closed.
 Two distinct contribution identities assigned the same admitted origin-group
 key inside the same origin-comparison namespace are not duplicates and are not
 in conflict. They remain two exact contribution assignments but are treated as
-sharing one origin. A later aggregation policy may count that admitted group at
-most once.
+sharing one origin. The landed v3 aggregation policy counts that admitted
+group at most once.
 
 For example:
 
@@ -782,7 +801,8 @@ same-origin grouping.
 Two distinct contribution identities assigned different admitted origin groups
 inside the same origin-comparison namespace may provide policy-recognised
 corroboration separation. This is not proof of statistical independence, and
-only a later explicit aggregation policy may consume it.
+only an explicit aggregation policy may consume it; standing policy v3 is the
+first such consumer.
 
 For example:
 
@@ -829,8 +849,8 @@ fields.
 | admission | origin admitted | one exact policy-scoped group is admitted; still no support contribution |
 
 Unknown or newly encountered states must not fall through to `origin admitted`.
-Later implementation may use a structured audit with several stage outcomes,
-but every terminal decision must remain deterministic and attributable.
+The landed implementations use structured audits with several stage outcomes,
+and every terminal decision remains deterministic and attributable.
 Unavailable outcomes are evaluated against the exact resolution content closure;
 they do not authorize ambient lookup and do not erase structurally recorded
 evidence.
@@ -877,9 +897,9 @@ reconciliation gate.
 Policy v2 direct support is not aggregation. Origin admission is not support.
 One admitted group is not aggregation. Missing, malformed, conflicting,
 self-declared, or unverified origin material does not amplify. Unknown origin
-counts as zero corroborating separation in the first policy. Same-origin
-multiplicity within one origin-comparison namespace may count at most once under
-a later aggregation policy. Group keys from different namespaces are
+counts as zero corroborating separation in the first aggregation policy (v3).
+Same-origin multiplicity within one origin-comparison namespace counts at most
+once under the landed v3 rule. Group keys from different namespaces are
 incomparable.
 
 The normative terminology is:
@@ -899,10 +919,11 @@ group” is earlier design shorthand; the normative opaque key is now
 admitted groups is `corroboration separation`. Magpie does not prove
 statistical, causal, institutional, organisational, or control independence.
 
-No numeric aggregation threshold is selected here. No policy v3 is created or
-implemented. “Two sources imply Supported” is not a rule. A later explicit
-standing policy must define the exact eligible evidence cell, grouping law,
-threshold, trace, precedence, and ceiling behavior.
+No numeric aggregation threshold is selected here; this contract creates and
+implements no policy v3 — the v3 contract and runtime landed separately
+(Tickets 0053 and 0054). “Two sources imply Supported” is not a rule. The
+explicit standing policy defines the exact eligible evidence cell, grouping
+law, threshold, trace, precedence, and ceiling behavior.
 
 External-source aggregation can never reach `Settled`. Support, refutation,
 contradiction debt, invalidation, and supersession/currentness remain separate
@@ -913,8 +934,8 @@ policy concepts.
 | example | required fail-closed result |
 | --- | --- |
 | One wire report appears at 100 URLs. | Many acquisitions and byte-identical or derivative artifacts may exist. URLs create no corroboration and there is not automatically more than one origin group. |
-| The syndicated report is represented by Contribution A and Contribution B, both admitted as `wire-report-17` under the same policy/claim/scope namespace. | This is valid same-origin grouping, not a conflict. The contributions remain distinct, and a later aggregation policy may count their shared group at most once. |
-| Contribution A is admitted as `wire-report-17` and Contribution C as `field-report-4` in the same namespace. | The different admitted groups may provide corroboration separation, not statistical-independence proof or support without a later aggregation policy. |
+| The syndicated report is represented by Contribution A and Contribution B, both admitted as `wire-report-17` under the same policy/claim/scope namespace. | This is valid same-origin grouping, not a conflict. The contributions remain distinct, and the landed v3 aggregation policy counts their shared group at most once. |
+| Contribution A is admitted as `wire-report-17` and Contribution C as `field-report-4` in the same namespace. | The different admitted groups provide corroboration separation for the explicit v3 aggregation policy, not statistical-independence proof or support by themselves. |
 | The key `wire-report-17` also appears under another claim or policy namespace. | The byte-identical key has no implied cross-namespace relationship. |
 | Two governed crawlers acquire the same exact bytes. | One artifact identity, two acquisition occurrences, and no duplicate corroboration. |
 | A paper exists as PDF, publisher HTML, and extracted text. | Possibly several artifacts with explicit lineage; no automatic separate origin. |
@@ -1034,7 +1055,7 @@ plugin, writer API, MCP write path, gate, aggregation,
 refutation, contradiction debt, invalidation, supersession, currentness,
 reputation, confidence score, probabilistic independence, identity ontology,
 automatic clustering, model integration, librarian implementation, Deadbolt
-code, or production-readiness claim. Ticket 0038's exact proposed bundle kinds,
+code, or production-readiness claim. Ticket 0038's exact bundle kinds,
 canonicalization/verifier profiles, SHA-256 selection, and canonical bytes apply
 only to its acquisition/direct-derivation v0 contract and do not add runtime
 behavior.
@@ -1078,12 +1099,14 @@ authority table, conflict fold, support rule, standing rule or runtime wiring.
   reconstructed from L0.
 - Confirm missing artifact bytes block artifact-grounded origin admission and
   origin-sensitive aggregation input without erasing structural evidence.
-- Confirm Ticket 0038's proposed first bundle profiles fit the frozen
+- Confirm Ticket 0038's first bundle profiles fit the frozen
   64-lowercase-hex, 32-byte root representation, select SHA-256 only for those
   exact families, and leave other widths to a future ADR/L0 evolution decision.
 - Confirm origin admission remains distinct from support, aggregation, and
   settlement.
 - Confirm “origin group” and “corroboration separation” do not claim
   statistical independence.
-- Confirm no aggregation threshold or implemented policy v3 appears.
+- Confirm no aggregation threshold or implemented policy v3 appears in this
+  contract itself; the v3 contract and runtime landed separately (Tickets 0053
+  and 0054).
 - Confirm every implementation step before aggregation is standing-inert.
