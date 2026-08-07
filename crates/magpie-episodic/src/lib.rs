@@ -16,7 +16,7 @@ use magpie_log::{Payload, Projection, SignedEvent};
 use rusqlite::{params, Connection, OptionalExtension, Row};
 use serde::Serialize;
 
-const SCHEMA_VERSION: i32 = 2;
+const SCHEMA_VERSION: i32 = 3;
 
 const CREATE_SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS events (
@@ -65,7 +65,10 @@ pub struct EpisodicEvent {
 /// Claim statuses are stored as structured columns because the episodic
 /// projection is the record of what each signed event said at entry time. The
 /// claims projection owns current claim state; this projection owns the
-/// replayed timeline.
+/// replayed timeline. Status fields reproduce only status explicitly encoded
+/// by the signed event: `ClaimAssertedV2` carries no status, so its rows
+/// store NULL — an assertion act is not a status, and this projection never
+/// derives one (A-006/RQ-004).
 ///
 /// Log timestamps are `u64`, while SQLite `INTEGER` is signed 64-bit. Applying
 /// an event whose timestamp cannot fit in SQLite panics with a clear message;
@@ -82,7 +85,11 @@ pub struct EpisodicEvent {
 /// than patched in place. The pre-status-column schema did not store the signed
 /// status fields, so `ALTER TABLE` would leave NULLs where a from-scratch
 /// rebuild would have values, breaking the invariant that regenerated derived
-/// state is byte-identical to incrementally built state.
+/// state is byte-identical to incrementally built state. Version 3 keeps the
+/// version-2 columns but corrects the projection semantics: version-2 files
+/// hold `claim_asserted_v2` rows with a fabricated `Conjectured`, so the bump
+/// invalidates those stale derived rows and lets replay regenerate corrected
+/// ones.
 pub struct EpisodicView {
     conn: Connection,
 }
@@ -332,7 +339,9 @@ fn payload_parts(payload: &Payload) -> PayloadParts<'_> {
         } => PayloadParts {
             kind: "claim_asserted_v2",
             claim_id: Some(claim_id),
-            claim_status: Some("Conjectured"),
+            // The signed event carries no status; standing is derived by the
+            // claims projection, never fabricated here (A-006/RQ-004).
+            claim_status: None,
             from_status: None,
             to_status: None,
             body: statement,
