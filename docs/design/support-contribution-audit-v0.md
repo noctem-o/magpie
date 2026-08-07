@@ -1903,9 +1903,9 @@ what threshold applies
 what achieved standing follows
 ```
 
-Ticket 0051 preserves the exact material that policy v3 may later consume.
-The first exact consumer contract is ratified separately by Ticket 0053, and
-its runtime is implemented by Ticket 0054.
+Ticket 0051 preserves the exact material that the implemented policy v3
+consumes. The first exact consumer contract is ratified separately by Ticket
+0053, and its runtime is implemented by Ticket 0054.
 
 ## Source-standing boundary
 

@@ -103,7 +103,8 @@ This contract does not define or implement:
 - a free-form or caller-visible lane string;
 - source-standing propagation or claim-to-claim support lanes;
 - artifact-digest or selector clustering as a separation veto;
-- runtime implementation of any kind.
+- runtime implementation of any kind in this documentation-only Ticket 0053
+  slice; the exact runtime is implemented separately by Ticket 0054.
 
 ## Exact policy identity
 
