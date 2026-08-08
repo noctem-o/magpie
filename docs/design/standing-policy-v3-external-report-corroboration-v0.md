@@ -7,7 +7,7 @@ Contract ratified by Ticket 0053. Documentation only.
 ```text
 standing policy v3:
 contract ratified by Ticket 0053
-runtime: not implemented
+runtime: implemented by Ticket 0054
 
 first rule:
 ExternalReportCorroborationV0 (single closed rule)
@@ -65,6 +65,21 @@ hostname, domain, author name, publisher name, citation, metadata, fuzzy
 similarity, model judgment, or probabilistic clustering may manufacture
 separation.
 
+Under current v3, the counted groups originate from claimant-label
+compatibility admission (see `origin-admission-audit-v0.md` §5), so the
+rule's corroboration is claimant-label compatibility corroboration: it does
+not independently establish authenticated source identity, externally
+authorized grouping, organisational, causal, statistical, editorial, or
+legal-entity independence, or a general truth result. A-024 remains
+**Confirmed** against that current basis. The authority-bound corroboration
+successor is additive and requires ADR-0007's accepted semantics, separately
+implemented authority-bound origin admission, authority-bound admitted and
+support contribution successor types, complete producer-coordinate retention,
+the ADR-0003 reconciliation gate, and a new explicit standing policy identity.
+Current v3 output cannot qualify through a wrapper, alias, matching fields,
+copied group values, a compatibility selector, a resolver default, or caller
+assertion.
+
 ## Non-goals
 
 This contract does not define or implement:
@@ -88,7 +103,8 @@ This contract does not define or implement:
 - a free-form or caller-visible lane string;
 - source-standing propagation or claim-to-claim support lanes;
 - artifact-digest or selector clustering as a separation veto;
-- runtime implementation of any kind.
+- runtime implementation of any kind in this documentation-only Ticket 0053
+  slice; the exact runtime is implemented separately by Ticket 0054.
 
 ## Exact policy identity
 
@@ -815,13 +831,18 @@ git status --short
   `Deserialize`, no `Default`, no public constructors, and direct typed
   `serde_json` canonical bytes on `StandingResolutionV3` only.
 - Confirm no runtime implementation claim appears anywhere in this
-  contract.
+  contract beyond the landed Ticket 0054 runtime, and that the group basis
+  is classified as claimant-label compatibility corroboration establishing
+  no independence property.
 
 ## Next-slice handoff
 
 This contract completes doctrine step 13 (ratify one explicit standing
-policy v3 aggregation rule). Doctrine step 14 (implement conservative
-aggregation) remains future runtime work under the exact implementation
-allowlist above. Refutation aggregation, contradiction debt, invalidation,
-supersession, `EpistemicGate`, and writer surfaces remain unscheduled
-future doctrine.
+policy v3 aggregation rule), and doctrine step 14 is implemented by Ticket
+0054 for that one exact rule. The authority-bound corroboration successor
+remains future and additive: it requires ADR-0007's accepted semantics,
+separately implemented authority-bound origin admission and contribution
+successor types, complete producer-coordinate retention, the ADR-0003
+reconciliation gate, and a new explicit standing policy identity. Refutation
+aggregation, contradiction debt, invalidation, supersession, `EpistemicGate`,
+and writer surfaces remain unscheduled future doctrine.

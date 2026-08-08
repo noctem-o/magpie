@@ -1701,6 +1701,15 @@ the report is true
 the group is independent
 ```
 
+Carrying the v0 group forward preserves the upstream claimant-label
+compatibility classification; it does not authenticate organisational origin,
+establish source independence, or grant standing by itself, and the value
+cannot enter a future authority-bound successor by wrapper, alias, shape
+equivalence, or caller assertion. The authority-bound successor requires
+ADR-0007's accepted semantics, separately implemented authority-bound origin
+admission, complete producer-coordinate retention, and the ADR-0003
+reconciliation gate.
+
 ## SupportContributionAuditV0 surface
 
 Freeze this exact conceptual field order:
@@ -1863,7 +1872,7 @@ SupportContributionAuditV0
 
 same-origin collapse and distinct-group counting
 ->
-future standing policy v3
+standing policy v3
 ```
 
 This contract does not implement the fourth layer.
@@ -1884,7 +1893,7 @@ minimum reports
 corroboration result
 ```
 
-Future policy v3 alone owns:
+Policy v3 alone owns:
 
 ```text
 which support contributions share a lane
@@ -1894,9 +1903,9 @@ what threshold applies
 what achieved standing follows
 ```
 
-Ticket 0051 preserves the exact material that policy v3 may later consume.
-The first exact consumer contract is ratified separately by Ticket 0053; its
-runtime remains future.
+Ticket 0051 preserves the exact material that the implemented policy v3
+consumes. The first exact consumer contract is ratified separately by Ticket
+0053, and its runtime is implemented by Ticket 0054.
 
 ## Source-standing boundary
 

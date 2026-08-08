@@ -825,6 +825,14 @@ the contribution has been counted
 standing has changed
 ```
 
+Carrying the upstream v0 `origin_group` across this typed boundary preserves
+deterministic compatibility data. It does not authenticate the group, create
+grouping authority, or independently establish source identity, and the value
+does not become authority-bound because it crossed a typed audit boundary.
+The upstream group originates from claimant-label compatibility admission;
+the future authority-bound successor requires its own additive types and
+complete `H + P + M + A` coordinates under ADR-0007.
+
 ## Public audit surface
 
 The runtime exposes exactly these six public types:
@@ -1017,7 +1025,7 @@ origin-binding duplicate collapse
 belongs to OriginAdmissionAuditV0
 
 same-origin contribution non-amplification
-belongs to future policy v3 aggregation
+belongs to policy v3 aggregation
 
 AdmittedContributionAuditV0
 preserves every exact admitted contribution
@@ -1361,6 +1369,7 @@ ratifies only the next positive-input boundary.
 - Confirm the six public types, field order, traits and enum tagging are exact.
 - Confirm canonical bytes come directly from the typed top-level structure.
 - Confirm distinct contributions sharing one origin group remain distinct.
-- Confirm same-origin non-amplification remains future aggregation policy.
+- Confirm same-origin non-amplification remains policy v3 aggregation
+  behavior.
 - Confirm no support, aggregation, standing, writer, loader, CAS, network,
   filesystem, L0, Cargo, dependency or Deadbolt change is claimed.

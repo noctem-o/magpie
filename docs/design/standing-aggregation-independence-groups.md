@@ -327,6 +327,16 @@ aggregation policy — standing policy v3 is the first consumer — and must not
 exceed the applicable ceiling. It is not proof of statistical, causal,
 institutional, organisational, or control independence.
 
+Under the current v0/v3 path, the admitted groups derive from claimant-label
+compatibility admission, so the separation the implemented v3 rule consumes
+is claimant-label compatibility corroboration: it separates exact claimant
+labels within one exact namespace and establishes no authenticated
+organisational, causal, statistical, editorial, or legal-entity independence
+and no general truth result. Future ADR-0007 authority-bound groups may
+provide governed corroboration separation only through an additive successor
+path; this note does not retrofit that stronger meaning into current group
+bytes.
+
 ### Same-Origin Evidence
 
 Same-origin evidence consists of distinct contributions assigned the same
@@ -401,7 +411,12 @@ assertion. It does not trust its claimed authority or admit its claimed group.
 The implemented `OriginAdmissionAuditV0` separately applies the exact compiled
 origin-admission policy and may assign one exact contribution to one opaque
 group. That assignment remains standing-inert and is not a support
-contribution. Ticket 0049 ratifies, and Ticket 0050 implements, the
+contribution. Under the current v0 policy the authority decision behind that
+assignment is compiled compatibility label selection of the claimant's
+`human-review`/`authority:origin-review-v0` pair: the admitted group remains a
+claimant-label compatibility group, not authenticated grouping authority.
+ADR-0007 (Accepted 2026-08-06) defines the future authority-bound seam.
+Ticket 0049 ratifies, and Ticket 0050 implements, the
 standing-inert audit that associates exact graph-policy eligibility and exact
 evidence artifact identity with that admitted-origin result.
 
@@ -472,6 +487,15 @@ corroborating aggregation.
 A self-declared unique group must not count as corroboration separation.
 Evidence producers cannot manufacture separation by choosing a fresh string
 for every report.
+
+The current v0 origin-admission runtime admits groups through the compiled
+claimant-label pair, so claimant-controlled labels can reach the implemented
+v3 distinct-group count under current behavior — the recorded audit finding
+A-024, which remains **Confirmed**. Classifying that behavior as
+claimant-label compatibility corroboration preserves this law's intent
+without denying the implemented behavior: distinctness of claimant labels
+establishes no independence property. The additive ADR-0007 successor is the
+doctrine path that binds grouping to independently verified authority.
 
 Origin groups are not source truth. They only constrain whether multiple exact
 admitted contributions may be treated as separate by explicit versioned
