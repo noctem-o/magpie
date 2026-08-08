@@ -298,11 +298,18 @@ fn classify_deterministic_candidate(
 }
 
 fn combine_v2_standing(inherited: Option<Status>, deterministic_supported: bool) -> Option<Status> {
-    match inherited {
-        Some(Status::Settled) => Some(Status::Settled),
-        Some(Status::Refuted) => Some(Status::Refuted),
-        Some(_) if deterministic_supported => Some(Status::Supported),
-        other => other,
+    // Fail-closed status evolution (A-005/RQ-005): every current `Status`
+    // variant is named explicitly, so adding a future variant stops
+    // compilation here and forces an explicit policy decision. Only the
+    // Boolean dimension may be wildcarded, once the status is fully selected.
+    // V2 never synthesizes standing from an absent inherited claim.
+    match (inherited, deterministic_supported) {
+        (Some(Status::Settled), _) => Some(Status::Settled),
+        (Some(Status::Refuted), _) => Some(Status::Refuted),
+        (Some(Status::Supported), _) => Some(Status::Supported),
+        (Some(Status::Open | Status::Conjectured), true) => Some(Status::Supported),
+        (inherited @ Some(Status::Open | Status::Conjectured), false) => inherited,
+        (None, _) => None,
     }
 }
 
@@ -790,6 +797,58 @@ mod tests {
             Some(Status::Conjectured)
         );
         assert_eq!(combine_v2_standing(None, true), None);
+    }
+
+    #[test]
+    fn combination_truth_table_is_exact_for_every_current_status() {
+        // Compatibility law: the complete 12-case
+        // `Option<Status> x deterministic_supported` matrix. Every current
+        // variant appears explicitly; a future variant is a compile error in
+        // `combine_v2_standing`, never a silent promotion.
+        let cases = [
+            (None, false, None),
+            (None, true, None),
+            (Some(Status::Open), false, Some(Status::Open)),
+            (Some(Status::Open), true, Some(Status::Supported)),
+            (Some(Status::Conjectured), false, Some(Status::Conjectured)),
+            (Some(Status::Conjectured), true, Some(Status::Supported)),
+            (Some(Status::Supported), false, Some(Status::Supported)),
+            (Some(Status::Supported), true, Some(Status::Supported)),
+            (Some(Status::Settled), false, Some(Status::Settled)),
+            (Some(Status::Settled), true, Some(Status::Settled)),
+            (Some(Status::Refuted), false, Some(Status::Refuted)),
+            (Some(Status::Refuted), true, Some(Status::Refuted)),
+        ];
+        for (inherited, deterministic_supported, expected) in cases {
+            assert_eq!(
+                combine_v2_standing(inherited, deterministic_supported),
+                expected,
+                "v2 combination changed for inherited={inherited:?} deterministic_supported={deterministic_supported}"
+            );
+        }
+    }
+
+    #[test]
+    fn combination_dominance_and_none_laws_are_exact() {
+        for deterministic_supported in [false, true] {
+            // Settlement remains dominant over deterministic support.
+            assert_eq!(
+                combine_v2_standing(Some(Status::Settled), deterministic_supported),
+                Some(Status::Settled)
+            );
+            // Governed refutation remains dominant over deterministic support.
+            assert_eq!(
+                combine_v2_standing(Some(Status::Refuted), deterministic_supported),
+                Some(Status::Refuted)
+            );
+            // Existing support is preserved with either Boolean value.
+            assert_eq!(
+                combine_v2_standing(Some(Status::Supported), deterministic_supported),
+                Some(Status::Supported)
+            );
+            // V2 never synthesizes standing from an absent inherited claim.
+            assert_eq!(combine_v2_standing(None, deterministic_supported), None);
+        }
     }
 
     #[test]

@@ -883,12 +883,18 @@ fn build_lane(selected: Vec<SupportContributionV0>) -> Option<ExternalReportCorr
 }
 
 fn combine_standing(inherited: Option<Status>, corroborated: bool) -> Option<Status> {
-    match inherited {
-        Some(Status::Settled) => Some(Status::Settled),
-        Some(Status::Refuted) => Some(Status::Refuted),
-        Some(Status::Supported) => Some(Status::Supported),
-        _ if corroborated => Some(Status::Supported),
-        other => other,
+    // Fail-closed status evolution (A-005/RQ-005): every current `Status`
+    // variant is named explicitly, so adding a future variant stops
+    // compilation here and forces an explicit policy decision. Only the
+    // Boolean dimension may be wildcarded, once the status is fully selected.
+    // Unlike v2, successful corroboration promotes an absent inherited
+    // standing to `Supported`.
+    match (inherited, corroborated) {
+        (Some(Status::Settled), _) => Some(Status::Settled),
+        (Some(Status::Refuted), _) => Some(Status::Refuted),
+        (Some(Status::Supported), _) => Some(Status::Supported),
+        (None | Some(Status::Open | Status::Conjectured), true) => Some(Status::Supported),
+        (inherited @ (None | Some(Status::Open | Status::Conjectured)), false) => inherited,
     }
 }
 
@@ -2256,5 +2262,59 @@ mod tests {
             target["resolution_failure"]["contribution"]["justification_edge_id"],
             "edge-fixture-target"
         );
+    }
+
+    #[test]
+    fn combination_truth_table_is_exact_for_every_current_status() {
+        // Compatibility law: the complete 12-case
+        // `Option<Status> x corroborated` matrix. Every current variant
+        // appears explicitly; a future variant is a compile error in
+        // `combine_standing`, never a silent promotion.
+        let cases = [
+            (None, false, None),
+            (None, true, Some(Status::Supported)),
+            (Some(Status::Open), false, Some(Status::Open)),
+            (Some(Status::Open), true, Some(Status::Supported)),
+            (Some(Status::Conjectured), false, Some(Status::Conjectured)),
+            (Some(Status::Conjectured), true, Some(Status::Supported)),
+            (Some(Status::Supported), false, Some(Status::Supported)),
+            (Some(Status::Supported), true, Some(Status::Supported)),
+            (Some(Status::Settled), false, Some(Status::Settled)),
+            (Some(Status::Settled), true, Some(Status::Settled)),
+            (Some(Status::Refuted), false, Some(Status::Refuted)),
+            (Some(Status::Refuted), true, Some(Status::Refuted)),
+        ];
+        for (inherited, corroborated, expected) in cases {
+            assert_eq!(
+                combine_standing(inherited, corroborated),
+                expected,
+                "v3 combination changed for inherited={inherited:?} corroborated={corroborated}"
+            );
+        }
+    }
+
+    #[test]
+    fn combination_dominance_and_none_laws_are_exact() {
+        for corroborated in [false, true] {
+            // Settlement remains dominant over corroboration.
+            assert_eq!(
+                combine_standing(Some(Status::Settled), corroborated),
+                Some(Status::Settled)
+            );
+            // Governed refutation remains dominant over corroboration.
+            assert_eq!(
+                combine_standing(Some(Status::Refuted), corroborated),
+                Some(Status::Refuted)
+            );
+            // Existing support is preserved with either Boolean value.
+            assert_eq!(
+                combine_standing(Some(Status::Supported), corroborated),
+                Some(Status::Supported)
+            );
+        }
+        // Unlike v2, successful corroboration promotes an absent inherited
+        // standing to `Supported`; without corroboration, `None` is kept.
+        assert_eq!(combine_standing(None, false), None);
+        assert_eq!(combine_standing(None, true), Some(Status::Supported));
     }
 }
