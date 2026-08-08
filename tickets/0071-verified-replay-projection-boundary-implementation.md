@@ -251,7 +251,7 @@ only `SignedEvent` and cannot re-enter `apply`.
 | P5 composite fan-out | `standing_replay_snapshot_fans_out_one_verified_replay_to_both_views` plus the same-reference forwarding implementation and changing-store test |
 | P6 EpisodicView equivalence | `projection_is_byte_identical_across_independent_verified_replays`, drop/rebuild, schema, row, and canonical-byte tests |
 | P7 exactly one snapshot read | `replay_uses_one_verified_snapshot_when_store_changes_on_read`, summary read-count tests, and `standing_replay_snapshot_uses_one_changing_store_snapshot` |
-| P8 late failure means zero application | signature late-failure replay/summary tests, hostile parity tests, and existing hash/link/genesis/payload tests |
+| P8 late failure means zero application | dedicated late signature, content-hash, and previous-link replay/summary tests plus hostile parity and existing genesis/payload tests |
 | P9 exact replay summary | `replay_with_summary_uses_one_snapshot_and_returns_exact_count_tip_and_sequence` and replay/summary equivalence tests |
 | P10 raw diagnostics remain | `unverified_events_returns_parsed_raw_records_without_verifying_them` returns parsed values from a bad-signature record while `verify_chain` rejects it |
 | P11 frozen histories unchanged | blob/SHA checks, golden/deadbolt fixture tests, and independent Python verifiers |
@@ -267,9 +267,10 @@ profile, key-binding, or payload failure therefore returns before the replay
 loop and applies zero callbacks. The summary count and tip are derived from the
 same retained snapshot whose events are applied.
 
-Changing-store tests report one read. Late bad-signature tests report zero
-projection payloads and no summary. The exact-summary test reports the expected
-three events, exact final hash, and identical application sequence.
+Changing-store tests report one read. Dedicated late bad-signature,
+content-hash, and previous-link tests report zero projection payloads and no
+summary. The exact-summary test reports the expected three events, exact final
+hash, and identical application sequence.
 
 ## Canonical and historical preservation
 

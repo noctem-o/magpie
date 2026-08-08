@@ -402,6 +402,58 @@ fn replay_with_summary_returns_no_summary_and_applies_nothing_on_late_failure() 
 }
 
 #[test]
+fn replay_with_summary_applies_nothing_on_late_content_hash_failure() {
+    let store = MemStore::new();
+    {
+        let mut w = writer(store.clone());
+        w.append(prov(), note("valid hash prefix")).unwrap();
+        w.append(prov(), note("invalid hash suffix")).unwrap();
+    }
+
+    let mut records = store.records();
+    let mut invalid: SignedEvent = serde_json::from_slice(records.last().unwrap()).unwrap();
+    invalid.core.payload = note("altered without rehashing");
+    *records.last_mut().unwrap() = serde_json::to_vec(&invalid).unwrap();
+
+    let reader = LogReader::open(MemStore::from_records(records), key().verifying_key());
+    let mut projection = RecordingProjection::default();
+    let result = reader.replay_with_summary(&mut projection);
+
+    assert!(matches!(
+        result,
+        Err(LogError::ChainBroken { seq: 2, detail })
+            if detail == "content hash mismatch (event was altered)"
+    ));
+    assert!(projection.payloads.is_empty());
+}
+
+#[test]
+fn replay_with_summary_applies_nothing_on_late_prev_hash_failure() {
+    let store = MemStore::new();
+    {
+        let mut w = writer(store.clone());
+        w.append(prov(), note("valid link prefix")).unwrap();
+        w.append(prov(), note("invalid link suffix")).unwrap();
+    }
+
+    let mut records = store.records();
+    let mut invalid: SignedEvent = serde_json::from_slice(records.last().unwrap()).unwrap();
+    invalid.core.prev_hash = ContentHash::ZERO;
+    *records.last_mut().unwrap() = serde_json::to_vec(&invalid).unwrap();
+
+    let reader = LogReader::open(MemStore::from_records(records), key().verifying_key());
+    let mut projection = RecordingProjection::default();
+    let result = reader.replay_with_summary(&mut projection);
+
+    assert!(matches!(
+        result,
+        Err(LogError::ChainBroken { seq: 2, detail })
+            if detail == "prev_hash does not match the previous event"
+    ));
+    assert!(projection.payloads.is_empty());
+}
+
+#[test]
 fn replay_and_replay_with_summary_preserve_hostile_error_parity() {
     let store = MemStore::new();
     {
