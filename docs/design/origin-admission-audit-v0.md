@@ -859,8 +859,10 @@ standing policy, settlement or writer authority.
 ## 23. Required hostile implementation tests
 
 The implementation is required to preserve, and the landed Ticket 0048 hostile
-tests in `crates/magpie-claims/tests/origin_admission_audit.rs` prove, at
-least:
+suite proves across the runtime and serialization integration tests in
+`crates/magpie-claims/tests/origin_admission_audit.rs` and the compile-fail
+API-shape doctests in
+`crates/magpie-claims/src/origin_admission_audit.rs`, at least:
 
 ```text
 caller supplies only favourable selector
