@@ -379,7 +379,7 @@ change these boundaries only through explicit contracts and review.
   applicability facet;
   supersession as lineage without self-executing authority.
 - [ADR 0007](docs/adr/0007-authority-bound-origin-corroboration.md) -
-  proposed doctrine requiring profile-bound candidate-designation authority
+  accepted doctrine requiring profile-bound candidate-designation authority
   and independently verified authority binding before origin groups may create
   corroboration separation.
 - [Standing ceilings](docs/design/standing-view-evidence-ceilings.md) -
