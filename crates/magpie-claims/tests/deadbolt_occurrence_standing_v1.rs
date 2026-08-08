@@ -129,7 +129,7 @@ fn replay(payloads: Vec<Payload>) -> StandingReplaySnapshot {
     let store = MemStore::new();
     {
         let mut timestamp = 0u64;
-        let mut writer = LogWriter::open_with_clock(
+        let mut writer = LogWriter::<MemStore>::open_with_clock(
             store.clone(),
             signing_key(),
             Box::new(move || {
@@ -457,7 +457,7 @@ fn deadbolt_occurrence_standing_v1_unknown_evidence_kind_is_ineligible_and_unrep
     );
 
     let store = MemStore::new();
-    let mut writer = LogWriter::open(store, signing_key()).unwrap();
+    let mut writer = LogWriter::<MemStore>::open(store, signing_key()).unwrap();
     let result = writer.append(
         Provenance::new("test", "unknown-kind"),
         evidence_payload(
@@ -479,7 +479,7 @@ fn deadbolt_occurrence_standing_v1_authority_confusion_cannot_settle() {
     let store = MemStore::new();
     {
         let mut timestamp = 0u64;
-        let mut writer = LogWriter::open_with_clock(
+        let mut writer = LogWriter::<MemStore>::open_with_clock(
             store.clone(),
             signing_key(),
             Box::new(move || {
@@ -671,7 +671,7 @@ fn contribution_lane_refactor_preserves_literal_v1_canonical_bytes() {
     let store = MemStore::new();
     {
         let mut timestamp = 0u64;
-        let mut writer = LogWriter::open_with_clock(
+        let mut writer = LogWriter::<MemStore>::open_with_clock(
             store.clone(),
             signing_key(),
             Box::new(move || {

@@ -570,7 +570,7 @@ fn main() {
     println!("── 1. write signed history ──");
     {
         let mut timestamp = 0u64;
-        let mut writer = LogWriter::open_with_clock(
+        let mut writer = LogWriter::<MemStore>::open_with_clock(
             store.clone(),
             signing_key(),
             Box::new(move || {

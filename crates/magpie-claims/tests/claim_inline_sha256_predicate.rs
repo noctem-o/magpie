@@ -28,7 +28,7 @@ fn signing_key() -> SigningKey {
 
 fn writer(store: MemStore) -> LogWriter<MemStore> {
     let mut timestamp = 0u64;
-    LogWriter::open_with_clock(
+    LogWriter::<MemStore>::open_with_clock(
         store,
         signing_key(),
         Box::new(move || {

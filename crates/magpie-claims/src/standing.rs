@@ -791,7 +791,7 @@ mod tests {
 
     fn writer(store: MemStore) -> LogWriter<MemStore> {
         let mut tick = 0u64;
-        LogWriter::open_with_clock(
+        LogWriter::<MemStore>::open_with_clock(
             store,
             test_key(),
             Box::new(move || {

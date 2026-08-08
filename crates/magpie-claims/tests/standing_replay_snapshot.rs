@@ -27,7 +27,7 @@ fn signing_key() -> SigningKey {
 
 fn writer(store: MemStore) -> LogWriter<MemStore> {
     let mut timestamp = 0u64;
-    LogWriter::open_with_clock(
+    LogWriter::<MemStore>::open_with_clock(
         store,
         signing_key(),
         Box::new(move || {
@@ -116,10 +116,6 @@ struct ChangingStandingStore {
 }
 
 impl LogStore for ChangingStandingStore {
-    fn append_record(&mut self, _bytes: &[u8]) -> Result<(), LogError> {
-        panic!("ChangingStandingStore is read-only in snapshot tests")
-    }
-
     fn read_records(&self) -> Result<Vec<Vec<u8>>, LogError> {
         let read_count = self.read_count.get();
         self.read_count.set(read_count + 1);

@@ -25,7 +25,7 @@ fn signing_key() -> SigningKey {
 
 fn writer(store: MemStore) -> LogWriter<MemStore> {
     let mut timestamp = 0u64;
-    LogWriter::open_with_clock(
+    LogWriter::<MemStore>::open_with_clock(
         store,
         signing_key(),
         Box::new(move || {
@@ -286,10 +286,6 @@ struct OneReadStore {
 }
 
 impl LogStore for OneReadStore {
-    fn append_record(&mut self, _bytes: &[u8]) -> Result<(), LogError> {
-        panic!("OneReadStore is read-only")
-    }
-
     fn read_records(&self) -> Result<Vec<Vec<u8>>, LogError> {
         let prior = self.read_count.get();
         self.read_count.set(prior + 1);

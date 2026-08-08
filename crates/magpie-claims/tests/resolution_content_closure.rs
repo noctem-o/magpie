@@ -1023,7 +1023,7 @@ fn construction_is_standing_inert_and_does_not_change_existing_verifier_behavior
     let signing_key = SigningKey::from_bytes(&[41; 32]);
     {
         let mut timestamp = 100;
-        let mut writer = LogWriter::open_with_clock(
+        let mut writer = LogWriter::<MemStore>::open_with_clock(
             store.clone(),
             signing_key.clone(),
             Box::new(move || {

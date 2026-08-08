@@ -214,7 +214,7 @@ fn replay_payloads(payloads: Vec<Payload>) -> StandingResolution {
     let store = MemStore::new();
     {
         let mut tick = 0u64;
-        let mut writer = LogWriter::open_with_clock(
+        let mut writer = LogWriter::<MemStore>::open_with_clock(
             store.clone(),
             signing_key(),
             Box::new(move || {

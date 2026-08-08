@@ -6,7 +6,7 @@ const SEED: [u8; 32] = [7u8; 32];
 
 fn writer(store: MemStore) -> LogWriter<MemStore> {
     let mut t = 0u64;
-    LogWriter::open_with_clock(
+    LogWriter::<MemStore>::open_with_clock(
         store,
         SigningKey::from_bytes(&SEED),
         Box::new(move || {

@@ -10,8 +10,14 @@ use crate::error::LogError;
 /// Deliberately tiny: the log is an abstraction, storage is swappable (file now;
 /// a NAS path, an mmap, or a SQLite WAL later).
 pub trait LogStore {
-    fn append_record(&mut self, bytes: &[u8]) -> Result<(), LogError>;
     fn read_records(&self) -> Result<Vec<Vec<u8>>, LogError>;
+}
+
+/// Writer-owned persistence seam. This trait is deliberately crate-private:
+/// public storage substitution is read-only, while only `LogWriter` may ask a
+/// supported backend to persist a record.
+pub(crate) trait WriterStore: LogStore {
+    fn append_record(&mut self, bytes: &[u8]) -> Result<(), LogError>;
 }
 
 /// Real, durable storage: an append-only file, one JSON record per line.
@@ -28,16 +34,6 @@ impl FileStore {
 }
 
 impl LogStore for FileStore {
-    fn append_record(&mut self, bytes: &[u8]) -> Result<(), LogError> {
-        let mut f = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&self.path)?;
-        f.write_all(bytes)?;
-        f.write_all(b"\n")?;
-        Ok(())
-    }
-
     fn read_records(&self) -> Result<Vec<Vec<u8>>, LogError> {
         if !self.path.exists() {
             return Ok(Vec::new());
@@ -48,6 +44,18 @@ impl LogStore for FileStore {
             .filter(|line| !line.is_empty())
             .map(|line| line.to_vec())
             .collect())
+    }
+}
+
+impl WriterStore for FileStore {
+    fn append_record(&mut self, bytes: &[u8]) -> Result<(), LogError> {
+        let mut f = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.path)?;
+        f.write_all(bytes)?;
+        f.write_all(b"\n")?;
+        Ok(())
     }
 }
 
@@ -77,12 +85,14 @@ impl MemStore {
 }
 
 impl LogStore for MemStore {
+    fn read_records(&self) -> Result<Vec<Vec<u8>>, LogError> {
+        Ok(self.records.borrow().clone())
+    }
+}
+
+impl WriterStore for MemStore {
     fn append_record(&mut self, bytes: &[u8]) -> Result<(), LogError> {
         self.records.borrow_mut().push(bytes.to_vec());
         Ok(())
-    }
-
-    fn read_records(&self) -> Result<Vec<Vec<u8>>, LogError> {
-        Ok(self.records.borrow().clone())
     }
 }
