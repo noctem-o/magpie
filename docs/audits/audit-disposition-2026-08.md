@@ -19,22 +19,22 @@ commit:
 
 | Field | Recorded value |
 | --- | --- |
-| Repository | `noctem-o/magpie`, isolated checkout `C:\Users\herpe\.codex\worktrees\magpie-audit-disposition-post-112` |
+| Repository | `noctem-o/magpie`, isolated checkout `C:\Users\herpe\.codex\worktrees\magpie-reconcile-audit-disposition-post-115` |
 | Disposition date | 2026-08-08 |
-| Branch and worktree mode | `docs/reconcile-audit-disposition-post-112`; fresh isolated worktree `C:\Users\herpe\.codex\worktrees\magpie-audit-disposition-post-112`; clean before editing |
-| Current `main` | `91ebb5d6a4f5ba99ad377c77eb96dc70bc829245` |
-| Local `origin/main` | `91ebb5d6a4f5ba99ad377c77eb96dc70bc829245` |
+| Branch and worktree mode | `docs/reconcile-audit-disposition-post-115`; fresh isolated worktree `C:\Users\herpe\.codex\worktrees\magpie-reconcile-audit-disposition-post-115`; clean before editing |
+| Current `main` | `66198af8dc06b086e77036fafd5e18adcdd967b2` |
+| Local `origin/main` | `66198af8dc06b086e77036fafd5e18adcdd967b2` |
 | Live `origin/main` check | `git ls-remote origin refs/heads/main` returned the same SHA |
 | Audit commit | `3b46fdb81857d77b827271777b86745bca5f7b12` |
-| Local HEAD / `origin/main` merge base | `91ebb5d6a4f5ba99ad377c77eb96dc70bc829245` before this ledger edit |
+| Local HEAD / `origin/main` merge base | `66198af8dc06b086e77036fafd5e18adcdd967b2` before this ledger edit |
 | Audit commit / current-main merge base | `3b46fdb81857d77b827271777b86745bca5f7b12` |
-| Expected post-PR-112 SHA | Equal to the verified current `main`; difference from `91ebb5d6a4f5ba99ad377c77eb96dc70bc829245` is none |
-| Relevant merged changes | PR #108, merge `71d096ff3c7ca8107d51484f486c30031d337ee8`, Accepted ADR-0007; PR #109, merge `b79a96ab0ddc5c8b9008231ef53e325efdd067d3`, origin-contract status and compatibility reconciliation; PR #110, merge `a1a59200c5a1af2c81afe17b76b89609134d5787`, downstream claimant-label compatibility quarantine; PR #111, merge `dc07034d4af7d2b41130ba04a6a9d4c5af000995`, standing runtime/test correction; PR #112, merge `91ebb5d6a4f5ba99ad377c77eb96dc70bc829245`, episodic projection/schema/test correction |
+| Expected post-PR-115 SHA | Equal to the verified current `main`; difference from `66198af8dc06b086e77036fafd5e18adcdd967b2` is none |
+| Relevant merged changes | PR #108, merge `71d096ff3c7ca8107d51484f486c30031d337ee8`, Accepted ADR-0007; PR #109, merge `b79a96ab0ddc5c8b9008231ef53e325efdd067d3`, origin-contract status and compatibility reconciliation; PR #110, merge `a1a59200c5a1af2c81afe17b76b89609134d5787`, downstream claimant-label compatibility quarantine; PR #111, merge `dc07034d4af7d2b41130ba04a6a9d4c5af000995`, standing runtime/test correction; PR #112, merge `91ebb5d6a4f5ba99ad377c77eb96dc70bc829245`, episodic projection/schema/test correction; PR #113, merge `253fc72350ae5232fc428da9ab5657f8ccf5c912`, administrative disposition reconciliation; PR #114, merge `142793a47c0f5a7e26ec29fc100d2d6cde9ddb3a`, documentation-only sole-writer implementation contract; PR #115, merge `66198af8dc06b086e77036fafd5e18adcdd967b2`, A-001/RQ-001 runtime/API remediation |
 | Evidence-preservation change | PR #104, merge `7889150b100795409bfe0d6f676c5780cc7b2830`; documentation-only audit preservation |
 | Open remediation PRs | None at disposition time |
 | Open issues | None at disposition time |
 | Preflight changed paths | None in the isolated worktree; the ordinary `C:\magpie` checkout's unrelated untracked `.codex/config.toml` was left untouched |
-| Runtime change since audit | PR #111 changed standing-v2/v3 policy combination code and tests without changing currently representable results. PR #112 intentionally changed derived episodic state and canonical projection bytes for `ClaimAssertedV2`, bumped episodic schema/projection version 2 to 3, and added rebuild tests. PRs #108-#110 were documentation-only. |
+| Runtime change since audit | PR #111 changed standing-v2/v3 policy combination code and tests without changing currently representable results. PR #112 intentionally changed derived episodic state and canonical projection bytes for `ClaimAssertedV2`, bumped episodic schema/projection version 2 to 3, and added rebuild tests. PR #115 made public `LogStore` read-only, moved raw persistence behind crate-private `WriterStore`, closed writer construction to `FileStore` and `MemStore`, and added direct negative and preservation tests without changing FORMAT or golden bytes. PRs #108-#110, #113, and #114 were documentation-only. |
 
 The runtime audit was performed on local `main` at the audit commit while the
 then-current remote was nine documentation-only commits ahead. PR #103 later
@@ -44,14 +44,18 @@ authority-bound successor doctrine and reconciled current claimant-label
 compatibility semantics without changing runtime. PR #111 removed the latent
 v2/v3 wildcard-promotion defect without changing any currently representable
 policy result. PR #112 intentionally corrected the episodic projection of
-statusless `ClaimAssertedV2` and invalidated stale schema-v2 derived state.
+statusless `ClaimAssertedV2` and invalidated stale schema-v2 derived state. PR
+#113 reconciled those merged outcomes administratively. PR #114 then froze the
+sole-writer implementation contract without changing runtime, and PR #115
+sealed raw backend persistence behind `LogWriter` without changing L0 bytes.
 The dispositions below distinguish those runtime closures from documentation
 narrowing and from doctrine that remains unimplemented.
 
 The complete post-audit ancestry was inspected. The relevant post-ledger
 tranche is ordered as merge `71d096f` (#108), `b79a96a` (#109), `a1a5920`
-(#110), `dc07034` (#111), and `91ebb5d` (#112); every merge is an ancestor of
-the next and of current `origin/main`.
+(#110), `dc07034` (#111), `91ebb5d` (#112), `253fc72` (#113), `142793a`
+(#114), and `66198af` (#115); every merge is an ancestor of the next and of
+current `origin/main`.
 
 PR #103 changed `README.md`, ADR-0002 through ADR-0006, and two design notes.
 It made ADR-0002 through ADR-0006 Accepted doctrine effective 2026-08-02,
@@ -59,7 +63,12 @@ separated standing from currentness, and retired a former relationship-edge
 invalidation convention. PR #104 changed only the audit index and the two
 preserved audit records. PRs #108-#110 are the documentation/doctrine/status
 portion of the new tranche; #111 is the standing runtime/test correction; and
-#112 is the episodic projection/schema/test correction.
+#112 is the episodic projection/schema/test correction. PR #113 changed only
+this living administrative ledger. PR #114 changed only the sole-writer design
+contract and Ticket 0068; it did not remediate runtime. PR #115 is the
+runtime/API capability correction: public `LogStore` is read-only, raw append
+is crate-private, custom writer backends are intentionally unsupported, and
+the existing canonical format and fixtures are unchanged.
 
 ## 3. Evidence hierarchy
 
@@ -100,31 +109,34 @@ unique finding IDs. The individual IDs are covered mechanically in section 7.
 
 | Primary disposition | Finding IDs |
 | --- | ---: |
-| Confirmed | 30 |
+| Confirmed | 28 |
 | Partially remediated | 3 |
 | Superseded | 0 |
 | Accepted debt | 0 |
 | Future implementation gate | 2 |
 | Scheduled | 0 |
-| Closed | 4 |
+| Closed | 6 |
 | **Total** | **39** |
 
-The principal convergence families are: write capability and verified replay;
-status/precedence and currentness doctrine; cross-language grammar; closed
-wildcard-status evolution; closed synthetic projection status; projection failure and storage
-resource law; compatibility/raw standing; detached provenance coordinates;
+The principal convergence families are: sealed write capability and verified
+replay; status/precedence and currentness doctrine; cross-language grammar;
+closed wildcard-status evolution; closed synthetic projection status;
+projection failure and storage resource law; compatibility/raw standing;
+detached provenance coordinates;
 authority/corroboration; admission and identity gates; and test/release
 assurance. Similar names were not enough to merge distinct surfaces; the
 family boundaries and correction loci are retained in section 6.
 
-The surviving present constitutional defects are A-001, the residual A-002
-status/precedence boundary, and A-024. A-010 and A-022 retain
+The surviving present constitutional defects are the residual A-002
+status/precedence boundary and A-024. A-010 and A-022 retain
 constitutional future-gate significance: each prohibits premature
 implementation, but neither presently describes an implemented runtime that
 contradicts a completed deferred mechanism. High or P0 boundaries also remain
-in A-003, A-004, A-015, A-021, RQ-001, RQ-002, and RQ-006, with RQ-003
+in A-003, A-004, A-015, A-021, RQ-002, and RQ-006, with RQ-003
 retaining its authority-looking compatibility leak. A-005/RQ-005 and
-A-006/RQ-004 are objectively Closed by the merged runtime and test evidence
+A-006/RQ-004 remain objectively Closed by their merged runtime and test
+evidence. A-001/RQ-001 is now also objectively Closed by the merged contract,
+runtime/API change, negative capability proofs, and preservation evidence
 recorded below.
 
 The primary **Future implementation gate** disposition applies only to A-016
@@ -142,15 +154,15 @@ in the row.
 
 | Audit IDs | Current finding family | Primary disposition | Qualifier | Current-main evidence | Change since audit | Next correction locus |
 | --- | --- | --- | --- | --- | --- | --- |
-| A-001 / RQ-001 | Public backend append remains a second write capability beside `LogWriter`. | Confirmed | constitutional; contained misuse hazard; P0 | `crates/magpie-log/src/store.rs:12-13,31-37,80`; `crates/magpie-log/src/logimpl.rs:307`; ADR-0001 still names the writer as sole capability. Verification can reject bad bytes, but does not remove the callable sink. | No runtime change. PR #103 and #104 were documentation-only. | `magpie-log` API/storage |
+| A-001 / RQ-001 | Public raw backend append is sealed behind `LogWriter`. | Closed | runtime/API remediation; intentional pre-1.0 custom-writer source break | Public `LogStore` contains only `read_records`; crate-private `WriterStore` owns `append_record`, is not re-exported, and is implemented by `FileStore` and `MemStore` (`crates/magpie-log/src/store.rs:12-20,36-60,87-98`; `crates/magpie-log/src/lib.rs:91-103`). Public typed construction and append exist only for `LogWriter<FileStore>` and `LogWriter<MemStore>` (`crates/magpie-log/src/logimpl.rs:223-360`); `LogReader` retains a private backend and exposes no persistence escape (`:378-464`). Seven compile-fail cases deny built-in/generic raw append, reader append/extraction, custom writer construction, and bare-key persistence (`crates/magpie-log/src/lib.rs:16-89`). Runtime tests preserve genesis, recovery, failure-state ordering, and golden bytes (`crates/magpie-log/tests/chain.rs:125-164,468-540`; `crates/magpie-log/src/logimpl.rs:638-670`; `crates/magpie-log/tests/golden.rs:219-318`). | PR #114, merge `142793a47c0f5a7e26ec29fc100d2d6cde9ddb3a`, established the reviewed Option B contract. PR #115, merge `66198af8dc06b086e77036fafd5e18adcdd967b2`, implemented it without a FORMAT or golden-byte change. | Closed; reopen only if a public non-`LogWriter` persistence path is introduced. |
 | A-002 / RQ-014 | Current-status and precedence drift remains outside the portions reconciled by PRs #103, #109, and #110. | Partially remediated | constitutional remainder; further narrowed; documentation-only remainder | The standing-v3 and origin-admission headers now identify their landed runtime accurately (`docs/design/standing-policy-v3-external-report-corroboration-v0.md:3-11`; `docs/design/origin-admission-audit-v0.md:3-12`). Current stale handoffs remain: the attestation and subject-binding notes still call landed runtime a `current candidate patch` (`docs/design/inline-predicate-attestation-binding-v0.md:3-10,980-1009`; `docs/design/claim-inline-subject-binding-v0.md:593`), Tickets 0061/0063 retain uncommitted-candidate language, and the wider bootstrap/visual-ledger/status-registry ambiguity recorded by A-002 is unchanged. | PR #103 (`21067dc`) corrected the ADR stack and several living status claims. PR #109 (`b79a96a`) reconciled current origin-verification/admission handoffs; PR #110 (`a1a5920`) reconciled standing-v3 runtime/status wording. Neither changed the remaining status corpus. | status/precedence registry and narrow living-status handoffs |
 | A-003 | Detached v0-v2 standing outputs still omit complete verified-prefix coordinates. | Confirmed | high; compatibility-only | `StandingResolution`, `StandingResolutionV1`, and `StandingResolutionV2` remain public coordinate-poor shapes in `crates/magpie-claims/src/standing.rs:76-97`, `standing_v1.rs:124`, and `standing_v2.rs:135`; newer v3/v4 paths carry private prefix/closure identities. | No runtime/API change. | provenance-response / compatibility API |
-| A-004 / RQ-006 | Rust and Python still accept different JSONL record languages and first-failure behavior. | Confirmed | high; P0; interoperability | Rust uses `hex::decode` (`crates/magpie-log/src/hashing.rs:48-54`, `event.rs:315-325`) and skips blank lines (`store.rs:41-54`); Python has its own hex/status/line grammar (`tools/verify_chain.py:49-60,206-237`). | No verifier or format change. Existing golden vectors cover the common intersection only. | verifier/tooling contract |
+| A-004 / RQ-006 | Rust and Python still accept different JSONL record languages and first-failure behavior. | Confirmed | high; P0; interoperability | Rust uses `hex::decode` (`crates/magpie-log/src/hashing.rs:48-54`, `event.rs:315-325`) and skips blank lines (`store.rs:41-46`); Python has its own hex/status/line grammar (`tools/verify_chain.py:49-60,206-237`). | No verifier or format change. Existing golden vectors cover the common intersection only. | verifier/tooling contract |
 | A-005 / RQ-005 | v2/v3 status combination now fails closed when the shared status vocabulary evolves. | Closed | behavior-preserving runtime remediation | `Status` has five current variants (`crates/magpie-log/src/event.rs:25-31`). `combine_v2_standing` and `combine_standing` explicitly select every one (`crates/magpie-claims/src/standing_v2.rs:300-314`; `standing_v3.rs:885-899`), so a future variant makes both matches non-exhaustive. Complete 12-case truth tables preserve every current result (`standing_v2.rs:803-830`; `standing_v3.rs:2268-2295`). | PR #111, merge `dc07034d4af7d2b41130ba04a6a9d4c5af000995`, removed both status wildcards and added permanent complete truth-table tests without changing current policy identity or semantics. | Closed; re-evaluate explicitly if `Status` evolves. |
 | A-006 / RQ-004 | Episodic output now preserves `ClaimAssertedV2` as statusless. | Closed | intentional derived-projection correction; schema-versioned | `ClaimAssertedV2` maps to `claim_status: None`, while legacy `ClaimAsserted` and `ClaimStatusChanged` preserve exact signed status fields (`crates/magpie-episodic/src/lib.rs:283-314,335-348`). `SCHEMA_VERSION` is 3 (`:19`), and tests prove NULL canonical rows, exact legacy status retention, schema-v2 stale-row discard, caller-owned verified replay, fresh/rebuilt byte equality, and v3 reopen preservation (`crates/magpie-episodic/tests/episodic.rs:454-570`). | PR #112, merge `91ebb5d6a4f5ba99ad377c77eb96dc70bc829245`, changed derived episodic state and canonical bytes for tag 6, bumped schema/projection version 2 to 3, and added migration/replay regressions. | Closed; neighboring A-007/A-008/A-012 remain separate. |
-| A-007 / RQ-009 | Projection reuse and fallible episodic operations still lack a typed lifecycle/error boundary. | Confirmed | current availability defect; contained to derived state | `Projection::apply` remains infallible (`crates/magpie-log/src/logimpl.rs:419-425`); episodic transaction, insert, commit, and signed-range paths still use `expect`/panic (`crates/magpie-episodic/src/lib.rs:214-250,390-398`). | No replay/projection runtime change. | storage/resource contract |
-| A-008 / RQ-007 / RQ-008 | The storage seam still lacks a complete snapshot, durability, concurrency, framing, and outer resource law. | Confirmed | operational/resource debt; conditional under local use | `FileStore` writes two pieces without sync or lock (`crates/magpie-log/src/store.rs:17-47`); `read_records` materializes the file and splits every line (`store.rs:41-54`); replay retains raw and parsed data (`logimpl.rs:375-386`). | No storage/runtime change. | storage/resource contract |
-| A-009 / RQ-002 | Unverified parsed events and verified replay inputs remain the same public projection-compatible type. | Confirmed | contained misuse hazard; P0 | `LogReader::events` returns `Vec<SignedEvent>` while `Projection::apply` consumes `SignedEvent` (`crates/magpie-log/src/logimpl.rs:350-360,371-425`); `deadbolt_context.rs:41-56` documents the unverified path. | No type or capability change. | `magpie-log` replay/projection API |
+| A-007 / RQ-009 | Projection reuse and fallible episodic operations still lack a typed lifecycle/error boundary. | Confirmed | current availability defect; contained to derived state | `Projection::apply` remains infallible (`crates/magpie-log/src/logimpl.rs:466-469`); episodic transaction, insert, commit, and signed-range paths still use `expect`/panic (`crates/magpie-episodic/src/lib.rs:214-250,390-398`). | No replay/projection runtime change. | storage/resource contract |
+| A-008 / RQ-007 / RQ-008 | The storage seam still lacks a complete snapshot, durability, concurrency, framing, and outer resource law. | Confirmed | operational/resource debt; conditional under local use | `FileStore` writes record bytes and newline separately without sync or lock (`crates/magpie-log/src/store.rs:50-59`); `read_records` materializes the file and splits every line (`store.rs:36-47`); replay retains raw and parsed data (`logimpl.rs:420-450`). | PR #115 changed visibility/capability topology only; storage semantics remain unchanged. | storage/resource contract |
+| A-009 / RQ-002 | Unverified parsed events and verified replay inputs remain the same public projection-compatible type. | Confirmed | contained misuse hazard; P0 | `LogReader::events` returns `Vec<SignedEvent>` while `Projection::apply` consumes `SignedEvent` (`crates/magpie-log/src/logimpl.rs:394-405,420-469`); `deadbolt_context.rs:41-56` documents the unverified path. | PR #115 did not change event typing or projection compatibility. | `magpie-log` replay/projection API |
 | A-010 | Accepted currentness doctrine now exists, but resolver substrate, representation, eligibility, and algorithm identity remain future. | Partially remediated | constitutional; narrowed; future implementation gate | ADR-0006 defines coordinate-bound derived currentness and separates it from standing (`docs/adr/0006-claim-currency-and-currentness-semantics.md:3,111-137,356-385`); no currentness resolver implementation exists, and existing `StandingCurrentness` compatibility fields must not be reinterpreted. | PR #103 (`21067dc`) materially resolved the doctrine/status conflict and explicitly deferred runtime, encoding, eligibility, and identity details. | owner doctrine decision |
 | A-011 / RQ-015 | Dependency, CI, and release validation inputs remain insufficiently pinned/reviewed for semantic reproducibility. | Confirmed | process/release debt | `.github/workflows/ci.yml:13-18,23,52-60` uses moving toolchain/action/Python inputs; `Cargo.lock` pins Rust dependency resolution but not the external verifier environment; the release contract expects both verifier fixtures. | No CI or dependency change. | CI/release assurance |
 | A-012 / RQ-010 | A public episodic path can still drop same-named tables on schema mismatch without an ownership marker. | Confirmed | conditional; contained to derived storage | `EpisodicView::at_path` and its `user_version` mismatch branch remain at `crates/magpie-episodic/src/lib.rs:100-120`. | No storage-safety change. | storage/resource contract |
@@ -161,7 +173,7 @@ in the row.
 | A-018 / RQ-013 | Passing tests do not close the missing negative, differential, resource, crash, and exact compile-fail assurance families. | Confirmed | assurance gap; not a test-green closure | Current compile-fail examples include stale-arity patterns (`crates/magpie-claims/src/origin_binding_verifier.rs:40-69`, `crates/magpie-claims/src/origin_admission_audit.rs:92-207`, `crates/magpie-claims/src/support_contribution_audit.rs:86-192`). Current tests pass, but no cross-language malformed corpus, base-log resource, crash, concurrency, or SQLite-failure family was found. | No test/code change. | CI/release assurance |
 | A-019 / RQ-011 | Current public legacy resolution, episodic row, and search-result APIs remain detachable and coordinate-poor. | Confirmed | contained current provenance/API gap; compatibility-only; future authority-bearing integration gate | `StandingResolution` lacks prefix/closure identity (`crates/magpie-claims/src/standing.rs:76-97`); public `EpisodicEvent` rows omit complete record identity, verified-prefix, projection, and query coordinates, and `search` returns bare sequence numbers (`crates/magpie-episodic/src/lib.rs:41-56,154-177`). No librarian or MCP runtime exists on current `main`, but the implemented public API deficiency is current. | No query/API change. | provenance-response contract |
 | A-020 | Ignored pending delegation tickets can still describe obsolete bases and no wrapper preflight proves current status/allowlist. | Confirmed | mixed-scope: local-only stale-ticket evidence; repository-level wrapper gap; confirmed in the recorded `C:\magpie` checkout | `.agent-runs/pending/0003-migrate-to-v1-format-freeze-layout.md` and `.agent-runs/pending/0006-episodic-schema-version-guard.md` are ignored local files and are absent from a fresh clone of GitHub `main`. Tracked repository code `scripts/codex-delegate.ps1` accepts a caller-supplied existing ticket path without validating ticket root, current status, expected base, or an allowed change surface. | No local ticket-content or tracked wrapper change; ignored ticket files are not repository authority and were not edited. | local delegation/worktree workflow |
-| A-021 | Weak external Ed25519 roots and strict verification remain an unpinned profile decision. | Confirmed | conditional; high; trust-root/profile | `docs/FORMAT.md:160-170`, `crates/magpie-log/src/logimpl.rs:147-150,337-343`, and `tools/verify_chain.py:188-221` still leave ordinary versus strict weak-root handling open. The trust root remains externally supplied. | No cryptographic or format change; PR #103/104 did not address it. | verifier/tooling contract |
+| A-021 | Weak external Ed25519 roots and strict verification remain an unpinned profile decision. | Confirmed | conditional; high; trust-root/profile | `docs/FORMAT.md:160-170`, `crates/magpie-log/src/logimpl.rs:147-190`, and `tools/verify_chain.py:188-221` still leave ordinary versus strict weak-root handling open. The trust root remains externally supplied. | No cryptographic or format change; PR #115 did not address it. | verifier/tooling contract |
 | A-022 | Admission rejection representation, historical recording, provenance, and retry semantics remain unanswered before a write gate. | Future implementation gate | constitutional; future admission gate | `docs/design/admission-design-readiness-checklist.md:159-165` and the admission question/record contracts retain unanswered rejection and retry choices; no generic admission or `EpistemicGate` runtime exists. | No admission or event-format change. | future admission ADR |
 | A-023 | Direct artifact/origin matched traces still omit producing verified-prefix and closure identities. | Confirmed | contained; compatibility/API remainder | Direct trace/receipt surfaces remain in `crates/magpie-claims/src/artifact_provenance_verifier.rs:144-209,219-299,368-387` and `crates/magpie-claims/src/origin_binding_verifier.rs:239-259,360-389,541-548`; stronger v3/v4/audit paths carry more coordinates. | No provenance-response API change. | provenance-response contract |
 | A-024 | Claimant-controlled authority labels can still manufacture corroboration separation. | Confirmed | constitutional; high; compatibility semantics explicitly quarantined; accepted successor doctrine unimplemented | The v0 runtime still matches the compiled `human-review` / `authority:origin-review-v0` labels, copies claimant `origin_group` values into trusted fold/admission output (`crates/magpie-claims/src/origin_admission_audit.rs:234-236,559-603,612-700`), and standing v3 counts distinct exact groups at threshold two (`crates/magpie-claims/src/standing_v3.rs:434-435,787-817`). The current contracts now accurately call this claimant-label compatibility admission/corroboration and deny any authenticated independence property (`docs/design/origin-admission-audit-v0.md:5-12,145-152,508-513`; `standing-policy-v3-external-report-corroboration-v0.md:68-81`). ADR-0007 is Accepted but explicitly says acceptance does not implement or remediate A-024 (`docs/adr/0007-authority-bound-origin-corroboration.md:1427-1434,1533-1537`). | PR #108 (`71d096f`) accepted successor doctrine; #109 (`b79a96a`) reconciled current v0 compatibility semantics; #110 (`a1a5920`) quarantined downstream v3 meaning. No authority-bound runtime, hostile tests, or additive successor types landed. | ADR-0007 implementation contract and additive authority-bound successor runtime |
@@ -174,7 +186,7 @@ finding ID; family labels do not create additional findings.
 
 | ID | Audit title or concise finding | Convergence family | Disposition | Current evidence note |
 | --- | --- | --- | --- | --- |
-| A-001 | Public backend append bypasses declared sole writer | F01 | Confirmed | `LogStore::append_record` remains public. |
+| A-001 | Public backend append bypasses declared sole writer | F01 | Closed | Public raw backend append is removed; `LogWriter` is the sole supported Magpie append capability. |
 | A-002 | ADR, contract, and living-status precedence is not closed | F02 | Partially remediated | ADR, origin-admission, and v3 status were corrected; attestation/candidate and wider stale-status surfaces remain. |
 | A-003 | Detached v0-v2 standing output lacks verified-prefix coordinates | F03 | Confirmed | Legacy resolution shapes remain coordinate-poor. |
 | A-004 | Rust and Python accept different record languages | F04 | Confirmed | Case, status, blank-line, and first-failure grammar remains divergent. |
@@ -198,7 +210,7 @@ finding ID; family labels do not create additional findings.
 | A-022 | Admission rejection and retry semantics are not governed | F21 | Future implementation gate | Generic admission/EpistemicGate remains prohibited pending answers. |
 | A-023 | Direct matched traces omit prefix and closure identities | F22 | Confirmed | Direct trace surfaces remain less coordinate-complete than newer audits. |
 | A-024 | Claimant-controlled authority labels manufacture corroboration separation | F23 | Confirmed | Current compatibility semantics are quarantined and Accepted successor doctrine exists, but no independent authority-binding runtime is present. |
-| RQ-001 | Public backend append bypasses declared sole writer | F01 | Confirmed | Same public `LogStore` seam as A-001. |
+| RQ-001 | Public backend append bypasses declared sole writer | F01 | Closed | The same capability seam is objectively removed with direct API and compile-fail evidence. |
 | RQ-002 | Unverified and verified events share projection-compatible type | F09 | Confirmed | `SignedEvent` remains the shared input type. |
 | RQ-003 | Legacy raw standing remains public and authority-looking | F15 | Confirmed | Raw field remains public and serializable. |
 | RQ-004 | Episodic projection invents `Conjectured` | F06 | Closed | Statusless typed assertions now project NULL with schema-v2-to-v3 rebuild coverage. |
@@ -217,9 +229,52 @@ finding ID; family labels do not create additional findings.
 ## 8. Materially changed findings
 
 The following records capture every primary disposition marked Partially
-remediated, the two convergence families Closed by PRs #111/#112, and findings
-materially narrowed by documentation in PRs #103/#108-#110. Closure is based
-on current implementation and tests, not on ticket or PR prose alone.
+remediated, the three convergence families Closed by PRs #111/#112/#115, and
+findings materially narrowed by documentation in PRs #103/#108-#110. Closure
+is based on current implementation and tests, not on ticket or PR prose alone.
+
+### A-001 / RQ-001 — sole public L0 write capability
+
+- Original audit conclusion: public `LogStore::append_record` gave every
+  mutable `FileStore`, `MemStore`, or custom writable store holder a raw
+  persistence capability beside `LogWriter`. Later verification could detect
+  invalid history, but could not remove that peer capability.
+- Contract step: PR #114 merged as
+  `142793a47c0f5a7e26ec29fc100d2d6cde9ddb3a`. Its reviewed Option B retains
+  public custom read substitution while intentionally removing external custom
+  writer backends; storage abstraction no longer implies public raw append.
+  This documentation-only step did not itself remediate runtime.
+- Runtime change: PR #115 merged as
+  `66198af8dc06b086e77036fafd5e18adcdd967b2`. Public `LogStore` now has only
+  `read_records`. Crate-private `WriterStore` owns `append_record`; only
+  crate-owned `FileStore`, `MemStore`, and crate-internal test instrumentation
+  implement it. Public writer construction and typed `append(Provenance,
+  Payload)` are specialized to `LogWriter<FileStore>` and
+  `LogWriter<MemStore>`.
+- Negative evidence: permanent compile-fail cases deny raw append from
+  `FileStore`, `MemStore`, and generic `S: LogStore`; deny append and backend
+  extraction from `LogReader`; deny `LogWriter<MyReadStore>::open`; and show a
+  bare `SigningKey` has no persistence operation. The cases use current imports
+  and constructors and fail at the intended missing-method boundary.
+- Positive preservation: external-style `ChangingSnapshotStore`,
+  `CountingStore`, `ChangingStandingStore`, `OneReadStore`, and `ChangingStore`
+  remain read-only `LogStore` implementations for reader/replay tests.
+  `LogWriter<MemStore>` and `LogWriter<FileStore>` still create, reopen, and
+  continue valid chains; empty open creates exactly one genesis; existing
+  history recovers its exact count and tip; an injected private persistence
+  failure leaves the writer tip and sequence unchanged; and golden/hash/
+  signature/Deadbolt-anchor bytes remain unchanged.
+- Scope distinction: direct operating-system mutation of a `FileStore` path is
+  outside this safe public Rust API invariant. `MemStore::from_records` creates
+  caller-owned historical input rather than exposing mutation of an existing
+  store. Storage durability/resource semantics (A-008/RQ-007/RQ-008), verified
+  event typing (A-009/RQ-002), exact compile-fail assurance elsewhere
+  (A-018/RQ-013), generic admission (A-022), and authority-bound
+  corroboration (A-024) remain separate.
+- Disposition basis: **Closed**. Current code structurally removes the entire
+  audited public backend-append bypass while preserving typed supported writing
+  and public read substitution. Reopen only if Magpie introduces another public
+  non-`LogWriter` persistence path.
 
 ### A-002 / RQ-014 — status and runtime handoff reconciliation
 
@@ -387,12 +442,6 @@ they remain open and the owning layer; it does not design a fix.
   is unimplemented. The next correction locus is its separately reviewed
   implementation contract and runtime, not another doctrine decision.
 
-- **Public backend append capability — A-001/RQ-001.** `LogStore` still
-  exposes `append_record` to any mutable store holder even though `LogWriter`
-  is the declared sole writer. Verification catches bad history after the
-  capability is used; it does not seal the capability. The next decision
-  belongs to the `magpie-log` API/storage layer.
-
 - **Unverified versus verified projection inputs — A-009/RQ-002.**
   `LogReader::events()` and verifier-created replay still use
   projection-compatible `SignedEvent` values. Documentation and passing
@@ -429,25 +478,24 @@ dispositions.
 This is non-authorizing planning guidance only. It is not a roadmap
 ratification, an implementation ticket, or permission to start work.
 
-1. append-capability sealing — A-001 / RQ-001;
-2. verified replay/projection boundary — A-009 / RQ-002;
-3. cross-language verifier contract and normative vectors — A-004 / RQ-006;
-4. authority-bound corroboration implementation contract and additive
+1. verified replay/projection boundary — A-009 / RQ-002;
+2. cross-language verifier contract and normative vectors — A-004 / RQ-006;
+3. authority-bound corroboration implementation contract and additive
    successor — A-024;
-5. provenance-complete response surfaces;
-6. storage/resource/fallible-projection contracts;
-7. remaining crypto/release assurance;
-8. deferred admission, currentness, withdrawal, identity, and
+4. provenance-complete response surfaces;
+5. storage/resource/fallible-projection contracts;
+6. remaining crypto/release assurance;
+7. deferred admission, currentness, withdrawal, identity, and
    authority-bearing query capabilities.
 
 The prior authority-decision-first wording became stale when ADR-0007 was
 Accepted. The authority-bound successor remains unimplemented, but its doctrine
 decision is no longer pending. The revised order records dependency pressure
-visible in the evidence: seal and type the base write/replay boundaries before
-portable derived interpretation, then implement the already-decided
-authority-bound successor through a separate authorized slice. It does not
-choose mechanisms or owners and does not authorize A-001 or ADR-0007 runtime
-work.
+visible in the evidence: the append-capability substrate is now sealed, so the
+verified replay/projection boundary is the next base capability boundary before
+portable derived interpretation. The already-decided authority-bound successor
+still requires a separate authorized slice. This order does not choose
+mechanisms or owners and does not authorize A-009 or ADR-0007 runtime work.
 
 ## 12. Coverage and validation
 
@@ -478,6 +526,9 @@ git rev-parse HEAD
 git rev-parse origin/main
 git merge-base HEAD origin/main
 git merge-base 3b46fdb81857d77b827271777b86745bca5f7b12 HEAD
+git merge-base --is-ancestor 142793a47c0f5a7e26ec29fc100d2d6cde9ddb3a HEAD
+git merge-base --is-ancestor 4e50af5343acdbd60385f5b35fd6ffd100c6a237 HEAD
+git merge-base --is-ancestor 66198af8dc06b086e77036fafd5e18adcdd967b2 HEAD
 git status --short --untracked-files=all
 git diff --name-only
 git diff --cached --name-only
@@ -487,20 +538,45 @@ git log --oneline --decorate --reverse 3b46fdb81857d77b827271777b86745bca5f7b12.
 git diff --stat 3b46fdb81857d77b827271777b86745bca5f7b12 HEAD
 git diff --name-status 3b46fdb81857d77b827271777b86745bca5f7b12 HEAD
 rg -n "^### (A|RQ)-[0-9]{3}\b" docs/audits/magpie-architecture-audit-2026-08-01.md docs/audits/magpie-runtime-quality-audit-2026-08-04.md
+cargo test -p magpie-log --locked
+cargo test --doc -p magpie-log --locked
+cargo test -p magpie-claims --test standing_replay_snapshot --locked
+cargo test -p magpie-claims --test origin_admission_replay_substrate --locked
+cargo test -p magpie-claims --test deterministic_verifier_context --locked
 cargo test -p magpie-claims --locked combination_
 cargo test -p magpie-episodic --test episodic --locked
+cargo fmt --all --check
+cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked --no-fail-fast
+cargo doc -p magpie-log --locked --no-deps
+python tools/verify_chain.py crates/magpie-log/testdata/golden-v1.jsonl ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c
+python tools/verify_chain.py fixtures/deadbolt-anchor-v1/anchor-log.jsonl d04ab232742bb4ab3a1368bd4615e4e6d0224ab71a016baf8520a332c9778737
+python tools/check_release_metadata.py
+cargo run --locked --example tour -p magpie-claims
 ```
 
-The focused standing command passed all five matching v2/v3 combination tests.
-The focused episodic integration suite passed all 11 tests, including the
-statusless row, canonical NULL, legacy signed-status preservation, schema-v2
-discard/replay equivalence, and current-v3 reopen cases. The full locked
+The focused `magpie-log` suite passed 43 unit/integration tests and all ten
+documentation tests. The seven A-001 compile-fail examples were also compiled
+directly against the built public crate artifact: every probe reached its
+intended call and failed with E0599 for the unavailable method or constructor.
+The three focused custom-reader/replay suites passed 5, 6, and 25 tests,
+respectively. The focused standing command passed all five matching v2/v3
+combination tests. The focused episodic integration suite passed all 11 tests,
+including the statusless row, canonical NULL, legacy signed-status
+preservation, schema-v2 discard/replay equivalence, and current-v3 reopen
+cases. The full locked
 workspace suite also passed with zero failures across every unit, integration,
 documentation, and compile-fail target; the `magpie-claims` documentation-test
-target reported 281 passed and the `magpie-log` compile-fail target reported 3
-passed. Passing tests close only the two specifically removed defects; the
-unrelated hostile/resource/crash/differential gaps remain recorded above.
+target reported 281 passed and the `magpie-log` documentation-test target
+reported 10 passed. Passing tests close only the three specifically removed
+defects; the unrelated hostile/resource/crash/differential gaps remain recorded
+above.
+Formatting and workspace clippy with warnings denied passed. Rustdoc generation
+passed; a structural scan of generated public item links found no exported
+`WriterStore`, raw-persistence method, adapter, or backend escape. Both Python
+chain verifiers accepted every golden and Deadbolt-anchor record, release
+metadata inventories matched, and the governed-standing tour verified 14
+events and reproduced identical snapshot and governed-resolution bytes.
 
 The final check also used `git diff --check`, a changed-path allowlist audit,
 post-edit SHA256 hashes for both historical audit files, and this one-off
@@ -588,8 +664,8 @@ $futureIds = @($familyPrimary |
   Select-Object -ExpandProperty Id | Sort-Object)
 $statusMismatch = @($expected |
   Where-Object { $familyDisposition[$_] -ne $matrixDisposition[$_] })
-if ($confirmed -ne 30 -or $partial -ne 3 -or $future -ne 2 -or
-    $closed -ne 4 -or
+if ($confirmed -ne 28 -or $partial -ne 3 -or $future -ne 2 -or
+    $closed -ne 6 -or
     $other -ne 0 -or ($futureIds -join ',') -ne 'A-016,A-022' -or
     $familyDisposition['A-019'] -ne 'Confirmed' -or
     $familyDisposition['RQ-011'] -ne 'Confirmed' -or
@@ -599,8 +675,10 @@ if ($confirmed -ne 30 -or $partial -ne 3 -or $future -ne 2 -or
     $familyDisposition['RQ-005'] -ne 'Closed' -or
     $familyDisposition['A-006'] -ne 'Closed' -or
     $familyDisposition['RQ-004'] -ne 'Closed' -or
+    $familyDisposition['A-001'] -ne 'Closed' -or
+    $familyDisposition['RQ-001'] -ne 'Closed' -or
     $statusMismatch.Count) { throw 'primary disposition check failed' }
-'dispositions: PASS; Confirmed=30, Partially remediated=3, Future implementation gate=2, Closed=4, Total=39'
+'dispositions: PASS; Confirmed=28, Partially remediated=3, Future implementation gate=2, Closed=6, Total=39'
 ```
 
 The disposition counts above are weighted by individual finding ID, not by
@@ -614,6 +692,10 @@ Recorded preservation and scope checks:
   `7FA0A453E6A6EFBC2650F57D2C2D87FFC24EF86F7E41312DEF3F20184506F31F`;
 - runtime audit SHA256 before and after:
   `105EA5CCEE563F4E23330E790B5FB0281A93E11398F73E6E1627B1DF86248FB9`;
+- sole-writer contract SHA256 before and after:
+  `DC6244DAFEF65685C5321079648040B6D4FA2C45AD0B417A8E524C4D84FED02B`;
+- Ticket 0069 SHA256 before and after:
+  `9F9D75945C5ECB07048AC06DDB37E6FD6ABFC632F5BEF6B52AFA20CBCB924072`;
 - final allowed changed path: `docs/audits/audit-disposition-2026-08.md` only;
 - `git diff --check`: pass;
 - final worktree and publication state: recorded in the completion report and
