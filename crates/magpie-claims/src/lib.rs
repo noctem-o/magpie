@@ -28,7 +28,7 @@ mod support_contribution_audit;
 
 use std::collections::BTreeMap;
 
-use magpie_log::{Payload, Projection, SignedEvent, Status};
+use magpie_log::{Payload, Projection, Status, VerifiedReplayEvent};
 use serde::Serialize;
 
 pub use admitted_contribution_audit::{
@@ -191,7 +191,8 @@ impl ClaimsView {
 }
 
 impl Projection for ClaimsView {
-    fn apply(&mut self, event: &SignedEvent) {
+    fn apply(&mut self, replay_event: &VerifiedReplayEvent<'_>) {
+        let event = replay_event.event();
         match &event.core.payload {
             Payload::ClaimAsserted {
                 claim_id,

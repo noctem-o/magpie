@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-use magpie_log::{Payload, Projection, SignedEvent};
+use magpie_log::{Payload, Projection, VerifiedReplayEvent};
 use serde::{
     de::{IgnoredAny, MapAccess, Visitor},
     Deserialize, Deserializer, Serialize,
@@ -44,16 +44,12 @@ pub struct DeadboltAnchorOccurrence {
 /// remain available through `occurrences` in sequence order without becoming
 /// distinct identities or stronger epistemic evidence.
 ///
-/// The index records every `SegmentAnchored` event applied to it; it does not
-/// intrinsically prove how those events were obtained. In particular,
-/// [`Projection::apply`] does not verify signatures, event hashes, sequence or
-/// previous-hash links, genesis key binding, chain membership, or trust in a
-/// verifying key. Manual application is useful for projection mechanics and
-/// tests, but it does not establish accepted-chain provenance.
-///
-/// Trusted occurrence conclusions require exclusive construction through a
-/// successful [`magpie_log::LogReader::replay`] using the intended verifying
-/// key. Trust in that key remains external to this projection.
+/// [`Projection::apply`] accepts only an ephemeral replay input created after
+/// complete verification of one retained log snapshot. This structural replay
+/// boundary still does not establish trust in the supplied verifying key,
+/// foreign-bundle verification, actor authority, admission, interpretation
+/// truth, achieved standing, or scientific correctness. This derived index is
+/// not itself an authority object.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct DeadboltAnchorIndex {
     occurrences_by_identity: BTreeMap<DeadboltAnchorIdentity, Vec<DeadboltAnchorOccurrence>>,
@@ -117,7 +113,8 @@ impl DeadboltAnchorIndex {
 }
 
 impl Projection for DeadboltAnchorIndex {
-    fn apply(&mut self, event: &SignedEvent) {
+    fn apply(&mut self, replay_event: &VerifiedReplayEvent<'_>) {
+        let event = replay_event.event();
         match &event.core.payload {
             Payload::SegmentAnchored {
                 bundle_kind,

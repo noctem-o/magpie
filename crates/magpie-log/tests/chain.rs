@@ -7,7 +7,7 @@ use std::rc::Rc;
 use ed25519_dalek::{Signer, SigningKey};
 use magpie_log::{
     ContentHash, EventCore, FileStore, LogError, LogReader, LogStore, LogWriter, MemStore, Payload,
-    Projection, Provenance, Sig, SignedEvent, CANONICALIZATION_PROFILE,
+    Projection, Provenance, Sig, SignedEvent, VerifiedReplayEvent, CANONICALIZATION_PROFILE,
 };
 
 const SEED: [u8; 32] = [42u8; 32];
@@ -116,7 +116,8 @@ struct RecordingProjection {
 }
 
 impl Projection for RecordingProjection {
-    fn apply(&mut self, event: &SignedEvent) {
+    fn apply(&mut self, replay_event: &VerifiedReplayEvent<'_>) {
+        let event = replay_event.event();
         self.payloads.push(event.core.payload.clone());
     }
 }
@@ -132,7 +133,7 @@ fn genesis_is_written_on_empty_open() {
     );
 
     let reader = LogReader::open(store, key().verifying_key());
-    let events = reader.events().unwrap();
+    let events = reader.unverified_events().unwrap();
     match &events[0].core.payload {
         Payload::Genesis {
             canonicalization_profile,
@@ -147,6 +148,44 @@ fn genesis_is_written_on_empty_open() {
         other => panic!("seq 0 must be Genesis, got {other:?}"),
     }
     assert_eq!(reader.verify_chain().unwrap(), 1);
+}
+
+#[test]
+fn unverified_events_returns_parsed_raw_records_without_verifying_them() {
+    let store = MemStore::new();
+    {
+        let mut w = writer(store.clone());
+        w.append(prov(), note("raw diagnostic record")).unwrap();
+    }
+    let mut records = store.records();
+    let mut invalid: SignedEvent = serde_json::from_slice(records.last().unwrap()).unwrap();
+    invalid.signature = Sig::new([0u8; 64]);
+    *records.last_mut().unwrap() = serde_json::to_vec(&invalid).unwrap();
+    let reader = LogReader::open(MemStore::from_records(records), key().verifying_key());
+
+    let raw = reader.unverified_events().unwrap();
+
+    assert_eq!(raw.len(), 2);
+    assert_eq!(raw[1].core.payload, note("raw diagnostic record"));
+    assert!(matches!(
+        reader.verify_chain(),
+        Err(LogError::BadSignature { seq: 1 })
+    ));
+}
+
+#[test]
+fn downstream_custom_projection_observes_genuine_replay_inputs() {
+    let store = MemStore::new();
+    {
+        let mut w = writer(store.clone());
+        w.append(prov(), note("custom projection input")).unwrap();
+    }
+    let reader = LogReader::open(store, key().verifying_key());
+    let mut projection = RecordingProjection::default();
+
+    assert_eq!(reader.replay(&mut projection).unwrap(), 2);
+    assert!(matches!(projection.payloads[0], Payload::Genesis { .. }));
+    assert_eq!(projection.payloads[1], note("custom projection input"));
 }
 
 #[test]
