@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use magpie_log::{Payload, Projection, SignedEvent, Status};
+use magpie_log::{Payload, Projection, Status, VerifiedReplayEvent};
 use serde::{
     de::{IgnoredAny, MapAccess, Visitor},
     Deserialize, Deserializer, Serialize,
@@ -659,7 +659,8 @@ fn standing_reason_for_structure_failure(
 }
 
 impl Projection for StandingView {
-    fn apply(&mut self, event: &SignedEvent) {
+    fn apply(&mut self, replay_event: &VerifiedReplayEvent<'_>) {
+        let event = replay_event.event();
         match &event.core.payload {
             Payload::Genesis { .. } => {}
             Payload::ClaimAsserted {

@@ -7,7 +7,7 @@ use std::rc::Rc;
 use ed25519_dalek::{Signer, SigningKey};
 use magpie_log::{
     ContentHash, EventCore, FileStore, LogError, LogReader, LogStore, LogWriter, MemStore, Payload,
-    Projection, Provenance, Sig, SignedEvent, CANONICALIZATION_PROFILE,
+    Projection, Provenance, Sig, SignedEvent, VerifiedReplayEvent, CANONICALIZATION_PROFILE,
 };
 
 const SEED: [u8; 32] = [42u8; 32];
@@ -116,7 +116,8 @@ struct RecordingProjection {
 }
 
 impl Projection for RecordingProjection {
-    fn apply(&mut self, event: &SignedEvent) {
+    fn apply(&mut self, replay_event: &VerifiedReplayEvent<'_>) {
+        let event = replay_event.event();
         self.payloads.push(event.core.payload.clone());
     }
 }
@@ -132,7 +133,7 @@ fn genesis_is_written_on_empty_open() {
     );
 
     let reader = LogReader::open(store, key().verifying_key());
-    let events = reader.events().unwrap();
+    let events = reader.unverified_events().unwrap();
     match &events[0].core.payload {
         Payload::Genesis {
             canonicalization_profile,
@@ -147,6 +148,44 @@ fn genesis_is_written_on_empty_open() {
         other => panic!("seq 0 must be Genesis, got {other:?}"),
     }
     assert_eq!(reader.verify_chain().unwrap(), 1);
+}
+
+#[test]
+fn unverified_events_returns_parsed_raw_records_without_verifying_them() {
+    let store = MemStore::new();
+    {
+        let mut w = writer(store.clone());
+        w.append(prov(), note("raw diagnostic record")).unwrap();
+    }
+    let mut records = store.records();
+    let mut invalid: SignedEvent = serde_json::from_slice(records.last().unwrap()).unwrap();
+    invalid.signature = Sig::new([0u8; 64]);
+    *records.last_mut().unwrap() = serde_json::to_vec(&invalid).unwrap();
+    let reader = LogReader::open(MemStore::from_records(records), key().verifying_key());
+
+    let raw = reader.unverified_events().unwrap();
+
+    assert_eq!(raw.len(), 2);
+    assert_eq!(raw[1].core.payload, note("raw diagnostic record"));
+    assert!(matches!(
+        reader.verify_chain(),
+        Err(LogError::BadSignature { seq: 1 })
+    ));
+}
+
+#[test]
+fn downstream_custom_projection_observes_genuine_replay_inputs() {
+    let store = MemStore::new();
+    {
+        let mut w = writer(store.clone());
+        w.append(prov(), note("custom projection input")).unwrap();
+    }
+    let reader = LogReader::open(store, key().verifying_key());
+    let mut projection = RecordingProjection::default();
+
+    assert_eq!(reader.replay(&mut projection).unwrap(), 2);
+    assert!(matches!(projection.payloads[0], Payload::Genesis { .. }));
+    assert_eq!(projection.payloads[1], note("custom projection input"));
 }
 
 #[test]
@@ -359,6 +398,58 @@ fn replay_with_summary_returns_no_summary_and_applies_nothing_on_late_failure() 
     let result = reader.replay_with_summary(&mut projection);
 
     assert!(matches!(result, Err(LogError::BadSignature { seq: 2 })));
+    assert!(projection.payloads.is_empty());
+}
+
+#[test]
+fn replay_with_summary_applies_nothing_on_late_content_hash_failure() {
+    let store = MemStore::new();
+    {
+        let mut w = writer(store.clone());
+        w.append(prov(), note("valid hash prefix")).unwrap();
+        w.append(prov(), note("invalid hash suffix")).unwrap();
+    }
+
+    let mut records = store.records();
+    let mut invalid: SignedEvent = serde_json::from_slice(records.last().unwrap()).unwrap();
+    invalid.core.payload = note("altered without rehashing");
+    *records.last_mut().unwrap() = serde_json::to_vec(&invalid).unwrap();
+
+    let reader = LogReader::open(MemStore::from_records(records), key().verifying_key());
+    let mut projection = RecordingProjection::default();
+    let result = reader.replay_with_summary(&mut projection);
+
+    assert!(matches!(
+        result,
+        Err(LogError::ChainBroken { seq: 2, detail })
+            if detail == "content hash mismatch (event was altered)"
+    ));
+    assert!(projection.payloads.is_empty());
+}
+
+#[test]
+fn replay_with_summary_applies_nothing_on_late_prev_hash_failure() {
+    let store = MemStore::new();
+    {
+        let mut w = writer(store.clone());
+        w.append(prov(), note("valid link prefix")).unwrap();
+        w.append(prov(), note("invalid link suffix")).unwrap();
+    }
+
+    let mut records = store.records();
+    let mut invalid: SignedEvent = serde_json::from_slice(records.last().unwrap()).unwrap();
+    invalid.core.prev_hash = ContentHash::ZERO;
+    *records.last_mut().unwrap() = serde_json::to_vec(&invalid).unwrap();
+
+    let reader = LogReader::open(MemStore::from_records(records), key().verifying_key());
+    let mut projection = RecordingProjection::default();
+    let result = reader.replay_with_summary(&mut projection);
+
+    assert!(matches!(
+        result,
+        Err(LogError::ChainBroken { seq: 2, detail })
+            if detail == "prev_hash does not match the previous event"
+    ));
     assert!(projection.payloads.is_empty());
 }
 

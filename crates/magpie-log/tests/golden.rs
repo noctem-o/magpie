@@ -220,7 +220,7 @@ fn committed_fixture_verifies_and_matches_pinned_values() {
     let reader = LogReader::open(load_golden(), SigningKey::from_bytes(&SEED).verifying_key());
     assert_eq!(reader.verify_chain().unwrap(), 9);
 
-    for ev in reader.events().unwrap() {
+    for ev in reader.unverified_events().unwrap() {
         let i = ev.core.seq as usize;
         assert_eq!(
             ev.hash.to_hex(),
@@ -264,7 +264,7 @@ fn existing_golden_prefix_for_tags_0_5_remains_unchanged() {
 #[test]
 fn canonical_preimages_match_the_spec_examples() {
     let reader = LogReader::open(load_golden(), SigningKey::from_bytes(&SEED).verifying_key());
-    let events = reader.events().unwrap();
+    let events = reader.unverified_events().unwrap();
     assert_eq!(
         hex::encode(events[0].core.canonical_bytes()),
         CANONICAL_SEQ0
@@ -288,7 +288,7 @@ fn regeneration_from_code_reproduces_the_fixture_exactly() {
     }
 
     let reader = LogReader::open(store.clone(), SigningKey::from_bytes(&SEED).verifying_key());
-    for ev in reader.events().unwrap() {
+    for ev in reader.unverified_events().unwrap() {
         let i = ev.core.seq as usize;
         assert_eq!(ev.hash.to_hex(), EXPECTED_HASHES[i]);
         assert_eq!(ev.signature.to_hex(), EXPECTED_SIGS[i]);
@@ -324,7 +324,7 @@ fn a_writer_recovers_over_the_golden_chain() {
 #[test]
 fn anchor_event_round_trips_with_foreign_profile_named() {
     let reader = LogReader::open(load_golden(), SigningKey::from_bytes(&SEED).verifying_key());
-    let events = reader.events().unwrap();
+    let events = reader.unverified_events().unwrap();
     match &events[5].core.payload {
         Payload::SegmentAnchored {
             bundle_kind,
@@ -351,7 +351,7 @@ fn anchor_event_round_trips_with_foreign_profile_named() {
 #[test]
 fn adr_0002_events_round_trip_with_closed_vocabularies() {
     let reader = LogReader::open(load_golden(), SigningKey::from_bytes(&SEED).verifying_key());
-    let events = reader.events().unwrap();
+    let events = reader.unverified_events().unwrap();
 
     match &events[6].core.payload {
         Payload::ClaimAssertedV2 {

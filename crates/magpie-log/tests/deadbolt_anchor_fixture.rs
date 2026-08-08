@@ -1,4 +1,4 @@
-use magpie_log::{LogReader, MemStore, Payload, Projection, SignedEvent, VerifyingKey};
+use magpie_log::{LogReader, MemStore, Payload, Projection, VerifiedReplayEvent, VerifyingKey};
 
 const FIXTURE_PATH: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -42,7 +42,8 @@ struct AnchorFields {
 }
 
 impl Projection for AnchorReplay {
-    fn apply(&mut self, event: &SignedEvent) {
+    fn apply(&mut self, replay_event: &VerifiedReplayEvent<'_>) {
+        let event = replay_event.event();
         if let Payload::SegmentAnchored {
             bundle_kind,
             witness_root,
@@ -118,7 +119,7 @@ fn portable_deadbolt_anchor_fixture_verifies_and_replays() {
 #[test]
 fn portable_deadbolt_anchor_fixture_preserves_foreign_profile_verbatim() {
     let reader = LogReader::open(fixture_store(), verifying_key());
-    let events = reader.events().unwrap();
+    let events = reader.unverified_events().unwrap();
     assert_eq!(events.len(), 2);
 
     match &events[1].core.payload {
@@ -146,7 +147,7 @@ fn portable_deadbolt_anchor_fixture_preserves_foreign_profile_verbatim() {
 #[test]
 fn portable_deadbolt_anchor_fixture_contains_only_anchor_payloads_after_genesis() {
     let reader = LogReader::open(fixture_store(), verifying_key());
-    let events = reader.events().unwrap();
+    let events = reader.unverified_events().unwrap();
     assert!(matches!(events[0].core.payload, Payload::Genesis { .. }));
     assert!(matches!(
         events[1].core.payload,

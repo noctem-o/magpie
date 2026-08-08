@@ -12,7 +12,7 @@
 
 use std::path::Path;
 
-use magpie_log::{Payload, Projection, SignedEvent};
+use magpie_log::{Payload, Projection, VerifiedReplayEvent};
 use rusqlite::{params, Connection, OptionalExtension, Row};
 use serde::Serialize;
 
@@ -218,7 +218,8 @@ impl Default for EpisodicView {
 }
 
 impl Projection for EpisodicView {
-    fn apply(&mut self, event: &SignedEvent) {
+    fn apply(&mut self, replay_event: &VerifiedReplayEvent<'_>) {
+        let event = replay_event.event();
         let seq = u64_to_sql_i64(event.core.seq, "seq");
         let timestamp_nanos = u64_to_sql_i64(event.core.timestamp_nanos, "timestamp_nanos");
         let payload = payload_parts(&event.core.payload);

@@ -1,4 +1,6 @@
-use magpie_log::{LogError, LogReader, LogStore, Projection, SignedEvent, VerifiedReplaySummary};
+use magpie_log::{
+    LogError, LogReader, LogStore, Projection, VerifiedReplayEvent, VerifiedReplaySummary,
+};
 use serde::Serialize;
 
 use crate::deadbolt_context::DeadboltAnchorIndex;
@@ -70,9 +72,9 @@ struct StandingContextProjection {
 }
 
 impl Projection for StandingContextProjection {
-    fn apply(&mut self, event: &SignedEvent) {
+    fn apply(&mut self, event: &VerifiedReplayEvent<'_>) {
         // Fixed order: standing first, then anchor occurrence context. Both
-        // receive the exact same event reference from one replay invocation.
+        // receive the exact same replay witness from one replay invocation.
         self.standing.apply(event);
         self.anchors.apply(event);
     }

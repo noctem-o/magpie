@@ -145,14 +145,14 @@ fn main() {
     // Print the values tests/golden.rs pins.
     let reader = LogReader::open(store, SigningKey::from_bytes(&SEED).verifying_key());
     println!("\nEXPECTED_HASHES:");
-    for ev in reader.events().unwrap() {
+    for ev in reader.unverified_events().unwrap() {
         println!("    \"{}\", // seq {}", ev.hash.to_hex(), ev.core.seq);
     }
     println!("\nEXPECTED_SIGS:");
-    for ev in reader.events().unwrap() {
+    for ev in reader.unverified_events().unwrap() {
         println!("    \"{}\", // seq {}", ev.signature.to_hex(), ev.core.seq);
     }
-    for ev in reader.events().unwrap() {
+    for ev in reader.unverified_events().unwrap() {
         if ev.core.seq == 0 || ev.core.seq == 3 {
             println!(
                 "\nCANONICAL_BYTES seq {} ({} bytes):",

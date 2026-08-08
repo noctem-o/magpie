@@ -2,9 +2,7 @@ use std::path::{Path, PathBuf};
 
 use ed25519_dalek::{SigningKey, VerifyingKey};
 use magpie_episodic::EpisodicView;
-use magpie_log::{
-    LogReader, LogWriter, MemStore, Payload, Projection, Provenance, SignedEvent, Status,
-};
+use magpie_log::{LogReader, LogWriter, MemStore, Payload, Provenance, SignedEvent, Status};
 use rusqlite::{params, Connection};
 
 const SEED: [u8; 32] = [7u8; 32];
@@ -91,11 +89,10 @@ fn fixture_events() -> [(Provenance, Payload); 4] {
     ]
 }
 
-fn append_fixture_events(writer: &mut LogWriter<MemStore>) -> Vec<SignedEvent> {
-    fixture_events()
-        .into_iter()
-        .map(|(provenance, payload)| writer.append(provenance, payload).unwrap())
-        .collect()
+fn append_fixture_events(writer: &mut LogWriter<MemStore>) {
+    for (provenance, payload) in fixture_events() {
+        writer.append(provenance, payload).unwrap();
+    }
 }
 
 fn fixture_store() -> MemStore {
@@ -240,34 +237,25 @@ fn create_schema_v2_file_with_fabricated_v2_status(path: &Path) {
 }
 
 #[test]
-fn projection_is_byte_identical_after_live_apply_and_replay() {
+fn projection_is_byte_identical_across_independent_verified_replays() {
     let store = MemStore::new();
-    let mut live = EpisodicView::in_memory().unwrap();
-
     {
         let mut w = writer(store.clone());
-        let genesis = LogReader::open(store.clone(), verifying_key())
-            .events()
-            .unwrap()
-            .pop()
-            .unwrap();
-        live.apply(&genesis);
-
-        for event in append_fixture_events(&mut w) {
-            live.apply(&event);
-        }
+        append_fixture_events(&mut w);
     }
 
-    let live_bytes = live.canonical_bytes();
     let reader = LogReader::open(store, verifying_key());
-    let mut rebuilt = EpisodicView::in_memory().unwrap();
-    let n = reader.replay(&mut rebuilt).unwrap();
+    let mut first = EpisodicView::in_memory().unwrap();
+    let mut second = EpisodicView::in_memory().unwrap();
+    let first_n = reader.replay(&mut first).unwrap();
+    let second_n = reader.replay(&mut second).unwrap();
 
-    assert_eq!(n, 5);
+    assert_eq!(first_n, 5);
+    assert_eq!(second_n, first_n);
     assert_eq!(
-        live_bytes,
-        rebuilt.canonical_bytes(),
-        "episodic projection must be regenerable from the log alone"
+        first.canonical_bytes(),
+        second.canonical_bytes(),
+        "independent verified replays must regenerate identical episodic bytes"
     );
 }
 

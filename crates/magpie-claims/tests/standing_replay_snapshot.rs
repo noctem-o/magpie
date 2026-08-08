@@ -165,7 +165,7 @@ fn standing_replay_snapshot_uses_one_changing_store_snapshot() {
 }
 
 #[test]
-fn standing_replay_snapshot_constructs_both_views_from_normal_replay() {
+fn standing_replay_snapshot_fans_out_one_verified_replay_to_both_views() {
     let identity = anchor_identity("ordinary-run", &"c".repeat(64));
     let store = MemStore::new();
     {

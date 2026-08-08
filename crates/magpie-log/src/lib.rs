@@ -99,7 +99,9 @@ pub use canonical::CANONICALIZATION_PROFILE;
 pub use error::LogError;
 pub use event::{EventCore, Payload, Provenance, Sig, SignedEvent, Status};
 pub use hashing::ContentHash;
-pub use logimpl::{Clock, LogReader, LogWriter, Projection, VerifiedReplaySummary};
+pub use logimpl::{
+    Clock, LogReader, LogWriter, Projection, VerifiedReplayEvent, VerifiedReplaySummary,
+};
 pub use store::{FileStore, LogStore, MemStore};
 
 // Re-exported so callers don't need a direct ed25519-dalek dependency for the basics.

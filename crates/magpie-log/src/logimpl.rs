@@ -60,6 +60,81 @@ enum VerifiedRecords {
     Snapshot(VerifiedSnapshot),
 }
 
+/// An ephemeral projection input borrowed from one completely verified replay snapshot.
+///
+/// A value of this type means only that [`SignedEvent`] is currently being
+/// presented by Magpie's replay path from a retained record snapshot whose
+/// complete replay verification has already succeeded under this
+/// [`LogReader`]'s supplied verifying key. Trust in that key remains external.
+/// It does not establish trust, authorization, admission, identity, truth,
+/// currentness, standing, confidence, permission, or scientific correctness.
+///
+/// Downstream code can inspect the raw event but cannot construct, clone,
+/// deserialize, convert, or retain this replay input as a portable witness.
+///
+/// The private field prevents downstream struct-literal construction:
+///
+/// ```compile_fail,E0451
+/// use magpie_log::{SignedEvent, VerifiedReplayEvent};
+///
+/// fn cannot_wrap(raw: &SignedEvent) -> VerifiedReplayEvent<'_> {
+///     VerifiedReplayEvent { event: raw }
+/// }
+/// ```
+///
+/// Raw events have no conversion route into replay inputs:
+///
+/// ```compile_fail,E0277
+/// use magpie_log::{SignedEvent, VerifiedReplayEvent};
+///
+/// fn cannot_convert(raw: &SignedEvent) -> VerifiedReplayEvent<'_> {
+///     raw.into()
+/// }
+/// ```
+///
+/// Serialized material cannot mint a replay input:
+///
+/// ```compile_fail,E0277
+/// use magpie_log::VerifiedReplayEvent;
+///
+/// fn cannot_deserialize<'event>(json: &str) -> VerifiedReplayEvent<'event> {
+///     serde_json::from_str(json).unwrap()
+/// }
+/// ```
+///
+/// A projection cannot retain the borrowed wrapper beyond its callback:
+///
+/// ```compile_fail
+/// use magpie_log::{Projection, VerifiedReplayEvent};
+///
+/// struct RetainingProjection<'event> {
+///     retained: Option<&'event VerifiedReplayEvent<'event>>,
+/// }
+///
+/// impl Projection for RetainingProjection<'_> {
+///     fn apply(&mut self, event: &VerifiedReplayEvent<'_>) {
+///         self.retained = Some(event);
+///     }
+/// }
+/// ```
+pub struct VerifiedReplayEvent<'event> {
+    event: &'event SignedEvent,
+}
+
+impl<'event> VerifiedReplayEvent<'event> {
+    fn from_verified_snapshot(event: &'event SignedEvent) -> Self {
+        Self { event }
+    }
+
+    /// Observe the raw historical event presented by this replay callback.
+    ///
+    /// Cloning the returned value produces only a raw [`SignedEvent`]; it does
+    /// not produce another verified replay input.
+    pub fn event(&self) -> &'event SignedEvent {
+        self.event
+    }
+}
+
 /// Exact count and chain tip returned by one completely verified replay.
 ///
 /// The fields are private and the type has no public constructor:
@@ -89,6 +164,19 @@ enum VerifiedRecords {
 ///     summary: VerifiedReplaySummary,
 /// ) {
 ///     let _ = reader.replay_with_summary(projection, summary);
+/// }
+/// ```
+///
+/// Nor can a genuine summary wrap a caller-selected raw event:
+///
+/// ```compile_fail,E0599
+/// use magpie_log::{SignedEvent, VerifiedReplayEvent, VerifiedReplaySummary};
+///
+/// fn cannot_bless<'event>(
+///     summary: &VerifiedReplaySummary,
+///     raw: &'event SignedEvent,
+/// ) -> VerifiedReplayEvent<'event> {
+///     summary.wrap(raw)
 /// }
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -391,12 +479,31 @@ impl<S: LogStore> LogReader<S> {
         }
     }
 
-    /// All stored events, parsed but not verified. This parses the snapshot
-    /// returned by its own [`LogStore::read_records`] call, but does not verify
-    /// chain linkage, hashes, signatures, genesis binding, or payload validity.
-    /// It must not be used as the source of authority-bearing projections.
-    /// Prefer [`Self::verify_chain`] or [`Self::replay`] for trusted use.
-    pub fn events(&self) -> Result<Vec<SignedEvent>, LogError> {
+    /// All stored events, parsed but unverified.
+    ///
+    /// This parses the snapshot returned by its own [`LogStore::read_records`]
+    /// call, but does not verify chain linkage, content hashes, signatures,
+    /// genesis key binding, canonicalization-profile binding, or payload
+    /// validity. The returned raw [`SignedEvent`] values cannot be used as
+    /// [`Projection`] inputs; use [`Self::replay`] for projection construction.
+    ///
+    /// ```compile_fail,E0308
+    /// use magpie_log::{
+    ///     LogReader, MemStore, Projection, SigningKey, VerifiedReplayEvent,
+    /// };
+    ///
+    /// struct Counter;
+    /// impl Projection for Counter {
+    ///     fn apply(&mut self, _event: &VerifiedReplayEvent<'_>) {}
+    /// }
+    ///
+    /// let key = SigningKey::from_bytes(&[7u8; 32]);
+    /// let reader = LogReader::open(MemStore::new(), key.verifying_key());
+    /// let raw = reader.unverified_events().unwrap();
+    /// let mut projection = Counter;
+    /// projection.apply(&raw[0]);
+    /// ```
+    pub fn unverified_events(&self) -> Result<Vec<SignedEvent>, LogError> {
         self.store
             .read_records()?
             .iter()
@@ -405,7 +512,20 @@ impl<S: LogStore> LogReader<S> {
     }
 
     /// Validate the entire chain: sequence, prev-links, recomputed hashes, and
-    /// every signature. Returns the number of valid events; any tampering errors.
+    /// every signature. Returns only the number of valid events; any tampering
+    /// errors. The count cannot wrap caller-selected events for projection:
+    ///
+    /// ```compile_fail,E0599
+    /// use magpie_log::{
+    ///     LogReader, MemStore, SigningKey, VerifiedReplayEvent,
+    /// };
+    ///
+    /// let key = SigningKey::from_bytes(&[7u8; 32]);
+    /// let reader = LogReader::open(MemStore::new(), key.verifying_key());
+    /// let verified_count = reader.verify_chain().unwrap();
+    /// let raw = reader.unverified_events().unwrap();
+    /// let _: VerifiedReplayEvent<'_> = verified_count.wrap(&raw[0]);
+    /// ```
     pub fn verify_chain(&self) -> Result<u64, LogError> {
         verify_chain_on(&self.store, &self.verifying_key).map(|verified| verified.count)
     }
@@ -442,7 +562,8 @@ impl<S: LogStore> LogReader<S> {
             verified.tip,
         );
         for event in &verified.events {
-            projection.apply(event);
+            let replay_event = VerifiedReplayEvent::from_verified_snapshot(event);
+            projection.apply(&replay_event);
         }
         Ok(VerifiedReplaySummary {
             event_count,
@@ -463,10 +584,44 @@ impl<S: LogStore> LogReader<S> {
     }
 }
 
-/// A derived view over the log. Implementors fold events into state; that state
-/// is, by construction, regenerable from the log alone.
+/// A derived view over the log. Implementors fold completely replay-verified
+/// inputs into state; that state is, by construction, regenerable from the log
+/// alone.
+///
+/// A raw [`SignedEvent`] cannot cross this public boundary:
+///
+/// ```compile_fail,E0308
+/// use magpie_log::{Projection, SignedEvent};
+///
+/// fn cannot_apply_raw<P: Projection>(projection: &mut P, raw: &SignedEvent) {
+///     projection.apply(raw);
+/// }
+/// ```
+///
+/// A correctly signed event returned by [`LogWriter::append`] remains raw and
+/// likewise cannot be applied directly:
+///
+/// ```compile_fail,E0308
+/// use magpie_log::{
+///     LogWriter, MemStore, Payload, Projection, Provenance, SigningKey,
+///     VerifiedReplayEvent,
+/// };
+///
+/// struct Counter;
+/// impl Projection for Counter {
+///     fn apply(&mut self, _event: &VerifiedReplayEvent<'_>) {}
+/// }
+///
+/// let key = SigningKey::from_bytes(&[7u8; 32]);
+/// let mut writer = LogWriter::<MemStore>::open(MemStore::new(), key).unwrap();
+/// let raw = writer
+///     .append(Provenance::new("test", "raw"), Payload::Note { text: "raw".into() })
+///     .unwrap();
+/// let mut projection = Counter;
+/// projection.apply(&raw);
+/// ```
 pub trait Projection {
-    fn apply(&mut self, event: &SignedEvent);
+    fn apply(&mut self, event: &VerifiedReplayEvent<'_>);
 }
 
 #[cfg(test)]
