@@ -83,7 +83,7 @@ impl MachineFixture {
         let store = MemStore::new();
         {
             let mut clock = 0u64;
-            let mut writer = LogWriter::open_with_clock(
+            let mut writer = LogWriter::<MemStore>::open_with_clock(
                 store.clone(),
                 signing_key(),
                 Box::new(move || {
@@ -554,7 +554,7 @@ fn deadbolt_snapshot() -> StandingReplaySnapshot {
     let store = MemStore::new();
     {
         let mut clock = 0u64;
-        let mut writer = LogWriter::open_with_clock(
+        let mut writer = LogWriter::<MemStore>::open_with_clock(
             store.clone(),
             signing_key(),
             Box::new(move || {

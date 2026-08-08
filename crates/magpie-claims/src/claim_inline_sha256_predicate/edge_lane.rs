@@ -1242,7 +1242,7 @@ mod tests {
         let store = MemStore::new();
         let mut timestamp = 0u64;
         {
-            let mut writer = LogWriter::open_with_clock(
+            let mut writer = LogWriter::<MemStore>::open_with_clock(
                 store.clone(),
                 SigningKey::from_bytes(&V4_TEST_SEED),
                 Box::new(move || {

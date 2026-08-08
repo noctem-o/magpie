@@ -16,7 +16,7 @@ fn main() {
     let store = MemStore::new();
     {
         let mut t = 0u64;
-        let mut w = LogWriter::open_with_clock(
+        let mut w = LogWriter::<MemStore>::open_with_clock(
             store.clone(),
             SigningKey::from_bytes(&SEED),
             Box::new(move || {

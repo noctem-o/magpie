@@ -4,7 +4,7 @@ use crate::canonical::{CANONICALIZATION_PROFILE, SIG_DOMAIN};
 use crate::error::LogError;
 use crate::event::{EventCore, Payload, Provenance, Sig, SignedEvent};
 use crate::hashing::ContentHash;
-use crate::store::LogStore;
+use crate::store::{FileStore, LogStore, MemStore, WriterStore};
 
 /// A source of timestamps (nanoseconds). Injectable so tests are deterministic.
 pub type Clock = Box<dyn FnMut() -> u64>;
@@ -222,8 +222,10 @@ this implementation verifies {CANONICALIZATION_PROFILE:?}"
 
 /// The **write capability**. Possessing a `LogWriter` is the authority to append.
 /// In the full system the gate (`deadbolt`) is its only holder. There is no
-/// `update` or `delete` — corrections are new, superseding events.
-pub struct LogWriter<S: LogStore> {
+/// `update` or `delete` — corrections are new, superseding events. Public
+/// construction and append methods exist only for the crate-supported
+/// [`crate::FileStore`] and [`crate::MemStore`] backends.
+pub struct LogWriter<S> {
     store: S,
     signing_key: SigningKey,
     last_hash: ContentHash,
@@ -231,39 +233,91 @@ pub struct LogWriter<S: LogStore> {
     clock: Clock,
 }
 
-impl<S: LogStore> LogWriter<S> {
+fn open_writer_with_clock<S: WriterStore>(
+    store: S,
+    signing_key: SigningKey,
+    clock: Clock,
+) -> Result<LogWriter<S>, LogError> {
+    let vk = signing_key.verifying_key();
+    let verified = verify_chain_on(&store, &vk)?;
+    let mut writer = LogWriter {
+        store,
+        signing_key,
+        last_hash: verified.tip,
+        next_seq: verified.count,
+        clock,
+    };
+    if writer.next_seq == 0 {
+        append_to_writer(
+            &mut writer,
+            Provenance::new("magpie-log", "genesis"),
+            Payload::Genesis {
+                canonicalization_profile: CANONICALIZATION_PROFILE.to_string(),
+                verifying_key: hex::encode(vk.as_bytes()),
+            },
+        )?;
+    }
+    Ok(writer)
+}
+
+fn append_to_writer<S: WriterStore>(
+    writer: &mut LogWriter<S>,
+    provenance: Provenance,
+    payload: Payload,
+) -> Result<SignedEvent, LogError> {
+    let is_genesis = matches!(payload, Payload::Genesis { .. });
+    if is_genesis != (writer.next_seq == 0) {
+        return Err(LogError::ChainBroken {
+            seq: writer.next_seq,
+            detail: if is_genesis {
+                "genesis may only be written at seq 0".into()
+            } else {
+                "seq 0 must be the genesis event".into()
+            },
+        });
+    }
+    payload.validate().map_err(|detail| LogError::ChainBroken {
+        seq: writer.next_seq,
+        detail: detail.into(),
+    })?;
+    let core = EventCore {
+        seq: writer.next_seq,
+        timestamp_nanos: (writer.clock)(),
+        prev_hash: writer.last_hash,
+        provenance,
+        payload,
+    };
+    let hash = core.hash();
+    let signature = writer.signing_key.sign(&signed_message(&hash));
+    let signed = SignedEvent {
+        core,
+        hash,
+        signature: Sig::new(signature.to_bytes()),
+    };
+
+    let record = serde_json::to_vec(&signed)?;
+    writer.store.append_record(&record)?;
+
+    writer.last_hash = hash;
+    writer.next_seq += 1;
+    Ok(signed)
+}
+
+impl LogWriter<FileStore> {
     /// Open for appending, recovering and verifying any existing chain. Opening
     /// an **empty** store writes the genesis event (profile + verifying key)
     /// as seq 0 before returning. Uses the system clock.
-    pub fn open(store: S, signing_key: SigningKey) -> Result<Self, LogError> {
-        Self::open_with_clock(store, signing_key, Box::new(system_clock))
+    pub fn open(store: FileStore, signing_key: SigningKey) -> Result<Self, LogError> {
+        open_writer_with_clock(store, signing_key, Box::new(system_clock))
     }
 
     /// Open with an injected clock (deterministic tests).
     pub fn open_with_clock(
-        store: S,
+        store: FileStore,
         signing_key: SigningKey,
         clock: Clock,
     ) -> Result<Self, LogError> {
-        let vk = signing_key.verifying_key();
-        let verified = verify_chain_on(&store, &vk)?;
-        let mut writer = Self {
-            store,
-            signing_key,
-            last_hash: verified.tip,
-            next_seq: verified.count,
-            clock,
-        };
-        if writer.next_seq == 0 {
-            writer.append(
-                Provenance::new("magpie-log", "genesis"),
-                Payload::Genesis {
-                    canonicalization_profile: CANONICALIZATION_PROFILE.to_string(),
-                    verifying_key: hex::encode(vk.as_bytes()),
-                },
-            )?;
-        }
-        Ok(writer)
+        open_writer_with_clock(store, signing_key, clock)
     }
 
     /// Append an event: build the core, hash it (chaining onto the tip), sign the
@@ -273,44 +327,39 @@ impl<S: LogStore> LogWriter<S> {
         provenance: Provenance,
         payload: Payload,
     ) -> Result<SignedEvent, LogError> {
-        let is_genesis = matches!(payload, Payload::Genesis { .. });
-        if is_genesis != (self.next_seq == 0) {
-            return Err(LogError::ChainBroken {
-                seq: self.next_seq,
-                detail: if is_genesis {
-                    "genesis may only be written at seq 0".into()
-                } else {
-                    "seq 0 must be the genesis event".into()
-                },
-            });
-        }
-        payload.validate().map_err(|detail| LogError::ChainBroken {
-            seq: self.next_seq,
-            detail: detail.into(),
-        })?;
-        let core = EventCore {
-            seq: self.next_seq,
-            timestamp_nanos: (self.clock)(),
-            prev_hash: self.last_hash,
-            provenance,
-            payload,
-        };
-        let hash = core.hash();
-        let signature = self.signing_key.sign(&signed_message(&hash));
-        let signed = SignedEvent {
-            core,
-            hash,
-            signature: Sig::new(signature.to_bytes()),
-        };
+        append_to_writer(self, provenance, payload)
+    }
+}
 
-        let record = serde_json::to_vec(&signed)?;
-        self.store.append_record(&record)?;
-
-        self.last_hash = hash;
-        self.next_seq += 1;
-        Ok(signed)
+impl LogWriter<MemStore> {
+    /// Open for appending, recovering and verifying any existing chain. Opening
+    /// an **empty** store writes the genesis event (profile + verifying key)
+    /// as seq 0 before returning. Uses the system clock.
+    pub fn open(store: MemStore, signing_key: SigningKey) -> Result<Self, LogError> {
+        open_writer_with_clock(store, signing_key, Box::new(system_clock))
     }
 
+    /// Open with an injected clock (deterministic tests).
+    pub fn open_with_clock(
+        store: MemStore,
+        signing_key: SigningKey,
+        clock: Clock,
+    ) -> Result<Self, LogError> {
+        open_writer_with_clock(store, signing_key, clock)
+    }
+
+    /// Append an event: build the core, hash it (chaining onto the tip), sign the
+    /// hash, persist, and advance the tip. This is the only write path in Magpie.
+    pub fn append(
+        &mut self,
+        provenance: Provenance,
+        payload: Payload,
+    ) -> Result<SignedEvent, LogError> {
+        append_to_writer(self, provenance, payload)
+    }
+}
+
+impl<S> LogWriter<S> {
     /// The current chain tip.
     pub fn tip(&self) -> ContentHash {
         self.last_hash
@@ -422,17 +471,63 @@ pub trait Projection {
 
 #[cfg(test)]
 mod tests {
+    use std::cell::Cell;
+    use std::rc::Rc;
+
     use super::*;
-    use crate::store::MemStore;
+    use crate::store::{LogStore, MemStore, WriterStore};
+
+    #[derive(Clone, Default)]
+    struct InstrumentedWriterStore {
+        inner: MemStore,
+        read_count: Rc<Cell<usize>>,
+        fail_next_append: Rc<Cell<bool>>,
+    }
+
+    impl LogStore for InstrumentedWriterStore {
+        fn read_records(&self) -> Result<Vec<Vec<u8>>, LogError> {
+            self.read_count.set(self.read_count.get() + 1);
+            self.inner.read_records()
+        }
+    }
+
+    impl WriterStore for InstrumentedWriterStore {
+        fn append_record(&mut self, bytes: &[u8]) -> Result<(), LogError> {
+            if self.fail_next_append.replace(false) {
+                return Err(std::io::Error::other("injected append failure").into());
+            }
+            <MemStore as WriterStore>::append_record(&mut self.inner, bytes)
+        }
+    }
+
+    fn test_clock() -> Clock {
+        let mut timestamp = 0u64;
+        Box::new(move || {
+            timestamp += 1;
+            timestamp
+        })
+    }
+
+    fn test_key() -> SigningKey {
+        SigningKey::from_bytes(&[73u8; 32])
+    }
+
+    fn test_note(text: &str) -> Payload {
+        Payload::Note { text: text.into() }
+    }
+
+    fn test_provenance() -> Provenance {
+        Provenance::new("test", "logimpl.rs")
+    }
 
     #[test]
     fn summary_only_verification_returns_count_and_tip_without_events() {
-        let signing_key = SigningKey::from_bytes(&[73u8; 32]);
+        let signing_key = test_key();
         let verifying_key = signing_key.verifying_key();
         let store = MemStore::new();
         let expected_tip = {
             let mut timestamp = 0u64;
-            let mut writer = LogWriter::open_with_clock(
+            let mut writer = LogWriter::<MemStore>::open_with_clock(
                 store.clone(),
                 signing_key,
                 Box::new(move || {
@@ -491,5 +586,86 @@ mod tests {
         assert_eq!(snapshot.events.len() as u64, summary.count);
         assert_eq!(snapshot.tip, summary.tip);
         assert_eq!(snapshot.events, expected_events);
+    }
+
+    #[test]
+    fn writer_recovery_verifies_once_and_recovers_exact_count_and_tip() {
+        let source = MemStore::new();
+        let expected_tip = {
+            let mut writer =
+                LogWriter::<MemStore>::open_with_clock(source.clone(), test_key(), test_clock())
+                    .unwrap();
+            writer
+                .append(test_provenance(), test_note("first recovery event"))
+                .unwrap();
+            writer
+                .append(test_provenance(), test_note("second recovery event"))
+                .unwrap()
+                .hash
+        };
+        let initial_record_count = source.records().len();
+        let read_count = Rc::new(Cell::new(0));
+        let counting_store = InstrumentedWriterStore {
+            inner: source.clone(),
+            read_count: Rc::clone(&read_count),
+            fail_next_append: Rc::new(Cell::new(false)),
+        };
+
+        let mut recovered =
+            open_writer_with_clock(counting_store, test_key(), test_clock()).unwrap();
+
+        assert_eq!(read_count.get(), 1, "writer recovery must verify once");
+        assert_eq!(recovered.len(), 3);
+        assert_eq!(recovered.tip(), expected_tip);
+        assert_eq!(
+            source.records().len(),
+            initial_record_count,
+            "reopening a non-empty store must not append another genesis"
+        );
+
+        let next = append_to_writer(
+            &mut recovered,
+            test_provenance(),
+            test_note("after recovery"),
+        )
+        .unwrap();
+        assert_eq!(next.core.seq, 3);
+        assert_eq!(next.core.prev_hash, expected_tip);
+        assert_eq!(read_count.get(), 1, "append must not trigger a second read");
+    }
+
+    #[test]
+    fn failed_persistence_does_not_advance_writer_state() {
+        let store = InstrumentedWriterStore::default();
+        let control = store.clone();
+        let mut writer = open_writer_with_clock(store, test_key(), test_clock()).unwrap();
+        let original_tip = writer.tip();
+        let original_len = writer.len();
+        let original_records = control.inner.records();
+
+        control.fail_next_append.set(true);
+        let error = append_to_writer(
+            &mut writer,
+            test_provenance(),
+            test_note("injected failure"),
+        )
+        .unwrap_err();
+
+        assert!(matches!(error, LogError::Io(_)));
+        assert_eq!(writer.tip(), original_tip);
+        assert_eq!(writer.len(), original_len);
+        assert_eq!(control.inner.records(), original_records);
+
+        let next = append_to_writer(
+            &mut writer,
+            test_provenance(),
+            test_note("successful retry"),
+        )
+        .unwrap();
+        assert_eq!(next.core.seq, original_len);
+        assert_eq!(next.core.prev_hash, original_tip);
+        assert_eq!(writer.len(), original_len + 1);
+        assert_eq!(writer.tip(), next.hash);
+        assert_eq!(control.inner.records().len(), original_records.len() + 1);
     }
 }

@@ -148,7 +148,7 @@ fn load_golden() -> MemStore {
 
 fn writer(store: MemStore) -> LogWriter<MemStore> {
     let mut t = 0u64;
-    LogWriter::open_with_clock(
+    LogWriter::<MemStore>::open_with_clock(
         store,
         SigningKey::from_bytes(&SEED),
         Box::new(move || {
@@ -299,7 +299,7 @@ fn regeneration_from_code_reproduces_the_fixture_exactly() {
 #[test]
 fn a_writer_recovers_over_the_golden_chain() {
     let mut t = 100u64;
-    let mut w = LogWriter::open_with_clock(
+    let mut w = LogWriter::<MemStore>::open_with_clock(
         load_golden(),
         SigningKey::from_bytes(&SEED),
         Box::new(move || {

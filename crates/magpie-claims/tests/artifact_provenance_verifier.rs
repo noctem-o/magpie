@@ -106,7 +106,7 @@ fn snapshot_with_anchors(
     let store = MemStore::new();
     {
         let mut timestamp = 1000;
-        let mut writer = LogWriter::open_with_clock(
+        let mut writer = LogWriter::<MemStore>::open_with_clock(
             store.clone(),
             signing_key(),
             Box::new(move || {

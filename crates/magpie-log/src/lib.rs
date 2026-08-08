@@ -12,6 +12,81 @@
 //!    Holding a `LogWriter` *is* the write capability — in the full system the
 //!    gate (`deadbolt`) is its only holder. Memory layers are handed a
 //!    [`LogReader`], which structurally cannot write.
+//!
+//! ## Public capability boundary
+//!
+//! [`LogStore`] is a read-only substitution surface. Neither built-in storage
+//! backend exposes Magpie's private record-persistence seam:
+//!
+//! ```compile_fail,E0599
+//! use magpie_log::{FileStore, LogStore};
+//!
+//! let mut store = FileStore::new(std::env::temp_dir().join("magpie-raw-append.jsonl"));
+//! store.append_record(b"caller-supplied record bytes").unwrap();
+//! ```
+//!
+//! ```compile_fail,E0599
+//! use magpie_log::{LogStore, MemStore};
+//!
+//! let mut store = MemStore::new();
+//! store.append_record(b"caller-supplied record bytes").unwrap();
+//! ```
+//!
+//! The read trait itself grants no append operation:
+//!
+//! ```compile_fail,E0599
+//! use magpie_log::LogStore;
+//!
+//! fn append_without_writer<S: LogStore>(store: &mut S) {
+//!     store.append_record(b"caller-supplied record bytes").unwrap();
+//! }
+//! ```
+//!
+//! A reader exposes neither append nor a mutable backend escape hatch:
+//!
+//! ```compile_fail,E0599
+//! use magpie_log::{LogReader, MemStore, SigningKey};
+//!
+//! let key = SigningKey::from_bytes(&[7u8; 32]);
+//! let mut reader = LogReader::open(MemStore::new(), key.verifying_key());
+//! reader.append_record(b"caller-supplied record bytes").unwrap();
+//! ```
+//!
+//! ```compile_fail,E0599
+//! use magpie_log::{LogReader, MemStore, SigningKey};
+//!
+//! let key = SigningKey::from_bytes(&[7u8; 32]);
+//! let reader = LogReader::open(MemStore::new(), key.verifying_key());
+//! let _store = reader.into_store();
+//! ```
+//!
+//! Downstream storage implementations remain valid for reading, but cannot be
+//! opened as writer backends:
+//!
+//! ```compile_fail,E0599
+//! use magpie_log::{LogError, LogStore, LogWriter, SigningKey};
+//!
+//! struct MyReadStore;
+//!
+//! impl LogStore for MyReadStore {
+//!     fn read_records(&self) -> Result<Vec<Vec<u8>>, LogError> {
+//!         Ok(Vec::new())
+//!     }
+//! }
+//!
+//! let key = SigningKey::from_bytes(&[7u8; 32]);
+//! let _writer = LogWriter::<MyReadStore>::open(MyReadStore, key).unwrap();
+//! ```
+//!
+//! A signing key plus public storage still provides no persistence operation:
+//!
+//! ```compile_fail,E0599
+//! use magpie_log::{MemStore, SigningKey};
+//!
+//! let key = SigningKey::from_bytes(&[7u8; 32]);
+//! let mut store = MemStore::new();
+//! key.append_record(&mut store, b"caller-supplied record bytes").unwrap();
+//! ```
 
 mod canonical;
 mod error;

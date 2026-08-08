@@ -16,17 +16,20 @@ fn key() -> SigningKey {
     SigningKey::from_bytes(&SEED)
 }
 
-fn writer<S: magpie_log::LogStore>(store: S) -> LogWriter<S> {
+fn test_clock() -> magpie_log::Clock {
     let mut t = 0u64;
-    LogWriter::open_with_clock(
-        store,
-        key(),
-        Box::new(move || {
-            t += 1;
-            t
-        }),
-    )
-    .unwrap()
+    Box::new(move || {
+        t += 1;
+        t
+    })
+}
+
+fn writer(store: MemStore) -> LogWriter<MemStore> {
+    LogWriter::<MemStore>::open_with_clock(store, key(), test_clock()).unwrap()
+}
+
+fn file_writer(store: FileStore) -> LogWriter<FileStore> {
+    LogWriter::<FileStore>::open_with_clock(store, key(), test_clock()).unwrap()
 }
 
 fn note(text: &str) -> Payload {
@@ -84,10 +87,6 @@ struct ChangingSnapshotStore {
 }
 
 impl LogStore for ChangingSnapshotStore {
-    fn append_record(&mut self, _bytes: &[u8]) -> Result<(), LogError> {
-        panic!("ChangingSnapshotStore is read-only in snapshot tests")
-    }
-
     fn read_records(&self) -> Result<Vec<Vec<u8>>, LogError> {
         let read_count = self.read_count.get();
         self.read_count.set(read_count + 1);
@@ -105,10 +104,6 @@ struct CountingStore {
 }
 
 impl LogStore for CountingStore {
-    fn append_record(&mut self, bytes: &[u8]) -> Result<(), LogError> {
-        self.inner.append_record(bytes)
-    }
-
     fn read_records(&self) -> Result<Vec<Vec<u8>>, LogError> {
         self.read_count.set(self.read_count.get() + 1);
         self.inner.read_records()
@@ -496,40 +491,6 @@ fn tip_is_recovered_on_reopen() {
 }
 
 #[test]
-fn writer_recovery_verifies_once_and_recovers_exact_count_and_tip() {
-    let source = MemStore::new();
-    let expected_tip = {
-        let mut w = writer(source.clone());
-        w.append(prov(), note("first recovery event")).unwrap();
-        w.append(prov(), note("second recovery event"))
-            .unwrap()
-            .hash
-    };
-    let initial_record_count = source.records().len();
-    let read_count = Rc::new(Cell::new(0));
-    let counting_store = CountingStore {
-        inner: source.clone(),
-        read_count: Rc::clone(&read_count),
-    };
-
-    let mut recovered = writer(counting_store);
-
-    assert_eq!(read_count.get(), 1, "writer recovery must verify once");
-    assert_eq!(recovered.len(), 3);
-    assert_eq!(recovered.tip(), expected_tip);
-    assert_eq!(
-        source.records().len(),
-        initial_record_count,
-        "reopening a non-empty store must not append another genesis"
-    );
-
-    let next = recovered.append(prov(), note("after recovery")).unwrap();
-    assert_eq!(next.core.seq, 3);
-    assert_eq!(next.core.prev_hash, expected_tip);
-    assert_eq!(read_count.get(), 1, "append must not trigger a second read");
-}
-
-#[test]
 fn file_store_round_trips_and_recovers() {
     let path = std::env::temp_dir().join(format!(
         "magpie-chain-test-{}-{}.jsonl",
@@ -540,17 +501,21 @@ fn file_store_round_trips_and_recovers() {
             .as_nanos()
     ));
 
-    {
-        let mut w = writer(FileStore::new(&path));
+    let tip_after_two = {
+        let mut w = file_writer(FileStore::new(&path));
         w.append(prov(), note("durable one")).unwrap();
-        w.append(prov(), note("durable two")).unwrap();
-    }
+        w.append(prov(), note("durable two")).unwrap().hash
+    };
 
-    let w2 = writer(FileStore::new(&path));
+    let mut w2 = file_writer(FileStore::new(&path));
     assert_eq!(w2.len(), 3);
+    assert_eq!(w2.tip(), tip_after_two);
+    let continued = w2.append(prov(), note("durable three")).unwrap();
+    assert_eq!(continued.core.seq, 3);
+    assert_eq!(continued.core.prev_hash, tip_after_two);
 
     let reader = LogReader::open(FileStore::new(&path), key().verifying_key());
-    assert_eq!(reader.verify_chain().unwrap(), 3);
+    assert_eq!(reader.verify_chain().unwrap(), 4);
 
     std::fs::remove_file(&path).ok();
 }

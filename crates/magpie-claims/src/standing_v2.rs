@@ -386,7 +386,7 @@ mod tests {
         let store = MemStore::new();
         let key = SigningKey::from_bytes(&[101; 32]);
         {
-            let _writer = LogWriter::open(store.clone(), key.clone()).unwrap();
+            let _writer = LogWriter::<MemStore>::open(store.clone(), key.clone()).unwrap();
         }
         let reader = LogReader::open(store, key.verifying_key());
         crate::replay_standing_context(&reader).unwrap()
@@ -396,7 +396,7 @@ mod tests {
         let store = MemStore::new();
         let key = SigningKey::from_bytes(&[92; 32]);
         {
-            let mut writer = LogWriter::open(store.clone(), key.clone()).unwrap();
+            let mut writer = LogWriter::<MemStore>::open(store.clone(), key.clone()).unwrap();
             let payloads = [
                 Payload::ClaimAsserted {
                     claim_id: MATCHED_CLAIM_ID.into(),
