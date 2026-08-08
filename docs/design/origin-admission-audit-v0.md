@@ -3,8 +3,14 @@
 ## 1. Status
 
 Ratified documentation-only architecture contract. Ticket 0046 records this
-decision. Runtime origin admission, exact verified-prefix construction,
-candidate enumeration and `OriginAdmissionAuditV0` remain future work.
+decision, and Ticket 0048 implements the runtime. The implemented current v0
+behavior is claimant-label compatibility behavior: its authority-pair match is
+compiled compatibility label selection, not independently authenticated
+authority, and its `OriginAdmitted` output is not independently authority-
+bound. ADR-0007 (Accepted 2026-08-06) defines the separate authority-binding
+object and `H + P + M + A` coordinate boundary for any future authority-bound
+successor. A-024 remains **Confirmed** until that successor and its runtime
+evidence exist.
 
 The exact base of this contract is the post-PR-#58 main commit:
 
@@ -29,14 +35,19 @@ one selected origin-binding selector
 That is necessary verification machinery, but it cannot by itself prove that
 the caller presented the complete set of potentially conflicting bindings.
 Origin admission requires a complete replay-derived candidate universe, one
-selected policy, one independently trusted authority path and an audit bound to
-the exact log prefix and immutable closure used.
+selected policy, one authority path and an audit bound to the exact log prefix
+and immutable closure used. Under current v0 the authority path is compiled
+compatibility label selection; an independently authenticated authority path
+exists only in the future ADR-0007 successor.
 
 The central laws are:
 
 ```text
 verified origin binding
 != trusted authority
+
+exact authority-label equality
+!= authenticated grouping authority
 
 trusted origin assignment
 != support contribution
@@ -56,12 +67,15 @@ The positive construction is:
 ```text
 complete replay-anchored candidate universe
 + exact selected policy
-+ independently selected authority trust
++ compiled authority-label selection under that policy
 + deterministic duplicate/conflict handling
 + exact verified-prefix identity
 + immutable closure identity
 -> reproducible standing-inert origin-admission audit
 ```
+
+The authority-path term in that construction is compatibility label selection
+under current v0, not independently authenticated authority.
 
 ## 3. Deterministic input law
 
@@ -116,9 +130,9 @@ V0 has no runtime policy parameter, registry, alias, implicit latest policy,
 environment override, bundle-selected implementation or caller-selected
 policy.
 
-## 5. Exact trusted grouping-authority path v0
+## 5. Exact compiled grouping-authority label selection v0
 
-The selected policy trusts exactly one claimed authority pair:
+The selected policy matches exactly one claimed authority pair:
 
 ```text
 authority.kind:
@@ -128,17 +142,23 @@ authority.reference:
 authority:origin-review-v0
 ```
 
-Trust comes from the compiled policy's exact selection of this pair. The
-bundle merely names the pair and cannot trust itself.
+Selection comes from the compiled policy's exact equality with this pair. The
+bundle merely names the pair and cannot select or authenticate itself. This is
+compiled compatibility label selection: it prevents policy-label substitution,
+but it does not authenticate the claimant, authorize an issuer, or
+independently bind grouping authority. The matched claim remains a claimant
+assertion, and admissions under this section are claimant-label compatibility
+admissions. Authenticated grouping authority requires the separate ADR-0007
+authority-binding object verified under explicit `H + P + M + A` coordinates.
 
-The pair authorizes only:
+Under the selected policy, a pair match admits only:
 
 ```text
 one exact contribution-scoped origin-group assignment
 ```
 
-It does not authorize claim truth, evidence truth, publisher identity, source
-quality, support, standing, settlement, statistical independence,
+The match does not authorize claim truth, evidence truth, publisher identity,
+source quality, support, standing, settlement, statistical independence,
 aggregation, writer access or any adjacent proposition.
 
 Any other exact pair is `origin-binding authority untrusted`. A matched
@@ -152,8 +172,8 @@ grants authority.
 
 ## 6. Complete replay-derived candidate universe
 
-The future audit accepts no caller-supplied binding selectors, receipts or
-candidate list. It derives candidates exclusively from the complete
+The implemented audit accepts no caller-supplied binding selectors, receipts
+or candidate list. It derives candidates exclusively from the complete
 `DeadboltAnchorIndex` co-produced by the same accepted replay as the standing
 projection.
 
@@ -196,10 +216,21 @@ Magpie's accepted record and do not enter the audit.
 
 This law makes a favourable caller-selected subset an impossible API shape.
 
+This shape-matched, replay-derived candidate universe and the global
+byte-completeness gate of section 8 are current v0 compatibility behavior.
+They do not define the ADR-0007 successor's authority candidate designation,
+finite designation set under `A`, assignment-key-scoped incompleteness, or
+resolver-level designation-universe verification, and this section does not
+retrofit those semantics into v0.
+
 ## 7. Candidate-enumeration implementation boundary
 
-The future implementation may add the smallest crate-private deterministic
-enumeration seam over `DeadboltAnchorIndex`. The seam must enumerate the actual
+Ticket 0047 implements this boundary's crate-private deterministic
+enumeration seam,
+`OriginAdmissionReplayContextV0::origin_binding_candidates_v0()`, over the
+same replay-derived `DeadboltAnchorIndex`. Ticket 0048 implements
+`OriginAdmissionAuditV0` and the public `resolve_origin_admission_audit_v0()`
+resolver that consumes that substrate. The seam must enumerate the actual
 index co-derived by the same replay.
 
 It must not:
@@ -263,7 +294,7 @@ pipeline. The audit must not duplicate or reinterpret:
 - artifact-coherence checks; or
 - receipt construction.
 
-The future implementation may refactor the existing private pipeline to return
+The implementation may refactor the existing private pipeline to return
 a crate-private evaluation result containing validated intermediate audit
 material. The public surfaces remain unchanged:
 
@@ -353,7 +384,10 @@ those classifications. Neither classification is an admission or veto.
 ## 11. Trusted assignment fold
 
 Only matched `OriginBindingReceiptV0` values satisfying both exact selected
-policy equality and exact trusted-authority equality enter the fold.
+policy equality and exact trusted-authority equality enter the fold. "Trusted"
+here names the compiled compatibility label selection of section 5, not
+authenticated authority: assignments this fold produces are claimant-label
+compatibility admissions.
 
 The exact grouping key is:
 
@@ -471,11 +505,18 @@ true, the origin group is a publisher, the origin is statistically independent,
 the group is reputable, another group is independent, the claim reaches any
 standing, or aggregation has occurred.
 
+Current v0 `OriginAdmitted` is a claimant-label compatibility admission. It is
+not independently authority-bound, not authenticated origin-group admission,
+and not authorization by an external grouping authority, and it is not
+eligible for silent use in a future authority-bound path by wrapper, alias,
+field resemblance, or caller assertion. The future ADR-0007 successor must
+carry its own explicit coordinate set.
+
 The audit remains standing-inert derived material.
 
 ## 16. Exact verified-prefix identity
 
-The future audit binds the exact accepted Magpie prefix with:
+The implemented audit binds the exact accepted Magpie prefix with:
 
 ```text
 VerifiedLogPrefixIdentityV0 {
@@ -504,9 +545,10 @@ The implementation must not obtain the tip by calling verification and replay
 separately. No second `read_records()` call is permitted.
 
 The existing private retained `VerifiedSnapshot` already carries verified
-events and tip. A future implementation may expose that information through an
-additive replay-summary API or a separately versioned origin-resolution
-snapshot/context. It must preserve unchanged:
+events and tip. Ticket 0047 exposes that information through the additive
+`LogReader::replay_with_summary` API and the separately versioned
+`OriginAdmissionReplayContextV0` origin-resolution context. That exposure
+preserves unchanged:
 
 ```text
 LogReader::replay
@@ -540,10 +582,10 @@ The closure identity binds availability input `M`. It does not prove that
 objects verified successfully, prove a key matched its bytes, reconstruct raw
 objects, or grant authority.
 
-## 18. Future public audit surface
+## 18. Public audit surface
 
-All field and variant orders in this section are normative for the future
-derived audit JSON.
+All field and variant orders in this section are normative for the derived
+audit JSON emitted by the landed Ticket 0048 runtime.
 
 ### 18.1 VerifiedLogPrefixIdentityV0
 
@@ -712,9 +754,9 @@ magpie-origin-admission-v0
 
 The top-level audit alone exposes `canonical_bytes()`.
 
-## 19. Construction and authority properties of future types
+## 19. Construction and authority properties of the public types
 
-Every future public type above has private fields, read-only getters,
+Every public type above has private fields, read-only getters,
 deterministic equality and deterministic `Serialize`. None has `Deserialize`
 or a public constructor from serialized material. Trusted construction occurs
 only through the same-snapshot replay and immutable-closure audit path.
@@ -729,7 +771,11 @@ variant spelling: snake_case
 
 Serialized audits, decisions, admitted-origin values, conflicts, candidate
 audits, receipts and identities are audit output only. No resolver accepts one
-as authority or as a substitute for replay and closure inputs.
+as authority or as a substitute for replay and closure inputs. No current v0
+audit, decision, or admitted-origin value becomes authority-bound by its field
+shape, label equality, or later convention; the ADR-0007 authority-bound
+successor requires its own additive types and complete `H + P + M + A`
+coordinates.
 
 ## 20. Deterministic ordering
 
@@ -781,15 +827,14 @@ BOM and no trailing newline. Unsigned integers use shortest decimal form.
 
 No raw artifact or foreign-bundle bytes are serialized into the audit.
 
-The implementation PR must pin literal byte fixtures for:
+Ticket 0046's documentation-only contract added no fixtures. The Ticket 0048
+implementation pins literal byte fixtures for:
 
 - one admitted origin;
 - duplicate trusted bindings collapsing to one assignment;
 - trusted conflict;
 - scoped unresolved eligible binding; and
 - globally incomplete candidate universe.
-
-This documentation-only PR adds no fixtures.
 
 ## 22. Standing-inert boundary
 
@@ -813,7 +858,11 @@ standing policy, settlement or writer authority.
 
 ## 23. Required hostile implementation tests
 
-The future implementation must prove at least:
+The implementation is required to preserve, and the landed Ticket 0048 hostile
+suite proves across the runtime and serialization integration tests in
+`crates/magpie-claims/tests/origin_admission_audit.rs` and the compile-fail
+API-shape doctests in
+`crates/magpie-claims/src/origin_admission_audit.rs`, at least:
 
 ```text
 caller supplies only favourable selector
@@ -904,6 +953,8 @@ fixture, Cargo, release, CI or L0 surfaces.
 
 ## 25. Recommended implementation sequence
 
+At ratification time, the recommended implementation sequence was:
+
 ```text
 Slice 1:
 same-snapshot verified-prefix identity
@@ -920,16 +971,19 @@ admitted-contribution audit
 -> conservative aggregation
 ```
 
-A later implementation may combine Slices 1 and 2 only if the verified-prefix,
-candidate-universe, authority and fold boundaries and their tests remain
-independently reviewable.
+Slice 1 landed separately as Ticket 0047 (origin-admission replay substrate)
+and Slice 2 as Ticket 0048 (audit runtime), keeping the verified-prefix,
+candidate-universe, authority and fold boundaries and their tests
+independently reviewable. The later stages landed as Tickets 0049-0054.
 
 ## 26. Reviewer checklist
 
 - Confirm the selected policy is exactly `magpie-origin-admission-v0` and
   bundle content cannot select code.
-- Confirm the only trusted authority pair is exact `human-review` plus
-  `authority:origin-review-v0` and grants grouping authority only.
+- Confirm the only compiled authority-label pair is exact `human-review` plus
+  `authority:origin-review-v0`, that its match is compatibility label
+  selection rather than authenticated grouping authority, and that it admits
+  only one exact contribution-scoped origin-group assignment.
 - Confirm candidates come from the complete same-replay anchor index and no
   caller candidate list or closure enumeration substitutes for it.
 - Confirm unsupported anchor families remain outside v0 without negotiating
@@ -952,7 +1006,7 @@ independently reviewable.
   snapshot with no second `read_records()` call.
 - Confirm projection canonical bytes are not treated as log-prefix identity.
 - Confirm the complete four-field closure identity is retained.
-- Confirm every future public value is private-construction, serialization-only
+- Confirm every public value is private-construction, serialization-only
   audit material with deterministic order and no `Deserialize`.
 - Confirm the audit remains standing-inert and policy v2 does not consume it.
 - Confirm no runtime capability, fixture, code, L0, standing, closure or

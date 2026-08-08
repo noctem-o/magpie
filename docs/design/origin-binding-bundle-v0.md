@@ -5,13 +5,15 @@
 Ratified exact protocol contract. Ticket 0042 is the documentation-only slice
 that freezes the first origin-binding foreign-bundle protocol.
 
-This document defines exact statements for a future standing-inert verifier.
+This document defines exact statements for the standing-inert origin-binding
+verifier, whose runtime landed separately.
 It implements no parser, encoder, fixture, verifier, receipt type, closure-to-
 verifier wiring, origin admission, authority trust, contribution admission,
 support, standing, policy v3, aggregation, loader, CAS, filesystem or network
 access, writer authority, or Magpie L0 payload.
 
-The current implementation substrate ends at:
+At Ticket 0042 ratification time, the available implementation substrate ended
+at:
 
 ```text
 exact artifact identity
@@ -20,7 +22,10 @@ exact artifact identity
 ```
 
 This contract adds the exact governance statement shape, not runtime
-capability.
+capability. The standing-inert origin-binding verifier (Ticket 0045), the
+same-replay verified-prefix and candidate-enumeration substrate (Ticket 0047),
+and the `OriginAdmissionAuditV0` runtime (Ticket 0048) subsequently landed
+under their separately reviewed tickets.
 
 ## 2. Purpose and relationship to Tickets 0037-0041
 
@@ -50,8 +55,10 @@ under this claimed authority path
 for this exact target origin-admission policy
 ```
 
-The acquisition/direct-derivation protocol remains unchanged. Origin-binding
-verification and origin admission remain future slices.
+The acquisition/direct-derivation protocol remains unchanged. At Ticket 0042
+ratification time, origin-binding verification and origin admission remained
+future slices; those slices subsequently landed under their separately
+reviewed tickets.
 
 ## 3. Architectural laws
 
@@ -61,7 +68,7 @@ The positive verification construction is:
 canonical origin-binding statement
 + exact root
 + exact SegmentAnchored occurrence
-+ future profile-specific verification
++ profile-specific verification
 -> verified origin-binding statement
 ```
 
@@ -342,7 +349,7 @@ all accepted replay objects it could match. An empty `contribution.scope_ref`
 therefore fails schema-specific semantic validation as
 `invalid replay reference length`, before any replay lookup.
 
-Syntactic validity does not establish existence. The future verifier must
+Syntactic validity does not establish existence. The verifier must
 still revalidate exact same-replay structure.
 
 ## 10. Complete contribution identity
@@ -366,7 +373,7 @@ It is exact and contribution-scoped. It is not a publisher-global identity,
 URL, domain, evidence-kind label, source descriptor, permanent origin identity
 or aggregation lane.
 
-From one accepted replay, the future verifier must require:
+From one accepted replay, the verifier must require:
 
 ```text
 justification edge source_id
@@ -390,7 +397,7 @@ decision is grounded.
 
 No `origin_comparison_namespace` object is serialized.
 
-The future verifier derives exactly:
+The verifier derives exactly:
 
 ```text
 OriginComparisonNamespaceV0 {
@@ -441,8 +448,8 @@ It does not select runtime code, negotiate policy, authorize caller selection,
 prove that the policy exists, prove that the policy trusts the authority, or
 become an ambient latest policy.
 
-Future reviewed origin-admission code will select one exact policy
-implementation and require exact equality with this field. A bundle requesting
+The reviewed origin-admission code selects one exact policy
+implementation and requires exact equality with this field. A bundle requesting
 a different or more favourable policy cannot change that selected
 implementation. A verified statement may exist while a selected-policy
 mismatch prevents admission.
@@ -484,9 +491,16 @@ The canonical bundle contains no `trusted`, `verified`, `approved`,
 `authority_is_valid` field. It contains no signer public key, certificate or
 trust root capable of bootstrapping its own authority.
 
-A signer or authority named inside an exact canonical anchored bundle remains
-untrusted until a separate explicit origin-admission policy trusts that exact
-authority claim.
+`authority.kind`, `authority.reference`, and `origin_group` are
+claimant-supplied assertions. Their canonical form, protocol syntax, exact
+equality, occurrence in anchored bytes, provenance, and presence under the
+compiled origin-admission pair do not independently authenticate or authorize
+their issuer. A signer or authority named inside an exact canonical anchored
+bundle remains untrusted claimant data. The current origin-admission policy's
+exact match of that claim is compiled compatibility label selection, not
+authentication or authorization. Authenticated grouping authority requires the
+separate authority-binding object and explicit authority coordinate defined by
+ADR-0007.
 
 ## 14. Artifact identity and exact provenance selectors
 
@@ -611,7 +625,7 @@ surrogate structures are invalid JSON. A valid escaped surrogate pair parses
 but is noncanonical because the resulting scalar must be emitted directly as
 UTF-8.
 
-After parsing and semantic validation, the future verifier re-encodes the
+After parsing and semantic validation, the verifier re-encodes the
 exact logical object and requires byte equality with the complete input. Every
 alternate valid spelling is `NonCanonicalEncoding`.
 
@@ -652,10 +666,10 @@ not amplify verification.
 bundle, verify the root, revalidate the contribution, resolve provenance,
 trust authority or admit a group.
 
-## 19. Future verifier deterministic precedence
+## 19. Verifier deterministic precedence
 
-The verifier is not implemented here. Its conceptual deterministic stage order
-is fixed:
+This documentation-only contract implements no verifier; Ticket 0045
+implements it separately. Its deterministic stage order is fixed:
 
 1. exact binding-bundle availability from `ResolutionContentClosureV0`;
 2. raw binding-bundle byte limit;
@@ -678,7 +692,7 @@ Caller order, closure insertion order, replay occurrence multiplicity and
 ambient storage do not change this order.
 
 Prerequisite resolution must use exact closure lookup followed by the existing
-reviewed artifact-provenance context surface. The future verifier must preserve
+reviewed artifact-provenance context surface. The verifier must preserve
 the complete nested `ArtifactProvenanceContextTraceV0` whenever acquisition or
 derivation is unavailable, malformed, unanchored, mismatched or otherwise
 unsuccessful. It must neither duplicate the existing parser/failure vocabulary
@@ -686,9 +700,9 @@ nor reinterpret a failed nested trace as a match.
 
 ## 20. Minimum closed audit distinctions
 
-Exact future Rust enum spelling is deferred, but the audit must preserve at
-least these primary distinctions and may not collapse them into a Boolean
-`verified` result.
+Exact Rust enum spelling was deferred to the verifier implementation (Ticket
+0045), but the audit must preserve at least these primary distinctions and may
+not collapse them into a Boolean `verified` result.
 
 ### Binding bundle and parser
 
@@ -758,9 +772,9 @@ matched derivation-based origin binding
 A matched context proves only an exact canonical, anchored, structurally and
 provenance-coherent origin-binding assertion.
 
-## 21. Future receipt boundary
+## 21. Receipt boundary
 
-A future private-construction `OriginBindingReceiptV0` must retain at least:
+The private-construction `OriginBindingReceiptV0` must retain at least:
 
 - verifier profile;
 - exact binding anchor selector;
@@ -802,7 +816,12 @@ matched origin-binding receipt
 ```
 
 Only a separately selected explicit versioned origin-admission policy may
-decide whether `authority.kind + authority.reference` is trusted.
+decide whether `authority.kind + authority.reference` is trusted. Under the
+current v0 policy that decision is compiled compatibility label selection: it
+authenticates no issuer and grants no corroboration authority. Corroboration
+authority requires the separate ADR-0007 authority boundary — a distinctly
+owned authority-binding object verified under explicit `H + P + M + A`
+coordinates.
 
 ## 22. Duplicate and conflict doctrine
 
@@ -838,7 +857,12 @@ conflict.
 
 Two distinct contributions with different admitted groups in one namespace
 may later provide policy-recognised corroboration separation. This contract
-admits neither group and creates no support.
+admits neither group and creates no support. Under the current v0 path those
+groups originate from claimant-label compatibility admission, so any
+separation they supply is claimant-label compatibility corroboration, not
+authenticated organisational, causal, statistical, or editorial independence.
+Authority-bound corroboration separation requires the additive ADR-0007
+successor path.
 
 ## 23. Normative canonical vectors
 
@@ -1004,7 +1028,7 @@ Cargo manifests, dependencies, CI or historical Tickets 0037-0041.
   and no substitution or search.
 - Confirm canonical string rules, byte limit, root formula and five-field
   binding anchor are exact.
-- Confirm the future verifier preserves nested
+- Confirm the verifier preserves nested
   `ArtifactProvenanceContextTraceV0` values.
 - Confirm a matched receipt is a verified assertion only, not admission,
   support, aggregation input or standing.
@@ -1015,9 +1039,9 @@ Cargo manifests, dependencies, CI or historical Tickets 0037-0041.
 - Confirm the derivation vector is not described as an end-to-end fixture.
 - Confirm no runtime capability or historical-contract change is claimed.
 
-## 27. Exact next slice
+## 27. Historical next slice
 
-The next separately reviewed slice is only:
+Ticket 0042 selected as its exact next slice only:
 
 ```text
 standing-inert origin-binding verifier
@@ -1028,6 +1052,7 @@ standing-inert origin-binding verifier
 + private matched receipt and hostile tests
 ```
 
-It must add no origin-admission policy, trusted-authority decision, conflict
-fold, admitted-contribution audit, support, standing, policy v3, aggregation,
-loader, CAS, filesystem/network access, L0 payload or writer authority.
+That slice had to add no origin-admission policy, trusted-authority decision,
+conflict fold, admitted-contribution audit, support, standing, policy v3,
+aggregation, loader, CAS, filesystem/network access, L0 payload or writer
+authority. It subsequently landed separately as Ticket 0045 (PR #58).
