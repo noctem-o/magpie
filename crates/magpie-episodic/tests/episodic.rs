@@ -155,6 +155,90 @@ fn create_old_schema_file(path: &Path) {
     assert_eq!(user_version, 0);
 }
 
+const V2_CLAIM_ID: &str = "claim-episodic-statusless";
+const V2_STATEMENT: &str = "A typed assertion act records no epistemic status.";
+const V2_SCOPE: &str = "scope:episodic-statusless";
+const V2_CONTENT_HASH: &str = "70cea2ac9ed9d373b422ef3543e45ddaf289fa4e64a8aed726fc6b13df797421";
+
+fn v2_claim_store() -> MemStore {
+    let store = MemStore::new();
+    {
+        let mut w = writer(store.clone());
+        w.append(
+            Provenance::new("george", "t0067"),
+            Payload::ClaimAssertedV2 {
+                claim_id: V2_CLAIM_ID.into(),
+                statement: V2_STATEMENT.into(),
+                scope_ref: V2_SCOPE.into(),
+                actor_class: "AgentProposer".into(),
+                content_hash: V2_CONTENT_HASH.into(),
+                metadata_json: "{}".into(),
+            },
+        )
+        .unwrap();
+    }
+    store
+}
+
+/// A schema/projection-version-2 file: the current physical columns, stamped
+/// `user_version = 2`, holding one stale `claim_asserted_v2` row whose
+/// fabricated `Conjectured` was version-2 projection semantics (A-006/RQ-004).
+fn create_schema_v2_file_with_fabricated_v2_status(path: &Path) {
+    let conn = Connection::open(path).unwrap();
+    conn.execute_batch(
+        "
+        CREATE TABLE events (
+            seq             INTEGER PRIMARY KEY,
+            timestamp_nanos INTEGER NOT NULL,
+            agent           TEXT NOT NULL,
+            source          TEXT NOT NULL,
+            kind            TEXT NOT NULL,
+            claim_id        TEXT,
+            claim_status    TEXT,
+            from_status     TEXT,
+            to_status       TEXT,
+            body            TEXT NOT NULL
+        );
+        CREATE VIRTUAL TABLE events_fts USING fts5(
+            body, content='events', content_rowid='seq'
+        );
+        PRAGMA user_version = 2;
+        ",
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO events (
+             seq, timestamp_nanos, agent, source, kind, claim_id,
+             claim_status, from_status, to_status, body
+         ) VALUES (
+             ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10
+         )",
+        params![
+            999_i64,
+            1_i64,
+            "old-agent",
+            "old-source",
+            "claim_asserted_v2",
+            "old-claim",
+            "Conjectured",
+            Option::<&str>::None,
+            Option::<&str>::None,
+            "stale v2 fabricated status row"
+        ],
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO events_fts(rowid, body) VALUES (?1, ?2)",
+        params![999_i64, "stale v2 fabricated status row"],
+    )
+    .unwrap();
+
+    let user_version: i32 = conn
+        .query_row("PRAGMA user_version", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(user_version, 2);
+}
+
 #[test]
 fn projection_is_byte_identical_after_live_apply_and_replay() {
     let store = MemStore::new();
@@ -364,4 +448,124 @@ fn canonical_bytes_preserve_claim_asserted_status() {
         bytes_for(Status::Conjectured),
         "asserted status is signed event content and must survive projection"
     );
+}
+
+#[test]
+fn claim_asserted_v2_projects_no_status() {
+    let store = v2_claim_store();
+    let reader = LogReader::open(store, verifying_key());
+    let mut view = EpisodicView::in_memory().unwrap();
+    assert_eq!(reader.replay(&mut view).unwrap(), 2);
+
+    let event = view.get(1).unwrap();
+    assert_eq!(event.seq, 1);
+    assert_eq!(event.agent, "george");
+    assert_eq!(event.source, "t0067");
+    assert_eq!(event.kind, "claim_asserted_v2");
+    assert_eq!(event.claim_id, Some(V2_CLAIM_ID.into()));
+    assert_eq!(
+        event.claim_status, None,
+        "ClaimAssertedV2 encodes no status; the projection must not invent one"
+    );
+    assert_eq!(event.from_status, None);
+    assert_eq!(event.to_status, None);
+    assert_eq!(event.body, V2_STATEMENT);
+}
+
+#[test]
+fn claim_asserted_v2_canonical_row_serializes_null_status() {
+    let store = v2_claim_store();
+    let reader = LogReader::open(store, verifying_key());
+    let mut view = EpisodicView::in_memory().unwrap();
+    reader.replay(&mut view).unwrap();
+
+    let rows: Vec<serde_json::Value> = serde_json::from_slice(&view.canonical_bytes()).unwrap();
+    let row = rows
+        .iter()
+        .find(|row| row["kind"] == "claim_asserted_v2")
+        .expect("the replayed log contains a claim_asserted_v2 row");
+    assert_eq!(row["claim_id"], V2_CLAIM_ID);
+    assert!(
+        row["claim_status"].is_null(),
+        "a statusless signed event must serialize an explicit null status"
+    );
+    assert_ne!(
+        row["claim_status"], "Conjectured",
+        "the fabricated version-2 status must never reappear"
+    );
+    assert!(row["from_status"].is_null());
+    assert!(row["to_status"].is_null());
+    assert_eq!(row["body"], V2_STATEMENT);
+}
+
+#[test]
+fn legacy_claim_asserted_status_remains_exact() {
+    let store = fixture_store();
+    let reader = LogReader::open(store, verifying_key());
+    let mut view = EpisodicView::in_memory().unwrap();
+    reader.replay(&mut view).unwrap();
+
+    let conjectured = view.get(1).unwrap();
+    assert_eq!(conjectured.kind, "claim_asserted");
+    assert_eq!(conjectured.claim_status, Some("Conjectured".into()));
+
+    let open = view.get(4).unwrap();
+    assert_eq!(open.kind, "claim_asserted");
+    assert_eq!(open.claim_status, Some("Open".into()));
+}
+
+#[test]
+fn schema_v2_fabricated_v2_status_is_dropped_before_replay() {
+    let db = TempDbPath::new("schema_v2_fabricated_v2_status_is_dropped_before_replay");
+    create_schema_v2_file_with_fabricated_v2_status(db.path());
+
+    let store = v2_claim_store();
+    let reader = LogReader::open(store.clone(), verifying_key());
+
+    let mut rebuilt = EpisodicView::at_path(db.path()).unwrap();
+    assert!(
+        rebuilt.is_empty(),
+        "a semantically stale schema-v2 file must be discarded on open"
+    );
+    assert!(
+        rebuilt.get(999).is_none(),
+        "the stale fabricated-Conjectured row must not survive the version bump"
+    );
+
+    // The caller, never EpisodicView, replays the authoritative log.
+    assert_eq!(reader.replay(&mut rebuilt).unwrap(), 2);
+    let event = rebuilt.get(1).unwrap();
+    assert_eq!(event.kind, "claim_asserted_v2");
+    assert_eq!(event.claim_id, Some(V2_CLAIM_ID.into()));
+    assert_eq!(event.claim_status, None);
+
+    let mut fresh = EpisodicView::in_memory().unwrap();
+    assert_eq!(
+        LogReader::open(store, verifying_key())
+            .replay(&mut fresh)
+            .unwrap(),
+        2
+    );
+    let expected_bytes = fresh.canonical_bytes();
+    assert_eq!(
+        rebuilt.canonical_bytes(),
+        expected_bytes,
+        "rebuilt schema-v3 state must equal a fresh projection of the same log"
+    );
+    drop(rebuilt);
+
+    let conn = Connection::open(db.path()).unwrap();
+    let user_version: i32 = conn
+        .query_row("PRAGMA user_version", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(user_version, 3, "open must stamp the current version");
+    drop(conn);
+
+    let reopened = EpisodicView::at_path(db.path()).unwrap();
+    assert_eq!(
+        reopened.canonical_bytes(),
+        expected_bytes,
+        "current schema-v3 state must survive reopen without replay"
+    );
+    assert_eq!(reopened.get(1).unwrap().claim_status, None);
 }
