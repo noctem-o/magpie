@@ -47,9 +47,9 @@ The future exact-byte corpus must promote A21-D1 and A21-D2 to normative v1
 non-exhaustive witnesses during review. It must also cover:
 
 - ordinary frozen golden and Deadbolt positives;
-- `S = L`, `S = L + 1`, and both sides of the `S = 0` boundary: equation
-  mismatch → `REJECT(Signature)`, and canonical identity `A`/`R` with the
-  matching equation → `ACCEPT` (`A21-S4`);
+- `S = L`, `S = L + 1`, both sides of the `S = 0` boundary, and
+  `S = L - 1`: equation mismatch → `REJECT(Signature)`, while the complete
+  accepting S4/S5 cases below prove `S = 0` and the true upper scalar boundary;
 - non-decodable, non-canonical, and zero-`x`/sign-bit-invalid `R`;
 - a cofactor-sensitive residue proving the uncofactored equation;
 - mixed-torsion equation mismatch → `REJECT(Signature)` (`A21-T1`) and a
@@ -57,20 +57,39 @@ non-exhaustive witnesses during review. It must also cover:
   plus a wrong-message negative; and
 - the #120 representation-invalid external-key precedence case.
 
-`A21-S4` uses canonical identity `A` and `R`, zero `S`, and the exact message
-`ASCII("magpie-sig-v1") || 32 zero bytes`. `A21-T2` uses the canonical
-order-four point `T4` (`00` followed by 31 zero bytes),
-`A = B + T4` encoded as
-`5252cc0a7f208133b620acbd4537eba2a4123bf0a8c2e4f980c3b31bb69765ea`,
-`R = B`, and the canonical scalar bytes
-`a5dbeb5cd27780380b9c00153d328ef3399722dc9260abb20716a81cc62f510b` for
-that same message. It satisfies `[L]A = T4 != I` and `[4]A != I`, proving a
-non-zero prime component and a non-zero torsion component; it is not a purely
-small-order witness.
+`A21-S4`, `A21-S5`, and `A21-T2` are complete one-event Genesis vectors, not
+equation-only probes. For A21-S4/A21-S5 use `timestamp_nanos = 1`, identity external/Genesis key
+`0100000000000000000000000000000000000000000000000000000000000000`, and the
+canonical EventCore hash
+`12145a3e7b798309e45a1c55211c1973a00bcbfd932355e464694944c1bf4810`. S4 uses
+identity `R` and `S = 0`, with signature
+`01000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000`;
+it must `ACCEPT` with count 1 and that hash as tip. S5 reuses the same event
+and uses `R = -B` (`58666666666666666666666666666666666666666666666666666666666666e6`)
+and `S = L - 1`, whose little-endian bytes are
+`ecd3f55c1a631258d69cf7a2def9de1400000000000000000000000000000010`; it must
+also `ACCEPT` with the same count/tip.
 
-Every vector binds exact key/input bytes, expected verdict/class, and (for
-accepted chains) ordered hashes, count, and tip. A point/key substage result is
-not a portable manifest result.
+For T2, hold the same Genesis fields fixed, set external/Genesis key to
+`A = B + T4` (`5252cc0a7f208133b620acbd4537eba2a4123bf0a8c2e4f980c3b31bb69765ea`),
+and search `timestamp_nanos = 1, 2, ...` for the first `k mod 4 = 0`; the
+winning timestamp is 2. Its canonical EventCore hash is
+`ae729d0b73930f9dd5b3c5999200e073efacba802d9156e10f0b246de3f1a100`, with
+`k = 6874093215602964270231976269017849938138400845214860727886828009061180358252`,
+`S = k + 1`, and scalar bytes
+`6dbeed42331f93e657f6c1587e7b21d5bb30f2fb079b5d8bfafe6c5b5099320f`; the
+complete vector must `ACCEPT` with count 1 and that hash as tip. Its
+`[L]A = T4` and non-identity `[4]A` proof remains mandatory.
+
+Every normative Signature vector binds exact key/input bytes, a recomputable
+canonical EventCore and content hash, expected verdict/class, and (for
+accepted chains) ordered hashes, count, and tip. A point/key or equation
+substage result is not a portable manifest result.
+
+The conformance runner must recompute the canonical EventCore and SHA-256 hash
+before exercising the signature. An arbitrary content hash is forbidden in a
+normative Signature vector; equation-only probes remain development evidence
+only.
 
 ## Cross-language obligations
 
@@ -97,8 +116,8 @@ review completes, and the implementation is merged. A-004/RQ-006 cannot close
 before those gates and a separate ledger reconciliation.
 
 Stop for owner judgment before implementation if the owner rejects v1 D1/D2,
-S4, or T2 acceptance; if a locked conformer rejects a mathematically
-equation-satisfying S4/T2 construction; if a conformer needs an unreviewed
+S4, S5, or T2 acceptance; if a locked conformer rejects a mathematically
+equation-satisfying complete S4/S5/T2 construction; if a conformer needs an unreviewed
 dependency; if any frozen v1 history disagrees; or if a safer successor
 relation/name/migration has not been ratified. A host-library observation is
 evidence to investigate, not authority to silently change the selected
