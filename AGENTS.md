@@ -17,7 +17,6 @@ Magpie is a local-first research memory system for agentic R&D. Its core directi
 - Do exactly the requested ticket.
 - Do not broaden scope.
 - Do not invent major architecture.
-- Do not commit.
 - Do not merge.
 - Do not touch secrets, credentials, `.env*`, or unrelated files.
 - Do not add network dependencies unless the ticket explicitly allows it.
