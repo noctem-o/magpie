@@ -282,8 +282,8 @@ describes only the future reference-input language; it is not a
 | framing | omit final LF | ACCEPT | ACCEPT | writer emits LF | no historical promise requires a final terminator | ACCEPT | preserve | N30/P9 |
 | framing | exactly one final LF or CRLF | ACCEPT | ACCEPT | LF | ordinary JSONL transport; frozen fixtures use LF | ACCEPT | preserve | N30/P9 |
 | framing | second or later final LF | ACCEPT because all empty slices are dropped | REJECT blank record | never emitted | no compatibility promise | REJECT `Framing` | Rust narrows | N30 |
-| framing | interior zero-length line | ACCEPT because it is dropped | REJECT parse | never emitted | FORMAT describes one event per record, not ignorable holes | REJECT `Framing` | Rust narrows | N6 |
-| framing | whitespace-only line | REJECT serde | REJECT parse | never emitted | not a record | REJECT `Framing` | class becomes portable | N6 |
+| framing | interior zero-length line | ACCEPT because it is dropped | REJECT parse | never emitted | FORMAT describes one event per record, not ignorable holes | REJECT `Framing`; physical line present, `record_index` absent | Rust narrows | N6 |
+| framing | non-empty whitespace-only line | REJECT serde | REJECT parse | never emitted | not a JSON record, but physically non-empty | REJECT `Framing`; physical line and next candidate `record_index` present | class and coordinates become portable | N6 |
 | framing | CRLF throughout | ACCEPT | ACCEPT | LF | cross-platform reference transport may preserve ordinary line endings | ACCEPT | preserve | N30/P9 |
 | framing | mixed LF and CRLF record terminators | ACCEPT | ACCEPT | LF | no identity consequence | ACCEPT per record | preserve | N30/P9 |
 | framing | lone CR between JSON objects | REJECT trailing data | ACCEPT because Python text mode translates CR to a newline | never emitted | lone CR is not selected as a record terminator | REJECT `Framing` | Python narrows | N30 |
@@ -294,7 +294,7 @@ describes only the future reference-input language; it is not a
 | framing | two JSON values on one line or trailing garbage | REJECT trailing characters | REJECT extra data | one object per line | reference storage is one event per record | REJECT `JsonSyntax` | preserve | N11/N30 |
 | object grammar | duplicate known `seq`, `hash`, or `kind` with the same value | REJECT duplicate field | ACCEPT last-wins | exactly one member | no duplicate spelling was promised | REJECT `Schema` for every duplicate name | Python narrows | N8 |
 | object grammar | duplicate unknown member | ACCEPT, ignored | ACCEPT, last-wins/ignored | no unknown member | closed record grammar is safer than coincidentally shared permissiveness | REJECT `Schema` | both narrow | N9 |
-| object grammar | one unknown top/core/provenance/payload member | ACCEPT, ignored | ACCEPT, ignored | exact known members only | payload variants and format fields are explicitly enumerated | REJECT `Schema` at every governed object | both narrow | N10 |
+| object grammar | one unknown member in `SignedEvent`, `EventCore`, `Provenance`, or each individual payload variant | ACCEPT, ignored | ACCEPT, ignored | exact known members only | payload variants and format fields are explicitly enumerated | REJECT `Schema`; N10 covers all three non-payload shapes and each of the nine payload variants independently | both narrow | N10 |
 | object grammar | arbitrary object-member ordering | ACCEPT | ACCEPT | deterministic serde order | JSONL bytes are not canonical identity | ACCEPT | preserve | P7 |
 | JSON lexical | `NaN`, `Infinity`, or `-Infinity` in an ignored unknown member | REJECT JSON token | ACCEPT then ignore | never emitted | these are not RFC 8259 JSON numbers | REJECT `JsonSyntax` everywhere | Python narrows | N14 |
 | JSON lexical | equivalent JSON Unicode escape, for example `g\u0065orge` | ACCEPT and verifies | ACCEPT and verifies | printable ASCII is emitted literally | typed decoded UTF-8, not JSON token bytes, enters canonical encoding | ACCEPT equivalent decoded scalar value | preserve | Unicode positive |
@@ -317,8 +317,10 @@ describes only the future reference-input language; it is not a
 | payload kind | unknown/case-changed/numeric/missing/null `payload.kind` | REJECT serde | REJECT canonicalization | exact case-sensitive name | FORMAT closes tags 0-8; Ticket 0005 forbids fallback | REJECT `Schema` | preserve | N19 |
 | closed strings | unknown/case-changed/spaced actor class, evidence kind or edge kind | type is string; unsigned mutation reaches hash mismatch before Rust validation | Python canonicalization rejects before hash | exact closed value | FORMAT and Ticket 0010 enumerate the vocabularies | exact decoded value, no trimming; reject as `PayloadValidation` after crypto | Python ordering changes | N20/N28 |
 | integers | `seq` or `timestamp_nanos` token `0` through `18446744073709551615` | accepted as u64, then chain/hash rules apply | accepted as Python int, then chain/hash rules apply | unsigned decimal | FORMAT uses u64 | accept lexical value; semantic checks follow | preserve | integer positives |
-| integers | `u64::MAX + 1` or negative integer | REJECT serde | Python accepts the JSON integer; range/sequence rejection occurs later | never emitted | canonical encoder requires u64 | REJECT `Schema` | stabilize Python ordering | N16 |
-| integers | `-0`, fraction, exponent, Boolean, null or string | REJECT serde; `-0` is treated as float | Python may turn `-0` into integer zero and may inspect null/string during sequence | unsigned integer token | writer emits plain unsigned decimal; canonical type is u64 | only unsigned decimal JSON tokens in u64 range | Python narrows and classes align | N15/N16 |
+| integers | leading plus (`+1`, `+0`) or a multi-digit leading-zero spelling (`01`, `00`) in either u64 field | REJECT JSON syntax | REJECT JSON syntax | never emitted | these are not RFC 8259 number tokens | REJECT `JsonSyntax` before schema interpretation | makes lexical boundary explicit | N11 |
+| integers | syntactically valid negative integer, `-0`, or `u64::MAX + 1` | REJECT serde; `-0` is not accepted as u64 | Python accepts the JSON number and may reach sequence/range handling | never emitted | canonical encoder requires u64 | REJECT `Schema` | stabilize Python ordering | N16 |
+| integers | syntactically valid fraction or exponent (`1.0`, `0.0`, `1e0`, `1E0`, `1e+0`, `1e-0`) | REJECT serde | Python accepts the JSON number and may coerce or inspect it later | never emitted | writer emits plain unsigned decimal; canonical type is u64 | REJECT `Schema` | Python narrows and classes align | N15 |
+| integers | Boolean, null or quoted digits | REJECT serde | Python may inspect the decoded value during sequence handling | never emitted | syntactically valid JSON values, but not u64 number tokens | REJECT `Schema` | stabilize type boundary | N16 |
 | fields | any required member omitted or replaced by null | REJECT serde | REJECT, sometimes only after sequence or canonicalization | all fields emitted | Rust types contain no defaults or optional structural fields | REJECT `Schema`; all variant fields are required exactly once and non-null | stabilize | N17/N18 |
 | field emptiness | empty legacy/provenance/tag-5 non-root string | accepted if chain is correctly signed and other rules pass | accepted | writer permits it | FORMAT does not add non-empty rules for these fields | permit where not explicitly forbidden | preserve | payload positives |
 | field emptiness | empty required tag 6-8 ID, statement, summary, scope or rationale | Rust checks after signature | Python checks while canonicalizing | non-empty | FORMAT/Ticket 0010 explicitly require non-empty | REJECT `PayloadValidation` after crypto | Python ordering changes | payload negative/N28 |
@@ -363,7 +365,11 @@ portable/reference JSONL verification interface.
    only empty-snapshot spelling; LF alone is an empty record, not an alias.
 7. Lone CR is never a terminator or insignificant whitespace and MUST be
    rejected as `Framing`.
-8. Empty and whitespace-only record texts MUST be rejected as `Framing`.
+8. A zero-length record text and a non-empty record text containing only space
+   and/or horizontal tab are distinct cases, but both MUST be rejected as
+   `Framing`. The coordinate law below assigns no `record_index` to the
+   zero-length slice and assigns the next candidate index to the physically
+   non-empty whitespace-only slice.
 9. Space (`20`) and horizontal tab (`09`) MAY appear as insignificant JSON
    whitespace before, after or within the one JSON value. CR is permitted only
    as the first byte of a CRLF terminator; LF is always framing.
@@ -386,6 +392,10 @@ additional closed-language rules:
 
 - `NaN`, `Infinity` and `-Infinity` are forbidden in every location, including
   an otherwise unknown member.
+- Numeric-looking spellings outside the RFC 8259 JSON number grammar are
+  `JsonSyntax`, before typed/schema interpretation. This includes every leading
+  plus spelling (`+1`, `+0`) and every multi-digit leading-zero spelling such as
+  `01` or `00`.
 - Every JSON object MUST contain unique member names after JSON string escape
   decoding. A duplicate known or unknown name is `Schema`.
 - Every governed object has the exact member set listed below. Unknown members
@@ -563,7 +573,14 @@ standing-policy interpretation.
 
 ### Integer fields
 
-`seq` and `timestamp_nanos` MUST be JSON number tokens in this lexical form:
+The complete record MUST first be syntactically valid JSON under the lexical
+law above. A leading plus spelling such as `+1` or `+0`, or a multi-digit
+leading-zero spelling such as `01` or `00`, is not an RFC 8259 JSON number and
+MUST be `REJECT(JsonSyntax)` at that physical record coordinate. A conformer
+MUST NOT parse or coerce such bytes into a number before assigning the class.
+
+Only after JSON syntax succeeds, `seq` and `timestamp_nanos` MUST each be a
+JSON number token in this exact lexical form:
 
 ```text
 0 | [1-9][0-9]*
@@ -571,10 +588,13 @@ standing-policy interpretation.
 
 The mathematical value MUST be in `0..=18446744073709551615`.
 
-Negative zero, a leading plus or minus sign, fractional syntax, exponent
-syntax, quoted digits, Boolean and null are forbidden even when a host JSON
-library would coerce them to an integral value. No implicit float conversion
-is permitted. These checks are `Schema`, before sequence comparison.
+Syntactically valid JSON numbers that fail this u64 law are `Schema`. They
+include negative integers, `-0`, fractional forms (`1.0`, `0.0`), exponent
+forms (`1e0`, `1E0`, `1e+0`, `1e-0`) and values above u64 maximum. Booleans,
+null and quoted digits are syntactically valid JSON values but have the wrong
+schema type and are likewise `Schema`. No host-language numeric coercion or
+implicit float conversion is permitted. These schema checks occur before
+sequence comparison.
 
 ### Required fields and emptiness
 
@@ -642,8 +662,8 @@ The portable verdict vocabulary is exactly:
 | --- | --- |
 | `ExternalKey` | supplied key text fails exact lowercase 64-hex syntax, exact 32-byte decoding, or any canonical RFC 8032 representation step: `y < p`, curve-point recovery, zero-`x` sign-bit validity, or byte-identical canonical re-encoding |
 | `Framing` | byte encoding, BOM, record terminator, empty record or other file/record framing violation |
-| `JsonSyntax` | one framed record is not exactly one syntactically valid JSON value |
-| `Schema` | wrong JSON shape/type, duplicate/unknown/missing member, invalid u64 token/range, invalid status/payload kind, invalid core/stored hex, null, or invalid decoded string |
+| `JsonSyntax` | one framed record is not exactly one syntactically valid JSON value, including a numeric-looking token forbidden by RFC 8259 such as `+1` or `01` |
+| `Schema` | wrong JSON shape/type, duplicate/unknown/missing member, syntactically valid JSON value/number that violates the u64 type/form/range law, invalid status/payload kind, invalid core/stored hex, null, or invalid decoded string |
 | `Sequence` | decoded `seq` differs from the zero-based record index |
 | `PreviousLink` | decoded `prev_hash` differs from the prior verified hash, including the all-zero genesis predecessor |
 | `ContentHash` | recomputed canonical `EventCore` hash differs from the stored hash |
@@ -727,15 +747,23 @@ Coordinates are:
 
 - `line`: one-based physical line, counted from raw bytes using LF/CRLF
   framing; and
-- `record_index`: zero-based index of the non-empty record that was being
-  processed.
+- `record_index`: zero-based index assigned to each non-zero-length framed
+  record candidate in physical order, before UTF-8 or JSON parsing.
 
-For a record-local rejection, both coordinates are present. Because empty
-records are forbidden, a valid prefix ordinarily has
-`line = record_index + 1`. A blank-record framing error has a physical line and
-no record index. An external-key rejection has neither. A byte-encoding error
-reports the physical line containing the first invalid byte where that line can
-be determined by raw terminators; otherwise its coordinates may be absent.
+A non-zero-length candidate receives its index even if it is whitespace-only,
+invalid UTF-8, malformed JSON or a JSON value followed by trailing garbage.
+Such a record-local rejection has both coordinates once raw LF/CRLF framing has
+identified the candidate. A zero-length framed slice, including LF-only input
+or a slice between terminators, is rejected before it becomes a candidate: it
+has a physical `line` and no `record_index`.
+An external-key rejection has neither coordinate. A framing defect that
+prevents a candidate boundary from being determined may omit `record_index`.
+
+For example, with two valid records followed by a third physical line
+containing only space/tab bytes, that line fails `Framing` with `line = 3` and
+`record_index = 2`. If the third physical line instead contains zero bytes
+between its surrounding terminators, it fails `Framing` with `line = 3` and no
+`record_index`. No later candidate is considered because first failure wins.
 
 The governed failure is the earliest failure under physical record order and
 the per-record stage order above. A tool may print later diagnostics for human
@@ -798,6 +826,11 @@ invalid UTF-8, duplicate members and line-ending cases MUST NOT be represented
 only as parsed JSON or regenerated before verification. The manifest MUST bind
 each file by SHA-256 so an editor or checkout conversion cannot silently change
 the test.
+
+The invalid-JSON integer spellings `+1` and `01` MUST be committed as literal
+token bytes rather than produced by a JSON serializer, which cannot emit them
+conformantly. N6's zero-length and whitespace-only cases likewise preserve the
+exact terminators, spaces and tabs whose coordinate behavior they test.
 
 The repository currently applies `*.jsonl text eol=lf`. The future
 implementation PR MUST add a path-specific `.gitattributes` override for every
@@ -894,17 +927,17 @@ law, and N30 contains both accepted and rejected framing variants.
 | N3 | wrong/odd length, non-hex, empty, whitespace, `0x` and Unicode-lookalike hex across each role; reject at its governed stage |
 | N4 | numeric status 0-4: `REJECT(Schema)` |
 | N5 | unknown/lowercase/mixed status, out-of-range/negative number, float, Boolean and null: `REJECT(Schema)` |
-| N6 | interior empty and whitespace-only record: `REJECT(Framing)` |
+| N6 | two distinct interior cases: a zero-length framed record is `REJECT(Framing)` with physical `line` present and `record_index` absent; a non-empty space/tab-only candidate is `REJECT(Framing)` with physical `line` and the next zero-based `record_index` present |
 | N7 | zero-byte input: `ACCEPT`, count 0, zero tip; LF-only input: `REJECT(Framing)` |
 | N8 | duplicate known key at top, core, provenance and payload/discriminator levels: `REJECT(Schema)` |
 | N9 | duplicate unknown key: `REJECT(Schema)` |
-| N10 | one unknown member at every governed object level: `REJECT(Schema)` |
-| N11 | malformed JSON, two values on one record and trailing garbage: `REJECT(JsonSyntax)` |
+| N10 | one unknown-member vector for each non-payload object shape (`SignedEvent`, `EventCore`, `Provenance`) and independently for each of the nine payload variants: `REJECT(Schema)` |
+| N11 | malformed JSON, two values on one record, trailing garbage, and invalid JSON numeral spellings in each u64 field—including `+1`, `+0`, `01` and `00`: `REJECT(JsonSyntax)` |
 | N12 | invalid UTF-8: `REJECT(Framing)`, not replacement or crash |
 | N13 | UTF-8 BOM: `REJECT(Framing)` |
 | N14 | `NaN`, `Infinity` and `-Infinity`, including in an unknown member: `REJECT(JsonSyntax)` |
-| N15 | fractional and exponent syntax for each u64 field: `REJECT(Schema)` |
-| N16 | u64 overflow, negative and `-0` for each u64 field: `REJECT(Schema)` |
+| N15 | syntactically valid JSON fractional and exponent forms for each u64 field—including `1.0`, `0.0`, `1e0`, `1E0`, `1e+0` and `1e-0`: `REJECT(Schema)` |
+| N16 | u64 overflow, negative integers, `-0`, Boolean, null and quoted digits for each u64 field: `REJECT(Schema)` |
 | N17 | for every required member coordinate in `SignedEvent`, `EventCore`, `Provenance` and each payload variant, omit that member individually while keeping the remainder structurally valid enough to isolate the omission: `REJECT(Schema)` |
 | N18 | for every required member coordinate in `SignedEvent`, `EventCore`, `Provenance` and each payload variant, replace that member individually with JSON null: `REJECT(Schema)` |
 | N19 | unknown, case-changed, numeric, missing and null payload kind: `REJECT(Schema)` |
@@ -918,7 +951,7 @@ law, and N30 contains both accepted and rejected framing variants.
 | N27 | correctly hashed/signed genesis key mismatch: `REJECT(Genesis)` |
 | N28 | all precedence pairs listed in the first-failure table, plus invalid core hex + sequence, payload + genesis and later multi-defect cases |
 | N29 | valid prefix followed by malformed, bad-link, bad-hash and bad-signature final records: reject at that final coordinate; no ACCEPT summary |
-| N30 | no final terminator, LF, CRLF and mixed LF/CRLF: ACCEPT when records are valid; extra final terminator, blank line and lone CR: `REJECT(Framing)` |
+| N30 | no final terminator, LF, CRLF and mixed LF/CRLF: ACCEPT when records are valid; extra final terminator, interior zero-length line, interior non-empty whitespace-only line and lone CR: `REJECT(Framing)`, with N6 governing the two interior-line coordinate shapes |
 
 Additional required negative families include duplicate member names expressed
 through escapes, case-changed member names, unpaired surrogates, wrong JSON
@@ -986,8 +1019,9 @@ closure is reconsidered.
 
 ### Exhaustive schema-coverage proof
 
-N17 and N18 are Cartesian coverage obligations, not representative sampling.
-The conformance metadata MUST maintain a machine-checkable expected set of
+N10, N17 and N18 share one mechanically checked schema inventory. N17 and N18
+are Cartesian member-coverage obligations, not representative sampling. The
+conformance metadata MUST maintain a machine-checkable expected set of
 required-member coordinates covering:
 
 - `SignedEvent.core`, `.hash` and `.signature`;
@@ -998,22 +1032,48 @@ required-member coordinates covering:
   payload variants listed in the normative schema.
 
 For every coordinate, the manifest MUST identify exactly one omission vector
-and exactly one null vector with expected `REJECT(Schema)`. The conformance
-runner MUST fail for a missing mutation, an ambiguous duplicate mapping, or a
-new governed payload/member absent from the expected coordinate set. This is
-test metadata only; it MUST NOT introduce a runtime schema registry or make the
-Magpie public API depend on the corpus inventory.
+and exactly one null vector with expected `REJECT(Schema)`.
+
+The same inventory MUST also maintain this exact N10 object-shape set:
+
+```text
+SignedEvent
+EventCore
+Provenance
+Payload.Genesis
+Payload.ClaimAsserted
+Payload.EvidenceRecorded
+Payload.ClaimStatusChanged
+Payload.Note
+Payload.SegmentAnchored
+Payload.ClaimAssertedV2
+Payload.EvidenceRegistered
+Payload.JustificationEdgeRecorded
+```
+
+For every shape in that set, the manifest MUST identify exactly one
+structurally isolated unknown-member vector with expected `REJECT(Schema)`.
+One vector per exact payload variant is sufficient; N10 does not require an
+unknown-member cross-product with every declared member. The inserted unknown
+name has no normative significance; the mutation must only use an actually
+unknown name and leave the remainder valid enough to isolate schema rejection.
+
+The conformance runner MUST fail for a missing N10 shape, a missing N17/N18
+mutation, an ambiguous duplicate mapping, or a new governed payload/member
+absent from the relevant expected set. This is test metadata only; it MUST NOT
+introduce a runtime schema registry or make the Magpie public API depend on the
+corpus inventory.
 
 The implementation MUST couple that expected set mechanically to the current
 Rust schema, for example through test-only exhaustive struct-field
 destructuring and exhaustive payload-variant matching with no wildcard or
 `..`. Adding a governed field or variant must therefore fail compilation or
-the conformance test until its coordinate and both mutations are added. An
-equally direct test-only mechanism is acceptable; a reviewer-maintained count
-alone is not.
+the conformance test until its required-member coordinates, omission/null
+mutations and payload-shape unknown-member vector are added. An equally direct
+test-only mechanism is acceptable; a reviewer-maintained count alone is not.
 
 Corpus authoring MAY generate these fixtures, but the reviewed, committed
-post-generation bytes are authoritative. All omission/null cases remain
+post-generation bytes are authoritative. All N10/N17/N18 cases remain
 SHA-256-bound exact-byte files and MUST NOT be generated independently at
 verifier runtime.
 
@@ -1038,7 +1098,7 @@ In addition, positive conformance MUST prove that the ordinary golden external
 key passes the complete canonical representation gate and re-encodes
 byte-identically, that K13-K15 exercise the positive canonical-point
 boundaries, that every new exact-byte case survives Git checkout
-byte-identically, and that the N17/N18 member-coordinate coverage assertion is
+byte-identically, and that the shared N10/N17/N18 schema-coverage assertion is
 complete. A sentinel assertion MUST prove that neither A21-D1 nor A21-D2 can
 be counted as a normative conformance pass before A-021 ratification.
 Acceptance of the exact golden and Deadbolt
@@ -1056,7 +1116,8 @@ particular it must address:
 
 - `FileStore` blank-line elision and exact terminator handling;
 - lowercase-only stored hash, previous hash and signature transport spelling;
-- duplicate and unknown members at all governed levels;
+- duplicate members at all governed levels and unknown members independently
+  in each governed payload variant as well as the non-payload object shapes;
 - raw JSON integer-token constraints;
 - stable class/coordinate mapping; and
 - the complete external-key representation gate before the selected
@@ -1428,12 +1489,18 @@ The future implementation PR must prove all of the following:
     mandatory dependency witnesses with no portable verdict yet.
 14. Effective Git attributes and fresh-checkout SHA-256s prove that every new
     exact-byte case survives checkout without normalization.
-15. A machine-checkable schema coordinate set proves one omission and one null
-    vector for every required member, with no missing or ambiguous coverage.
+15. One machine-checkable schema inventory proves an N10 unknown-member vector
+    for `SignedEvent`, `EventCore`, `Provenance` and every payload variant, plus
+    one N17 omission and one N18 null vector for every required member, with no
+    missing or ambiguous coverage.
 16. The runner prevents either A-021 sentinel from contributing to conformance
     pass totals, and full A-004/RQ-006 closure remains blocked until A-021 is
     ratified, implemented across all conformers and covered by activated
     normative signature-semantic vectors.
+17. Exact N6 fixtures prove the zero-length/no-index versus non-empty
+    whitespace/candidate-index distinction, and exact integer fixtures prove
+    `JsonSyntax` for non-JSON numeral spellings versus `Schema` for valid JSON
+    values that violate the u64 law.
 
 ## Hostile scenarios
 
@@ -1443,6 +1510,12 @@ An independent reviewer should attempt at least these attacks:
   differ;
 - express member names, statuses or hex through JSON escapes;
 - place `NaN` or invalid UTF-8 in an unknown member that a decoder might skip;
+- reject an unknown member for `Genesis` while silently accepting one for a
+  different payload variant such as `EvidenceRegistered`;
+- coerce `+1` or `01` and report `Schema` instead of the earlier
+  `JsonSyntax` failure;
+- collapse a non-empty space/tab-only candidate into the zero-length record
+  coordinate rule;
 - use Python's lone-CR/universal-newline behavior or checkout line conversion;
 - exploit Go's case-insensitive struct matching, duplicate-name handling or
   UTF-8 replacement;
@@ -1560,21 +1633,27 @@ living programme ledger.
       toward conformance totals until A-021 is ratified.
 - [ ] Exact frozen positive signatures remain accepted, without generalizing
       that result to every signature under the same key.
-- [ ] Duplicate names and unknown fields are rejected at every governed level.
+- [ ] Duplicate names are rejected at every governed level; N10 independently
+      covers unknown members in `SignedEvent`, `EventCore`, `Provenance` and
+      each of the nine payload variants through the shared schema inventory.
 - [ ] Invalid UTF-8, BOM, non-finite JSON and lone CR are decided explicitly.
 - [ ] Status is exact named-string JSON, not the canonical numeric byte tag.
 - [ ] Core/stored hex and payload hex stages are explicit.
-- [ ] Integer token syntax is stricter than host-language numeric coercion.
+- [ ] Invalid JSON numeral spellings such as `+1` and `01` are `JsonSyntax`;
+      valid JSON negatives, `-0`, fractions, exponents, overflow, Booleans,
+      null and quoted digits that violate the u64 law are `Schema`.
 - [ ] Every field and payload variant has an exact required-member set.
 - [ ] Payload semantic validation remains L0-only and has explicit precedence.
 - [ ] Stable classes, coordinates and multi-defect ordering are finite and
       deterministic.
+- [ ] N6 gives a zero-length record a physical line and no index, while a
+      non-empty whitespace-only candidate gets both its line and next index.
 - [ ] Positive results bind count, tip and ordered hashes.
 - [ ] Corpus cases are exact bytes with SHA-256 bindings.
 - [ ] A path-specific Git attribute prevents normalization of new hostile case
       bytes, and a fresh checkout proves every manifest hash.
-- [ ] N17/N18 cover omission and null for every required member coordinate,
-      with machine-checked completeness.
+- [ ] N10/N17/N18 share one machine-checked schema inventory: per-shape unknown
+      members plus omission/null for every required member coordinate.
 - [ ] Go is standalone, preferably standard-library-only, with no FFI/shared
       verifier logic.
 - [ ] Python is retained and tightened rather than deleted.

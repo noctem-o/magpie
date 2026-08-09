@@ -89,12 +89,17 @@ bytes.
 ## Selected contract summary
 
 - Zero bytes is an accepted empty snapshot with count 0 and zero tip; it makes
-  no Genesis/key-binding claim. LF-only input is a blank record and rejects.
-- LF and CRLF separators may be mixed; the final terminator is optional; blank
-  lines, extra final terminators and lone CR reject.
+  no Genesis/key-binding claim. LF-only input is a zero-length framed record
+  and rejects with a physical line but no `record_index`.
+- LF and CRLF separators may be mixed; the final terminator is optional;
+  zero-length lines, whitespace-only candidates, extra final terminators and
+  lone CR reject. A physically non-empty whitespace-only candidate receives
+  the next `record_index` before failing `Framing`.
 - Input is valid UTF-8 without BOM and contains exactly one JSON object per
   non-empty record.
-- Duplicate and unknown names reject at every governed object level.
+- Duplicate names reject at every governed object level. N10 independently
+  rejects an unknown member in `SignedEvent`, `EventCore`, `Provenance` and
+  each of the nine payload variants.
 - Key order, space/tab JSON whitespace and equivalent standard JSON string
   escapes are permitted; non-finite values and unpaired surrogates reject.
 - Every SignedEvent/core/provenance/payload variant has exact required,
@@ -115,8 +120,10 @@ bytes.
   ordinary-root signature-sensitive divergence without premature verdicts;
   they are witnesses, not an exhaustive A-021 classifier.
 - JSON statuses are exact named strings, never numeric aliases.
-- `seq` and `timestamp_nanos` are unsigned decimal integer tokens in u64 range,
-  with no sign, float, exponent, Boolean, null or string coercion.
+- JSON syntax is decided before the u64 schema. Invalid JSON numeral spellings
+  such as `+1` and `01` are `JsonSyntax`; syntactically valid negative, `-0`,
+  fractional, exponent, overflow, Boolean, null and quoted-digit values that
+  violate the selected u64 law are `Schema`. No coercion is permitted.
 - Payload kind and ADR-0002 vocabularies are closed and case-sensitive.
 - `metadata_json` remains an opaque string.
 - Existing canonical bytes, hash/signature messages, Genesis and frozen
@@ -155,6 +162,10 @@ The portable result binds ACCEPT/REJECT, first class, one-based physical line
 and zero-based record index where defined. ACCEPT also binds event count, tip
 and ordered recomputed hashes in the normative corpus. A dependency sentinel
 has no portable verdict yet and does not create a third runtime result.
+
+`record_index` counts non-zero-length framed candidates before UTF-8/JSON
+parsing. A zero-length record has a line and no index; a non-empty space/tab-only
+candidate has its line and next zero-based index. Both reject as `Framing`.
 
 The `Signature` stage remains in the ordering. For exact normative fixtures it
 uses the assigned expected result; for arbitrary well-shaped signatures its
@@ -260,6 +271,10 @@ Malformed, duplicate-key, invalid-UTF-8 and framing cases must never be
 represented only as parsed/reserialized JSON. The corpus must contain positive,
 negative and multi-defect precedence inputs.
 
+Invalid JSON numerals such as `+1` and `01`, and the zero-length versus
+space/tab-only N6 records, must be committed as exact literal bytes. They must
+not be normalized or produced independently by each conformer's serializer.
+
 ## Normative behavior matrix
 
 The complete discovered current-behavior table, selected future law, exact
@@ -273,10 +288,14 @@ Implement the full contract N1-N30 matrix, including:
 
 - case and width variants for every hex role;
 - numeric/unknown status;
-- blank, empty, BOM, UTF-8 and line-ending cases;
-- duplicate known/unknown and unknown members;
+- N6 zero-length and non-empty whitespace-only records with their distinct
+  line/index expectations, plus empty input, BOM, UTF-8 and line-ending cases;
+- duplicate known/unknown names and N10 unknown-member cases for
+  `SignedEvent`, `EventCore`, `Provenance` and each of the nine payload variants;
 - non-finite JSON, malformed JSON and wrong shapes;
-- u64 fractional, exponent, overflow, negative and coercion cases;
+- invalid JSON u64 spellings (`+1`, `+0`, `01`, `00`) as `JsonSyntax`, and
+  syntactically valid fraction, exponent, overflow, negative, `-0`, Boolean,
+  null and quoted-digit cases as `Schema`, covering both u64 fields;
 - for every required member coordinate in `SignedEvent`, `EventCore`,
   `Provenance` and all nine payload variants, one individual omission vector
   (N17) and one individual null vector (N18), each `REJECT(Schema)`;
@@ -313,19 +332,21 @@ as a normative pass or assign it a premature verdict. After A-021 is
 implemented by all conformers, both exact cases and any additional A-021
 vectors become normative under the selected relation.
 
-Schema coverage must be machine-checkable. Test metadata must enumerate the
-complete expected coordinate set (top/core/provenance plus `kind` and every
-additional member of every payload variant) and map each coordinate to exactly
-one omission and one null case. The runner fails on missing/ambiguous coverage
-or a new governed member absent from the inventory. This remains conformance
-metadata, not a runtime schema registry; committed SHA-bound case bytes are
-authoritative even if authoring is generated.
+Schema coverage must be machine-checkable through one shared inventory. N10
+must map each exact object shape—`SignedEvent`, `EventCore`, `Provenance` and
+each of the nine payload variants—to exactly one unknown-member case. N17/N18
+must separately map every required member coordinate (top/core/provenance plus
+`kind` and every additional payload member) to exactly one omission and one
+null case. The runner fails on missing or ambiguous mappings, or when a new
+payload variant lacks N10 coverage. This remains conformance metadata, not a
+runtime schema registry; committed SHA-bound case bytes are authoritative even
+if authoring is generated.
 
 Couple the expected coordinate set mechanically to the current Rust types with
 test-only exhaustive field destructuring/variant matching (or an equally
 direct non-runtime mechanism), so a new governed field or payload variant
-cannot compile or pass conformance until the inventory and both mutations are
-updated.
+cannot compile or pass conformance until the inventory, both member mutations
+and that variant's unknown-member case are updated.
 
 ## Positive proof obligations
 
@@ -342,8 +363,9 @@ Implement P1-P12:
 Additionally prove that the golden fixture key passes the complete
 canonical representation gate and re-encodes byte-identically, K13-K15 cover
 the positive RFC point boundaries, every new case survives Git checkout
-byte-identically, N17/N18 coverage is mechanically exhaustive, and both A-021
-witnesses are excluded from normative conformance totals pending ratification.
+byte-identically, shared N10/N17/N18 coverage is mechanically exhaustive, and
+both A-021 witnesses are excluded from normative conformance totals pending
+ratification.
 P6 binds exact normative signature fixtures and their exact signed messages;
 acceptance of a frozen signature does not define every signature under that
 key. P1-P12 must not be presented as a general Ed25519 verification law.
@@ -390,7 +412,9 @@ Python frozen-chain verifier commands
 all three conformers over every normative exact-byte manifest case
 dependency-sentinel classification that cannot masquerade as conformance
 Git attribute inspection plus fresh-checkout SHA-256 verification for every case
-machine-checkable omission/null coverage over every required schema coordinate
+machine-checkable N10 unknown-member coverage over every governed object shape
+machine-checkable N17/N18 omission/null coverage over every required member coordinate
+exact N6 line/index distinction and JsonSyntax-versus-Schema integer staging
 python tools/check_release_metadata.py
 git diff --check
 ```
@@ -422,8 +446,9 @@ and protected-file hashes.
 ## Independent review gate
 
 After the implementation, a reviewer independent of the author must attack
-duplicate handling, unknown fields, invalid UTF-8, host numeric coercion,
-parser aliases, multi-defect ordering, result coordinates, canonical hash
+duplicate handling, per-payload-variant unknown fields, invalid UTF-8, host
+numeric coercion and invalid numeral parsing, zero-length versus whitespace-only
+coordinates, parser aliases, multi-defect ordering, canonical hash
 drift, non-canonical point encodings, zero-`x` sign handling, accidental
 A21-D1/A21-D2 verdict assignment, generalization from golden signatures and Go
 implementation sharing. General tests are not a substitute for the exact
