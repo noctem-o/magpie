@@ -119,17 +119,18 @@ unique finding IDs. The individual IDs are covered mechanically in section 7.
 | Primary disposition | Finding IDs |
 | --- | ---: |
 | Confirmed | 26 |
-| Partially remediated | 3 |
+| Partially remediated | 4 |
 | Superseded | 0 |
 | Accepted debt | 0 |
 | Future implementation gate | 2 |
 | Scheduled | 0 |
-| Closed | 8 |
+| Closed | 7 |
 | **Total** | **39** |
 
-The principal convergence families are: sealed write capability and the closed
-raw-versus-verified replay projection boundary; status/precedence and
-currentness doctrine; cross-language grammar;
+The principal convergence families are: sealed write capability; the closed
+raw-versus-verified replay projection boundary and residual caller-controlled
+Deadbolt occurrence eligibility; status/precedence and currentness doctrine;
+cross-language grammar;
 closed wildcard-status evolution; closed synthetic projection status;
 projection failure and storage resource law; compatibility/raw standing;
 detached provenance coordinates;
@@ -142,15 +143,17 @@ status/precedence boundary and A-024. A-010 and A-022 retain
 constitutional future-gate significance: each prohibits premature
 implementation, but neither presently describes an implemented runtime that
 contradicts a completed deferred mechanism. High or P0 boundaries also remain
-in A-003, A-004, A-015, A-021, and RQ-006, with RQ-003
+in A-003, A-004, A-009, A-015, A-021, and RQ-006, with RQ-003
 retaining its authority-looking compatibility leak. A-005/RQ-005 and
 A-006/RQ-004 remain objectively Closed by their merged runtime and test
 evidence. A-001/RQ-001 is now also objectively Closed by the merged contract,
 runtime/API change, negative capability proofs, and preservation evidence
-recorded below. A-009/RQ-002 is likewise objectively Closed by the merged
-contract, wrapper-only runtime/API boundary, hostile type/lifetime proofs,
-one-snapshot failure-ordering tests, independent verification, and owner merge
-recorded below.
+recorded below. RQ-002 is objectively Closed by the merged wrapper-only
+runtime/API boundary, hostile type/lifetime proofs, one-snapshot
+failure-ordering tests, independent verification, and owner merge. A-009 is
+Partially remediated: the same change closes its raw-event projection bypass,
+but its separate caller-controlled Deadbolt occurrence eligibility input
+remains.
 
 The primary **Future implementation gate** disposition applies only to A-016
 and A-022. A-010 additionally carries a future currentness-implementation
@@ -175,7 +178,8 @@ in the row.
 | A-006 / RQ-004 | Episodic output now preserves `ClaimAssertedV2` as statusless. | Closed | intentional derived-projection correction; schema-versioned | `ClaimAssertedV2` maps to `claim_status: None`, while legacy `ClaimAsserted` and `ClaimStatusChanged` preserve exact signed status fields (`crates/magpie-episodic/src/lib.rs:271-366`). `SCHEMA_VERSION` is 3 (`:19`), and tests prove NULL canonical rows, exact legacy status retention, schema-v2 stale-row discard, caller-owned verified replay, fresh/rebuilt byte equality, and v3 reopen preservation (`crates/magpie-episodic/tests/episodic.rs:442-559`). | PR #112, merge `91ebb5d6a4f5ba99ad377c77eb96dc70bc829245`, changed derived episodic state and canonical bytes for tag 6, bumped schema/projection version 2 to 3, and added migration/replay regressions. | Closed; neighboring A-007/A-008/A-012 remain separate. |
 | A-007 / RQ-009 | Projection reuse and fallible episodic operations still lack a typed lifecycle/error boundary. | Confirmed | current availability defect; contained to derived state | `Projection::apply` remains infallible (`crates/magpie-log/src/logimpl.rs:623-624`); episodic transaction, insert, commit, and signed-range paths still use `expect`/panic (`crates/magpie-episodic/src/lib.rs:220-258,400-408`). | PR #118 changed projection input provenance only; projection fallibility and episodic failure semantics remain unchanged. | storage/resource contract |
 | A-008 / RQ-007 / RQ-008 | The storage seam still lacks a complete snapshot, durability, concurrency, framing, and outer resource law. | Confirmed | operational/resource debt; conditional under local use | `FileStore` writes record bytes and newline separately without sync or lock (`crates/magpie-log/src/store.rs:50-59`); `read_records` materializes the file and splits every line (`store.rs:36-47`); retained replay keeps the already-read record vector and parsed event vector in memory (`crates/magpie-log/src/logimpl.rs:198-210,294-307,540-565`). | PR #118 preserved one-snapshot replay and changed only the projection-input type-state; storage semantics and outer resource bounds remain unchanged. | storage/resource contract |
-| A-009 / RQ-002 | Raw `SignedEvent` values are structurally separated from verified replay projection input. | Closed | runtime/API remediation; intentional pre-1.0 source break | `SignedEvent` remains a public Clone/serde raw record (`crates/magpie-log/src/event.rs:330-336`) returned by writer append and raw inspection (`crates/magpie-log/src/logimpl.rs:411-445,482-511`). Public `VerifiedReplayEvent` has a private field, one private constructor, and only the public `event()` observer (`logimpl.rs:63-135`; re-export `crates/magpie-log/src/lib.rs:98-105`). `Projection::apply` accepts only `&VerifiedReplayEvent<'_>` (`logimpl.rs:587-624`), and no `events` alias exists. The sole constructor call follows complete retained-snapshot verification (`:533-571`). Compile-fail proofs cover private construction, conversion, deserialization, lifetime retention, raw/inspection/writer-returned apply, and summary/`verify_chain` blessing (`:75-119,138-181,490-528,591-622`); late signature/hash/link tests apply nothing (`crates/magpie-log/tests/chain.rs:354-452`). | PR #117, merge `99512b5eddd39ecc98e31e59173252da717f2fa2`, froze the documentation-only contract. PR #118, merge `c70c0fb28157212f0f73cef88bae116658c787f7`, implemented the runtime/API/test remediation and owner-merged the reviewed head `99e5b9f783ad78cce6fd4af419f6de6e8719fb25`. | Closed; reopen only if raw/caller-selected events can again enter the public projection boundary without complete replay verification. |
+| A-009 | Verified replay provenance is structurally enforced, but public Deadbolt occurrence eligibility remains caller-selected. | Partially remediated | raw-event bypass closed; caller-controlled policy-input remainder; contained public mechanics seam | The closed portion is structural: raw `SignedEvent` cannot satisfy `Projection::apply`, and only replay-created `VerifiedReplayEvent` crosses that boundary (`crates/magpie-log/src/logimpl.rs:63-135,533-571,587-624`). The open portion is independent: public `resolve_deadbolt_occurrence_context` still accepts `EvidenceKind` and `ClaimDomain`, checks the eligible values, but does not prove their provenance; its trusted-use documentation requires caller co-derivation (`crates/magpie-claims/src/deadbolt_context.rs:181-206`). The private composite standing projection derives standing and anchors from one verified replay (`crates/magpie-claims/src/replay_snapshot.rs:68-108`), so no governed-standing bypass is claimed. | PR #117 contracted the verified-replay portion. PR #118 structurally removed that raw projection bypass; the independent eligibility seam was unchanged. | Co-derive Deadbolt occurrence eligibility from the same typed claim/evidence metadata, or explicitly constrain the public helper to mechanics-only/untrusted use; do not infer authority from caller selection. |
+| RQ-002 | Raw `SignedEvent` and verified replay projection inputs are structurally distinct. | Closed | runtime/API remediation; intentional pre-1.0 source break | `SignedEvent` remains a public Clone/serde raw record (`crates/magpie-log/src/event.rs:330-336`) returned by writer append and raw inspection (`crates/magpie-log/src/logimpl.rs:411-445,482-511`). Public `VerifiedReplayEvent` has a private field, one private constructor, and only the public `event()` observer (`logimpl.rs:63-135`; re-export `crates/magpie-log/src/lib.rs:98-105`). `Projection::apply` accepts only `&VerifiedReplayEvent<'_>` (`logimpl.rs:587-624`), and no `events` alias exists. The sole constructor call follows complete retained-snapshot verification (`:533-571`). Compile-fail proofs cover private construction, conversion, deserialization, lifetime retention, raw/inspection/writer-returned apply, and summary/`verify_chain` blessing (`:75-119,138-181,490-528,591-622`); late signature/hash/link tests apply nothing (`crates/magpie-log/tests/chain.rs:354-452`). | PR #117, merge `99512b5eddd39ecc98e31e59173252da717f2fa2`, froze the documentation-only contract. PR #118, merge `c70c0fb28157212f0f73cef88bae116658c787f7`, implemented the runtime/API/test remediation and owner-merged the reviewed head `99e5b9f783ad78cce6fd4af419f6de6e8719fb25`. | Closed; reopen only if raw/caller-selected events can again enter the public projection boundary without complete replay verification. |
 | A-010 | Accepted currentness doctrine now exists, but resolver substrate, representation, eligibility, and algorithm identity remain future. | Partially remediated | constitutional; narrowed; future implementation gate | ADR-0006 defines coordinate-bound derived currentness and separates it from standing (`docs/adr/0006-claim-currency-and-currentness-semantics.md:3,111-137,356-385`); no currentness resolver implementation exists, and existing `StandingCurrentness` compatibility fields must not be reinterpreted. | PR #103 (`21067dc`) materially resolved the doctrine/status conflict and explicitly deferred runtime, encoding, eligibility, and identity details. | owner doctrine decision |
 | A-011 / RQ-015 | Dependency, CI, and release validation inputs remain insufficiently pinned/reviewed for semantic reproducibility. | Confirmed | process/release debt | `.github/workflows/ci.yml:13-18,23,52-60` uses moving toolchain/action/Python inputs; `Cargo.lock` pins Rust dependency resolution but not the external verifier environment; the release contract expects both verifier fixtures. | No CI or dependency change. | CI/release assurance |
 | A-012 / RQ-010 | A public episodic path can still drop same-named tables on schema mismatch without an ownership marker. | Confirmed | conditional; contained to derived storage | `EpisodicView::at_path` and its `user_version` mismatch branch remain at `crates/magpie-episodic/src/lib.rs:103-127`. | No storage-safety change. | storage/resource contract |
@@ -207,7 +211,7 @@ finding ID; family labels do not create additional findings.
 | A-006 | Episodic projection synthesizes `Conjectured` for statusless tag 6 | F06 | Closed | Tag 6 now projects NULL status and stale schema-v2 derived rows are rebuilt under schema v3. |
 | A-007 | Replay freshness and projection failure semantics are caller conventions | F07 | Confirmed | Reuse and infallible projection paths remain. |
 | A-008 | File durability, snapshot semantics, concurrency, and L0 resources are incomplete | F08 | Confirmed | Storage and outer resource law remain unspecified. |
-| A-009 | Public unverified projection APIs can look trusted | F09 | Closed | Raw `SignedEvent` no longer satisfies `Projection::apply`; only replay-created `VerifiedReplayEvent` crosses the public boundary. |
+| A-009 | Public unverified projection APIs can look trusted | F09 | Partially remediated | PR #118 closes the raw-event projection bypass, but the public Deadbolt occurrence resolver still accepts caller-selected eligibility kind/domain rather than co-deriving their provenance. |
 | A-010 | Currentness has doctrine/substrate divergence | F10 | Partially remediated | Accepted doctrine exists; resolver substrate remains future. |
 | A-011 | Dependency and review gates do not protect governed semantics fully | F11 | Confirmed | CI/release inputs and fixture gate remain insufficiently fixed. |
 | A-012 | Arbitrary SQLite path can trigger destructive derived migration | F12 | Confirmed | Public schema mismatch branch can drop tables. |
@@ -242,11 +246,12 @@ finding ID; family labels do not create additional findings.
 ## 8. Materially changed findings
 
 The following records capture every primary disposition marked Partially
-remediated, the four convergence families Closed by PRs #111/#112/#115/#118,
-and findings materially narrowed by documentation in PRs #103/#108-#110. PR
-#117 supplied the contract for the #118 closure but did not itself remediate
-runtime. Closure is based on current implementation and tests, not on ticket or
-PR prose alone.
+remediated, the three convergence families fully Closed by PRs #111/#112/#115,
+the RQ-002 closure and A-009 material partial remediation from PR #118, and
+findings materially narrowed by documentation in PRs #103/#108-#110. PR #117
+supplied the contract for the verified-replay slice but did not itself
+remediate runtime. Closure and partial remediation are based on current
+implementation and tests, not on ticket or PR prose alone.
 
 ### A-001 / RQ-001 — sole public L0 write capability
 
@@ -285,23 +290,29 @@ PR prose alone.
   store. Storage durability/resource semantics (A-008/RQ-007/RQ-008), exact
   compile-fail assurance elsewhere (A-018/RQ-013), generic admission (A-022),
   and authority-bound corroboration (A-024) remain separate. The later
-  A-009/RQ-002 projection-input closure is recorded independently below.
+  verified-replay projection-input remediation is recorded independently below.
 - Disposition basis: **Closed**. Current code structurally removes the entire
   audited public backend-append bypass while preserving typed supported writing
   and public read substitution. Reopen only if Magpie introduces another public
   non-`LogWriter` persistence path.
 
-### A-009 / RQ-002 — verified replay projection boundary
+### A-009 / RQ-002 — verified replay remediation and residual eligibility seam
 
-- Original audit conclusion: public `SignedEvent` was simultaneously raw,
-  caller-controlled historical material and the input to `Projection::apply`.
-  A caller could therefore drive authority-looking derived state manually
-  without complete chain replay verification.
+- Original audit conclusion: A-009 contained two public-boundary hazards.
+  First, public `SignedEvent` was simultaneously raw, caller-controlled
+  historical material and the input to `Projection::apply`, so a caller could
+  drive authority-looking derived state manually without complete chain replay
+  verification. Second, the public Deadbolt occurrence resolver accepted
+  caller-selected `EvidenceKind` and `ClaimDomain` eligibility inputs rather
+  than deriving their provenance from the target claim/evidence metadata.
+  RQ-002 covered the first, raw-versus-verified projection-compatible type
+  defect specifically.
 - Contract step: PR #117 merged as
-  `99512b5eddd39ecc98e31e59173252da717f2fa2`. It froze the selected type-state
-  topology: `SignedEvent` remains raw, while `VerifiedReplayEvent<'_>` is an
-  ephemeral replay-only projection input. This documentation-only step did not
-  itself remediate runtime.
+  `99512b5eddd39ecc98e31e59173252da717f2fa2`. It selected and froze the
+  verified-replay type-state slice: `SignedEvent` remains raw, while
+  `VerifiedReplayEvent<'_>` is an ephemeral replay-only projection input. This
+  documentation-only step did not itself remediate runtime or erase the second
+  historical A-009 scenario.
 - Runtime change: PR #118 merged as
   `c70c0fb28157212f0f73cef88bae116658c787f7`. It added public
   `VerifiedReplayEvent<'_>` with a private field and private constructor,
@@ -309,15 +320,15 @@ PR prose alone.
   inspection to `unverified_events()`, and removed `events()` without an alias.
   The sole constructor call is in the apply loop after the exact retained
   snapshot has completely verified.
-- Negative evidence: permanent N1-N10 compile-fail and structural proofs reject
-  raw `SignedEvent` application, raw `unverified_events` output, downstream
-  struct literals, deserialization, raw conversion, `verify_chain` blessing,
-  `VerifiedReplaySummary` blessing, and direct application of a correctly
-  signed writer-returned event. The common trait signature covers built-in and
-  custom projections; a repository-wide public-surface scan finds no raw apply
-  alias or adapter. The lifetime proof rejects retaining the borrowed wrapper
-  beyond its callback, while cloning `event.event()` yields only raw
-  `SignedEvent`.
+- Negative evidence for the resolved slice: permanent N1-N10 compile-fail and
+  structural proofs reject raw `SignedEvent` application, raw
+  `unverified_events` output, downstream struct literals, deserialization, raw
+  conversion, `verify_chain` blessing, `VerifiedReplaySummary` blessing, and
+  direct application of a correctly signed writer-returned event. The common
+  trait signature covers built-in and custom projections; a repository-wide
+  public-surface scan finds no raw apply alias or adapter. The lifetime proof
+  rejects retaining the borrowed wrapper beyond its callback, while cloning
+  `event.event()` yields only raw `SignedEvent`.
 - Positive preservation: a downstream-style custom `Projection` remains
   replay-driven; ClaimsView, StandingView, Deadbolt occurrence context, and
   episodic canonical bytes retain their valid-replay behavior; the private
@@ -326,6 +337,15 @@ PR prose alone.
   nothing and return no summary; successful summary count/tip identify the
   exact applied snapshot; and raw diagnostics remain available through
   `unverified_events()`.
+- Resolved portion: raw `SignedEvent` no longer crosses `Projection::apply`.
+  RQ-002 is fully closed, and the first A-009 scenario is closed.
+- Remaining A-009 portion: public `resolve_deadbolt_occurrence_context` still
+  receives `evidence_kind` and `claim_domain`. It checks the required enum
+  values but does not co-derive or prove their provenance, and its documentation
+  requires trusted callers to derive them consistently from the same target
+  metadata. The private composite used by governed standing replay derives the
+  relevant structures from one verified replay, so this contained mechanics
+  seam is not evidence of a current governed-standing bypass.
 - Canonical and trust boundary: FORMAT, `Payload`, `EventCore`, `SignedEvent`
   persisted shape, canonical encoding, hashes/signatures, genesis, and both
   frozen fixture histories are unchanged. Successful replay still depends on
@@ -335,10 +355,14 @@ PR prose alone.
   coordinates (A-019/RQ-011), trust-root policy (A-021), admission semantics
   (A-022), and authority-bound corroboration (A-024) remain distinct and
   unchanged.
-- Disposition basis: **Closed**. The entire audited raw-versus-verified
-  projection-compatible type seam is structurally removed from the supported
-  public Rust API. Reopen only if caller-selected raw events can again enter
-  the public projection boundary without complete replay verification.
+- Disposition basis: **RQ-002 is Closed** because its entire audited
+  raw-versus-verified projection-compatible type seam is structurally removed
+  from the supported public Rust API. Reopen RQ-002 only if caller-selected raw
+  events can again enter the public projection boundary without complete replay
+  verification. **A-009 is Partially remediated** because that same bypass is
+  removed while its separate eligibility-input seam remains. Close A-009 only
+  after that seam is objectively removed or its public mechanics-only/untrusted
+  semantics structurally eliminate the audited hazard.
 
 ### A-002 / RQ-014 — status and runtime handoff reconciliation
 
@@ -497,6 +521,16 @@ PR prose alone.
 These are the highest-priority surviving boundaries. This section records why
 they remain open and the owning layer; it does not design a fix.
 
+- **Caller-controlled Deadbolt occurrence eligibility — A-009 remainder.**
+  Verified replay provenance is now structurally enforced, and raw
+  `SignedEvent` cannot drive `Projection::apply`. The public occurrence
+  resolver nevertheless still accepts caller-selected `EvidenceKind` and
+  `ClaimDomain`; it checks those values but does not co-derive them from the
+  same claim/evidence metadata. Trusted use therefore still relies on caller
+  convention at this contained mechanics boundary. Private governed standing
+  paths derive the relevant structures from one verified replay and are not
+  claimed to be bypassed.
+
 - **Claimant-controlled corroboration separation — A-024.** The binding
   parser checks protocol-shaped labels, while the origin-admission fold copies
   claimant-selected groups and the v3 policy counts distinct groups. No
@@ -609,9 +643,10 @@ git diff --check
 
 The focused `magpie-log` command passed 47 unit/integration tests (3 library,
 27 chain, 4 Deadbolt-fixture, and 13 golden) plus all 19 documentation tests.
-Nine A-009/RQ-002 compile-fail cases cover the wrapper boundary and lifetime;
-direct metadata probes against the built public crate reproduced E0308 for raw
-apply, E0451 for struct-literal construction, E0277 for raw conversion and
+Nine verified-replay boundary compile-fail cases cover the wrapper boundary
+and lifetime. Direct metadata probes against the built public crate reproduced
+E0308 for raw apply, E0451 for struct-literal construction, E0277 for raw
+conversion and
 deserialization, E0599 for `verify_chain`/summary blessing, and the intended
 callback-lifetime failure. The focused standing snapshot suite passed all 5
 tests, including one-read changing-store behavior and same-witness composite
@@ -621,9 +656,9 @@ independent verified-replay byte identity and zero partial state on tampering.
 The full locked workspace suite passed with zero failures across every unit,
 integration, documentation, and compile-fail target; the `magpie-claims`
 documentation-test target reported 281 passed and the `magpie-log` target
-reported 19 passed. Passing tests support closure only together with the exact
-type/capability evidence above; unrelated hostile/resource/crash/differential
-gaps remain recorded.
+reported 19 passed. Passing tests support RQ-002 closure and the resolved
+A-009 portion only together with the exact type/capability evidence above;
+unrelated eligibility/hostile/resource/crash/differential gaps remain recorded.
 
 Formatting and workspace clippy with warnings denied passed. Rustdoc generation
 and generated-API inspection found public `VerifiedReplayEvent`, public
@@ -720,10 +755,10 @@ $futureIds = @($familyPrimary |
   Select-Object -ExpandProperty Id | Sort-Object)
 $statusMismatch = @($expected |
   Where-Object { $familyDisposition[$_] -ne $matrixDisposition[$_] })
-if ($confirmed -ne 26 -or $partial -ne 3 -or $future -ne 2 -or
-    $closed -ne 8 -or
+if ($confirmed -ne 26 -or $partial -ne 4 -or $future -ne 2 -or
+    $closed -ne 7 -or
     $other -ne 0 -or ($futureIds -join ',') -ne 'A-016,A-022' -or
-    $familyDisposition['A-009'] -ne 'Closed' -or
+    $familyDisposition['A-009'] -ne 'Partially remediated' -or
     $familyDisposition['RQ-002'] -ne 'Closed' -or
     $familyDisposition['A-019'] -ne 'Confirmed' -or
     $familyDisposition['RQ-011'] -ne 'Confirmed' -or
@@ -736,7 +771,7 @@ if ($confirmed -ne 26 -or $partial -ne 3 -or $future -ne 2 -or
     $familyDisposition['A-001'] -ne 'Closed' -or
     $familyDisposition['RQ-001'] -ne 'Closed' -or
     $statusMismatch.Count) { throw 'primary disposition check failed' }
-'dispositions: PASS; Confirmed=26, Partially remediated=3, Future implementation gate=2, Closed=8, Total=39'
+'dispositions: PASS; Confirmed=26, Partially remediated=4, Future implementation gate=2, Closed=7, Total=39'
 ```
 
 The disposition counts above are weighted by individual finding ID, not by
