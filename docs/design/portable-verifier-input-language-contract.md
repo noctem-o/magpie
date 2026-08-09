@@ -23,12 +23,23 @@ decision surface for a later implementation PR.
 A-004 and RQ-006 remain **Confirmed** until all of the following have happened:
 
 1. this contract is owner-merged;
-2. the exact-byte conformance corpus and the Rust, Go and Python changes land;
-3. the three implementations demonstrate equivalent governed verdicts over
-   the complete corpus;
-4. an independent hostile review completes;
-5. the human owner merges the implementation; and
-6. the living audit ledger is reconciled separately.
+2. the exact-byte conformance corpus and the Rust, Go and Python work that is
+   independent of A-021 land;
+3. the owner ratifies A-021's signature-verification semantics for
+   representation-valid weak/low-order external roots;
+4. all three conformers implement that A-021 decision and activate hostile
+   cross-language vectors for it;
+5. the three implementations demonstrate equivalent governed verdicts over
+   the complete normative corpus, including those activated vectors;
+6. an independent hostile review completes;
+7. the human owner merges the complete implementation tranche or tranches;
+   and
+8. the living audit ledger is reconciled separately.
+
+Grammar alignment, green ordinary-key fixtures, canonical point decoding and
+the N1-N30 matrix are not sufficient by themselves for full A-004/RQ-006
+closure. A-021 is a hard prerequisite to the universal signature-verification
+equivalence claim.
 
 The future corpus will also improve the evidence owned by RQ-013, but it will
 not close RQ-013's separate resource, crash and exact-boundary assurance gaps.
@@ -36,7 +47,8 @@ not close RQ-013's separate resource, crash and exact-boundary assurance gaps.
 ## Purpose
 
 Define one portable language for Magpie's reference JSONL verification
-interface and one cross-language verdict law:
+interface and one cross-language verdict law over its governed conformance
+domain:
 
 ```text
                          reviewed Magpie contract
@@ -47,7 +59,7 @@ interface and one cross-language verdict law:
                  |                 |                 |
               Rust               Go              Python
            production        independent         readable
-           conformer       release conformer     reference
+           conformer       oracle candidate      reference
                  |                 |                 |
                  +-----------------+-----------------+
                                    |
@@ -60,16 +72,39 @@ No implementation defines this language. Rust's `serde_json`, Python's
 `json`, and Go's future `encoding/json` are implementation tools whose defaults
 must be constrained where they differ from this contract.
 
-The portable invariant is:
+The portable invariant is deliberately conditional.
+
+For the current governed conformance domain:
 
 ```text
 same exact input bytes
-+ same supplied external verifying key
++ same canonical representation-valid external verifying key
++ a normative corpus case that does not engage the unresolved A-021
+  ordinary-versus-strict verification choice
 + this reviewed contract and corpus version
 = same ACCEPT/REJECT verdict
 + same first-failure class
 + same failure coordinate where one is defined
++ same successful count, tip and ordered hashes
 ```
+
+That domain is defined operationally by the normative corpus, not by a new
+runtime key classifier. It includes the ordinary frozen fixture keys.
+Representation-invalid keys are governed by `ExternalKey`. Known
+representation-valid weak/low-order roots that expose an ordinary-versus-strict
+verification difference are A-021 dependency sentinels and are outside the
+present portable-verdict claim.
+
+For that A-021 dependency domain, this contract does **not** yet define a
+portable signature-verification ACCEPT or REJECT result. It does not silently
+inherit Rust, Python or Go behavior and does not label either ordinary or
+strict verification non-conforming. This is a limitation of the reviewed
+contract's proof domain, not a third runtime result: conformer result vocabulary
+for governed cases remains only `ACCEPT` or `REJECT`.
+
+This contract does not claim to classify every possible representation-valid
+key as A-021-neutral or A-021-sensitive. Such a classifier would itself be an
+unreviewed cryptographic-policy decision.
 
 Language-specific diagnostic prose, stack traces and exception names are not
 part of the invariant.
@@ -173,14 +208,25 @@ Current source control flow corroborates the probes:
 - Python performs payload validation while constructing canonical bytes; and
 - Python continues after failures, while Rust returns its first error.
 
-The review-remediation probe against locked `ed25519-dalek` 2.2.0 established
-that `0200000000000000000000000000000000000000000000000000000000000000`
+The first review-remediation probe against locked `ed25519-dalek` 2.2.0
+established that
+`0200000000000000000000000000000000000000000000000000000000000000`
 fails `VerifyingKey::from_bytes`, while the all-zero encoding is representable
 and reported weak and the golden fixture key is representable and non-weak.
 The current Python `cryptography` constructor accepts the representation-invalid
 `02...00` bytes. This proves that representation decoding and weak-key policy
 are separate decisions and that length/hex checks alone cannot govern portable
-entry into verification. The temporary probe was not retained.
+entry into verification.
+
+The second review pass exposed a finer representation difference. The locked
+`ed25519-dalek` source says `VerifyingKey::from_bytes` uses ZIP-215 point
+validation rather than RFC 8032/NIST criteria. A throwaway probe confirmed that
+it accepts the non-canonical encodings `y = p`
+(`edff...ff7f`), `y = p + 1` (`eeff...ff7f`), and the identity point encoded
+with sign bit 1 (`01` followed by zero bytes and a final `80`). RFC 8032
+section 5.1.3 rejects those encodings. The portable representation law below
+therefore cannot be defined as “whatever `VerifyingKey::from_bytes` accepts.”
+The temporary probes were not retained.
 
 ## Current implementations and future roles
 
@@ -191,10 +237,13 @@ conformer. Its current serde and file-splitting behavior is evidence, not law.
 
 ### Go
 
-Go is selected for the future independent, release-grade verifier. It will be
-a small standalone local command, preferably standard-library-only, with no
-network access and no dependency on either existing implementation. Its role
-is frozen below; no Go code or module exists in this PR.
+Go is selected for the future independent verifier and release-oracle
+candidate. It will be a small standalone local command, preferably
+standard-library-only, with no network access and no dependency on either
+existing implementation. It cannot be described as a universally equivalent
+release oracle across all external keys until A-021's verification semantics
+are owner-ratified and implemented. Its role is frozen below; no Go code or
+module exists in this PR.
 
 ### Python
 
@@ -243,7 +292,9 @@ describes only the future reference-input language; it is not a
 | payload hex | uppercase/wrong-length witness root or non-empty typed `content_hash` | Rust can reach hash mismatch before payload validation | Python payload canonicalization rejects first | lowercase exact width; typed content hash may be empty | FORMAT tags 5-8 and Ticket 0010 pin these rules | string is decoded as a field; governed lexical validity is `PayloadValidation` after signature | aligns precedence with FORMAT/Rust chain order | N1/N3/N28 |
 | genesis key | changed uppercase or malformed genesis-declared key | typed string; hash/signature can fail first, then key binding | payload canonicalization accepts string; hash/signature can fail first, then genesis equality | 64 lowercase hex | FORMAT genesis spelling and key binding | after prior checks, require 64 lowercase hex and equality; failures are `Genesis` | explicit law | N3/N27 |
 | external key | uppercase/mixed-case CLI key | not applicable: Rust production receives typed key bytes, not CLI text | Python lowercases then accepts | release commands use lowercase | external trust selection is separate from lexical transport | portable CLI requires exactly 64 lowercase ASCII hex; invalid input is `ExternalKey` | Python CLI narrows; no A-021 decision | K1-K3 |
-| external key | exact lowercase 64 hex whose 32 bytes do not decode as an Edwards25519 compressed point, for example `0200000000000000000000000000000000000000000000000000000000000000` | `ed25519_dalek::VerifyingKey::from_bytes` rejects before `LogReader::open` | the current `cryptography` constructor accepts this 32-byte value; zero-byte input then reaches Python's separate no-genesis rejection | writer/release fixture keys are representable | the production API requires a representable verification key; trust in that key remains external | `REJECT(ExternalKey)` before framing or empty-snapshot handling | makes representation validity portable without deciding weak-key policy | K4-K5 |
+| external key | exact lowercase 64 hex whose 32 bytes do not encode an RFC 8032 Edwards25519 point, for example `0200000000000000000000000000000000000000000000000000000000000000` | `ed25519_dalek::VerifyingKey::from_bytes` rejects this example before `LogReader::open` | the current `cryptography` constructor accepts this 32-byte value; zero-byte input then reaches Python's separate no-genesis rejection | writer/release fixture keys are canonically representable | the portable interface needs one explicit representation law; trust in that key remains external | `REJECT(ExternalKey)` before framing or empty-snapshot handling | makes representation validity portable without deciding weak-key policy | K4-K5, K11 |
+| external key | non-canonical compressed-point encodings: `y >= p` or recovered `x = 0` with sign bit 1 | locked `ed25519-dalek` 2.2.0 ZIP-215 decoding accepts the probed boundary forms | host-library acceptance is not a portable promise | never writer-emitted; frozen fixture keys are canonical | RFC 8032 section 5.1.3 defines canonical decoding independently of host reduction behavior | `REJECT(ExternalKey)` before framing; require exact boundary vectors and canonical re-encoding | narrows incidental Rust constructor language; no canonical event-byte change | K9-K15 |
+| signature semantics | known canonical low-order root `ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f` plus attacker-constructed signatures | current Rust uses ordinary verification, which accepts the audited construction | current Python experiment accepted the forged chain; a future strict conformer may reject | not an ordinary fixture root | preserved A-021 proves ordinary/strict divergence and owns the unresolved policy | mandatory dependency sentinel with no portable verdict until A-021 is ratified | prevents false universal-equivalence claim; no runtime third result | A21-D1 |
 | status | exact `Open`, `Conjectured`, `Supported`, `Settled`, `Refuted` strings | accepted as enum; changed signed value later fails hash | accepted | named string | serde writer and frozen fixture use names; FORMAT numeric tags describe canonical bytes | exact case-sensitive strings only | preserve writer language | status positives |
 | status | integers 0-4, especially `1` replacing `"Conjectured"` | REJECT schema | accepts; `1` verifies unchanged canonical bytes | named string | no release promise of numeric JSON status | REJECT `Schema` | Python narrows | N4 |
 | status | unknown/lowercase/mixed string, out-of-range/negative integer, float, Boolean or null | REJECT | REJECT, with varying parse/canonicalization paths | exact named string | closed status vocabulary | REJECT `Schema` | stabilize class | N5 |
@@ -389,10 +440,28 @@ The portable verifier MUST complete these steps, in order, before framing or
 processing any record:
 
 1. require exactly 64 lowercase ASCII hex characters;
-2. decode exactly 32 bytes; and
-3. interpret those bytes as the 32-byte compressed Edwards-Y representation
-   used for an Ed25519 public key and require Edwards25519 point decompression
-   to succeed.
+2. decode exactly 32 octets;
+3. interpret those octets as the standard RFC 8032 compressed Edwards25519
+   representation: bits 0 through 254 encode `y` as a little-endian integer,
+   and bit 255 is `x_0`, the least-significant bit of the recovered
+   `x` coordinate;
+4. before field interpretation, require the encoded integer `y` to satisfy
+   `0 <= y < p`, where `p = 2^255 - 19`; reduction of `y >= p` modulo `p`
+   MUST NOT make an encoding acceptable;
+5. recover `x` from the Edwards25519 curve equation
+   `x^2 = (y^2 - 1) / (d*y^2 + 1) mod p`, where
+   `d = -121665/121666 mod p`, using the RFC 8032 section 5.1.3 decoding law;
+6. reject when the required square root does not exist;
+7. reject when recovered `x = 0` and `x_0 = 1`; otherwise choose the root
+   whose least-significant bit equals `x_0`; and
+8. encode the recovered point by RFC 8032 section 5.1.2 and require the
+   resulting 32 octets to equal the supplied 32 octets byte-for-byte.
+
+The governing point algorithms are
+[RFC 8032 section 5.1.2](https://www.rfc-editor.org/rfc/rfc8032#section-5.1.2)
+and
+[section 5.1.3](https://www.rfc-editor.org/rfc/rfc8032#section-5.1.3),
+not a host library's broader decoding profile.
 
 Failure at any step is `REJECT(ExternalKey)` with no line and no
 `record_index`. In particular, a representation-invalid key plus zero input is
@@ -401,18 +470,21 @@ evaluated only after the complete key gate succeeds.
 
 This representation rule is contract-owned. It is not defined by
 `ed25519-dalek`, Go's ability to store an arbitrary 32-byte slice, or Python's
-constructor defaults. The current Rust evidence is that
-locked `ed25519-dalek` 2.2.0 `VerifyingKey::from_bytes` performs fallible
-Edwards-point decompression; the future conformers MUST implement the same
-contract-level representation law.
+constructor defaults. Locked `ed25519-dalek` 2.2.0 explicitly documents its
+`VerifyingKey::from_bytes` rule as ZIP-215 rather than RFC 8032/NIST point
+validation, and its reduction-oriented decompression accepts the probed
+`y >= p` and zero-`x` sign-bit encodings. The future Rust path therefore needs
+an explicit canonical gate in addition to the host constructor. Every
+conformer MUST independently reproduce the eight contract steps above.
 
-Representation validity stops at successful point decompression. It does not
-reject a representable key because it is small-order, low-order, weak,
-untrusted, unauthorized, stale or owned by an unexpected actor. Such a key
-passes this A-004/RQ-006 layer; A-021 continues to own whether it is admissible
-as a trust root and whether strict Ed25519 verification is required. Therefore
-“representation-valid” MUST NOT be shortened to an authority claim such as
-“trusted key.”
+Representation validity stops at successful canonical RFC 8032 point decoding
+and byte-identical re-encoding. It does not reject a canonical key because it
+is small-order, low-order, weak, untrusted, unauthorized, stale or owned by an
+unexpected actor. A canonical low-order key can therefore pass this gate while
+remaining in the A-021 dependency domain. A-021 continues to own whether such
+a root is admissible and whether ordinary or strict Ed25519 verification is
+required. “Representation-valid” MUST NOT be shortened to an authority claim
+such as “trusted key.”
 
 ### Status representation
 
@@ -534,6 +606,12 @@ For a non-empty input:
 The empty-snapshot acceptance rule is deliberately separate: there is no
 record, Genesis, signature or key-binding claim to make.
 
+The signature bullet governs normative cases in the current portable
+conformance domain. For the A-021 dependency sentinel, “Ed25519 verifies” is
+the disputed term: this contract does not choose ordinary or strict
+verification and therefore assigns no portable verdict until A-021 is
+owner-ratified.
+
 ## First-failure law
 
 ### Stable rejection classes
@@ -542,14 +620,14 @@ The portable verdict vocabulary is exactly:
 
 | Class | Meaning |
 | --- | --- |
-| `ExternalKey` | supplied key text fails exact lowercase 64-hex syntax, exact 32-byte decoding, or the required compressed Edwards25519 point-decompression/representation step |
+| `ExternalKey` | supplied key text fails exact lowercase 64-hex syntax, exact 32-byte decoding, or any canonical RFC 8032 representation step: `y < p`, curve-point recovery, zero-`x` sign-bit validity, or byte-identical canonical re-encoding |
 | `Framing` | byte encoding, BOM, record terminator, empty record or other file/record framing violation |
 | `JsonSyntax` | one framed record is not exactly one syntactically valid JSON value |
 | `Schema` | wrong JSON shape/type, duplicate/unknown/missing member, invalid u64 token/range, invalid status/payload kind, invalid core/stored hex, null, or invalid decoded string |
 | `Sequence` | decoded `seq` differs from the zero-based record index |
 | `PreviousLink` | decoded `prev_hash` differs from the prior verified hash, including the all-zero genesis predecessor |
 | `ContentHash` | recomputed canonical `EventCore` hash differs from the stored hash |
-| `Signature` | well-shaped signature does not verify over the exact domain-separated message |
+| `Signature` | for a governed conformance case, a well-shaped signature does not verify over the exact domain-separated message under the applicable reviewed semantics |
 | `PayloadValidation` | typed payload violates a non-empty, closed-vocabulary, witness-root or optional-content-hash rule |
 | `Genesis` | Genesis position, profile, declared-key lexical shape or declared/external key binding is wrong |
 
@@ -655,6 +733,11 @@ REJECT {
 }
 ```
 
+These are the only runtime result forms for inputs governed by the contract.
+The A-021 dependency sentinel has no normative portable result yet; that
+specification gap does not add `UNKNOWN`, `DEFERRED`, `UNSUPPORTED` or any
+other third result to a conformer's interface.
+
 For non-empty accepted input, `event_count` is the exact number of verified
 records and `tip` is the recomputed hash of the last record. For the accepted
 empty snapshot, `event_count = 0` and `tip` is 64 zero characters.
@@ -717,10 +800,29 @@ show that the CRLF case retains CRLF, the mixed-EOL case retains both forms,
 the no-final-terminator case remains unterminated, invalid UTF-8 remains exact,
 no BOM or newline is inserted, and reading the corpus leaves Git status clean.
 
+### Normative cases and dependency sentinels
+
+The corpus metadata MUST place every entry in exactly one of two disjoint,
+machine-detectable categories:
+
+1. **Normative conformance case.** The case has an expected `ACCEPT` or
+   `REJECT` result and participates in conformance totals.
+2. **Dependency sentinel.** The case records a known unresolved dependency and
+   has no portable expected verdict. It MUST NOT be counted as a passing
+   ordinary conformance case or used to claim complete equivalence.
+
+The exact metadata field spelling is an implementation detail, but the runner
+MUST reject ambiguous categorization, a sentinel carrying a premature
+portable verdict, or a sentinel included in normative pass totals. The current
+mandatory sentinel is A21-D1 below. After an owner-ratified A-021 decision is
+implemented by every conformer, A21-D1 MUST migrate into the normative set with
+the selected expected result and ordinary hostile-vector assertions. This is
+conformance-test metadata, not a runtime profile or a third verifier result.
+
 ### Manifest model
 
-`manifest.json` is test metadata, not a signed Magpie history. Each case entry
-MUST contain:
+`manifest.json` is test metadata, not a signed Magpie history. Each normative
+case entry MUST contain:
 
 ```text
 id
@@ -745,6 +847,12 @@ ordered recomputed event hashes
 The ordered hashes let the corpus prove canonical-byte and signed-message
 equivalence, not merely a final Boolean. P1 and P2 MUST reference the existing
 golden and Deadbolt files in place and assert their existing SHA-256 identities.
+
+A dependency-sentinel entry MUST at least bind its ID, exact input path and
+SHA-256, exact external-key text, owning dependency, and purpose/evidence. It
+MUST be structurally distinguishable from the expected-verdict entries above
+and MUST NOT supply an A-004/RQ-006 portable verdict before its dependency is
+ratified.
 
 ### Required negative and hostile matrix
 
@@ -800,14 +908,45 @@ N1-N30:
 | K1 | malformed-length external key text: `REJECT(ExternalKey)` |
 | K2 | uppercase and mixed-case external key text: `REJECT(ExternalKey)` |
 | K3 | non-hex external key text: `REJECT(ExternalKey)` |
-| K4 | exact lowercase 64 hex / 32 bytes that fail compressed-point representation decoding: `REJECT(ExternalKey)` with no coordinates |
+| K4 | exact lowercase 64 hex / 32 bytes that fail canonical compressed-point representation decoding: `REJECT(ExternalKey)` with no coordinates |
 | K5 | K4 key plus zero-byte input: `REJECT(ExternalKey)` with no coordinates |
-| K6 | representation-valid ordinary fixture key passes the complete key gate |
-| K7 | representation-valid golden-fixture key plus the normal golden fixture: `ACCEPT` |
-| K8 | if a weak/low-order but representation-valid key is included, classify it only as an A-021 non-decision; this contract does not select trust admissibility or strict verification |
+| K6 | canonical representation-valid ordinary fixture key passes the complete key gate |
+| K7 | canonical representation-valid golden-fixture key plus the normal golden fixture: `ACCEPT` |
+| K9 | encoded `y = p`, exact bytes `edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f`: `REJECT(ExternalKey)` |
+| K10 | encoded `y = p + 1`, exact bytes `eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f`: `REJECT(ExternalKey)`; field reduction must not accept it |
+| K11 | canonical `y` with no recoverable Edwards25519 square root, including exact bytes `0200000000000000000000000000000000000000000000000000000000000000`: `REJECT(ExternalKey)` |
+| K12 | identity point `y = 1`, recovered `x = 0`, sign bit 1, exact bytes `0100000000000000000000000000000000000000000000000000000000000080`: `REJECT(ExternalKey)` |
+| K13 | the same identity point with sign bit 0, exact bytes `0100000000000000000000000000000000000000000000000000000000000000`: representation gate succeeds and canonical re-encoding is byte-identical |
+| K14 | ordinary golden-fixture key `ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c`: representation gate succeeds and canonical re-encoding is byte-identical |
+| K15 | a valid `x != 0`, sign-bit-1 encoding, including `ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d2ac`: representation gate succeeds and canonical re-encoding is byte-identical |
 
-K4 MUST use committed exact text with a documented point-decompression failure,
+K4 MUST use committed exact text with a documented point-recovery failure,
 not merely a test double that forces a constructor error.
+
+K9-K15 MUST likewise use committed exact key bytes and independently check the
+RFC 8032 representation algorithm; host-constructor acceptance and
+`VerifyingKey::to_bytes()` preserving its stored input are not proof of
+canonical re-encoding.
+
+### Mandatory A-021 dependency sentinel
+
+The former optional K8 idea is replaced by this mandatory, non-conformance
+sentinel:
+
+| ID | Required sentinel |
+| --- | --- |
+| A21-D1 | canonical representation-valid low-order root `ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f` plus committed exact attacker-constructed two-record chain bytes reproducing the preserved A-021 scenario |
+
+Its purpose is to preserve executable evidence that ordinary and strict
+Ed25519 verification can disagree and to prevent accidental claims of
+universal signature equivalence. Its expected portable verdict is **none yet**:
+the future corpus MUST NOT assign ACCEPT or REJECT, class, coordinate or
+success summary to A21-D1 until A-021 selects the signature-verification law.
+The implementation may record the observed ordinary/strict divergence as
+sentinel evidence, but neither observation is normative here. After A-021 is
+owner-ratified, this exact sentinel MUST become a normative hostile vector with
+the selected expected result and must pass across Rust, Go and Python before
+full A-004/RQ-006 closure is reconsidered.
 
 ### Exhaustive schema-coverage proof
 
@@ -848,10 +987,10 @@ verifier runtime.
 | --- | --- |
 | P1 | existing golden chain is accepted identically and unchanged |
 | P2 | existing Deadbolt anchor chain is accepted identically and unchanged |
-| P3 | Rust, Go and Python return the same event count |
-| P4 | Rust, Go and Python return the same final tip |
-| P5 | every valid record yields the same ordered canonical hash in all implementations |
-| P6 | every signature verifies against the same exact `magpie-sig-v1` message |
+| P3 | for every normative accepted case, Rust, Go and Python return the same event count |
+| P4 | for every normative accepted case, Rust, Go and Python return the same final tip |
+| P5 | every valid record in the normative corpus yields the same ordered canonical hash in all implementations |
+| P6 | every signature in the current governed domain verifies against the same exact `magpie-sig-v1` message; A21-D1 remains outside this claim until ratification |
 | P7 | permitted object-member reordering preserves the result |
 | P8 | permitted space/tab and standard string-escape variants preserve the result |
 | P9 | permitted final-terminator, LF, CRLF and mixed-LF/CRLF variants behave identically |
@@ -860,9 +999,12 @@ verifier runtime.
 | P12 | frozen golden and Deadbolt fixture bytes remain byte-identical |
 
 In addition, positive conformance MUST prove that the ordinary golden external
-key passes the complete representation gate, that every new exact-byte case
-survives Git checkout byte-identically, and that the N17/N18 member-coordinate
-coverage assertion is complete.
+key passes the complete canonical representation gate and re-encodes
+byte-identically, that K13-K15 exercise the positive canonical-point
+boundaries, that every new exact-byte case survives Git checkout
+byte-identically, and that the N17/N18 member-coordinate coverage assertion is
+complete. A separate sentinel assertion MUST prove that A21-D1 cannot be
+counted as a normative conformance pass before A-021 ratification.
 
 The corpus MUST contain positive, negative and multi-defect precedence cases.
 A comparison of final exit status alone is insufficient.
@@ -881,6 +1023,16 @@ particular it must address:
 - the complete external-key representation gate before the selected
   empty-snapshot result.
 
+Because a locked-dalek `VerifyingKey` can retain a ZIP-215 representation that
+fails this canonical law, the real Rust path or its portable entry adapter MUST
+validate `VerifyingKey::as_bytes()` under the contract before reading the
+snapshot. Successful construction of the Rust type is not sufficient.
+
+Rust's current ordinary signature verification is runtime evidence, not an
+A-021 decision. Work independent of A-021 may align the normative ordinary-key
+corpus, but the implementation MUST NOT claim universal key-domain equivalence
+until the owner-ratified A-021 semantics are applied.
+
 The existing `magpie-core-v1` canonical encoder and cryptographic operations
 remain the production implementation. Their outputs MUST be compared with the
 independent implementations. Serde defaults are insufficient evidence of
@@ -894,7 +1046,9 @@ conformance result or small tool adapter is preferred over broadening
 ## Go independent-verifier obligation
 
 The future Go verifier is an independently implemented portable verifier and
-release-oracle candidate. The smallest repository-consistent handoff is a
+release-oracle candidate. It is not yet a universally equivalent release
+oracle across all external keys; that status depends on the A-021 gate below.
+The smallest repository-consistent handoff is a
 self-contained command directory under:
 
 ```text
@@ -925,11 +1079,15 @@ default expectation, not a permission to inherit parser defaults.
 
 Go's ability to hold an arbitrary 32-byte `ed25519.PublicKey` MUST NOT bypass
 the portable point-representation gate. If the Go standard library exposes no
-equivalent point-decompression predicate, the implementation MUST enforce the
-contract-owned representation rule independently or STOP for owner review
-before adding a dependency or weakening the rule. This contract authorizes no
-third-party Go dependency; standard-library-only remains preferred where
-feasible.
+equivalent RFC 8032 canonical decoding predicate, the implementation MUST
+enforce `y < p`, point recovery, the zero-`x` sign rule and canonical
+re-encoding independently or STOP for owner review before adding a dependency
+or weakening the rule. This contract authorizes no third-party Go dependency;
+standard-library-only remains preferred where feasible.
+
+Go MUST NOT make its own ordinary-versus-strict choice normative for A21-D1.
+It can run the current normative corpus while A-021 is pending, but remains a
+release-oracle candidate rather than proof of universal signature equivalence.
 
 In particular, the Go implementation must explicitly check UTF-8 before JSON
 decoding, duplicate names, unknown members, exact case, trailing JSON values,
@@ -961,6 +1119,10 @@ parser behavior explicit. At minimum it must:
 
 Python may continue to depend on `cryptography`. Version pinning and toolchain
 reproducibility remain RQ-015, outside this contract.
+
+Python's current ordinary-compatible verification behavior is likewise
+evidence, not the A-021 law. Tightening its grammar or point representation
+does not authorize it to settle A21-D1.
 
 ## Implementation independence law
 
@@ -1019,6 +1181,8 @@ The future implementation intentionally narrows incidental transport behavior:
 - Python will turn invalid UTF-8 into governed rejection rather than an
   uncaught exception.
 - Python will move payload semantic validation after hash/signature checks.
+- The portable Rust entry will reject RFC 8032-noncanonical external-key
+  encodings that locked-dalek's ZIP-215 constructor currently represents.
 
 Python will broaden one behavior: zero bytes becomes an accepted empty
 snapshot with count 0 and zero tip, but only after the supplied external key
@@ -1030,6 +1194,9 @@ These are pre-1.0 reference-input-language compatibility changes. They are not
 canonical format changes and MUST NOT be described as a new
 `magpie-core-v1` profile.
 
+No compatibility result in this contract selects ordinary or strict signature
+verification for A21-D1; that remains the separately reviewed A-021 decision.
+
 ## Trust-root boundary
 
 The external verifying key remains selected outside the history. Successful
@@ -1039,12 +1206,37 @@ trusted actor, is current, is authorized or is cryptographically strong under
 any additional policy.
 
 This contract governs the portable textual key spelling, exact decoding,
-compressed-point representation validity and equality check. It deliberately
-does not select whether a representation-valid weak or low-order Ed25519 key
-is an admissible trust root, and the v1 corpus must not smuggle that policy
-choice into a representation case. `ExternalKey` acceptance means only that
-verification can structurally proceed with the supplied representation. A-021
-owns weak-root/strict-Ed25519 trust-root behavior and remains unchanged.
+canonical RFC 8032 compressed-point representation and equality check. It
+deliberately does not select whether a representation-valid weak or low-order
+Ed25519 key is an admissible trust root or whether ordinary or strict
+verification governs it. `ExternalKey` acceptance means only that verification
+can structurally proceed with the supplied representation; it does not assign
+a portable signature verdict to A21-D1. A-021 owns weak-root/strict-Ed25519
+behavior, remains Confirmed, and is now an explicit prerequisite to full
+A-004/RQ-006 equivalence and closure.
+
+### A-021 closure dependency
+
+A-004/RQ-006 work that is independent of A-021 MAY land first: JSON framing,
+closed schema, canonical point representation, canonical EventCore encoding,
+hashes, chain ordering, exact-byte fixtures, Go independence and ordinary-key
+first-failure behavior all remain useful and reviewable.
+
+A-004 and RQ-006 MUST NOT be administratively Closed merely because those
+pieces pass. Full closure additionally requires:
+
+1. an owner-ratified A-021 decision selecting signature-verification semantics
+   for representation-valid weak/low-order external roots;
+2. that decision implemented by Rust, Go and Python;
+3. A21-D1 and any required companion weak/low-order cases activated with the
+   selected normative verdicts;
+4. cross-language equivalence over those cases;
+5. independent hostile review;
+6. owner merge of the complete implementation tranche or tranches; and
+7. a separate living-ledger reconciliation.
+
+This dependency does not authorize A-021 implementation in the contract PR and
+does not choose ordinary or strict verification.
 
 ## Resource and storage boundary
 
@@ -1053,7 +1245,9 @@ record-count, memory, time or recursion ceiling. It does not select streaming,
 atomicity, locking, durability, snapshot or crash-recovery semantics. Those
 are A-008 / RQ-007 / RQ-008 and part of the wider RQ-013 assurance boundary.
 
-Conformers must agree on all finite corpus inputs. A later resource contract
+Conformers must agree on all finite normative corpus inputs in the current
+governed domain. Dependency sentinels are excluded until their governing
+decision activates them. A later resource contract
 may add explicit operational limits without redefining canonical event
 identity. An implementation crash on a small corpus vector is still a
 conformance failure even though general resource bounds are out of scope.
@@ -1076,6 +1270,19 @@ on invalid UTF-8.
 
 Rejected. `encoding/json` is an implementation tool and requires explicit
 checks for this contract.
+
+### Let each conformer choose ordinary or strict verification
+
+Rejected. The preserved A-021 low-order construction makes that choice
+verdict-relevant. This contract surfaces the dependency and limits its present
+proof domain rather than pretending that two incompatible choices are one
+portable law or selecting crypto policy outside A-021.
+
+### Treat every low-order key as a malformed representation
+
+Rejected. A low-order point can have a canonical RFC 8032 encoding. Folding
+weak-root policy into `ExternalKey` would disguise the unresolved A-021 choice
+as syntax and could silently select strictness without compatibility review.
 
 ### Canonicalize JSON bytes directly
 
@@ -1126,11 +1333,14 @@ language-specific and needlessly brittle.
 
 The future implementation PR must prove all of the following:
 
-1. The complete N1-N30 and additional hostile matrix has exact-byte cases.
-2. P1-P12 pass for Rust, Go and Python.
-3. Every conformer consumes the same unmodified case bytes and manifest key.
-4. Every accepted case agrees on count, tip and ordered record hashes.
-5. Every rejected case agrees on first class and coordinate.
+1. The complete N1-N30 and additional hostile matrix has exact-byte normative
+   cases, and A21-D1 exists as a disjoint dependency sentinel.
+2. P1-P12 pass for Rust, Go and Python over the current normative corpus.
+3. Every conformer consumes the same unmodified normative case bytes and
+   manifest key.
+4. Every normative accepted case agrees on count, tip and ordered record
+   hashes.
+5. Every normative rejected case agrees on first class and coordinate.
 6. Rust exercises its real file/public verification path.
 7. Python exercises `tools/verify_chain.py`, not a substitute parser.
 8. Go independently encodes and verifies; a dependency/import/source audit
@@ -1141,14 +1351,20 @@ The future implementation PR must prove all of the following:
 11. `docs/FORMAT.md`, canonical Rust source and historical release evidence
     remain unchanged unless a later owner-approved scope explicitly says
     otherwise.
-12. A-004/RQ-006 remain administratively open until independent review, owner
-    merge and separate ledger reconciliation.
-13. K1-K7 prove the complete external-key gate, including representation
-    failure before zero-byte acceptance; K8 cannot decide A-021 policy.
+12. A-004/RQ-006 remain administratively open until A-021 is ratified and
+    incorporated, independent review completes, the owner merges, and a
+    separate ledger reconciliation occurs.
+13. K1-K7 and K9-K15 prove the complete canonical external-key gate, including
+    representation failure before zero-byte acceptance; A21-D1 replaces K8 as
+    a mandatory dependency sentinel with no portable verdict yet.
 14. Effective Git attributes and fresh-checkout SHA-256s prove that every new
     exact-byte case survives checkout without normalization.
 15. A machine-checkable schema coordinate set proves one omission and one null
     vector for every required member, with no missing or ambiguous coverage.
+16. The runner prevents A21-D1 from contributing to conformance pass totals,
+    and full A-004/RQ-006 closure remains blocked until A-021 is ratified,
+    implemented across all conformers and covered by an activated normative
+    version of that hostile vector.
 
 ## Hostile scenarios
 
@@ -1172,7 +1388,13 @@ An independent reviewer should attempt at least these attacks:
 - let Git normalize CRLF, mixed-EOL, unterminated or invalid-UTF-8 case bytes;
 - let a lowercase 32-byte representation-invalid key reach empty-snapshot
   acceptance;
+- accept `y >= p` through field reduction or accept `x = 0` with sign bit 1;
+- treat host-key byte preservation as canonical point re-encoding;
 - confuse point representation with weak-key trust policy;
+- count A21-D1 as an ordinary conformance pass or assign it a verdict before
+  A-021 ratification;
+- claim universal equivalence because ordinary fixture keys pass while
+  ordinary-versus-strict semantics remain unresolved;
 - omit one required payload member, such as
   `EvidenceRegistered.metadata_json`, from N17/N18 coverage;
 - make Go or Python call into Rust, or one verifier relay another's result;
@@ -1194,7 +1416,8 @@ This contract does not:
   residual Deadbolt eligibility portion of A-009;
 - pin Python, Rust or Go dependencies/toolchains (A-011 / RQ-015);
 - close the wider assurance finding (A-018 / RQ-013);
-- decide weak-root or authority policy (A-021);
+- decide ordinary versus strict weak-root or authority policy (A-021), although
+  it records A-021 as a hard prerequisite to full verifier equivalence;
 - add admission or `EpistemicGate` (A-022);
 - add provenance-complete detached responses;
 - add authority-bound corroboration (A-024);
@@ -1227,10 +1450,22 @@ The sequence is:
 
 ```text
 1. merge this contract
-2. implement corpus + Rust/Python alignment + independent Go verifier
-3. perform hostile independent review over the complete matrix
-4. after owner merge, reconcile A-004/RQ-006 administratively in a separate PR
+2. implement the corpus, Rust/Python grammar alignment and independent Go
+   verifier work that does not depend on A-021
+3. owner-ratify A-021 signature-verification semantics before any universal
+   signature-equivalence or release-oracle claim
+4. apply the A-021 decision to Rust, Go and Python
+5. activate A21-D1 and the required weak/low-order hostile vectors as
+   normative expected-verdict cases
+6. perform hostile independent review over the complete matrix
+7. owner-merge the complete implementation tranche or tranches
+8. only then reconsider A-004/RQ-006 administratively in a separate PR
 ```
+
+Steps 2 and 3 may be reordered if the owner prefers the crypto-policy decision
+first. A-021 remains a hard dependency before full equivalence, release-grade
+oracle claims and administrative closure either way. This contract does not
+authorize A-021 implementation or edit the living programme ledger.
 
 ## Reviewer checklist
 
@@ -1239,7 +1474,14 @@ The sequence is:
       `magpie-core-v1` typed identity.
 - [ ] Empty zero-byte input and LF-only input are distinguished explicitly.
 - [ ] The complete external-key representation gate runs before empty-snapshot
-      acceptance, while A-021 trust/weak-key policy remains separate.
+      acceptance and follows canonical RFC 8032 decoding, including `y < p`,
+      zero-`x` sign handling and byte-identical re-encoding.
+- [ ] A canonical low-order key is not rejected merely to hide A-021, and
+      representation validity is not described as trust or authority.
+- [ ] The present portable invariant is limited to normative cases that do not
+      engage the unresolved ordinary-versus-strict choice.
+- [ ] A21-D1 is mandatory, has no premature portable verdict and cannot count
+      toward conformance totals until A-021 is ratified.
 - [ ] Duplicate names and unknown fields are rejected at every governed level.
 - [ ] Invalid UTF-8, BOM, non-finite JSON and lone CR are decided explicitly.
 - [ ] Status is exact named-string JSON, not the canonical numeric byte tag.
@@ -1259,7 +1501,9 @@ The sequence is:
       verifier logic.
 - [ ] Python is retained and tightened rather than deleted.
 - [ ] Frozen valid fixtures remain accepted without regeneration.
-- [ ] A-021, resource/storage law, RQ-013 closure and RQ-015 remain outside.
+- [ ] A-021 remains undecided but is an explicit hard prerequisite to full
+      A-004/RQ-006 equivalence and closure; resource/storage law, RQ-013
+      closure and RQ-015 remain outside.
 - [ ] A-004 and RQ-006 remain Confirmed.
 
 ## Target law
@@ -1267,6 +1511,9 @@ The sequence is:
 > The reviewed Magpie contract and exact-byte conformance corpus define one
 > portable JSONL verifier input language. Rust, independently implemented Go,
 > and readable Python must return the same governed verdict, first-failure
-> class and coordinate for the same bytes and supplied key, while
-> `magpie-core-v1` canonical event identity and external trust-root selection
-> remain unchanged.
+> class, coordinate, count, tip and hashes for each normative case in the
+> current conformance domain, while `magpie-core-v1` canonical event identity
+> and external trust-root selection remain unchanged. Universal equivalence
+> over representation-valid weak/low-order roots is not claimed until A-021
+> selects and all conformers implement the applicable signature-verification
+> semantics.
