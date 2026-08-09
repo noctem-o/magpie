@@ -286,13 +286,15 @@ describes only the future reference-input language; it is not a
 | framing | non-empty whitespace-only line | REJECT serde | REJECT parse | never emitted | not a JSON record, but physically non-empty | REJECT `Framing`; physical line and next candidate `record_index` present | class and coordinates become portable | N6 |
 | framing | CRLF throughout | ACCEPT | ACCEPT | LF | cross-platform reference transport may preserve ordinary line endings | ACCEPT | preserve | N30/P9 |
 | framing | mixed LF and CRLF record terminators | ACCEPT | ACCEPT | LF | no identity consequence | ACCEPT per record | preserve | N30/P9 |
-| framing | lone CR between JSON objects | REJECT trailing data | ACCEPT because Python text mode translates CR to a newline | never emitted | lone CR is not selected as a record terminator | REJECT `Framing` | Python narrows | N30 |
+| framing | lone CR within a first or later non-zero-length candidate, including terminal CR before EOF | REJECT trailing data | Python text mode may translate CR to a newline | never emitted | lone CR is not selected as a record terminator | REJECT `Framing` with that candidate's physical line and already-assigned `record_index`; the no-index ambiguity allowance never applies | Python narrows; coordinates become portable | N30 |
 | framing | leading/trailing space or tab around one JSON object | ACCEPT | ACCEPT | none | insignificant JSON whitespace does not enter the canonical preimage | ACCEPT | preserve | P8 |
-| framing | UTF-8 BOM | REJECT parse | REJECT parse | none | no BOM is emitted or promised | REJECT `Framing` | preserve verdict, stabilize class | N13 |
+| framing | exact `ef bb bf` at byte offset zero of the first or any later non-zero-length candidate | REJECT parse | REJECT parse | none | no per-record BOM is emitted or promised | REJECT `Framing` with that candidate's line and `record_index` | preserve verdict, stabilize position/class/coordinates | N13/BOM-1/BOM-2 |
+| JSON lexical | permitted space/tab followed by literal U+FEFF outside a string | REJECT parse | REJECT parse | none | U+FEFF is not RFC 8259 whitespace | because the bytes are not at candidate offset zero, normal JSON grammar applies: `REJECT(JsonSyntax)` with candidate coordinates | stabilize stage boundary | N13/BOM-3 |
+| JSON string | literal UTF-8 U+FEFF or escaped `\uFEFF` inside string content | ACCEPT when the resulting event is otherwise valid | ACCEPT when otherwise valid | writer may emit the scalar literally or escaped through an equivalent JSON spelling | canonical strings preserve decoded UTF-8 scalar content without normalization | the BOM rule does not reject; the complete normative case receives its ordinary result | preserve semantic string language | BOM-4/BOM-5 |
 | framing | invalid UTF-8 byte | REJECT serde | uncaught `UnicodeDecodeError` traceback | valid UTF-8 | canonical strings are UTF-8 | REJECT `Framing`; no crash | Python gains governed failure | N12 |
 | framing | NUL byte inside a framed record | REJECT | REJECT | none | NUL is not valid unescaped JSON content | REJECT `JsonSyntax` | preserve verdict, stabilize class | framing negative |
 | framing | two JSON values on one line or trailing garbage | REJECT trailing characters | REJECT extra data | one object per line | reference storage is one event per record | REJECT `JsonSyntax` | preserve | N11/N30 |
-| object grammar | duplicate known `seq`, `hash`, or `kind` with the same value | REJECT duplicate field | ACCEPT last-wins | exactly one member | no duplicate spelling was promised | REJECT `Schema` for every duplicate name | Python narrows | N8 |
+| object grammar | duplicate any required known member, including every member of every payload variant | REJECT duplicate field where serde reaches that shape | ACCEPT last-wins | exactly one member | no duplicate spelling was promised | duplicate each required member coordinate individually: `REJECT(Schema)`; escaped-name equivalence is proved separately | Python narrows; every schema branch is covered | N8 |
 | object grammar | duplicate unknown member | ACCEPT, ignored | ACCEPT, last-wins/ignored | no unknown member | closed record grammar is safer than coincidentally shared permissiveness | REJECT `Schema` | both narrow | N9 |
 | object grammar | one unknown member in `SignedEvent`, `EventCore`, `Provenance`, or each individual payload variant | ACCEPT, ignored | ACCEPT, ignored | exact known members only | payload variants and format fields are explicitly enumerated | REJECT `Schema`; N10 covers all three non-payload shapes and each of the nine payload variants independently | both narrow | N10 |
 | object grammar | arbitrary object-member ordering | ACCEPT | ACCEPT | deterministic serde order | JSONL bytes are not canonical identity | ACCEPT | preserve | P7 |
@@ -311,12 +313,13 @@ describes only the future reference-input language; it is not a
 | external key | non-canonical compressed-point encodings: `y >= p` or recovered `x = 0` with sign bit 1 | locked `ed25519-dalek` 2.2.0 ZIP-215 decoding accepts the probed boundary forms | host-library acceptance is not a portable promise | never writer-emitted; frozen fixture keys are canonical | RFC 8032 section 5.1.3 defines canonical decoding independently of host reduction behavior | `REJECT(ExternalKey)` before framing; require exact boundary vectors and canonical re-encoding | narrows incidental Rust constructor language; no canonical event-byte change | K9-K15 |
 | signature semantics | known canonical low-order root `ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f` plus attacker-constructed signatures | current Rust uses ordinary verification, which accepts the audited construction | current Python experiment accepted the forged chain; a future strict conformer may reject | not an ordinary fixture root | preserved A-021 proves ordinary/strict divergence and owns the unresolved policy | mandatory dependency sentinel with no portable verdict until A-021 is ratified | prevents false universal-equivalence claim; no runtime third result | A21-D1 |
 | signature semantics | ordinary golden external key plus a keyholder-constructed signature whose `R` is the identity point and whose canonical `S` satisfies the ordinary equation | current Rust ordinary `verify` accepts the equation; locked `verify_strict` rejects small-order `R` | Go `crypto/ed25519` ordinary verification can accept; no implementation default is normative | exact frozen golden signatures remain valid, but this is a different signature under the same key | fresh hostile review proves strictness sensitivity is not confined to unusual roots | mandatory dependency sentinel with no portable verdict until A-021 defines the complete verification relation | prevents treating an ordinary key as a settled signature domain | A21-D2 |
-| status | exact `Open`, `Conjectured`, `Supported`, `Settled`, `Refuted` strings | accepted as enum; changed signed value later fails hash | accepted | named string | serde writer and frozen fixture use names; FORMAT numeric tags describe canonical bytes | exact case-sensitive strings only | preserve writer language | status positives |
+| status | exact `Open`, `Conjectured`, `Supported`, `Settled`, `Refuted` strings | accepted as enum; changed signed value later fails hash | accepted | named string | serde writer and frozen fixture use names; FORMAT numeric tags describe canonical bytes | exact case-sensitive strings only; every value appears in a normative accepted case | preserve writer language and prove no strict subset | vocabulary positives |
 | status | integers 0-4, especially `1` replacing `"Conjectured"` | REJECT schema | accepts; `1` verifies unchanged canonical bytes | named string | no release promise of numeric JSON status | REJECT `Schema` | Python narrows | N4 |
 | status | unknown/lowercase/mixed string, out-of-range/negative integer, float, Boolean or null | REJECT | REJECT, with varying parse/canonicalization paths | exact named string | closed status vocabulary | REJECT `Schema` | stabilize class | N5 |
 | payload kind | unknown/case-changed/numeric/missing/null `payload.kind` | REJECT serde | REJECT canonicalization | exact case-sensitive name | FORMAT closes tags 0-8; Ticket 0005 forbids fallback | REJECT `Schema` | preserve | N19 |
+| closed strings | exact accepted actor class, evidence kind, edge kind and payload discriminator values | accepted on the matching Rust branch | accepted | exact closed value | FORMAT and Ticket 0010 enumerate the complete finite vocabularies | every accepted value appears in at least one normative accepted case, with machine-checked coverage | prove no conformer implements a strict subset | vocabulary positives |
 | closed strings | unknown/case-changed/spaced actor class, evidence kind or edge kind | type is string; unsigned mutation reaches hash mismatch before Rust validation | Python canonicalization rejects before hash | exact closed value | FORMAT and Ticket 0010 enumerate the vocabularies | exact decoded value, no trimming; reject as `PayloadValidation` after crypto | Python ordering changes | N20/N28 |
-| integers | `seq` or `timestamp_nanos` token `0` through `18446744073709551615` | accepted as u64, then chain/hash rules apply | accepted as Python int, then chain/hash rules apply | unsigned decimal | FORMAT uses u64 | accept lexical value; semantic checks follow | preserve | integer positives |
+| integers | `seq` or `timestamp_nanos` token `0` through `18446744073709551615` | accepted as u64, then chain/hash rules apply | accepted as Python int, then chain/hash rules apply | unsigned decimal | FORMAT uses u64 | accept the complete lexical/range domain without floating-point coercion; accepted `timestamp_nanos` cases cover `2^53 + 1`, `2^63` and `u64::MAX`, while in-range upper `seq` cases reach `Sequence`, not `Schema` | preserve and prove full-width handling | U64-P1 through U64-P5 |
 | integers | leading plus (`+1`, `+0`) or a multi-digit leading-zero spelling (`01`, `00`) in either u64 field | REJECT JSON syntax | REJECT JSON syntax | never emitted | these are not RFC 8259 number tokens | REJECT `JsonSyntax` before schema interpretation | makes lexical boundary explicit | N11 |
 | integers | syntactically valid negative integer, `-0`, or `u64::MAX + 1` | REJECT serde; `-0` is not accepted as u64 | Python accepts the JSON number and may reach sequence/range handling | never emitted | canonical encoder requires u64 | REJECT `Schema` | stabilize Python ordering | N16 |
 | integers | syntactically valid fraction or exponent (`1.0`, `0.0`, `1e0`, `1E0`, `1e+0`, `1e-0`) | REJECT serde | Python accepts the JSON number and may coerce or inspect it later | never emitted | writer emits plain unsigned decimal; canonical type is u64 | REJECT `Schema` | Python narrows and classes align | N15 |
@@ -363,8 +366,14 @@ portable/reference JSONL verification interface.
 6. The last record terminator is optional. A second terminator after the last
    record creates an empty record and MUST be rejected. Thus zero bytes is the
    only empty-snapshot spelling; LF alone is an empty record, not an alias.
-7. Lone CR is never a terminator or insignificant whitespace and MUST be
-   rejected as `Framing`.
+7. Lone CR is never a terminator or insignificant whitespace. A lone CR within
+   otherwise non-zero-length bytes belongs to the current framed record
+   candidate, which has already received its zero-based `record_index`. It MUST
+   be rejected as `Framing` with that candidate's physical `line` and
+   `record_index`, whether it occurs inside a first candidate, inside a later
+   candidate, or after JSON bytes immediately before EOF. Lone CR never uses
+   the no-index ambiguity allowance. The two JSON bytes `5c 72` spelling the
+   escape `\\r` inside a string are not a raw CR and are unaffected.
 8. A zero-length record text and a non-empty record text containing only space
    and/or horizontal tab are distinct cases, but both MUST be rejected as
    `Framing`. The coordinate law below assigns no `record_index` to the
@@ -375,7 +384,18 @@ portable/reference JSONL verification interface.
    as the first byte of a CRLF terminator; LF is always framing.
 10. Each record text MUST contain exactly one complete JSON value and no
    non-whitespace trailing bytes.
-11. A UTF-8 BOM is forbidden. NUL is neither whitespace nor a terminator.
+11. The exact bytes `ef bb bf` at candidate byte offsets 0 through 2 are a
+    forbidden per-record UTF-8 BOM and MUST produce `REJECT(Framing)` with the
+    non-zero candidate's normal `line` and `record_index`. This applies to the
+    first candidate and to every later candidate after an LF or CRLF
+    terminator; it is not merely a file-start rule. The same valid UTF-8 bytes
+    occurring inside JSON string content, or the escape `\uFEFF`, encode an
+    ordinary U+FEFF scalar and MUST NOT fail merely because of the BOM rule.
+    If `ef bb bf` occurs outside a string at any candidate offset other than
+    zero—for example after permitted space/tab bytes—it is not a framing BOM;
+    U+FEFF is not RFC 8259 whitespace, so ordinary JSON grammar produces
+    `REJECT(JsonSyntax)` when no earlier defect exists. NUL is neither
+    whitespace nor a terminator.
 12. Every record reached in physical order MUST be valid UTF-8. Invalid UTF-8
     MUST produce governed `REJECT(Framing)`, never replacement characters, a
     traceback or a crash. A later invalid byte does not preempt an earlier
@@ -756,14 +776,23 @@ Such a record-local rejection has both coordinates once raw LF/CRLF framing has
 identified the candidate. A zero-length framed slice, including LF-only input
 or a slice between terminators, is rejected before it becomes a candidate: it
 has a physical `line` and no `record_index`.
-An external-key rejection has neither coordinate. A framing defect that
+An external-key rejection has neither coordinate. A framing defect that truly
 prevents a candidate boundary from being determined may omit `record_index`.
+That narrow allowance never applies to a forbidden candidate-offset-zero BOM
+or to lone CR: both occur inside an already identified non-zero-length
+candidate and therefore report both coordinates.
 
 For example, with two valid records followed by a third physical line
 containing only space/tab bytes, that line fails `Framing` with `line = 3` and
 `record_index = 2`. If the third physical line instead contains zero bytes
 between its surrounding terminators, it fails `Framing` with `line = 3` and no
 `record_index`. No later candidate is considered because first failure wins.
+
+Likewise, a lone CR within the first non-zero candidate reports `line = 1` and
+`record_index = 0`. After two LF-terminated valid candidates, a lone CR in the
+third reports `line = 3` and `record_index = 2`. A valid JSON object followed
+by a terminal lone CR and EOF reports both coordinates for that same candidate;
+the CR is not reinterpreted as a terminator or JSON whitespace.
 
 The governed failure is the earliest failure under physical record order and
 the per-record stage order above. A tool may print later diagnostics for human
@@ -879,6 +908,14 @@ into the normative set with the selected expected result and ordinary
 hostile-vector assertions. This is conformance-test metadata, not a runtime
 profile, runtime mode or third verifier result.
 
+There is no third manifest category such as `gate-only`, `partial success` or
+`representation passed`. Every manifest entry is either a complete normative
+case with its portable result or one of the dependency sentinels above. A
+substage proof therefore MUST either be embedded in a complete normative
+result—zero-byte ACCEPT is used below for representation-positive keys—or be a
+non-manifest implementation assertion. A21-D1 and A21-D2 are the only current
+entries permitted to lack a portable ACCEPT/REJECT result.
+
 ### Manifest model
 
 `manifest.json` is test metadata, not a signed Magpie history. Each normative
@@ -929,12 +966,12 @@ law, and N30 contains both accepted and rejected framing variants.
 | N5 | unknown/lowercase/mixed status, out-of-range/negative number, float, Boolean and null: `REJECT(Schema)` |
 | N6 | two distinct interior cases: a zero-length framed record is `REJECT(Framing)` with physical `line` present and `record_index` absent; a non-empty space/tab-only candidate is `REJECT(Framing)` with physical `line` and the next zero-based `record_index` present |
 | N7 | zero-byte input: `ACCEPT`, count 0, zero tip; LF-only input: `REJECT(Framing)` |
-| N8 | duplicate known key at top, core, provenance and payload/discriminator levels: `REJECT(Schema)` |
+| N8 | for every required member coordinate in `SignedEvent`, `EventCore`, `Provenance` and every payload variant, duplicate that known member individually while keeping the record otherwise suitable to isolate schema decoding: `REJECT(Schema)`; focused escaped-name cases separately prove that names compare after JSON escape decoding |
 | N9 | duplicate unknown key: `REJECT(Schema)` |
 | N10 | one unknown-member vector for each non-payload object shape (`SignedEvent`, `EventCore`, `Provenance`) and independently for each of the nine payload variants: `REJECT(Schema)` |
 | N11 | malformed JSON, two values on one record, trailing garbage, and invalid JSON numeral spellings in each u64 field—including `+1`, `+0`, `01` and `00`: `REJECT(JsonSyntax)` |
 | N12 | invalid UTF-8: `REJECT(Framing)`, not replacement or crash |
-| N13 | UTF-8 BOM: `REJECT(Framing)` |
+| N13 | BOM-1 first candidate starts `ef bb bf`: `REJECT(Framing)`, line 1/index 0; BOM-2 a later candidate starts `ef bb bf`: `REJECT(Framing)` with its later line/index; BOM-3 space/tab then literal U+FEFF outside a string: `REJECT(JsonSyntax)` with candidate coordinates; BOM-4 literal UTF-8 U+FEFF inside an otherwise valid JSON string and BOM-5 escaped `\uFEFF` inside such a string are not rejected by the BOM rule and, once correctly hashed/signed under the owner-ratified A-021 relation, are complete normative `ACCEPT` cases |
 | N14 | `NaN`, `Infinity` and `-Infinity`, including in an unknown member: `REJECT(JsonSyntax)` |
 | N15 | syntactically valid JSON fractional and exponent forms for each u64 field—including `1.0`, `0.0`, `1e0`, `1E0`, `1e+0` and `1e-0`: `REJECT(Schema)` |
 | N16 | u64 overflow, negative integers, `-0`, Boolean, null and quoted digits for each u64 field: `REJECT(Schema)` |
@@ -951,7 +988,7 @@ law, and N30 contains both accepted and rejected framing variants.
 | N27 | correctly hashed/signed genesis key mismatch: `REJECT(Genesis)` |
 | N28 | all precedence pairs listed in the first-failure table, plus invalid core hex + sequence, payload + genesis and later multi-defect cases |
 | N29 | valid prefix followed by malformed, bad-link, bad-hash and bad-signature final records: reject at that final coordinate; no ACCEPT summary |
-| N30 | no final terminator, LF, CRLF and mixed LF/CRLF: ACCEPT when records are valid; extra final terminator, interior zero-length line, interior non-empty whitespace-only line and lone CR: `REJECT(Framing)`, with N6 governing the two interior-line coordinate shapes |
+| N30 | no final terminator, LF, CRLF and mixed LF/CRLF: ACCEPT when records are valid; extra final terminator and the two N6 interior cases: `REJECT(Framing)` with N6 coordinates; raw lone CR within a first candidate, a later candidate, and immediately before EOF: `REJECT(Framing)` with both the current candidate's physical line and already-assigned `record_index` |
 
 Additional required negative families include duplicate member names expressed
 through escapes, case-changed member names, unpaired surrogates, wrong JSON
@@ -970,15 +1007,15 @@ N1-N30:
 | K3 | non-hex external key text: `REJECT(ExternalKey)` |
 | K4 | exact lowercase 64 hex / 32 bytes that fail canonical compressed-point representation decoding: `REJECT(ExternalKey)` with no coordinates |
 | K5 | K4 key plus zero-byte input: `REJECT(ExternalKey)` with no coordinates |
-| K6 | canonical representation-valid ordinary fixture key passes the complete key gate |
+| K6 | canonical ordinary golden-fixture key `ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c` plus zero-byte input: `ACCEPT`, `event_count = 0`, zero tip; the key passes the complete gate and canonical re-encoding is byte-identical |
 | K7 | canonical representation-valid golden-fixture key plus the normal golden fixture: `ACCEPT` |
 | K9 | encoded `y = p`, exact bytes `edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f`: `REJECT(ExternalKey)` |
 | K10 | encoded `y = p + 1`, exact bytes `eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f`: `REJECT(ExternalKey)`; field reduction must not accept it |
 | K11 | canonical `y` with no recoverable Edwards25519 square root, including exact bytes `0200000000000000000000000000000000000000000000000000000000000000`: `REJECT(ExternalKey)` |
 | K12 | identity point `y = 1`, recovered `x = 0`, sign bit 1, exact bytes `0100000000000000000000000000000000000000000000000000000000000080`: `REJECT(ExternalKey)` |
-| K13 | the same identity point with sign bit 0, exact bytes `0100000000000000000000000000000000000000000000000000000000000000`: representation gate succeeds and canonical re-encoding is byte-identical |
-| K14 | ordinary golden-fixture key `ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c`: representation gate succeeds and canonical re-encoding is byte-identical |
-| K15 | a valid `x != 0`, sign-bit-1 encoding, including `ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d2ac`: representation gate succeeds and canonical re-encoding is byte-identical |
+| K13 | identity point with sign bit 0, exact key `0100000000000000000000000000000000000000000000000000000000000000`, plus zero-byte input: `ACCEPT`, `event_count = 0`, zero tip; representation succeeds and canonical re-encoding is byte-identical |
+| K14 | ordinary golden-fixture key `ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c` plus zero-byte input: `ACCEPT`, `event_count = 0`, zero tip; representation succeeds and canonical re-encoding is byte-identical |
+| K15 | valid `x != 0`, sign-bit-1 key `ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d2ac` plus zero-byte input: `ACCEPT`, `event_count = 0`, zero tip; representation succeeds and canonical re-encoding is byte-identical |
 
 K4 MUST use committed exact text with a documented point-recovery failure,
 not merely a test double that forces a constructor error.
@@ -987,6 +1024,19 @@ K9-K15 MUST likewise use committed exact key bytes and independently check the
 RFC 8032 representation algorithm; host-constructor acceptance and
 `VerifyingKey::to_bytes()` preserving its stored input are not proof of
 canonical re-encoding.
+
+All normative K rows MUST bind exact external-key text, exact input bytes and a
+complete portable result. Zero-byte input is the isolating input for pure key
+gate proofs: its SHA-256 is
+`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`, and a
+representation-valid key proceeds to the accepted empty snapshot without
+invoking A-021 signature semantics; the tip is exactly 64 zero hex characters.
+Acceptance says nothing about signatures under that key. K6 and K14 MAY map to
+the same exact golden-key/zero-byte case when the manifest records both
+obligations. Negative
+K rows SHOULD likewise use zero bytes where it isolates `ExternalKey`; K5
+specifically preserves the precedence proof that representation failure beats
+empty-snapshot acceptance. No normative K row may end at “gate succeeds.”
 
 ### Mandatory A-021 dependency witnesses
 
@@ -1019,10 +1069,10 @@ closure is reconsidered.
 
 ### Exhaustive schema-coverage proof
 
-N10, N17 and N18 share one mechanically checked schema inventory. N17 and N18
-are Cartesian member-coverage obligations, not representative sampling. The
-conformance metadata MUST maintain a machine-checkable expected set of
-required-member coordinates covering:
+N8, N10, N17 and N18 share one mechanically checked schema inventory. N8,
+N17 and N18 are Cartesian member-coverage obligations, not representative
+sampling. The conformance metadata MUST maintain a machine-checkable expected
+set of required-member coordinates covering:
 
 - `SignedEvent.core`, `.hash` and `.signature`;
 - `EventCore.seq`, `.timestamp_nanos`, `.prev_hash`, `.provenance` and
@@ -1031,8 +1081,11 @@ required-member coordinates covering:
 - `Payload.<Variant>.kind` plus every exact additional member of all nine
   payload variants listed in the normative schema.
 
-For every coordinate, the manifest MUST identify exactly one omission vector
-and exactly one null vector with expected `REJECT(Schema)`.
+For every coordinate, the manifest MUST identify exactly one literal-name
+duplicate vector (N8), exactly one omission vector (N17) and exactly one null
+vector (N18), each with expected `REJECT(Schema)`. A focused, separately mapped
+set of escaped-name duplicate cases proves that decoded member-name equality
+governs duplicates; it need not be crossed with every member coordinate.
 
 The same inventory MUST also maintain this exact N10 object-shape set:
 
@@ -1058,22 +1111,22 @@ unknown-member cross-product with every declared member. The inserted unknown
 name has no normative significance; the mutation must only use an actually
 unknown name and leave the remainder valid enough to isolate schema rejection.
 
-The conformance runner MUST fail for a missing N10 shape, a missing N17/N18
-mutation, an ambiguous duplicate mapping, or a new governed payload/member
-absent from the relevant expected set. This is test metadata only; it MUST NOT
-introduce a runtime schema registry or make the Magpie public API depend on the
-corpus inventory.
+The conformance runner MUST fail for a missing N10 shape, a missing N8/N17/N18
+mutation, an ambiguous or multiply claimed manifest mapping, or a new governed
+payload/member absent from the relevant expected set. This is test metadata
+only; it MUST NOT introduce a runtime schema registry or make the Magpie public
+API depend on the corpus inventory.
 
 The implementation MUST couple that expected set mechanically to the current
 Rust schema, for example through test-only exhaustive struct-field
 destructuring and exhaustive payload-variant matching with no wildcard or
 `..`. Adding a governed field or variant must therefore fail compilation or
-the conformance test until its required-member coordinates, omission/null
-mutations and payload-shape unknown-member vector are added. An equally direct
+the conformance test until its required-member coordinates, duplicate/omission/
+null mutations and payload-shape unknown-member vector are added. An equally direct
 test-only mechanism is acceptable; a reviewer-maintained count alone is not.
 
 Corpus authoring MAY generate these fixtures, but the reviewed, committed
-post-generation bytes are authoritative. All N10/N17/N18 cases remain
+post-generation bytes are authoritative. All N8/N10/N17/N18 cases remain
 SHA-256-bound exact-byte files and MUST NOT be generated independently at
 verifier runtime.
 
@@ -1094,13 +1147,61 @@ verifier runtime.
 | P11 | Go imports/invokes no Rust or Python verification implementation and uses no shared canonicalization library |
 | P12 | frozen golden and Deadbolt fixture bytes remain byte-identical |
 
-In addition, positive conformance MUST prove that the ordinary golden external
-key passes the complete canonical representation gate and re-encodes
-byte-identically, that K13-K15 exercise the positive canonical-point
-boundaries, that every new exact-byte case survives Git checkout
-byte-identically, and that the shared N10/N17/N18 schema-coverage assertion is
-complete. A sentinel assertion MUST prove that neither A21-D1 nor A21-D2 can
-be counted as a normative conformance pass before A-021 ratification.
+The future normative corpus MUST also prove the complete accepted `u64` width
+without host narrowing or floating-point intermediates:
+
+| Coverage ID | Field and exact token | Required complete result |
+| --- | --- | --- |
+| U64-P1 | `timestamp_nanos = 9007199254740993` (`2^53 + 1`) | correctly canonicalized, hashed and signed normative chain `ACCEPT`; exact value survives all conformers |
+| U64-P2 | `timestamp_nanos = 9223372036854775808` (`2^63`) | correctly canonicalized, hashed and signed normative chain `ACCEPT` |
+| U64-P3 | `timestamp_nanos = 18446744073709551615` (`u64::MAX`) | correctly canonicalized, hashed and signed normative chain `ACCEPT` |
+| U64-P4 | `seq = 9223372036854775808` (`2^63`) | JSON and `Schema` pass; the otherwise isolated record reaches `REJECT(Sequence)`, not `Schema` |
+| U64-P5 | `seq = 18446744073709551615` (`u64::MAX`) | JSON and `Schema` pass; the otherwise isolated record reaches `REJECT(Sequence)`, not `Schema` |
+
+The three accepted timestamp cases MUST bind equal canonical hashes, event
+count and tip across Rust, Go and Python after signing under the owner-ratified
+A-021 relation. The sequence cases need not construct an impractically long
+chain: `Sequence` precedes hash/signature, so recomputing later fields is
+required only where useful to isolate that intended first failure. A
+machine-checkable numeric-boundary inventory MUST map U64-P1 through U64-P5 to
+exact case IDs; an overflow-only suite is not sufficient.
+
+Positive conformance MUST exercise every accepted member of every finite
+vocabulary in at least one complete normative `ACCEPT` case:
+
+```text
+status:
+  Open, Conjectured, Supported, Settled, Refuted
+actor_class:
+  HumanRoot, AgentProposer, AutomatedVerifier, DeadboltAnchorer,
+  LensWitness, SourceImporter
+evidence_kind:
+  DeterministicVerification, HumanRatification, DeadboltAnchor,
+  ExecutionEvidence, BehavioralEvaluation, ExternalSource,
+  ModelSelfReport, LensReadout
+edge_kind:
+  supports, derived_from, contradicts, supersedes, invalidates, ratifies
+payload.kind:
+  Genesis, ClaimAsserted, EvidenceRecorded, ClaimStatusChanged, Note,
+  SegmentAnchored, ClaimAssertedV2, EvidenceRegistered,
+  JustificationEdgeRecorded
+```
+
+Cases MAY cover multiple values. Test-only metadata MUST map each vocabulary
+coordinate/value to one or more accepted case IDs and fail if any value is
+uncovered, a mapping is ambiguous, or a new governed enum/vocabulary value is
+introduced without positive coverage. Where practical, test-only exhaustive
+Rust matching SHOULD couple the expected sets to the governed types. This MUST
+NOT introduce public/runtime vocabulary metadata.
+
+In addition, positive conformance MUST prove that K6, K13, K14 and K15 have
+their complete zero-byte ACCEPT/count/zero-tip results (with K6/K14 permitted
+to share one exact case), that the ordinary golden external key passes the
+complete canonical representation gate and re-encodes byte-identically, that
+every new exact-byte case survives Git checkout byte-identically, and that the
+shared N8/N10/N17/N18 schema-coverage assertion is complete. A sentinel
+assertion MUST prove that neither A21-D1 nor A21-D2 can be counted as a
+normative conformance pass before A-021 ratification.
 Acceptance of the exact golden and Deadbolt
 signatures MUST NOT be generalized into a verdict law for other signatures
 under either fixture key.
@@ -1475,7 +1576,8 @@ The future implementation PR must prove all of the following:
 7. Python exercises `tools/verify_chain.py`, not a substitute parser.
 8. Go independently encodes and verifies; a dependency/import/source audit
    proves P11.
-9. Invalid UTF-8, duplicate keys and malformed inputs do not crash any tool.
+9. Invalid UTF-8, candidate-position BOMs, duplicate keys and malformed inputs
+   do not crash any tool.
 10. Existing golden and Deadbolt fixtures and their published verifier results
     remain unchanged.
 11. `docs/FORMAT.md`, canonical Rust source and historical release evidence
@@ -1489,10 +1591,10 @@ The future implementation PR must prove all of the following:
     mandatory dependency witnesses with no portable verdict yet.
 14. Effective Git attributes and fresh-checkout SHA-256s prove that every new
     exact-byte case survives checkout without normalization.
-15. One machine-checkable schema inventory proves an N10 unknown-member vector
-    for `SignedEvent`, `EventCore`, `Provenance` and every payload variant, plus
-    one N17 omission and one N18 null vector for every required member, with no
-    missing or ambiguous coverage.
+15. One machine-checkable schema inventory proves one N8 duplicate, one N17
+    omission and one N18 null vector for every required member, plus one N10
+    unknown-member vector for `SignedEvent`, `EventCore`, `Provenance` and every
+    payload variant, with no missing or ambiguous coverage.
 16. The runner prevents either A-021 sentinel from contributing to conformance
     pass totals, and full A-004/RQ-006 closure remains blocked until A-021 is
     ratified, implemented across all conformers and covered by activated
@@ -1501,6 +1603,19 @@ The future implementation PR must prove all of the following:
     whitespace/candidate-index distinction, and exact integer fixtures prove
     `JsonSyntax` for non-JSON numeral spellings versus `Schema` for valid JSON
     values that violate the u64 law.
+18. N13 proves candidate-offset-zero BOM rejection for first and later records,
+    normal JSON staging for non-offset-zero U+FEFF, and non-rejection of literal
+    and escaped U+FEFF string content.
+19. N30 proves first-candidate, later-candidate and terminal-before-EOF lone CR
+    failures with both line and `record_index`.
+20. U64-P1 through U64-P5 prove accepted full-width timestamp values and
+    in-range upper `seq` values reaching `Sequence`, never host narrowing or
+    `Schema`.
+21. A machine-checked accepted-vocabulary inventory covers every status,
+    actor class, evidence kind, edge kind and payload discriminator.
+22. Every normative K manifest row has a complete portable result; K6/K13/K14/
+    K15 use zero-byte ACCEPT with count 0 and zero tip where appropriate, and
+    only A21-D1/A21-D2 lack verdicts.
 
 ## Hostile scenarios
 
@@ -1508,6 +1623,8 @@ An independent reviewer should attempt at least these attacks:
 
 - hide a signed value behind a duplicate member whose first and last values
   differ;
+- accept duplicate `EvidenceRegistered.metadata_json` or another untested
+  required payload member while rejecting a representative duplicate;
 - express member names, statuses or hex through JSON escapes;
 - place `NaN` or invalid UTF-8 in an unknown member that a decoder might skip;
 - reject an unknown member for `Genesis` while silently accepting one for a
@@ -1516,10 +1633,18 @@ An independent reviewer should attempt at least these attacks:
   `JsonSyntax` failure;
 - collapse a non-empty space/tab-only candidate into the zero-length record
   coordinate rule;
+- reject all U+FEFF bytes as BOMs, or accept a per-record offset-zero BOM after
+  a valid prefix;
+- omit `record_index` for a lone CR even though its non-zero candidate is
+  already framed;
 - use Python's lone-CR/universal-newline behavior or checkout line conversion;
 - exploit Go's case-insensitive struct matching, duplicate-name handling or
   UTF-8 replacement;
 - use `-0`, exponent syntax, huge integers, Booleans or quoted digits;
+- narrow in-range JSON integers through signed-64-bit or IEEE-754
+  intermediates;
+- accept only a strict subset of a finite status/actor/evidence/edge/payload
+  vocabulary while passing every negative case;
 - make malformed signature hex compete with sequence/link failures;
 - make invalid payload semantics compete with hash/signature/genesis failures;
 - append a malformed record after a fully valid prefix;
@@ -1536,6 +1661,8 @@ An independent reviewer should attempt at least these attacks:
   trust authority;
 - count A21-D1 or A21-D2 as an ordinary conformance pass or assign either a
   verdict before A-021 ratification;
+- leave a normative positive key case at “representation gate succeeds” rather
+  than binding a complete ACCEPT/REJECT result;
 - infer that all signatures under the golden key have settled semantics merely
   because the exact golden fixture signatures pass;
 - enumerate low-order keys and small-order `R` as though those witnesses
@@ -1633,10 +1760,14 @@ living programme ledger.
       toward conformance totals until A-021 is ratified.
 - [ ] Exact frozen positive signatures remain accepted, without generalizing
       that result to every signature under the same key.
-- [ ] Duplicate names are rejected at every governed level; N10 independently
-      covers unknown members in `SignedEvent`, `EventCore`, `Provenance` and
-      each of the nine payload variants through the shared schema inventory.
-- [ ] Invalid UTF-8, BOM, non-finite JSON and lone CR are decided explicitly.
+- [ ] N8 duplicates every required member coordinate; N10 independently covers
+      unknown members in `SignedEvent`, `EventCore`, `Provenance` and each of
+      the nine payload variants through the shared schema inventory.
+- [ ] Candidate-offset-zero BOMs fail `Framing` for first and later candidates,
+      while literal/escaped U+FEFF string content and non-offset-zero placement
+      follow their selected string/JSON laws.
+- [ ] Invalid UTF-8, non-finite JSON and lone CR are decided explicitly; every
+      lone-CR case has both line and candidate index.
 - [ ] Status is exact named-string JSON, not the canonical numeric byte tag.
 - [ ] Core/stored hex and payload hex stages are explicit.
 - [ ] Invalid JSON numeral spellings such as `+1` and `01` are `JsonSyntax`;
@@ -1649,11 +1780,18 @@ living programme ledger.
 - [ ] N6 gives a zero-length record a physical line and no index, while a
       non-empty whitespace-only candidate gets both its line and next index.
 - [ ] Positive results bind count, tip and ordered hashes.
+- [ ] Timestamp positives cover `2^53 + 1`, `2^63` and `u64::MAX`; in-range
+      upper `seq` values pass `Schema` and reach `Sequence`.
+- [ ] Every accepted status, actor class, evidence kind, edge kind and payload
+      discriminator has machine-checked positive normative coverage.
+- [ ] Every normative K row has a complete result; K6/K13/K14/K15 use isolated
+      zero-byte ACCEPT results where appropriate, with no gate-only category.
 - [ ] Corpus cases are exact bytes with SHA-256 bindings.
 - [ ] A path-specific Git attribute prevents normalization of new hostile case
       bytes, and a fresh checkout proves every manifest hash.
-- [ ] N10/N17/N18 share one machine-checked schema inventory: per-shape unknown
-      members plus omission/null for every required member coordinate.
+- [ ] N8/N10/N17/N18 share one machine-checked schema inventory: duplicate,
+      omission and null for every required member coordinate, plus per-shape
+      unknown members.
 - [ ] Go is standalone, preferably standard-library-only, with no FFI/shared
       verifier logic.
 - [ ] Python is retained and tightened rather than deleted.
