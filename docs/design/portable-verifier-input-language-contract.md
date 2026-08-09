@@ -173,6 +173,15 @@ Current source control flow corroborates the probes:
 - Python performs payload validation while constructing canonical bytes; and
 - Python continues after failures, while Rust returns its first error.
 
+The review-remediation probe against locked `ed25519-dalek` 2.2.0 established
+that `0200000000000000000000000000000000000000000000000000000000000000`
+fails `VerifyingKey::from_bytes`, while the all-zero encoding is representable
+and reported weak and the golden fixture key is representable and non-weak.
+The current Python `cryptography` constructor accepts the representation-invalid
+`02...00` bytes. This proves that representation decoding and weak-key policy
+are separate decisions and that length/hex checks alone cannot govern portable
+entry into verification. The temporary probe was not retained.
+
 ## Current implementations and future roles
 
 ### Rust
@@ -233,7 +242,8 @@ describes only the future reference-input language; it is not a
 | stored hex | wrong/odd length, non-hex, empty, whitespace, `0x`, Unicode lookalike | REJECT serde | REJECT at the relevant check | exact lowercase, no decoration | fixed byte widths in FORMAT | REJECT `Schema` | preserve verdict, stabilize class | N3 |
 | payload hex | uppercase/wrong-length witness root or non-empty typed `content_hash` | Rust can reach hash mismatch before payload validation | Python payload canonicalization rejects first | lowercase exact width; typed content hash may be empty | FORMAT tags 5-8 and Ticket 0010 pin these rules | string is decoded as a field; governed lexical validity is `PayloadValidation` after signature | aligns precedence with FORMAT/Rust chain order | N1/N3/N28 |
 | genesis key | changed uppercase or malformed genesis-declared key | typed string; hash/signature can fail first, then key binding | payload canonicalization accepts string; hash/signature can fail first, then genesis equality | 64 lowercase hex | FORMAT genesis spelling and key binding | after prior checks, require 64 lowercase hex and equality; failures are `Genesis` | explicit law | N3/N27 |
-| external key | uppercase/mixed-case CLI key | not applicable: Rust production receives typed key bytes, not CLI text | Python lowercases then accepts | release commands use lowercase | external trust selection is separate from lexical transport | portable CLI requires exactly 64 lowercase ASCII hex; invalid input is `ExternalKey` | Python CLI narrows; no A-021 decision | external-key vectors |
+| external key | uppercase/mixed-case CLI key | not applicable: Rust production receives typed key bytes, not CLI text | Python lowercases then accepts | release commands use lowercase | external trust selection is separate from lexical transport | portable CLI requires exactly 64 lowercase ASCII hex; invalid input is `ExternalKey` | Python CLI narrows; no A-021 decision | K1-K3 |
+| external key | exact lowercase 64 hex whose 32 bytes do not decode as an Edwards25519 compressed point, for example `0200000000000000000000000000000000000000000000000000000000000000` | `ed25519_dalek::VerifyingKey::from_bytes` rejects before `LogReader::open` | the current `cryptography` constructor accepts this 32-byte value; zero-byte input then reaches Python's separate no-genesis rejection | writer/release fixture keys are representable | the production API requires a representable verification key; trust in that key remains external | `REJECT(ExternalKey)` before framing or empty-snapshot handling | makes representation validity portable without deciding weak-key policy | K4-K5 |
 | status | exact `Open`, `Conjectured`, `Supported`, `Settled`, `Refuted` strings | accepted as enum; changed signed value later fails hash | accepted | named string | serde writer and frozen fixture use names; FORMAT numeric tags describe canonical bytes | exact case-sensitive strings only | preserve writer language | status positives |
 | status | integers 0-4, especially `1` replacing `"Conjectured"` | REJECT schema | accepts; `1` verifies unchanged canonical bytes | named string | no release promise of numeric JSON status | REJECT `Schema` | Python narrows | N4 |
 | status | unknown/lowercase/mixed string, out-of-range/negative integer, float, Boolean or null | REJECT | REJECT, with varying parse/canonicalization paths | exact named string | closed status vocabulary | REJECT `Schema` | stabilize class | N5 |
@@ -269,27 +279,31 @@ portable/reference JSONL verification interface.
 
 ### File and record framing
 
-1. Input is an exact byte sequence. A conformer MUST inspect the original
+1. Before inspecting the input snapshot, a conformer MUST complete the
+   portable external-key gate defined below. `ExternalKey` failure wins even
+   for a zero-length input and has no line or record coordinate.
+2. Input is an exact byte sequence. A conformer MUST inspect the original
    bytes; text-mode newline translation is not permitted before framing.
-2. The zero-length byte sequence is an accepted empty snapshot. Its successful
-   result is `event_count = 0` and the all-zero 32-byte tip. It is not a claim
-   that genesis or supplied-key binding occurred.
-3. Any non-empty input contains one or more non-empty record texts.
-4. A record terminator is LF (`0a`) or CRLF (`0d 0a`). Either may be used for
+3. After the supplied key passes that complete gate, the zero-length byte
+   sequence is an accepted empty snapshot. Its successful result is
+   `event_count = 0` and the all-zero 32-byte tip. It is not a claim that
+   genesis or supplied-key binding occurred.
+4. Any non-empty input contains one or more non-empty record texts.
+5. A record terminator is LF (`0a`) or CRLF (`0d 0a`). Either may be used for
    any record; mixed LF/CRLF input is permitted.
-5. The last record terminator is optional. A second terminator after the last
+6. The last record terminator is optional. A second terminator after the last
    record creates an empty record and MUST be rejected. Thus zero bytes is the
    only empty-snapshot spelling; LF alone is an empty record, not an alias.
-6. Lone CR is never a terminator or insignificant whitespace and MUST be
+7. Lone CR is never a terminator or insignificant whitespace and MUST be
    rejected as `Framing`.
-7. Empty and whitespace-only record texts MUST be rejected as `Framing`.
-8. Space (`20`) and horizontal tab (`09`) MAY appear as insignificant JSON
+8. Empty and whitespace-only record texts MUST be rejected as `Framing`.
+9. Space (`20`) and horizontal tab (`09`) MAY appear as insignificant JSON
    whitespace before, after or within the one JSON value. CR is permitted only
    as the first byte of a CRLF terminator; LF is always framing.
-9. Each record text MUST contain exactly one complete JSON value and no
+10. Each record text MUST contain exactly one complete JSON value and no
    non-whitespace trailing bytes.
-10. A UTF-8 BOM is forbidden. NUL is neither whitespace nor a terminator.
-11. Every record reached in physical order MUST be valid UTF-8. Invalid UTF-8
+11. A UTF-8 BOM is forbidden. NUL is neither whitespace nor a terminator.
+12. Every record reached in physical order MUST be valid UTF-8. Invalid UTF-8
     MUST produce governed `REJECT(Framing)`, never replacement characters, a
     traceback or a crash. A later invalid byte does not preempt an earlier
     record's governed failure.
@@ -367,11 +381,38 @@ sign, separator, surrounding whitespace or Unicode lookalike.
 | `Genesis.verifying_key` | 64 lowercase hex characters | `Genesis` |
 | `SegmentAnchored.witness_root` | 64 lowercase hex characters | `PayloadValidation` |
 | tag 6/7 `content_hash` | empty string or 64 lowercase hex characters | `PayloadValidation` |
-| portable CLI external key | 64 lowercase hex characters | `ExternalKey`, before record processing |
+| portable CLI external key | 64 lowercase hex characters decoding to 32 bytes that satisfy the verification-key representation law below | `ExternalKey`, before record processing |
 
-This table governs lexical shape only. In particular, accepting a syntactically
-valid Ed25519 point or supplied public key does not establish that it is a
-trusted root. A-021 remains separate.
+### Portable external-key gate
+
+The portable verifier MUST complete these steps, in order, before framing or
+processing any record:
+
+1. require exactly 64 lowercase ASCII hex characters;
+2. decode exactly 32 bytes; and
+3. interpret those bytes as the 32-byte compressed Edwards-Y representation
+   used for an Ed25519 public key and require Edwards25519 point decompression
+   to succeed.
+
+Failure at any step is `REJECT(ExternalKey)` with no line and no
+`record_index`. In particular, a representation-invalid key plus zero input is
+`REJECT(ExternalKey)`, not empty-snapshot `ACCEPT`. The empty-snapshot rule is
+evaluated only after the complete key gate succeeds.
+
+This representation rule is contract-owned. It is not defined by
+`ed25519-dalek`, Go's ability to store an arbitrary 32-byte slice, or Python's
+constructor defaults. The current Rust evidence is that
+locked `ed25519-dalek` 2.2.0 `VerifyingKey::from_bytes` performs fallible
+Edwards-point decompression; the future conformers MUST implement the same
+contract-level representation law.
+
+Representation validity stops at successful point decompression. It does not
+reject a representable key because it is small-order, low-order, weak,
+untrusted, unauthorized, stale or owned by an unexpected actor. Such a key
+passes this A-004/RQ-006 layer; A-021 continues to own whether it is admissible
+as a trust root and whether strict Ed25519 verification is required. Therefore
+“representation-valid” MUST NOT be shortened to an authority claim such as
+“trusted key.”
 
 ### Status representation
 
@@ -501,7 +542,7 @@ The portable verdict vocabulary is exactly:
 
 | Class | Meaning |
 | --- | --- |
-| `ExternalKey` | supplied key text is not exactly 64 lowercase ASCII hex characters decoding to 32 bytes |
+| `ExternalKey` | supplied key text fails exact lowercase 64-hex syntax, exact 32-byte decoding, or the required compressed Edwards25519 point-decompression/representation step |
 | `Framing` | byte encoding, BOM, record terminator, empty record or other file/record framing violation |
 | `JsonSyntax` | one framed record is not exactly one syntactically valid JSON value |
 | `Schema` | wrong JSON shape/type, duplicate/unknown/missing member, invalid u64 token/range, invalid status/payload kind, invalid core/stored hex, null, or invalid decoded string |
@@ -527,7 +568,9 @@ confused with a governed rejection or silently converted to acceptance.
 
 ### Ordering
 
-The verifier first validates portable external-key syntax. It then processes
+The verifier first completes the entire portable external-key gate: syntax,
+32-byte decoding and verification-key representation. Any failure is
+`ExternalKey` before framing, including for zero-byte input. It then processes
 records in physical order. For each record, the first applicable stage wins:
 
 ```text
@@ -647,6 +690,33 @@ only as parsed JSON or regenerated before verification. The manifest MUST bind
 each file by SHA-256 so an editor or checkout conversion cannot silently change
 the test.
 
+The repository currently applies `*.jsonl text eol=lf`. The future
+implementation PR MUST add a path-specific `.gitattributes` override for every
+new exact-byte hostile case, conceptually:
+
+```gitattributes
+fixtures/verifier-language-v1/cases/** -text
+```
+
+The implementation MUST validate the exact Git syntax and effective
+attributes; an equivalent binary/no-text rule is permitted only if it proves
+that checkout performs no text or EOL conversion. The override MUST be scoped
+to the new corpus subtree and MUST NOT remove or weaken the global JSONL rule
+for existing files. P1/P2 continue to reference the existing frozen fixtures
+in place; they are not moved or regenerated.
+
+This documentation-only contract PR does not edit `.gitattributes`; that
+narrow path override belongs to the later implementation surface.
+
+Repository blob bytes, checked-out fixture bytes and verifier input bytes MUST
+be identical for this subtree. The implementation proof MUST inspect effective
+attributes (for example with `git check-attr`) for representative paths and,
+in a fresh checkout or worktree,
+verify every physical SHA-256 against `manifest.input_sha256`. It MUST also
+show that the CRLF case retains CRLF, the mixed-EOL case retains both forms,
+the no-final-terminator case remains unterminated, invalid UTF-8 remains exact,
+no BOM or newline is inserted, and reading the corpus leaves Git status clean.
+
 ### Manifest model
 
 `manifest.json` is test metadata, not a signed Magpie history. Each case entry
@@ -700,8 +770,8 @@ law, and N30 contains both accepted and rejected framing variants.
 | N14 | `NaN`, `Infinity` and `-Infinity`, including in an unknown member: `REJECT(JsonSyntax)` |
 | N15 | fractional and exponent syntax for each u64 field: `REJECT(Schema)` |
 | N16 | u64 overflow, negative and `-0` for each u64 field: `REJECT(Schema)` |
-| N17 | every required top/core/provenance member and at least one field per payload variant omitted: `REJECT(Schema)` |
-| N18 | required object/string/integer/status members replaced by null: `REJECT(Schema)` |
+| N17 | for every required member coordinate in `SignedEvent`, `EventCore`, `Provenance` and each payload variant, omit that member individually while keeping the remainder structurally valid enough to isolate the omission: `REJECT(Schema)` |
+| N18 | for every required member coordinate in `SignedEvent`, `EventCore`, `Provenance` and each payload variant, replace that member individually with JSON null: `REJECT(Schema)` |
 | N19 | unknown, case-changed, numeric, missing and null payload kind: `REJECT(Schema)` |
 | N20 | unknown/case-changed/spaced/numeric closed actor, evidence and edge values: selected schema or payload-validation class and exact precedence |
 | N21 | wrong sequence: `REJECT(Sequence)` |
@@ -720,6 +790,58 @@ through escapes, case-changed member names, unpaired surrogates, wrong JSON
 container types, NUL, external-key lexical variants, all payload-specific
 non-empty rules, witness/content-hash rules and trailing bytes.
 
+### External-key hostile matrix
+
+The future corpus MUST include these key-gate obligations in addition to
+N1-N30:
+
+| ID | Required case and result |
+| --- | --- |
+| K1 | malformed-length external key text: `REJECT(ExternalKey)` |
+| K2 | uppercase and mixed-case external key text: `REJECT(ExternalKey)` |
+| K3 | non-hex external key text: `REJECT(ExternalKey)` |
+| K4 | exact lowercase 64 hex / 32 bytes that fail compressed-point representation decoding: `REJECT(ExternalKey)` with no coordinates |
+| K5 | K4 key plus zero-byte input: `REJECT(ExternalKey)` with no coordinates |
+| K6 | representation-valid ordinary fixture key passes the complete key gate |
+| K7 | representation-valid golden-fixture key plus the normal golden fixture: `ACCEPT` |
+| K8 | if a weak/low-order but representation-valid key is included, classify it only as an A-021 non-decision; this contract does not select trust admissibility or strict verification |
+
+K4 MUST use committed exact text with a documented point-decompression failure,
+not merely a test double that forces a constructor error.
+
+### Exhaustive schema-coverage proof
+
+N17 and N18 are Cartesian coverage obligations, not representative sampling.
+The conformance metadata MUST maintain a machine-checkable expected set of
+required-member coordinates covering:
+
+- `SignedEvent.core`, `.hash` and `.signature`;
+- `EventCore.seq`, `.timestamp_nanos`, `.prev_hash`, `.provenance` and
+  `.payload`;
+- `Provenance.agent` and `.source`; and
+- `Payload.<Variant>.kind` plus every exact additional member of all nine
+  payload variants listed in the normative schema.
+
+For every coordinate, the manifest MUST identify exactly one omission vector
+and exactly one null vector with expected `REJECT(Schema)`. The conformance
+runner MUST fail for a missing mutation, an ambiguous duplicate mapping, or a
+new governed payload/member absent from the expected coordinate set. This is
+test metadata only; it MUST NOT introduce a runtime schema registry or make the
+Magpie public API depend on the corpus inventory.
+
+The implementation MUST couple that expected set mechanically to the current
+Rust schema, for example through test-only exhaustive struct-field
+destructuring and exhaustive payload-variant matching with no wildcard or
+`..`. Adding a governed field or variant must therefore fail compilation or
+the conformance test until its coordinate and both mutations are added. An
+equally direct test-only mechanism is acceptable; a reviewer-maintained count
+alone is not.
+
+Corpus authoring MAY generate these fixtures, but the reviewed, committed
+post-generation bytes are authoritative. All omission/null cases remain
+SHA-256-bound exact-byte files and MUST NOT be generated independently at
+verifier runtime.
+
 ### Required positive matrix
 
 | ID | Required proof |
@@ -737,6 +859,11 @@ non-empty rules, witness/content-hash rules and trailing bytes.
 | P11 | Go imports/invokes no Rust or Python verification implementation and uses no shared canonicalization library |
 | P12 | frozen golden and Deadbolt fixture bytes remain byte-identical |
 
+In addition, positive conformance MUST prove that the ordinary golden external
+key passes the complete representation gate, that every new exact-byte case
+survives Git checkout byte-identically, and that the N17/N18 member-coordinate
+coverage assertion is complete.
+
 The corpus MUST contain positive, negative and multi-defect precedence cases.
 A comparison of final exit status alone is insufficient.
 
@@ -751,7 +878,8 @@ particular it must address:
 - duplicate and unknown members at all governed levels;
 - raw JSON integer-token constraints;
 - stable class/coordinate mapping; and
-- the selected empty-snapshot result.
+- the complete external-key representation gate before the selected
+  empty-snapshot result.
 
 The existing `magpie-core-v1` canonical encoder and cryptographic operations
 remain the production implementation. Their outputs MUST be compared with the
@@ -795,6 +923,14 @@ preferred foundation. A minimal `go.mod` is acceptable for tooling identity
 even if there are no third-party dependencies. Standard-library-only is the
 default expectation, not a permission to inherit parser defaults.
 
+Go's ability to hold an arbitrary 32-byte `ed25519.PublicKey` MUST NOT bypass
+the portable point-representation gate. If the Go standard library exposes no
+equivalent point-decompression predicate, the implementation MUST enforce the
+contract-owned representation rule independently or STOP for owner review
+before adding a dependency or weakening the rule. This contract authorizes no
+third-party Go dependency; standard-library-only remains preferred where
+feasible.
+
 In particular, the Go implementation must explicitly check UTF-8 before JSON
 decoding, duplicate names, unknown members, exact case, trailing JSON values,
 number tokens and all closed vocabularies. `encoding/json`'s tolerance for
@@ -817,7 +953,8 @@ parser behavior explicit. At minimum it must:
 - reject duplicate names, unknown members and non-finite numbers;
 - enforce exact integer token syntax rather than Python integer coercion;
 - accept only named JSON statuses;
-- enforce the selected lowercase CLI-key spelling;
+- enforce the complete external-key syntax, exact decode and compressed-point
+  representation gate before opening or framing the input;
 - separate canonical byte construction from semantic payload validation so
   hash/signature failures retain their precedence; and
 - expose the same first class and coordinate as Rust and Go.
@@ -884,9 +1021,10 @@ The future implementation intentionally narrows incidental transport behavior:
 - Python will move payload semantic validation after hash/signature checks.
 
 Python will broaden one behavior: zero bytes becomes an accepted empty
-snapshot with count 0 and zero tip. This follows FORMAT's explicit
-“non-empty chain” genesis wording and the stable Rust empty-store identity. It
-does not certify a genesis/key binding.
+snapshot with count 0 and zero tip, but only after the supplied external key
+passes syntax, exact decoding and representation validation. This follows
+FORMAT's explicit “non-empty chain” genesis wording and the stable Rust
+empty-store identity. It does not certify a genesis/key binding.
 
 These are pre-1.0 reference-input-language compatibility changes. They are not
 canonical format changes and MUST NOT be described as a new
@@ -900,11 +1038,13 @@ relative to that supplied key. They do not establish that the key belongs to a
 trusted actor, is current, is authorized or is cryptographically strong under
 any additional policy.
 
-This contract governs only the portable textual key spelling and equality
-check. It deliberately does not select whether a syntactically valid 32-byte
-weak or low-order Ed25519 encoding is an admissible trust root, and the v1
-corpus must not smuggle that policy choice into a lexical case. A-021 owns
-weak-root/strict-Ed25519 trust-root behavior and remains unchanged.
+This contract governs the portable textual key spelling, exact decoding,
+compressed-point representation validity and equality check. It deliberately
+does not select whether a representation-valid weak or low-order Ed25519 key
+is an admissible trust root, and the v1 corpus must not smuggle that policy
+choice into a representation case. `ExternalKey` acceptance means only that
+verification can structurally proceed with the supplied representation. A-021
+owns weak-root/strict-Ed25519 trust-root behavior and remains unchanged.
 
 ## Resource and storage boundary
 
@@ -1003,6 +1143,12 @@ The future implementation PR must prove all of the following:
     otherwise.
 12. A-004/RQ-006 remain administratively open until independent review, owner
     merge and separate ledger reconciliation.
+13. K1-K7 prove the complete external-key gate, including representation
+    failure before zero-byte acceptance; K8 cannot decide A-021 policy.
+14. Effective Git attributes and fresh-checkout SHA-256s prove that every new
+    exact-byte case survives checkout without normalization.
+15. A machine-checkable schema coordinate set proves one omission and one null
+    vector for every required member, with no missing or ambiguous coverage.
 
 ## Hostile scenarios
 
@@ -1023,6 +1169,12 @@ An independent reviewer should attempt at least these attacks:
   result;
 - replace a corpus file while leaving a parsed manifest representation
   unchanged;
+- let Git normalize CRLF, mixed-EOL, unterminated or invalid-UTF-8 case bytes;
+- let a lowercase 32-byte representation-invalid key reach empty-snapshot
+  acceptance;
+- confuse point representation with weak-key trust policy;
+- omit one required payload member, such as
+  `EvidenceRegistered.metadata_json`, from N17/N18 coverage;
 - make Go or Python call into Rust, or one verifier relay another's result;
 - drift canonical hashes while retaining the same ACCEPT Boolean;
 - treat empty-snapshot acceptance as a trusted genesis/key-binding claim; or
@@ -1034,6 +1186,7 @@ This contract does not:
 
 - change FORMAT, canonical bytes, payload tags, signatures or genesis;
 - implement Go or modify Rust/Python;
+- edit `.gitattributes`, fixtures or CI in this contract PR;
 - define resource, streaming, storage, locking, durability or atomicity law
   (A-008 / RQ-007 / RQ-008);
 - change projection fallibility (A-007 / RQ-009);
@@ -1054,6 +1207,7 @@ This contract does not:
 The intended future implementation surface is narrowly:
 
 ```text
+.gitattributes (path-specific no-text rule for the new exact-byte corpus only)
 fixtures/verifier-language-v1/**
 crates/magpie-log parsing/verification implementation and focused tests
 tools/verify_chain.py
@@ -1084,6 +1238,8 @@ The sequence is:
 - [ ] JSONL remains non-canonical transport around unchanged
       `magpie-core-v1` typed identity.
 - [ ] Empty zero-byte input and LF-only input are distinguished explicitly.
+- [ ] The complete external-key representation gate runs before empty-snapshot
+      acceptance, while A-021 trust/weak-key policy remains separate.
 - [ ] Duplicate names and unknown fields are rejected at every governed level.
 - [ ] Invalid UTF-8, BOM, non-finite JSON and lone CR are decided explicitly.
 - [ ] Status is exact named-string JSON, not the canonical numeric byte tag.
@@ -1095,6 +1251,10 @@ The sequence is:
       deterministic.
 - [ ] Positive results bind count, tip and ordered hashes.
 - [ ] Corpus cases are exact bytes with SHA-256 bindings.
+- [ ] A path-specific Git attribute prevents normalization of new hostile case
+      bytes, and a fresh checkout proves every manifest hash.
+- [ ] N17/N18 cover omission and null for every required member coordinate,
+      with machine-checked completeness.
 - [ ] Go is standalone, preferably standard-library-only, with no FFI/shared
       verifier logic.
 - [ ] Python is retained and tightened rather than deleted.

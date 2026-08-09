@@ -83,6 +83,11 @@ verdict model without changing canonical bytes.
 - Every SignedEvent/core/provenance/payload variant has exact required,
   non-null members with no defaults.
 - Core/stored hash and signature spellings are exact lowercase ASCII hex.
+- The external key must pass lowercase syntax, exact 32-byte decoding and the
+  contract-owned Ed25519 compressed-point representation/decompression gate
+  before any framing or record processing. Representation failure wins even
+  for zero-byte input; representation-valid weak-key trust policy remains
+  A-021.
 - JSON statuses are exact named strings, never numeric aliases.
 - `seq` and `timestamp_nanos` are unsigned decimal integer tokens in u64 range,
   with no sign, float, exponent, Boolean, null or string coercion.
@@ -130,6 +135,7 @@ The separate implementation PR is expected to touch only the narrow surfaces
 needed for conformance:
 
 ```text
+.gitattributes (path-specific no-text override for the new case subtree only)
 fixtures/verifier-language-v1/**
 crates/magpie-log parsing/verification code
 focused magpie-log conformance tests or runner
@@ -143,6 +149,11 @@ one later implementation ticket
 Exact Rust source paths must follow the then-current implementation rather than
 being guessed here. The implementation must exercise the real `FileStore` /
 production verification path, not a test-only serde substitute.
+
+The `.gitattributes` change is authorized only to override the existing
+`*.jsonl text eol=lf` rule for new exact-byte hostile cases, using a validated
+path-specific binary/no-text rule. It must not alter global JSONL policy or
+move/regenerate the existing frozen fixtures.
 
 Protected surfaces below remain unchanged unless the owner separately expands
 scope. A need to edit FORMAT or mint a new profile is a stop condition.
@@ -159,6 +170,10 @@ It must:
 - never link to or invoke Rust or Python;
 - use no generated/shared Magpie verification logic;
 - prefer only Go standard-library cryptography and JSON primitives;
+- independently enforce the contract's compressed-point representation gate
+  even though `crypto/ed25519` can store arbitrary 32-byte slices; if the
+  standard library cannot support that check, stop for owner review before
+  adding a dependency or weakening the rule;
 - explicitly constrain permissive `encoding/json` behavior;
 - use no cgo without a separately reviewed need;
 - use no network access during verification; and
@@ -191,6 +206,12 @@ verdict, class, line, record index and purpose. Accepted cases additionally
 bind event count, tip and ordered event hashes. P1/P2 reference the existing
 golden and Deadbolt fixtures in place; new inputs live under `cases/`.
 
+The implementation must add and prove an effective no-text Git attribute for
+`cases/`. In a fresh checkout/worktree, every checked-out case SHA-256 must
+equal the manifest, including literal CRLF, mixed-EOL, unterminated and
+invalid-UTF-8 cases, with no inserted BOM/newline and clean Git status after
+the runner reads them.
+
 Malformed, duplicate-key, invalid-UTF-8 and framing cases must never be
 represented only as parsed/reserialized JSON. The corpus must contain positive,
 negative and multi-defect precedence inputs.
@@ -212,14 +233,37 @@ Implement the full contract N1-N30 matrix, including:
 - duplicate known/unknown and unknown members;
 - non-finite JSON, malformed JSON and wrong shapes;
 - u64 fractional, exponent, overflow, negative and coercion cases;
-- every required/null field family and unknown payload/vocabulary;
+- for every required member coordinate in `SignedEvent`, `EventCore`,
+  `Provenance` and all nine payload variants, one individual omission vector
+  (N17) and one individual null vector (N18), each `REJECT(Schema)`;
 - sequence, link, hash, signature and Genesis failures;
 - all specified multi-defect first-failure pairs; and
 - valid prefixes with defective later records.
 
 The case ID prefix `N` denotes a hostile obligation, not necessarily REJECT:
-zero-byte N7 is ACCEPT under the selected law, and N30 contains accepted and
-rejected framing variants.
+zero-byte N7 is ACCEPT under the selected law only after the complete external
+key gate passes, and N30 contains accepted and rejected framing variants.
+
+Also implement K1-K8 for the external-key gate: malformed length, case and
+non-hex; a lowercase 32-byte representation that fails point decompression;
+that representation plus zero-byte input; ordinary representation-valid and
+golden-fixture keys; and an explicit A-021 non-decision for any
+representation-valid weak/low-order key. K4/K5 are `REJECT(ExternalKey)` with
+no coordinates.
+
+Schema coverage must be machine-checkable. Test metadata must enumerate the
+complete expected coordinate set (top/core/provenance plus `kind` and every
+additional member of every payload variant) and map each coordinate to exactly
+one omission and one null case. The runner fails on missing/ambiguous coverage
+or a new governed member absent from the inventory. This remains conformance
+metadata, not a runtime schema registry; committed SHA-bound case bytes are
+authoritative even if authoring is generated.
+
+Couple the expected coordinate set mechanically to the current Rust types with
+test-only exhaustive field destructuring/variant matching (or an equally
+direct non-runtime mechanism), so a new governed field or payload variant
+cannot compile or pass conformance until the inventory and both mutations are
+updated.
 
 ## Positive proof obligations
 
@@ -232,6 +276,10 @@ Implement P1-P12:
 - equal first class/coordinate for every precedence vector;
 - an independence audit proving Go shares no verifier implementation; and
 - byte identity of the frozen histories.
+
+Additionally prove that the golden fixture key passes the complete
+representation gate, every new case survives Git checkout byte-identically,
+and N17/N18 coverage is mechanically exhaustive.
 
 ## Protected surfaces
 
@@ -260,6 +308,8 @@ cargo test --doc -p magpie-log --locked
 Go format/vet/test/build commands selected by the implementation contract
 Python frozen-chain verifier commands
 all three conformers over every exact-byte manifest case
+Git attribute inspection plus fresh-checkout SHA-256 verification for every case
+machine-checkable omission/null coverage over every required schema coordinate
 python tools/check_release_metadata.py
 git diff --check
 ```
@@ -270,6 +320,8 @@ first-failure equivalence, dependency/import audits and protected-file hashes.
 ## Explicit non-goals
 
 - No runtime, verifier, fixture, test, Go, module or CI implementation here.
+- No `.gitattributes` change in this contract PR; its scoped corpus override
+  belongs to the later implementation.
 - No new canonicalization, event or transport profile.
 - No JSON-byte canonicalization.
 - No weak-key/trust-root policy (A-021).
