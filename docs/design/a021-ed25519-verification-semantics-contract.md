@@ -78,8 +78,11 @@ torsion points, establish trust, or select a signature-verification mode.
 ## Recommended v1 contract
 
 The following is the compatibility-preserving recommendation for the named
-`magpie-core-v1` profile. It makes current behavior explicit; it does not
-rewrite canonical event bytes.
+`magpie-core-v1` profile. It makes the selected relation explicit without
+rewriting canonical event bytes. It is a normative owner decision, not a
+claim that every currently linked host library has already been exercised on
+every newly required edge vector; the implementation tranche must prove that
+each conformer realizes it.
 
 ### Message and algorithm
 
@@ -158,6 +161,50 @@ or self-authenticating.
 and would disagree with RFC 8032's verification rule and the locked Rust
 default. `S = 0` is representation-valid; it verifies only if the complete
 equation holds.
+
+### Required accepting edge constructions
+
+The future corpus must prove both sides of the scalar and torsion boundaries;
+negative cases alone are insufficient.
+
+`A21-S4` is the canonical identity construction. Let `I` be the canonical
+identity encoding
+`0100000000000000000000000000000000000000000000000000000000000000`.
+Use `A_bytes = I`, `R_bytes = I`, `S_bytes = 32 zero bytes`, and the exact
+message
+`M = ASCII("magpie-sig-v1") || 32 zero bytes`. The challenge is still computed
+from `R_bytes || A_bytes || M`; its value is immaterial because `[k]I = I`.
+Consequently `[0]B = I + [k]I = I`, so this is a complete equation-satisfying
+`ACCEPT` vector. The future chain wrapper must bind the exact event bytes and
+its ordered hash/count/tip; a key- or equation-substage result is not enough.
+
+`A21-T2` is a genuinely mixed-torsion positive construction. Let `T4` be the
+order-four point with canonical encoding
+`0000000000000000000000000000000000000000000000000000000000000000`, and let
+`B` be the standard base point. Use:
+
+```text
+A = B + T4
+A_bytes = 5252cc0a7f208133b620acbd4537eba2a4123bf0a8c2e4f980c3b31bb69765ea
+R = B
+R_bytes = 5866666666666666666666666666666666666666666666666666666666666666
+S_bytes = a5dbeb5cd27780380b9c00153d328ef3399722dc9260abb20716a81cc62f510b
+M = ASCII("magpie-sig-v1") || 32 zero bytes
+```
+
+For this exact message, `k =
+5118885669828609414212241343031073060215324799265782113781910744455214521252`,
+which is divisible by four, and the displayed scalar is `S = 1 + k` (strictly
+less than `L`). Thus `[L]A = T4 != I` and `[4]A != I`, proving that `A` has
+both a non-zero prime component and a non-zero torsion component rather than
+being a purely small-order point, while `[S]B = B + [k]B = R + [k](B + T4)`
+because `[k]T4 = I`. Both encodings decompress and byte-for-byte re-encode
+canonically under #120. The future chain wrapper must bind the exact event
+bytes and accepted summary fields.
+
+`A21-T1` remains the equation-false mixed-torsion counterpart. Together the
+two vectors prove that v1 decides by canonical representation plus the exact
+simple equation, not by an unconditional mixed-torsion blacklist.
 
 ### Result boundary
 
@@ -267,6 +314,7 @@ event bytes, expected v1 verdict, and observed Rust/Python/Go results.
 | `A21-S1` | `S = L` | `REJECT(Signature)` |
 | `A21-S2` | `S = L + 1` or another non-canonical in-range-encoding mutation | `REJECT(Signature)` |
 | `A21-S3` | `S = 0` boundary with a non-matching equation | `REJECT(Signature)` |
+| `A21-S4` | canonical identity `A`, canonical identity `R`, `S = 0`, and the matching equation | `ACCEPT` |
 | `A21-R1` | `R` has no point decompression | `REJECT(Signature)` |
 | `A21-R2` | `R` is a non-canonical encoding of an otherwise recoverable point | `REJECT(Signature)` |
 | `A21-R3` | `x = 0` with sign bit one | `REJECT(Signature)` |
@@ -274,6 +322,7 @@ event bytes, expected v1 verdict, and observed Rust/Python/Go results.
 | `A21-D2` | ordinary golden `A` plus the preserved identity/small-order `R` signature | `ACCEPT` under v1 |
 | `A21-C1` | a cofactor-sensitive residue that satisfies a cofactored equation but not the simple equation | `REJECT(Signature)` |
 | `A21-T1` | a mixed-torsion `A` or `R` with a deliberately non-matching equation | `REJECT(Signature)` |
+| `A21-T2` | the exact mixed-torsion `A = B + T4` construction above with the matching simple equation | `ACCEPT` |
 | `A21-M1` | correct signature bytes under the wrong `magpie-sig-v1 || hash` message | `REJECT(Signature)` |
 | `A21-K1` | #120 representation-invalid external key, before any signature work | `REJECT(ExternalKey)` |
 
@@ -287,6 +336,15 @@ The implementation tranche must generate and review exact bytes, not
 re-serialize parsed values. Every vector must be run through the real Rust
 reader, `tools/verify_chain.py`, and the independent Go verifier. A vector is
 not complete when only the key or point substage was tested.
+
+Before implementation is called a compatibility freeze, the conformance run
+must record the actual result of `A21-S4` and `A21-T2` from all three locked
+implementations. The locked Rust source-level ordinary path computes the
+uncofactored equation and has no `S = 0` or mixed-torsion blacklist; the Python
+reference probe must exercise the exact bytes above. If any host rejects a
+mathematically accepted construction, record that as implementation divergence
+and stop for owner judgment rather than silently changing the v1 relation or
+calling the host default normative.
 
 ## Compatibility analysis
 
@@ -338,7 +396,8 @@ The implementation tranche must, before any A-004/RQ-006 closure claim:
 2. implement the canonical A/R and `S < L` checks independently in Rust,
    Python, and Go;
 3. prove the v1 simple equation and no-cofactor behavior, including D1, D2,
-   `A21-C1`, and mixed-torsion cases;
+   `A21-S4`, `A21-C1`, `A21-T1`, and the accepting `A21-T2` mixed-torsion
+   construction;
 4. run the real production Rust path, the real Python verifier, and the
    standalone Go binary against the same bytes;
 5. preserve the frozen fixtures byte-for-byte and prove their counts/tips and
@@ -356,6 +415,11 @@ Owner judgment is required before implementation if any of the following is
 true:
 
 - the owner does not accept v1's explicit acceptance of D1/D2;
+- the owner does not accept the explicit equation-satisfying `A21-S4` or
+  `A21-T2` edge vectors;
+- a locked Rust, Python, or Go implementation rejects a mathematically
+  equation-satisfying `A21-S4` or `A21-T2` construction; record the divergence
+  and stop rather than silently narrowing the relation;
 - Rust, Python, or Go cannot realize the v1 relation without an unreviewed
   dependency or undocumented host-library behavior;
 - a frozen or already-published v1 history fails the relation;

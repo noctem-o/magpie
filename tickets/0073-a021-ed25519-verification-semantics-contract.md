@@ -47,11 +47,26 @@ The future exact-byte corpus must promote A21-D1 and A21-D2 to normative v1
 non-exhaustive witnesses during review. It must also cover:
 
 - ordinary frozen golden and Deadbolt positives;
-- `S = L`, `S = L + 1`, and `S = 0` boundaries;
+- `S = L`, `S = L + 1`, and both sides of the `S = 0` boundary: equation
+  mismatch → `REJECT(Signature)`, and canonical identity `A`/`R` with the
+  matching equation → `ACCEPT` (`A21-S4`);
 - non-decodable, non-canonical, and zero-`x`/sign-bit-invalid `R`;
 - a cofactor-sensitive residue proving the uncofactored equation;
-- mixed-torsion `A`/`R` and a wrong-message negative; and
+- mixed-torsion equation mismatch → `REJECT(Signature)` (`A21-T1`) and a
+  genuinely mixed-torsion `A = B + T4` equation match → `ACCEPT` (`A21-T2`),
+  plus a wrong-message negative; and
 - the #120 representation-invalid external-key precedence case.
+
+`A21-S4` uses canonical identity `A` and `R`, zero `S`, and the exact message
+`ASCII("magpie-sig-v1") || 32 zero bytes`. `A21-T2` uses the canonical
+order-four point `T4` (`00` followed by 31 zero bytes),
+`A = B + T4` encoded as
+`5252cc0a7f208133b620acbd4537eba2a4123bf0a8c2e4f980c3b31bb69765ea`,
+`R = B`, and the canonical scalar bytes
+`a5dbeb5cd27780380b9c00153d328ef3399722dc9260abb20716a81cc62f510b` for
+that same message. It satisfies `[L]A = T4 != I` and `[4]A != I`, proving a
+non-zero prime component and a non-zero torsion component; it is not a purely
+small-order witness.
 
 Every vector binds exact key/input bytes, expected verdict/class, and (for
 accepted chains) ordered hashes, count, and tip. A point/key substage result is
@@ -81,10 +96,13 @@ conformers pass the complete vectors, frozen histories remain valid, hostile
 review completes, and the implementation is merged. A-004/RQ-006 cannot close
 before those gates and a separate ledger reconciliation.
 
-Stop for owner judgment before implementation if the owner rejects v1 D1/D2
-acceptance, if a conformer needs an unreviewed dependency, if any frozen v1
-history disagrees, or if a safer successor relation/name/migration has not been
-ratified.
+Stop for owner judgment before implementation if the owner rejects v1 D1/D2,
+S4, or T2 acceptance; if a locked conformer rejects a mathematically
+equation-satisfying S4/T2 construction; if a conformer needs an unreviewed
+dependency; if any frozen v1 history disagrees; or if a safer successor
+relation/name/migration has not been ratified. A host-library observation is
+evidence to investigate, not authority to silently change the selected
+relation.
 
 The complete design contract is
 [`docs/design/a021-ed25519-verification-semantics-contract.md`](../docs/design/a021-ed25519-verification-semantics-contract.md).
