@@ -17,7 +17,7 @@ D = Derive_G(I_G)
 
 G   = the immutable identity of the complete normative derivation semantics
 I_G = the closed, profile-specific, complete immutable semantic inputs
-D   = the semantic derived result
+D   = a semantic outcome defined by G, including its typed semantic failures
 ```
 
 No semantic input on which `D` can depend may be absent from the producing
@@ -84,10 +84,10 @@ every profile to close its own input type under one common rule.
 ## Terms
 
 **Derivation profile (`G`).** The immutable identity of one complete normative
-semantic procedure: its input interpretation, rules, ordering, failure law, and
-semantic output. A profile may be identified by one value or by a closed tuple
-of existing semantic identifiers. It is one semantic coordinate even when its
-representation is structured.
+semantic procedure: its input interpretation, rules, ordering, typed semantic
+failure law, and semantic output. A profile may be identified by one value or
+by a closed tuple of existing semantic identifiers. It is one semantic
+coordinate even when its representation is structured.
 
 **Complete semantic inputs (`I_G`).** The closed typed input value required by
 `G`. It includes every explicit historical, external-material, authority,
@@ -100,12 +100,18 @@ computation was requested?"
 **Producing coordinates.** Exact values or immutable typed identities through
 which the producing context identifies `G` and every member of `I_G`.
 
-**Semantic result (`D`).** The conclusion defined by `G`, such as governed
-standing or a typed failure. Equal result content does not imply equal
-producing contexts.
+**Semantic outcome (`D`).** A conclusion defined by `G` over `I_G`: either a
+profile-defined successful result or a profile-defined typed semantic failure.
+An operational execution failure such as an I/O error, resource exhaustion,
+process interruption, unavailable storage, host crash, or an equivalent
+failure to complete evaluation is not `D`. It produces no semantic conclusion
+and does not force environmental state into `I_G`. If `G` deliberately gives
+finite availability or absence semantic meaning, that explicit immutable value
+remains a member of `I_G`. Equal outcome content does not imply equal producing
+contexts.
 
 **Result identity.** A possible future commitment to both a producing context
-and its semantic result. It answers a different question: "What exact result
+and its semantic outcome. It answers a different question: "What exact outcome
 did that computation produce?" This ADR fixes the distinction but no runtime
 type, encoding, or digest.
 
@@ -117,9 +123,10 @@ scope above.
 ### 1. Complete profile-specific inputs
 
 For a selected `G`, `I_G` is closed and complete. If changing an input while
-holding the other producing inputs fixed can change the semantic result,
-failure, or applicability of the derivation, that input must be represented in
-`I_G` directly or through an immutable identity that commits to it.
+holding the other producing inputs fixed can change `D`, including a
+profile-defined typed semantic failure or applicability outcome, that input
+must be represented in `I_G` directly or through an immutable identity that
+commits to it.
 
 The same rule applies when an input defines the exact history, subject, scope,
 or trust interpretation to which an otherwise equal conclusion refers. Equal
@@ -129,6 +136,12 @@ An identity may commit to material without embedding all of its bytes. Replay
 still requires the exact material to be supplied explicitly and checked against
 that identity. An identity is not permission for an ambient fetch.
 
+An operational failure to obtain material or complete evaluation yields no
+`D`. Recording host, storage, resource, interruption, or other environmental
+state in `I_G` does not convert that failure into a semantic outcome. This does
+not alter a profile that deliberately defines a finite supplied-material or
+absence value as an immutable semantic input.
+
 ### 2. No ambient or laundered semantics
 
 Every semantic input is selected explicitly and is immutable for the
@@ -137,22 +150,35 @@ environment-selected value is not a producing coordinate. Neither are hidden
 filesystem, content-addressed-store, network, callback, plugin, registry, or
 process-configuration lookups.
 
-A nested derivation cannot launder omitted inputs. The enclosing profile must
-either:
+A nested derivation cannot launder omitted inputs. When an inherited result is
+re-derived internally from its complete producing context, the enclosing
+profile must either:
 
 1. retain the inherited profile and complete producing coordinates; or
 2. bind an immutable inherited producing-context identity that transitively
    commits to them.
 
 If both flattened coordinates and a context identity are retained, they must
-exact-match. An inherited semantic value or result digest alone is insufficient
-unless it also commits to the complete inherited producing context.
+exact-match. For this internally re-derived case, the complete context binding
+is sufficient because the inherited `D` is recomputed under that context.
+
+If an inherited `D` is instead detached or caller-supplied, a producing-context
+identity alone identifies only the requested computation; it does not verify
+the supplied outcome. The consumer must additionally verify that `D` is the
+exact semantic outcome bound to that context, either by re-deriving and
+exact-matching it or by checking a future result identity or equivalent
+immutable binding that commits to both context and `D`. `(context_id,
+arbitrary_D)` is not a valid inherited semantic input. A result-content digest
+and a separately asserted context identity do not establish that binding.
 
 ### 3. Profile-relative derived result and boundary carriage
 
-`D` states only what `G` concluded from `I_G`. The same `(G, I_G)` must produce
-the same semantic result. A change to normative semantics requires a different
-`G`; behavioral drift under the same `G` is non-conformance.
+`D` states only the semantic outcome that `G` concluded from `I_G`. Every
+completed conforming evaluation of the same `(G, I_G)` must produce the same
+`D`. An operational failure to complete evaluation produces no `D` and is not
+a counterexample to semantic determinism. A change to normative semantics
+requires a different `G`; behavioral drift under the same `G` is
+non-conformance.
 
 Any governed derived result that leaves its constructing context must carry, or
 be unambiguously bound to, its complete producing context. An incomplete
@@ -184,13 +210,13 @@ current policy.
 An implementation, package, build, language, host library, or process is not a
 semantic coordinate merely because it executes `G`. Conformant Rust, Go, and
 Python implementations of the same `G` over the same `I_G` must produce the
-same semantic result without creating three epistemically different results.
-Implementation identity may remain assurance provenance.
+same `D` whenever evaluation completes, without creating three epistemically
+different results. Implementation identity may remain assurance provenance.
 
 If an implementation changes behavior while retaining `G`, it has a
 conformance defect. It has not created legitimate new policy semantics. If a
-different resolver algorithm or failure law is intended, it requires a
-different `G`.
+different resolver algorithm or typed semantic-failure law is intended, it
+requires a different `G`.
 
 A human-readable resolver name is sufficient only when it immutably and
 unambiguously identifies the normative semantics. A mutable alias that resolves
@@ -233,7 +259,7 @@ collapsing distinct concerns:
 | --- | --- |
 | Exact verified historical material | A semantic input when `G` derives from it. Its coordinate identifies the exact historical input used. |
 | Historical verification profile or externally selected historical trust root | Included in `I_G`, inside the historical coordinate or separately, whenever it affects the verified interpretation or whether the derivation is valid. ADR-0007 requires future `H` to commit both; this ADR does not force that packaging universally. |
-| Immutable external closure or supplied material | A separate semantic input when consumed. It must not be renamed "snapshot." Absence or availability is committed by a finite explicit input where it changes the typed result. |
+| Immutable external closure or supplied material | A separate semantic input when consumed. It must not be renamed "snapshot." Finite absence or availability is committed by an explicit immutable input only where `G` deliberately gives it semantic meaning; operational inability to obtain material produces no `D`. |
 | Future authority profile, trust root, verification material, or designation universe | Explicit profile-specific inputs. They may form an `A` value; authority may not be inferred from history or labels. |
 | Caller-selected claim, subject, scope, query, or other request parameter | A semantic input whenever changing it can change what is evaluated or returned. Explicit caller selection does not make it non-semantic. |
 | Normative policy and resolver rules | Identified by `G`, not hidden in an implementation. |
@@ -271,23 +297,29 @@ not this one.
 The universal requirement is transitive completeness, not mandatory field
 duplication.
 
-An outer derivation that consumes an inherited semantic result must bind the
-exact inherited producing context. It may:
+An outer derivation that internally re-derives an inherited semantic result from
+its complete inherited producing context must bind that exact context. It may:
 
 - flatten the inherited profile and inputs into its own producing context;
 - retain one immutable inherited producing-context identity that commits to
   them; or
 - retain both for audit clarity, with exact equality checks.
 
-The second form is the preferred compact model once such an identity is
-designed. It lets v4-like successors avoid an ever-growing repeated tuple while
-preserving the exact inherited computation. Until a complete context identity
-exists, retaining and matching the actual transitive coordinates is the safe
-form.
+For this internally re-derived case, complete context binding is sufficient:
+the inherited `D` is recomputed rather than accepted by assertion. The second
+form is the preferred compact model once such an identity is designed. It lets
+v4-like successors avoid an ever-growing repeated tuple while preserving the
+exact inherited computation. Until a complete context identity exists,
+retaining and matching the actual transitive coordinates is the safe form.
 
-A future result identity may be accepted as an inherited semantic input only if
-it commits to both the inherited producing context and the inherited semantic
-result. A digest of result content alone cannot establish its origin.
+An outer derivation that accepts a detached or caller-supplied inherited `D`
+must also verify that exact outcome against the bound inherited context. It may
+re-derive and exact-match `D`, or a future result identity or equivalent
+immutable commitment may bind the inherited producing context and semantic
+outcome together. A context identity paired with arbitrary result content is
+invalid, as is a result-content digest that does not unambiguously bind the
+complete context. Concrete `ResultIdentity` runtime and API design remains
+deferred to C3.
 
 Current v4 effectively uses the third form for the coordinates current types
 expose: it retains prefix and closure directly, embeds v3, and exact-matches
@@ -390,17 +422,17 @@ itself supply ratification.
 | --- | --- |
 | C1 — same `H` and profile, different closure `M` | Different `I_G` and producing contexts; equal context may not be claimed. |
 | C2 — detached v3/v4 result omits `M` | It is not coordinate-complete and may not claim complete reproducibility or enter a coordinate-complete consumer. |
-| C3 — two conformant implementations | Same `G` and `I_G` produce the same semantic result; implementation identity does not split epistemic identity. |
+| C3 — two conformant implementations | Every completed evaluation of the same `G` and `I_G` produces the same `D`; implementation identity does not split epistemic identity. |
 | C4 — implementation drifts under unchanged `G` | Non-conformance. A behavior change is not legitimate semantics without a new `G`. |
 | C5 — future policy consumes authority `A` | `A` is an explicit member of that profile's `I_G`; no constitutional rewrite is needed. |
 | C6 — future query depends on `Q` | `Q` is an explicit member of the query profile's `I_G`; this ADR does not authorize the query implementation. |
 | C7 — resolver silently loads "current closure" | Forbidden ambient semantics. The result is not a conforming Magpie derivation. |
 | C8 — coordinate names `current-origin-review-key` | Rejected unless the value itself is an immutable identity with one fixed interpretation; mutable alias resolution is forbidden. |
-| C9 — v4 consumes v3 | Flatten complete inherited coordinates, bind a complete inherited context identity, or do both and exact-match. Result content alone is insufficient. |
+| C9 — v4 consumes v3 | Internally re-derived v3 needs complete context binding. A detached/caller-supplied v3 additionally requires re-derivation and exact-match or one verified binding of context plus `D`; `(context_id, arbitrary_D)` is rejected. |
 | C10 — conformers format explanatory traces differently | Semantic standing identity is unchanged when formatting is not part of `G`. A separately governed exact audit representation may have its own conformance requirement. |
 | C11 — checkpoint-matched history replaces today's prefix type | The law still holds with a new profile-specific historical input; the coordinate does not imply freshness or latest history unless separately decided. |
 | C12 — same standing, different currentness derivation | Standing remains identical under its own context while currentness differs under a separate profile and context. The facets do not collapse. |
-| C13 — material is unavailable | If availability affects the typed result, the finite supplied-material/absence input is explicit in `I_G`; ambient lookup failure cannot be silently reclassified. |
+| C13 — material is unavailable | Profile-defined finite supplied-material/absence input is explicit in `I_G` and may produce a typed `D`. I/O, storage, resource, process, or host failure to complete evaluation produces no `D` and cannot be silently reclassified. |
 | C14 — equal result content under different contexts | The semantic value may be equal, but the producing contexts—and any future context-bound result identities—remain distinct. |
 
 ## Alternatives considered
@@ -462,7 +494,8 @@ Positive consequences:
 - future authority and query inputs fit without a universal optional tuple;
 - independent conformers can share semantic identity;
 - implementation drift remains a defect rather than silent policy evolution;
-- nested derivations can be compact without losing transitive provenance;
+- internally re-derived nested results can be compact without allowing a
+  detached result to substitute arbitrary content beside a context identity;
 - currentness and standing remain separate; and
 - exact history remains distinguishable from freshness or checkpoint status.
 
@@ -488,6 +521,11 @@ producing-context identity
 result identity
     commits to producing context + semantic D
 ```
+
+A producing-context identity therefore cannot authenticate a separately
+supplied `D`. Such a value must be re-derived and exact-matched or verified
+through one binding of context and outcome. This requirement does not choose
+the future binding representation.
 
 The later C3 tranche may decide whether these identities need runtime types,
 how they are encoded, whether a context is flattened or nested, which semantic
@@ -542,7 +580,11 @@ record, not doctrine. This PR does not edit it or close its decision record.
 - Confirm mutable aliases and ambient lookup cannot qualify as coordinates.
 - Confirm implementation identity is assurance provenance for conformers.
 - Confirm drift under one `G` is non-conformance.
-- Confirm nested derivation cannot launder inherited inputs.
+- Confirm internally re-derived inheritance binds complete context, while a
+  detached inherited result also binds and verifies its exact `D`.
+- Confirm `(context_id, arbitrary_D)` cannot qualify as inherited input.
+- Confirm operational inability to complete evaluation produces no `D` and
+  does not force environmental state into `I_G`.
 - Confirm result content and producing context remain distinct.
 - Confirm currentness remains separate from standing.
 - Confirm history identity makes no freshness, latest, checkpoint, rollback, or
