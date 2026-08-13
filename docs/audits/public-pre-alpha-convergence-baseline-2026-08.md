@@ -76,8 +76,9 @@ Until the constitutional reassessment below, the only candidate boundary this
 baseline can describe safely is an experimental, local, supplied-snapshot
 kernel: it can parse and verify a supplied record snapshot under an externally
 selected key, replay that verified snapshot into derived views, and make
-explicit policy results available only with their stated policy-relative and
-snapshot-relative limits. It must not be advertised as proving an externally
+current policy results available only within the explicit input and policy
+limits documented for each current path; it does not state a complete
+producing-coordinate law. It must not be advertised as proving an externally
 expected head, freshness, durable physical storage, authority-bearing
 corroboration, portable cross-language agreement, or a detached result's full
 producing context.
@@ -122,7 +123,7 @@ programme work; no C0–C5 item is an irrevocable implementation commitment.
 
 | Finding family | Baseline evidence | Pre-alpha readiness classification | Boundary consequence or owner decision |
 | --- | --- | --- | --- |
-| A-024 claimant-controlled authority amplification | ADR-0007 requires an additive authority-bound successor; current v3 may reach `Supported` from claimant-selected authority-looking labels and distinct origin groups. | **BOUNDARY EXCLUSION** | Current v3 outputs may remain reproducible compatibility output, but must not be advertised as independently authority-bound corroboration. An owner must decide whether any claimant-v3 surface is public. |
+| A-024 claimant-controlled authority amplification | ADR-0007 requires an additive authority-bound successor; current v3 may reach `Supported` from claimant-selected authority-looking labels and distinct origin groups. | **BOUNDARY EXCLUSION** | Current v3 outputs may remain retained as compatibility/historical output, but must not be advertised as independently authority-bound corroboration. An owner must decide whether any claimant-v3 surface is public. |
 | NEW-LOG-01 valid prefix versus expected history | Verification covers the supplied snapshot as a whole; no external expected-head or checkpoint-match mechanism is present. | **BOUNDARY EXCLUSION** | Use `verified supplied snapshot` or `verified prefix`, never freshness, expected-history, or head-completeness language. Becomes a **PRE-ALPHA BLOCKER** if such a claim is advertised. |
 | A-008 / RQ-007 / RQ-008 physical persistence | The sole-write capability boundary is landed, while `FileStore` lacks a full durability, locking, framing, acknowledgement, crash, and outer-resource law. | **BOUNDARY EXCLUSION** | Do not advertise FileStore as durable, crash-safe, concurrent-writer-safe, or a checkpoint-matched history source. |
 | A-004 / RQ-006 portable input language | PR #120 supplies a contract; current Rust and Python behaviour remains divergent and no Go conformer exists. | **PRE-ALPHA BLOCKER** for a portable-verification claim | C2 must provide the corpus and independent conformers before that claim may be public. A Rust-only experimental boundary must say that it is not portable verification. |
