@@ -75,8 +75,8 @@ This ADR governs the semantic distinction between:
 2. evaluation of that verified input against one explicit immutable historical
    expectation.
 
-It defines two minimum expectation relations because they answer different
-questions:
+It standardizes the two expectation relations required by the present
+architectural boundary because they answer different questions:
 
 - **Exact** — does the supplied verified history terminate at the expected
   historical position?
@@ -88,6 +88,12 @@ questions:
 checkpoint contains that checkpoint. `Exact` remains distinct because it also
 requires that the supplied history contain no supplied suffix after the
 checkpoint.
+
+These standardized relations are not a universal ceiling on `E`. A future ADR
+or profile may define another explicit immutable expectation predicate without
+amending ADR-0009 merely because that predicate differs, provided its complete
+producing context obeys ADR-0008 and this ADR's non-ambient and non-overclaim
+laws.
 
 This ADR defines propositions, not wire schemas, Rust types, persistence, or
 rollback protection.
@@ -105,8 +111,10 @@ input and those verification semantics. Trust in an externally selected key or
 root remains a separate input and does not arise from the history itself.
 
 **History checkpoint (`C`).** An explicit immutable historical expectation
-that identifies one expected historical position and the exact historical
-commitment required at that position under the relevant history semantics. A
+value that minimally identifies one expected historical position and one exact
+immutable commitment to the history through that position. `C` need not itself
+contain every semantic coordinate needed to interpret those values; those
+dependencies belong to the complete producing context under ADR-0008. A
 checkpoint is expectation material, not automatically trusted material.
 
 **Expectation relation (`E`).** The exact normative predicate being evaluated.
@@ -168,10 +176,14 @@ Every expectation evaluation requires:
 - one exact relation `E` selected immutably in the producing context.
 
 `C` is an evaluation-specific semantic input and therefore belongs in the
-expectation profile's complete `I_G`. If checkpoint provenance,
-authentication, witness identity, authorization, or immutable secure-retention
-evidence can affect the result, that exact material is also explicit immutable
-input under ADR-0008. The word *checkpoint* supplies none of it.
+expectation profile's complete `I_G`. The checkpoint value itself needs to
+carry only the position-and-commitment floor below. Every semantic dependency
+needed to interpret it must be identified by the complete producing context in
+the ADR-0008 coordinate appropriate to its role; it need not be embedded in
+`C`. If checkpoint provenance, authentication, witness identity,
+authorization, or immutable secure-retention evidence can affect the result,
+the complete producing context must likewise identify that exact material.
+The word *checkpoint* supplies none of it.
 
 The relation may be represented in either of two conforming ways:
 
@@ -260,19 +272,25 @@ non-equivocation, consensus, or global uniqueness.
 
 ## Minimum checkpoint semantic floor
 
-A conforming checkpoint must identify at least:
+A conforming checkpoint value must minimally identify:
 
 ```text
 one exact expected historical position
-+ one exact commitment to the history through that position
-+ the profile-specific semantic context needed to interpret both
++ one exact immutable commitment to the history through that position
 ```
 
-Position without commitment admits a length-substitution attack. Commitment
-without its required position does not answer the wrong-position hostile case.
-Any log namespace, verification profile, external trust coordinate, or other
-semantic input needed to interpret the checkpoint remains explicit in `I_G` or
-immutably committed by the appropriate coordinate under ADR-0008.
+That is the semantic floor for `C` itself, not for its complete producing
+context. Position without commitment admits a length-substitution attack.
+Commitment without its required position does not answer the wrong-position
+hostile case.
+
+The complete producing context must separately identify every semantic input
+needed to interpret `C`. Depending on the selected profile, those dependencies
+may include namespace or log identity, verification profile, trust root,
+commitment or canonicalization interpretation, externally selected trust
+material, or another profile-specific semantic input. Each belongs in `G`,
+`I_G`, or another ADR-0008-conforming coordinate according to its role and need
+not be embedded or serialized in `C`.
 
 This semantic floor deliberately does not choose:
 
@@ -304,6 +322,10 @@ For a governed detached expectation result:
 - `I_G` includes the exact supplied historical input or an ADR-0008-conforming
   verified-history input, the explicit checkpoint `C`, the relation `E` when
   it is not fixed by `G`, and every other semantic input;
+- every semantic dependency needed to interpret `C` is identified by the
+  complete producing context in `G`, `I_G`, or another ADR-0008-conforming
+  coordinate according to its role; no such dependency must be serialized
+  into `C`;
 - no checkpoint, relation, verification root, checkpoint authority, or
   historical material is ambient;
 - operational I/O, storage, resource, interruption, or host failure produces
@@ -412,7 +434,7 @@ future result would not enlarge the meaning of this checkpoint relation.
 | C2 | Supplied history terminates at the exact expected position and commitment | `Exact` is satisfied; reflexive `ContainsCheckpoint` is also satisfied when selected | Freshness, latest history, global completeness, or checkpoint trust |
 | C3 | Supplied verified history continues validly beyond the checkpoint | `Exact` is not satisfied; `ContainsCheckpoint` is satisfied | The supplied terminal position is latest or globally canonical |
 | C4 | Two sibling forks both begin after the same checkpoint | Each fully verified branch satisfies `ContainsCheckpoint` for that checkpoint | Non-equivocation, fork absence, consensus, or branch preference |
-| C5 | Checkpoint comes from another genesis or log history | A different committed ancestry or required history namespace does not satisfy. If both inputs commit the exact same history through that position under the same semantics, this relation does not distinguish a copied prefix by external label alone | Similar length or shape is not log identity; the checkpoint is not thereby declared malicious |
+| C5 | Checkpoint comes from another genesis or log history | A different committed ancestry or a history namespace or log identity required by the selected producing context does not satisfy. If both inputs commit the exact same history through that position under the same semantics, this relation does not distinguish a copied prefix by external label alone | Similar length or shape is not log identity; the checkpoint is not thereby declared malicious |
 | C6 | Supplied history reaches the right position but has the wrong commitment | The relation is not satisfied | Position equality is not ancestry or content equality |
 | C7 | The checkpoint commitment is claimed at the wrong historical position | The relation is not satisfied; position and commitment must match together | Commitment resemblance cannot repair position substitution |
 | C8 | Checkpoint position is beyond the supplied history | `Exact` and `ContainsCheckpoint` are not satisfied | Verification of the shorter supplied history remains truthful |
@@ -421,7 +443,7 @@ future result would not enlarge the meaning of this checkpoint relation.
 | C11 | An untrusted caller supplies an arbitrary checkpoint | The relation is evaluated against that exact value and may be satisfied or not | Success does not authenticate or authorize the caller or checkpoint |
 | C12 | Two conflicting checkpoints are supplied separately | Each is a distinct evaluation. Genuinely incompatible checkpoints cannot both match one linear history; distinct compatible ancestral checkpoints can both satisfy `ContainsCheckpoint` | No implicit winner, merge, vote, recency rule, or conflict resolution |
 | C13 | The same extended history and checkpoint are evaluated under `Exact` and `ContainsCheckpoint` | `Exact` is not satisfied; `ContainsCheckpoint` is satisfied | The results are not interchangeable; they have different producing contexts |
-| C14 | The same checkpoint bytes are interpreted under different verification or relation semantics | They are different `G`/producing contexts; a result cannot be transferred, and incompatible input may produce a typed semantic failure | Byte equality is not semantic-profile equality |
+| C14 | The same checkpoint bytes are interpreted under different profile-specific semantic contexts | They are different `G`/producing contexts; a result cannot be transferred, and incompatible input may produce a typed semantic failure | Byte equality is not semantic-profile equality |
 | C15 | Supplied history is malformed or fails verification | Verification returns its typed semantic failure; no expectation-satisfaction conclusion is produced | Unverifiable history is not a false checkpoint relation and cannot feed comparison as verified input |
 | C16 | Checkpoint material cannot be read because of I/O, storage, resource, interruption, or host failure | No semantic `D` is produced | Operational failure is neither `NotSatisfied` nor evidence of rollback |
 | C17 | A checkpoint matches, but an unseen later suffix exists elsewhere | The selected relation may be satisfied for the supplied `H` | No-unseen-suffix, latest, or freshness |
@@ -550,10 +572,15 @@ persistence remains a separate later L0/persistence tranche.
 
 - Confirm verification speaks only about the exact supplied history.
 - Confirm a valid old prefix can verify while an explicit expectation fails.
-- Confirm `C` is explicit immutable input and no checkpoint source is trusted
-  by terminology alone.
+- Confirm `C` is explicit immutable input whose minimum value is position plus
+  commitment, while every dependency needed to interpret it is identified by
+  the complete producing context and need not be embedded in `C`.
+- Confirm no checkpoint source is trusted by terminology alone.
 - Confirm relation selection is immutable and explicit in `(G, I_G)` with no
   default or fallback.
+- Confirm `Exact` and `ContainsCheckpoint` are standardized for the present
+  boundary without becoming a universal ceiling on future explicit immutable
+  `E` predicates.
 - Confirm `Exact` and reflexive `ContainsCheckpoint` state different
   propositions.
 - Confirm `ContainsCheckpoint` checks exact commitment at exact position, not
