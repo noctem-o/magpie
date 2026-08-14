@@ -2,14 +2,13 @@
 
 **Status:** Accepted (ratified by George, 2026-08-02)
 
-> **Proposed amendment notice:** [ADR-0008](0008-complete-producing-coordinates.md)
-> proposes to supersede only this ADR's closed assertion that snapshot, policy
-> version, and resolver identity
-> are always the complete producing coordinates. If ADR-0008 is explicitly
-> owner-ratified, its profile-specific complete-input law governs that boundary;
-> standing's permanent non-definition and every other compatible part of this
-> ADR remain unchanged. Until that ratification occurs, this ADR remains the
-> Accepted governing decision.
+> **Accepted reconciliation notice:** [ADR-0008](0008-complete-producing-coordinates.md)
+> was explicitly owner-ratified on 2026-08-14 and supersedes only this ADR's
+> universal closed assertion that snapshot, policy version, and resolver
+> identity are always the complete producing coordinates. ADR-0008's
+> profile-specific complete-input law now governs that boundary; standing's
+> permanent non-definition and every other compatible part of this ADR remain
+> unchanged.
 
 ## Summary / Y-statement
 
