@@ -382,9 +382,9 @@ change these boundaries only through explicit contracts and review.
   accepted doctrine requiring profile-bound candidate-designation authority
   and independently verified authority binding before origin groups may create
   corroboration separation.
-- [ADR 0008](docs/adr/0008-complete-producing-coordinates.md) - proposed
-  complete-producing-coordinate law and ADR-0003 reconciliation; explicit
-  owner ratification is still required.
+- [ADR 0008](docs/adr/0008-complete-producing-coordinates.md) - accepted
+  complete-producing-coordinate law and ADR-0003 reconciliation, explicitly
+  owner-ratified on 2026-08-14.
 - [Standing ceilings](docs/design/standing-view-evidence-ceilings.md) -
   evidence domains, candidate ceilings, and future boundaries.
 - [Provenance and origin admission](docs/design/artifact-provenance-origin-admission.md) -

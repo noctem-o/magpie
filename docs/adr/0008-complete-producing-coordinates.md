@@ -1,6 +1,6 @@
 # ADR-0008: Complete Producing Coordinates
 
-**Status:** Proposed (explicit repository-owner ratification required)
+**Status:** Accepted (ratified by George, 2026-08-14)
 
 ## Summary / Y-statement
 
@@ -8,7 +8,7 @@ In the context of Magpie policies whose results can depend on verified history,
 immutable external material, caller-selected subjects, inherited derivations,
 and future authority inputs, facing the contradiction between ADR-0003's closed
 three-coordinate definition and the closure-dependent standing-v3/v4 runtime,
-we propose one profile-relative law:
+we decide one profile-relative law:
 
 ```text
 for one immutable derivation profile G:
@@ -27,8 +27,8 @@ through immutable identities that commit to them transitively and
 unambiguously. No ambient lookup, mutable alias, implementation default, or
 result-content equivalence may supply a missing input.
 
-This is a proposed constitutional amendment. It is not Accepted doctrine until
-the repository owner explicitly ratifies it.
+This is an Accepted constitutional amendment, explicitly owner-ratified on
+2026-08-14.
 
 ## Context and contradiction
 
@@ -128,8 +128,7 @@ encoding, digest, canonicalization, or equality mechanism.
 
 ## Decision
 
-Upon explicit owner ratification, the following three invariants govern the
-scope above.
+The following three invariants govern the scope above.
 
 ### 1. Complete profile-specific inputs
 
@@ -256,7 +255,7 @@ caller act, and there is no ambient latest profile.
 
 The current implementation supplies the following evidence. "Detached
 complete" asks whether the public result type alone identifies the complete
-producing context under this proposed law; it does not judge whether the
+producing context under this law; it does not judge whether the
 in-process path is deterministic.
 
 | Policy | Verified-history call substrate | External immutable material | Internally inherited derivations | Profile / implementation treatment | Caller semantic input | Currentness interaction | Detached complete |
@@ -412,15 +411,13 @@ not a new universal tuple. Its `P` identifies the producer's normative policy
 and therefore contributes to that producer's exact frozen semantic commitment
 in `G`; `H`, `M`, and `A` are the profile-specific semantic inputs.
 
-Upon owner ratification, this ADR would select ADR-0007 reconciliation Outcome
-B at the doctrinal level. It would not implement ADR-0007, provide its future
-types, satisfy its runtime hostile tests, or authorize current v3 output as an
-authority-bound input.
+This ADR selects ADR-0007 reconciliation Outcome B at the doctrinal level. It
+does not implement ADR-0007, provide its future types, satisfy its runtime
+hostile tests, or authorize current v3 output as an authority-bound input.
 
 ## ADR-0003 reconciliation
 
-Upon explicit owner ratification, this ADR amends only ADR-0003's closed
-producing-input assertions:
+This ADR amends only ADR-0003's closed producing-input assertions:
 
 - the quoted definition's claim that snapshot, policy version, and resolver
   are always the complete coordinates;
@@ -447,9 +444,9 @@ source boundary, not a claim that verified history is the only possible
 semantic input. Closure-dependent profiles derive standing from replayed
 history **and** their other explicit immutable inputs.
 
-Until this ADR is explicitly owner-ratified, ADR-0003 remains Accepted without
-semantic amendment. A merge, green check, or presence of this file does not by
-itself supply ratification.
+This amendment became effective through explicit owner ratification on
+2026-08-14. The prior merge, green check, and presence of this file did not by
+themselves supply that ratification.
 
 ## Hostile scenarios
 
@@ -575,7 +572,7 @@ public API is authorized here.
 
 ## Non-goals
 
-This documentation-only proposal does not:
+This documentation-only decision does not:
 
 - change Rust runtime, tests, fixtures, schemas, policy IDs, or behavior;
 - change `docs/FORMAT.md`, canonical event bytes, Cargo metadata, CI, or release
@@ -601,10 +598,10 @@ VerifiedPrefix versus checkpoint-matched-history semantics
 
 ## Ratification and implementation boundary
 
-This ADR is Proposed. Explicit repository-owner ratification is required before
-it becomes Accepted or satisfies ADR-0007's Outcome B doctrine gate.
+This ADR is Accepted, explicitly owner-ratified on 2026-08-14. It therefore
+satisfies ADR-0007's Outcome B doctrine gate at the doctrinal level.
 
-Owner ratification would settle the constitutional law only. It would not prove
+Owner ratification settles the constitutional law only. It does not prove
 that current result types carry complete producing coordinates. Runtime
 envelopes, type quarantine, exact encodings, mismatch failures, hostile tests,
 compatibility review, and living audit reconciliation remain later work.
@@ -642,7 +639,8 @@ record, not doctrine. This PR does not edit it or close its decision record.
 - Confirm ADR-0007 remains unimplemented and A-024 remains unchanged.
 - Confirm no runtime, FORMAT, fixture, CI, audit-disposition, or release path
   changes.
-- Confirm Proposed status does not imply owner ratification.
+- Confirm Accepted status records constitutional ratification only and does not
+  imply runtime implementation.
 
 ## References
 
