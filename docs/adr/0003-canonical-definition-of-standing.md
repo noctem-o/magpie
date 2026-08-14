@@ -2,6 +2,15 @@
 
 **Status:** Accepted (ratified by George, 2026-08-02)
 
+> **Proposed amendment notice:** [ADR-0008](0008-complete-producing-coordinates.md)
+> proposes to supersede only this ADR's closed assertion that snapshot, policy
+> version, and resolver identity
+> are always the complete producing coordinates. If ADR-0008 is explicitly
+> owner-ratified, its profile-specific complete-input law governs that boundary;
+> standing's permanent non-definition and every other compatible part of this
+> ADR remain unchanged. Until that ratification occurs, this ADR remains the
+> Accepted governing decision.
+
 ## Summary / Y-statement
 
 In the context of a replayable epistemic memory kernel whose governed
