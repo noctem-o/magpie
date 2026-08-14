@@ -15,7 +15,8 @@ for one immutable derivation profile G:
 
 D = Derive_G(I_G)
 
-G   = the immutable identity of the complete normative derivation semantics
+G   = an identity that immutably commits to one exact frozen revision of the
+      complete normative derivation semantics
 I_G = the closed, profile-specific, complete immutable semantic inputs
 D   = a semantic outcome defined by G, including its typed semantic failures
 ```
@@ -83,11 +84,20 @@ every profile to close its own input type under one common rule.
 
 ## Terms
 
-**Derivation profile (`G`).** The immutable identity of one complete normative
-semantic procedure: its input interpretation, rules, ordering, typed semantic
-failure law, and semantic output. A profile may be identified by one value or
-by a closed tuple of existing semantic identifiers. It is one semantic
-coordinate even when its representation is structured.
+**Derivation profile (`G`).** An identity that immutably commits to one exact
+frozen revision of a complete normative semantic definition: its input
+interpretation, rules, ordering, typed semantic failure law, and semantic
+output. The commitment includes historical-input verification interpretation
+wherever that interpretation can affect evaluation. A living document, mutable
+alias, unversioned name, implementation default, or other re-pointable reference
+does not suffice.
+
+This ADR does not prescribe the representation of that commitment. A future
+implementation may use a content commitment, immutable versioned identifier,
+frozen artifact identity, or another mechanism that satisfies the invariant.
+`G` may be represented by one value or a closed tuple of existing semantic
+identifiers; it remains one semantic coordinate when that representation is
+structured.
 
 **Complete semantic inputs (`I_G`).** The closed typed input value required by
 `G`. It includes every explicit historical, external-material, authority,
@@ -110,10 +120,11 @@ finite availability or absence semantic meaning, that explicit immutable value
 remains a member of `I_G`. Equal outcome content does not imply equal producing
 contexts.
 
-**Result identity.** A possible future commitment to both a producing context
-and its semantic outcome. It answers a different question: "What exact outcome
-did that computation produce?" This ADR fixes the distinction but no runtime
-type, encoding, or digest.
+**Result identity.** A possible future binding that deterministically and
+unambiguously commits to one exact producing context and its exact semantic
+outcome together. It answers a different question: "What exact outcome did that
+computation produce?" This ADR fixes the distinction but no runtime type,
+encoding, digest, canonicalization, or equality mechanism.
 
 ## Decision
 
@@ -128,9 +139,18 @@ profile-defined typed semantic failure or applicability outcome, that input
 must be represented in `I_G` directly or through an immutable identity that
 commits to it.
 
-The same rule applies when an input defines the exact history, subject, scope,
-or trust interpretation to which an otherwise equal conclusion refers. Equal
-output values do not erase different producing contexts.
+This mutation test tests completeness of `I_G`, not completeness of `G`.
+Interpretation-level dependencies belong to the normative semantics and are
+secured by `G`'s immutable commitment; this includes historical-input
+verification interpretation wherever it affects evaluation. An externally
+selected verification profile, trust root, or other immutable trust parameter
+remains an input in `I_G` when `G` consumes it. The producing-context guarantee
+therefore depends on both complete `I_G` and a `G` that immutably commits to the
+complete normative semantics.
+
+The input rule also applies when an input selects the exact history, subject,
+scope, trust material, or authority to which an otherwise equal conclusion
+refers. Equal output values do not erase different producing contexts.
 
 An identity may commit to material without embedding all of its bytes. Replay
 still requires the exact material to be supplied explicitly and checked against
@@ -167,9 +187,10 @@ identity alone identifies only the requested computation; it does not verify
 the supplied outcome. The consumer must additionally verify that `D` is the
 exact semantic outcome bound to that context, either by re-deriving and
 exact-matching it or by checking a future result identity or equivalent
-immutable binding that commits to both context and `D`. `(context_id,
-arbitrary_D)` is not a valid inherited semantic input. A result-content digest
-and a separately asserted context identity do not establish that binding.
+immutable binding that deterministically and unambiguously commits to the exact
+producing context and exact semantic `D` together. `(context_id, arbitrary_D)`
+is not a valid inherited semantic input. A result-content digest and a
+separately asserted context identity do not establish that binding.
 
 ### 3. Profile-relative derived result and boundary carriage
 
@@ -181,10 +202,13 @@ requires a different `G`; behavioral drift under the same `G` is
 non-conformance.
 
 Any governed derived result that leaves its constructing context must carry, or
-be unambiguously bound to, its complete producing context. An incomplete
-detached value may remain inspectable compatibility or audit output, but it
-must not claim complete reproducibility and must not be accepted as a
-coordinate-complete input merely because its semantic fields look equal.
+be immutably and unambiguously bound to, its complete producing context. A
+mutable or re-pointable association, lookup table, alias, or handle is not a
+sufficient context binding. This ADR does not select the future binding
+mechanism. An incomplete detached value may remain inspectable compatibility or
+audit output, but it must not claim complete reproducibility and must not be
+accepted as a coordinate-complete input merely because its semantic fields look
+equal.
 
 Serialization does not make a result historical authority. Standing remains
 derived, policy/profile-relative, and authoritative about nothing beyond its
@@ -201,11 +225,12 @@ ADR-0003 treats policy version and resolver identity as independent standing
 coordinates. The safer boundary is to separate **normative semantics** from
 **executable implementation identity**.
 
-`G` identifies the complete normative derivation semantics. Existing policy
-and resolver semantic identifiers may jointly form `G`, or one existing policy
-identifier may identify the whole closed profile when its contract actually
-does so. This ADR does not require a new scalar runtime identifier or rename any
-current policy.
+`G` immutably commits to one exact frozen revision of the complete normative
+derivation semantics. Existing policy and resolver semantic identifiers may
+jointly form `G`, or one existing policy identifier may identify the whole
+closed profile, only when that value or tuple provides the required immutable
+commitment. This ADR does not require a new scalar runtime identifier or rename
+any current policy.
 
 An implementation, package, build, language, host library, or process is not a
 semantic coordinate merely because it executes `G`. Conformant Rust, Go, and
@@ -218,9 +243,11 @@ conformance defect. It has not created legitimate new policy semantics. If a
 different resolver algorithm or typed semantic-failure law is intended, it
 requires a different `G`.
 
-A human-readable resolver name is sufficient only when it immutably and
-unambiguously identifies the normative semantics. A mutable alias that resolves
-through a registry, build default, or deployment configuration is not `G`.
+A human-readable resolver or policy name is sufficient only when it immutably
+and unambiguously commits to one exact frozen semantic revision. Living
+documents, mutable aliases, unversioned names, implementation defaults, and
+other references that can be re-pointed through a registry or deployment
+configuration are not `G`.
 
 Policy selection remains explicit: selecting the derivation profile is a
 caller act, and there is no ambient latest profile.
@@ -258,11 +285,11 @@ collapsing distinct concerns:
 | Candidate value | Treatment under this ADR |
 | --- | --- |
 | Exact verified historical material | A semantic input when `G` derives from it. Its coordinate identifies the exact historical input used. |
-| Historical verification profile or externally selected historical trust root | Included in `I_G`, inside the historical coordinate or separately, whenever it affects the verified interpretation or whether the derivation is valid. ADR-0007 requires future `H` to commit both; this ADR does not force that packaging universally. |
+| Historical-input verification interpretation, externally selected verification profile, or historical trust root | Normative rules for verifying and interpreting historical input are committed by `G` wherever they affect evaluation. A selected immutable verification profile, trust root, or trust material remains in `I_G`, inside the historical coordinate or separately, whenever `G` consumes it. ADR-0007 requires future `H` to commit its selected profile and trust root; this ADR does not force that packaging universally. |
 | Immutable external closure or supplied material | A separate semantic input when consumed. It must not be renamed "snapshot." Finite absence or availability is committed by an explicit immutable input only where `G` deliberately gives it semantic meaning; operational inability to obtain material produces no `D`. |
 | Future authority profile, trust root, verification material, or designation universe | Explicit profile-specific inputs. They may form an `A` value; authority may not be inferred from history or labels. |
 | Caller-selected claim, subject, scope, query, or other request parameter | A semantic input whenever changing it can change what is evaluated or returned. Explicit caller selection does not make it non-semantic. |
-| Normative policy and resolver rules | Identified by `G`, not hidden in an implementation. |
+| Normative policy and resolver rules | Immutably committed by `G`, not hidden in an implementation. |
 | Executable build, package, language, or host library | Assurance provenance, not semantic input, for a conforming implementation of `G`. Behavioral divergence is non-conformance or requires a new `G`. |
 | Projection database layout, cache layout, or derived-state implementation version | Representation or operational metadata unless `G` deliberately makes it part of semantic interpretation. Hidden semantic dependence on it is forbidden. |
 | JSON field order, prose wording, or explanatory formatting | Representation, not standing semantics. A profile may separately govern exact audit bytes without making formatting an input to semantic standing. |
@@ -314,12 +341,18 @@ retaining and matching the actual transitive coordinates is the safe form.
 
 An outer derivation that accepts a detached or caller-supplied inherited `D`
 must also verify that exact outcome against the bound inherited context. It may
-re-derive and exact-match `D`, or a future result identity or equivalent
-immutable commitment may bind the inherited producing context and semantic
-outcome together. A context identity paired with arbitrary result content is
-invalid, as is a result-content digest that does not unambiguously bind the
-complete context. Concrete `ResultIdentity` runtime and API design remains
-deferred to C3.
+re-derive and exact-match `D`, or verify a future result identity or equivalent
+immutable binding. Such a binding qualifies only if it deterministically and
+unambiguously commits to the exact inherited producing context and exact
+semantic `D` together. A context identity paired with arbitrary result content
+is invalid, as is a result-content digest that does not unambiguously bind the
+complete context.
+
+A cached, persisted, memoized, serialized, or otherwise retained inherited
+result used outside the private computation that originally constructed it is
+a detached inherited result. It follows this detached-result rule, not the
+internally re-derived rule. Concrete `ResultIdentity` runtime and API design
+remains deferred to C3.
 
 Current v4 effectively uses the third form for the coordinates current types
 expose: it retains prefix and closure directly, embeds v3, and exact-matches
@@ -338,11 +371,12 @@ another profile and context.
 ADR-0006's three-coordinate statement remains a profile-specific closed input
 description for the currency semantics it defines: verified history plus
 explicitly selected policy and normative resolver semantics. The
-policy/resolver pair jointly identifies `G`; "resolver identity" there is not
-an executable build identity. This ADR does not authorize an additional
-currentness input. If a future currentness profile genuinely consumes one,
-that profile must identify it explicitly and any required ADR-0006 amendment
-must be reviewed separately.
+policy/resolver pair jointly represents `G`'s normative semantics; `G`'s
+identity must immutably commit to that exact frozen definition. "Resolver
+identity" there is not an executable build identity. This ADR does not
+authorize an additional currentness input. If a future currentness profile
+genuinely consumes one, that profile must identify it explicitly and any
+required ADR-0006 amendment must be reviewed separately.
 
 The existing `StandingCurrentness` field in standing v0-v4 output is a
 compatibility-carried field: production v0 emits `Unknown`, and v1-v4 copy the
@@ -365,8 +399,9 @@ surfaces under their existing audit disposition.
 
 Internal projections remain rebuildable derived state. They need not attach a
 full envelope to every private row while the constructing context remains
-intact. A detached public result that claims governed reproducibility must bind
-the relevant profile, historical input, query, and any other semantic input.
+intact. A detached public result that claims governed reproducibility must be
+immutably and unambiguously bound to the relevant profile, historical input,
+query, and any other semantic input.
 
 ### Future authority input
 
@@ -374,8 +409,8 @@ For an authority-bound profile, `A` is an explicit member of `I_G`; it is never
 ambient and never inferred from claimant labels or equal result content.
 ADR-0007's `H + P + M + A` is one profile-specific closed input description,
 not a new universal tuple. Its `P` identifies the producer's normative policy
-and therefore contributes to that producer's `G`; `H`, `M`, and `A` are the
-profile-specific semantic inputs.
+and therefore contributes to that producer's exact frozen semantic commitment
+in `G`; `H`, `M`, and `A` are the profile-specific semantic inputs.
 
 Upon owner ratification, this ADR would select ADR-0007 reconciliation Outcome
 B at the doctrinal level. It would not implement ADR-0007, provide its future
@@ -423,17 +458,17 @@ itself supply ratification.
 | C1 — same `H` and profile, different closure `M` | Different `I_G` and producing contexts; equal context may not be claimed. |
 | C2 — detached v3/v4 result omits `M` | It is not coordinate-complete and may not claim complete reproducibility or enter a coordinate-complete consumer. |
 | C3 — two conformant implementations | Every completed evaluation of the same `G` and `I_G` produces the same `D`; implementation identity does not split epistemic identity. |
-| C4 — implementation drifts under unchanged `G` | Non-conformance. A behavior change is not legitimate semantics without a new `G`. |
+| C4 — implementation drifts under unchanged `G` | Non-conformance. A behavior change is not legitimate semantics without a new `G` that commits to the changed frozen definition; re-pointing a living document is insufficient. |
 | C5 — future policy consumes authority `A` | `A` is an explicit member of that profile's `I_G`; no constitutional rewrite is needed. |
 | C6 — future query depends on `Q` | `Q` is an explicit member of the query profile's `I_G`; this ADR does not authorize the query implementation. |
 | C7 — resolver silently loads "current closure" | Forbidden ambient semantics. The result is not a conforming Magpie derivation. |
 | C8 — coordinate names `current-origin-review-key` | Rejected unless the value itself is an immutable identity with one fixed interpretation; mutable alias resolution is forbidden. |
-| C9 — v4 consumes v3 | Internally re-derived v3 needs complete context binding. A detached/caller-supplied v3 additionally requires re-derivation and exact-match or one verified binding of context plus `D`; `(context_id, arbitrary_D)` is rejected. |
+| C9 — v4 consumes v3 | Internally re-derived v3 needs complete context binding. Cached, persisted, memoized, serialized, or otherwise retained v3 used outside its constructing computation is detached and additionally requires re-derivation and exact-match or one deterministic, unambiguous commitment to exact context plus exact `D`; `(context_id, arbitrary_D)` is rejected. |
 | C10 — conformers format explanatory traces differently | Semantic standing identity is unchanged when formatting is not part of `G`. A separately governed exact audit representation may have its own conformance requirement. |
 | C11 — checkpoint-matched history replaces today's prefix type | The law still holds with a new profile-specific historical input; the coordinate does not imply freshness or latest history unless separately decided. |
 | C12 — same standing, different currentness derivation | Standing remains identical under its own context while currentness differs under a separate profile and context. The facets do not collapse. |
 | C13 — material is unavailable | Profile-defined finite supplied-material/absence input is explicit in `I_G` and may produce a typed `D`. I/O, storage, resource, process, or host failure to complete evaluation produces no `D` and cannot be silently reclassified. |
-| C14 — equal result content under different contexts | The semantic value may be equal, but the producing contexts—and any future context-bound result identities—remain distinct. |
+| C14 — equal result content under different contexts | The semantic value may be equal, but the producing contexts—and any future context-bound result identities—remain distinct. A mutable lookup, alias, or handle cannot bind either result to its context. |
 
 ## Alternatives considered
 
@@ -476,7 +511,8 @@ Rejected. It would make conforming implementations of one normative procedure
 epistemically different and make build churn part of standing. Normative policy
 and resolver rules belong in `G`; executable identity is assurance provenance.
 Existing semantic policy/resolver identifiers may remain structured components
-of `G` where their contracts require both.
+of `G` where their contracts require both and their combined interpretation
+provides the required immutable commitment.
 
 ### G. Restrict the law to standing only
 
@@ -505,8 +541,8 @@ Costs and constraints:
   semantic contract;
 - detached result surfaces need an explicit carriage design before they can
   claim complete producing context;
-- profile and context identities need immutable, reviewable interpretation;
-  and
+- profile identities and context/result bindings need immutable, exact,
+  reviewable commitment semantics; and
 - current coordinate-poor compatibility outputs remain quarantined rather than
   being upgraded by prose.
 
@@ -519,19 +555,23 @@ producing-context identity
     commits to G + complete I_G
 
 result identity
-    commits to producing context + semantic D
+    deterministically and unambiguously commits to exact producing context
+    + exact semantic D together
 ```
 
 A producing-context identity therefore cannot authenticate a separately
 supplied `D`. Such a value must be re-derived and exact-matched or verified
-through one binding of context and outcome. This requirement does not choose
-the future binding representation.
+through one immutable binding that meets the deterministic, unambiguous,
+exact-context-plus-exact-`D` floor. A mutable association, lookup table, alias,
+or handle cannot meet that floor. This requirement does not choose the future
+binding representation.
 
 The later C3 tranche may decide whether these identities need runtime types,
-how they are encoded, whether a context is flattened or nested, which semantic
-result fields are committed, and how explanatory representation is versioned.
-No `DerivationContextId`, `ResultIdentity`, envelope, hash profile, constructor,
-or public API is authorized here.
+how they are encoded or hashed, what canonicalization or equality mechanism is
+used, whether a context is flattened or nested, which semantic result fields
+are committed, and how explanatory representation is versioned. No
+`DerivationContextId`, `ResultIdentity`, envelope, hash profile, constructor, or
+public API is authorized here.
 
 ## Non-goals
 
@@ -575,6 +615,10 @@ record, not doctrine. This PR does not edit it or close its decision record.
 ## Reviewer checklist
 
 - Confirm `I_G` is closed and profile-specific, not an optional universal bag.
+- Confirm `G` immutably commits to one exact frozen complete semantic revision;
+  no living document, mutable alias, unversioned name, or default suffices.
+- Confirm the mutation test assesses `I_G`, while interpretation-level
+  completeness is secured by `G`.
 - Confirm `M` is not hidden inside historical "snapshot" terminology.
 - Confirm every semantic dependency is explicit or transitively committed.
 - Confirm mutable aliases and ambient lookup cannot qualify as coordinates.
@@ -582,7 +626,11 @@ record, not doctrine. This PR does not edit it or close its decision record.
 - Confirm drift under one `G` is non-conformance.
 - Confirm internally re-derived inheritance binds complete context, while a
   detached inherited result also binds and verifies its exact `D`.
+- Confirm cached, persisted, memoized, serialized, or otherwise retained
+  inherited results used outside their constructing computation are detached.
 - Confirm `(context_id, arbitrary_D)` cannot qualify as inherited input.
+- Confirm every result-to-context binding is immutable and unambiguous, and any
+  result binding commits deterministically to exact context plus exact `D`.
 - Confirm operational inability to complete evaluation produces no `D` and
   does not force environmental state into `I_G`.
 - Confirm result content and producing context remain distinct.
