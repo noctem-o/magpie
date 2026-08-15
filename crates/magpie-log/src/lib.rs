@@ -92,6 +92,7 @@ mod canonical;
 mod error;
 mod event;
 mod hashing;
+mod history_expectation;
 mod logimpl;
 mod store;
 
@@ -99,6 +100,10 @@ pub use canonical::CANONICALIZATION_PROFILE;
 pub use error::LogError;
 pub use event::{EventCore, Payload, Provenance, Sig, SignedEvent, Status};
 pub use hashing::ContentHash;
+pub use history_expectation::{
+    HistoryCheckpointV0, HistoryExpectationEvaluationV0, HistoryExpectationOutcomeV0,
+    HistoryExpectationProfileV0, HistoryExpectationRelationV0, HISTORY_EXPECTATION_PROFILE_V0_ID,
+};
 pub use logimpl::{
     Clock, LogReader, LogWriter, Projection, VerifiedReplayEvent, VerifiedReplaySummary,
 };

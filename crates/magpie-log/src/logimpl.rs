@@ -4,6 +4,10 @@ use crate::canonical::{CANONICALIZATION_PROFILE, SIG_DOMAIN};
 use crate::error::LogError;
 use crate::event::{EventCore, Payload, Provenance, Sig, SignedEvent};
 use crate::hashing::ContentHash;
+use crate::history_expectation::{
+    evaluate_history_expectation_v0, HistoryCheckpointV0, HistoryExpectationEvaluationV0,
+    HistoryExpectationRelationV0,
+};
 use crate::store::{FileStore, LogStore, MemStore, WriterStore};
 
 /// A source of timestamps (nanoseconds). Injectable so tests are deterministic.
@@ -528,6 +532,41 @@ impl<S: LogStore> LogReader<S> {
     /// ```
     pub fn verify_chain(&self) -> Result<u64, LogError> {
         verify_chain_on(&self.store, &self.verifying_key).map(|verified| verified.count)
+    }
+
+    /// Completely verify one exact supplied snapshot and evaluate one explicit
+    /// checkpoint under one explicit v0 relation.
+    ///
+    /// This operation reads the store once through [`Self::replay_with_summary`],
+    /// verifies that retained snapshot completely, and only then observes the
+    /// checkpoint commitment from those same verified replay inputs. A semantic
+    /// mismatch returns `NotSatisfied`; parsing, chain, signature, and storage
+    /// failures reported by the evaluator return [`LogError`]. Any inability to
+    /// complete evaluation produces no returned semantic result.
+    ///
+    /// The returned result carries the exact v0 profile, externally supplied
+    /// verification key bytes, verified snapshot count and terminal commitment,
+    /// checkpoint, relation, and outcome. Trust in the key remains external.
+    /// Even `Satisfied` establishes no freshness, latest state, currentness,
+    /// global completeness, canonicality, non-equivocation, authority, trust,
+    /// durability, secure checkpoint persistence, or rollback resistance.
+    ///
+    /// Relation selection is mandatory; no default or inferred relation exists:
+    ///
+    /// ```compile_fail,E0061
+    /// use magpie_log::{ContentHash, HistoryCheckpointV0, LogReader, MemStore, SigningKey};
+    ///
+    /// let key = SigningKey::from_bytes(&[7u8; 32]);
+    /// let reader = LogReader::open(MemStore::new(), key.verifying_key());
+    /// let checkpoint = HistoryCheckpointV0::new(0, ContentHash::ZERO);
+    /// let _ = reader.evaluate_history_expectation_v0(checkpoint);
+    /// ```
+    pub fn evaluate_history_expectation_v0(
+        &self,
+        checkpoint: HistoryCheckpointV0,
+        relation: HistoryExpectationRelationV0,
+    ) -> Result<HistoryExpectationEvaluationV0, LogError> {
+        evaluate_history_expectation_v0(self, self.verifying_key.to_bytes(), checkpoint, relation)
     }
 
     /// Fold one verified record snapshot into a projection and return its exact
