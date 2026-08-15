@@ -428,6 +428,47 @@ fn checkpoint_qualified_opens_retain_distinct_genuine_producing_contexts() {
 }
 
 #[test]
+fn checkpoint_qualified_append_preserves_binding_and_writer_state_machine() {
+    let path = TestPath::new("checkpoint-wrapper-append");
+    let writer = create(path.path());
+    let checkpoint = HistoryCheckpointV0::new(writer.len(), writer.tip());
+    drop(writer);
+
+    let mut qualified = LogWriter::<SqliteL0Store>::open_containing_checkpoint_v0(
+        path.path(),
+        key(),
+        broad_limits(),
+        checkpoint,
+    )
+    .unwrap();
+    let qualified_history = qualified.evaluation().verified_history();
+    let appended = qualified
+        .append(provenance("qualified"), note("qualified append"))
+        .unwrap();
+    assert_eq!(qualified.writer().len(), 2);
+    assert_eq!(qualified.writer().tip(), appended.hash);
+    assert_eq!(qualified.evaluation().checkpoint(), checkpoint);
+    assert_eq!(qualified.evaluation().verified_history(), qualified_history);
+
+    let mut competing =
+        LogWriter::<SqliteL0Store>::open_verified_prefix(path.path(), key(), broad_limits())
+            .unwrap();
+    competing
+        .append(provenance("competing"), note("advance persisted history"))
+        .unwrap();
+    assert!(matches!(
+        qualified.append(provenance("stale"), note("must not rebase")),
+        Err(LogError::WriterStale)
+    ));
+    assert!(qualified.writer().is_poisoned());
+    assert!(matches!(
+        qualified.append(provenance("poisoned"), note("must not touch SQLite")),
+        Err(LogError::WriterPoisoned)
+    ));
+    assert_eq!(qualified.evaluation().checkpoint(), checkpoint);
+}
+
+#[test]
 fn p8_wrong_branch_length_never_substitutes_for_checkpoint_ancestry() {
     let left = TestPath::new("branch-left");
     let right = TestPath::new("branch-right");
@@ -949,6 +990,21 @@ fn p19_record_count_wrong_key_empty_owned_and_wal_are_fail_closed() {
         assert_eq!(selected.to_ascii_lowercase(), "wal");
     }
     assert!(matches!(
+        LogReader::<SqliteL0Store>::verify_persisted_prefix(
+            wal.path(),
+            key().verifying_key(),
+            broad_limits()
+        ),
+        Err(LogError::UnsupportedDatabase { .. })
+    ));
+    {
+        let connection = raw_connection(wal.path());
+        let mode: String = connection
+            .query_row("PRAGMA journal_mode", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(mode.to_ascii_lowercase(), "wal");
+    }
+    assert!(matches!(
         LogWriter::<SqliteL0Store>::open_verified_prefix(wal.path(), key(), broad_limits()),
         Err(LogError::UnsupportedDatabase { .. })
     ));
@@ -957,6 +1013,26 @@ fn p19_record_count_wrong_key_empty_owned_and_wal_are_fail_closed() {
         .query_row("PRAGMA journal_mode", [], |row| row.get(0))
         .unwrap();
     assert_eq!(mode.to_ascii_lowercase(), "wal");
+}
+
+#[test]
+fn read_only_verification_establishes_and_preserves_delete_profile() {
+    let path = TestPath::new("read-only-delete-profile");
+    drop(create(path.path()));
+
+    let summary = LogReader::<SqliteL0Store>::verify_persisted_prefix(
+        path.path(),
+        key().verifying_key(),
+        broad_limits(),
+    )
+    .unwrap();
+    assert_eq!(summary.event_count(), 1);
+
+    let connection = raw_connection(path.path());
+    let mode: String = connection
+        .query_row("PRAGMA journal_mode", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(mode.to_ascii_lowercase(), "delete");
 }
 
 #[test]

@@ -151,6 +151,18 @@ pub struct SqliteL0Store {
 ///     let _ = CheckpointQualifiedWriterOpenV0 { writer, evaluation };
 /// }
 /// ```
+///
+/// The retained writer also cannot be replaced through a mutable accessor:
+///
+/// ```compile_fail,E0599
+/// use magpie_log::{CheckpointQualifiedWriterOpenV0, LogWriter, SqliteL0Store};
+/// fn substitute(
+///     qualified: &mut CheckpointQualifiedWriterOpenV0,
+///     other: LogWriter<SqliteL0Store>,
+/// ) {
+///     let _ = std::mem::replace(qualified.writer_mut(), other);
+/// }
+/// ```
 pub struct CheckpointQualifiedWriterOpenV0 {
     writer: LogWriter<SqliteL0Store>,
     evaluation: HistoryExpectationEvaluationV0,
@@ -163,10 +175,6 @@ impl CheckpointQualifiedWriterOpenV0 {
 
     pub fn writer(&self) -> &LogWriter<SqliteL0Store> {
         &self.writer
-    }
-
-    pub fn writer_mut(&mut self) -> &mut LogWriter<SqliteL0Store> {
-        &mut self.writer
     }
 
     pub fn append(
@@ -354,7 +362,7 @@ fn query_text(
         .map_err(|error| sqlite_error(operation, error))
 }
 
-fn configure_connection(connection: &Connection, read_only: bool) -> Result<(), LogError> {
+fn configure_connection(connection: &Connection) -> Result<(), LogError> {
     connection
         .busy_timeout(Duration::ZERO)
         .map_err(|error| sqlite_error("configure busy timeout", error))?;
@@ -365,25 +373,15 @@ fn configure_connection(connection: &Connection, read_only: bool) -> Result<(), 
             detail: "persistent WAL journal mode is outside the supported v0 profile".into(),
         });
     }
-    if read_only {
-        if !journal_mode.eq_ignore_ascii_case("delete") {
-            return Err(LogError::UnsupportedDatabase {
-                detail: format!(
-                    "read-only connection reports journal mode {journal_mode:?}, expected DELETE"
-                ),
-            });
-        }
-    } else {
-        let selected = query_text(
-            connection,
-            "PRAGMA main.journal_mode = DELETE",
-            "select DELETE journal mode",
-        )?;
-        if !selected.eq_ignore_ascii_case("delete") {
-            return Err(LogError::UnsupportedDatabase {
-                detail: format!("SQLite selected journal mode {selected:?}, expected DELETE"),
-            });
-        }
+    let selected = query_text(
+        connection,
+        "PRAGMA main.journal_mode = DELETE",
+        "select DELETE journal mode",
+    )?;
+    if !selected.eq_ignore_ascii_case("delete") {
+        return Err(LogError::UnsupportedDatabase {
+            detail: format!("SQLite selected journal mode {selected:?}, expected DELETE"),
+        });
     }
 
     connection
@@ -440,7 +438,7 @@ fn check_empty_unowned_sqlite(path: &Path, limits: L0ResourceLimitsV0) -> Result
         });
     }
     let connection = open_connection(path, true, false)?;
-    configure_connection(&connection, true)?;
+    configure_connection(&connection)?;
     let object_count: i64 = connection
         .query_row(
             "SELECT count(*) FROM main.sqlite_schema WHERE name NOT LIKE 'sqlite_%'",
@@ -679,6 +677,8 @@ fn verify_rows(
             row.get_ref(0)
                 .map_err(|error| sqlite_error("borrow physical position", error))?,
         )?;
+        // The limits above precede any Magpie-owned copy or allocation of the
+        // record. `get_ref` borrows SQLite's row-owned BLOB storage.
         let record = match row
             .get_ref(2)
             .map_err(|error| sqlite_error("borrow bounded record", error))?
@@ -770,7 +770,7 @@ fn open_owned_connection(
         check_journal_file_limit(path, limits)?;
     }
     let connection = open_connection(path, read_only, false)?;
-    configure_connection(&connection, read_only)?;
+    configure_connection(&connection)?;
     Ok(connection)
 }
 
@@ -803,9 +803,12 @@ impl LogReader<SqliteL0Store> {
     /// Completely verify one existing supported SQLite L0 prefix with bounded
     /// memory and one stable read transaction.
     ///
-    /// This establishes only validity of the exact persisted prefix under the
-    /// caller-supplied key. It does not establish expected history, freshness,
-    /// latest state, currentness, canonicality, or rollback resistance.
+    /// This returns an inspectable count-and-tip compatibility summary of the
+    /// exact persisted prefix observed by this call. It is not a complete
+    /// producing-coordinate envelope or a coordinate-complete governed input;
+    /// trust in the caller-supplied key remains external. It does not establish
+    /// expected history, freshness, latest state, currentness, canonicality, or
+    /// rollback resistance.
     pub fn verify_persisted_prefix(
         path: impl AsRef<Path>,
         verifying_key: VerifyingKey,
@@ -850,7 +853,7 @@ impl LogWriter<SqliteL0Store> {
         }
 
         let connection = open_connection(&path, false, true)?;
-        configure_connection(&connection, false)?;
+        configure_connection(&connection)?;
         if let Err(error) = connection.execute_batch("BEGIN IMMEDIATE") {
             return if is_busy(&error) {
                 Err(LogError::StorageBusy {
