@@ -234,23 +234,32 @@ a transaction whose resulting database pages exceed its budget.
 
 ### Stale and uncertain writer vocabulary
 
-```text
-actual terminal != writer expected terminal
-    -> WriterStale
-    -> no commit
-    -> no silent refresh/retry
+| Class | Commit meaning | Writer state |
+| --- | --- | --- |
+| pre-transaction rejection | definitely no transaction and no commit | may remain usable only where the contract permits and the cached predecessor is unchanged |
+| `BEGIN IMMEDIATE -> SQLITE_BUSY` | write transaction did not begin; definitely no commit | poisoned under v0; reopen required |
+| `WriterStale` | definitely no successor committed by this attempt | poisoned; no refresh/retry; reopen required |
+| transaction-crossing failure before `COMMIT` | definitely not committed only if rollback or prior automatic rollback is mechanically established; otherwise state is unknown | poison; force/verify rollback or abandon connection; reopen required |
+| `COMMIT -> SQLITE_BUSY` | commit did not complete and the transaction remains active; successful explicit rollback establishes definitely not committed | no commit retry/wait; terminate transaction or abandon connection; poison and reopen |
+| `CommitStateUnknown` | transaction may or may not have committed, including uncertain cleanup | abandon connection; poison; reopen and completely verify |
+| observed successful `COMMIT` | exact row committed under the fixed local SQLite profile | cached count/tip advance exactly once |
 
-commit called but success not observed
-    -> CommitStateUnknown
-    -> writer poisoned
-    -> reopen + complete verification required
+For `COMMIT -> SQLITE_BUSY`, Magpie finalizes/drops transaction-owned statements
+and explicitly attempts `ROLLBACK`; it does not use SQLite's permitted later
+commit retry. Successful rollback means this append definitely did not commit.
+If rollback or terminal transaction cleanup cannot be established, Magpie
+abandons/closes the connection and reports `CommitStateUnknown`.
 
-Ok
-    -> COMMIT reported success under the fixed local SQLite profile
-```
+Other transaction-crossing SQLite errors may automatically roll back or may
+leave a transaction active. The implementation must inspect or force a terminal
+transaction state where possible and otherwise abandon the connection as
+unknown. No poisoned writer returned to a caller may retain a live SQLite write
+transaction. The writer remains poisoned even after definite rollback under the
+selected v0 policy.
 
 `Err` does not universally mean “nothing committed,” and blind retry does not
-mean exactly once.
+mean exactly once. `COMMIT -> SQLITE_BUSY` is the narrower case where SQLite
+establishes that commit did not complete while leaving the transaction active.
 
 ## Hostile proof matrix for the runtime ticket
 
@@ -267,8 +276,8 @@ The implementation must prove all twenty design scenarios:
 | P7 | valid below-checkpoint history verifies but open refuses |
 | P8 | equal/longer wrong branch refuses |
 | P9 | two writers from one predecessor cannot commit siblings |
-| P10 | concurrent reader remains on one stable snapshot |
-| P11 | definite pre-commit failure behavior |
+| P10 | stable reader forces writer `COMMIT -> SQLITE_BUSY`; no wait/retry, explicit rollback/termination, poisoned writer, no row from that attempt, unchanged reader snapshot, and only deliberate reopen/new writer may later append |
+| P11 | pre-COMMIT failure forces/verifies rollback or abandons the connection; transaction-crossing failure poisons writer |
 | P12 | commit-before-observed-ack process death |
 | P13 | unknown commit poisons writer |
 | P14 | corrupt DB/event open failure without repair |
@@ -328,7 +337,14 @@ The next separately authorized tranche should:
       while preserving existing custom read-store compatibility;
 - [ ] atomically compare expected terminal count/tip at append;
 - [ ] return stale-writer error with no sibling commit;
-- [ ] poison writer after unknown persistence outcome;
+- [ ] handle `COMMIT -> SQLITE_BUSY` without retry: finalize/drop transaction-
+      owned statements, explicitly roll back/terminate, poison writer, and
+      abandon the connection if cleanup cannot be established;
+- [ ] prove after every public failed append that no retained poisoned writer
+      has an active write transaction, using direct transaction/autocommit state
+      where the supported SQLite/rusqlite mechanism permits;
+- [ ] poison writer after every transaction-crossing or unknown persistence
+      outcome;
 - [ ] preserve `LogWriter` sole-write and verified-replay boundaries;
 - [ ] preserve FileStore/MemStore and all golden/FORMAT bytes;
 - [ ] add P1-P20 hostile evidence; and
@@ -380,6 +396,8 @@ Stop and report rather than broadening if:
 - [ ] Resource limits are explicit, finite, and checked before BLOB allocation.
 - [ ] Competing writers cannot both commit siblings.
 - [ ] Stale writers never refresh or retry implicitly.
+- [ ] A busy `COMMIT` is explicitly rolled back/terminated without retry, and no
+      poisoned writer retains an active write transaction.
 - [ ] Commit uncertainty poisons the writer and requires reopen.
 - [ ] `Ok` is no stronger than the selected conditional local durability model.
 - [ ] Whole-system rollback of history and checkpoint remains possible.

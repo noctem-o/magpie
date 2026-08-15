@@ -581,9 +581,11 @@ must return typed `WriterStale` and insert nothing. The B event is not rewritten
 onto A's tip. The writer does not refresh, retry, or select another predecessor.
 The caller must deliberately reopen and create a new append request.
 
-Lock contention before comparison is a typed operational failure. V0 performs
+Lock contention before `BEGIN IMMEDIATE` succeeds is a typed operational
+failure. In particular, `BEGIN IMMEDIATE -> SQLITE_BUSY` starts no transaction
+and commits nothing. V0 nevertheless poisons the affected writer and performs
 no hidden wait or retry because another writer may commit during that interval.
-The affected writer requires reopen before a later append attempt.
+Reopen is required before a later append attempt.
 
 ## Writer state and failure classes
 
@@ -593,9 +595,11 @@ classes, even if exact Rust variant names differ:
 | Class | Commit meaning | Writer state |
 | --- | --- | --- |
 | pre-transaction validation/serialization/resource rejection | definitely no transaction and no commit | may remain usable when its cached predecessor is unchanged |
+| `BEGIN IMMEDIATE -> SQLITE_BUSY` | the write transaction did not begin; definitely no commit | unusable under v0; reopen required |
 | `WriterStale` | definitely no new row from this attempt | unusable; reopen required |
-| lock/busy or storage failure while entering/inside a transaction before commit | no success may be assumed | conservatively unusable; reopen required |
-| `CommitStateUnknown` | transaction may or may not have committed | unusable; reopen required |
+| transaction-crossing failure before `COMMIT` | definitely not committed only when rollback or prior automatic rollback is mechanically established; otherwise state is unknown | unusable; force/verify rollback or abandon the connection; reopen required |
+| `COMMIT -> SQLITE_BUSY` | commit did not complete and SQLite leaves the transaction active; successful explicit rollback establishes definitely not committed, while uncertain cleanup becomes `CommitStateUnknown` | unusable; never retry `COMMIT`; terminate the transaction or abandon the connection; reopen required |
+| `CommitStateUnknown` | transaction may or may not have committed | unusable; connection abandoned; reopen and complete verification required |
 | observed successful commit | the exact row committed under the selected profile | cached count/tip advance exactly once |
 | `WriterPoisoned` on a later call | no append is attempted | reopen required |
 
@@ -603,8 +607,34 @@ After a write-transaction attempt begins, any returned failure poisons the
 writer in v0. An implementation may report “definitely not committed” only
 when it can mechanically prove that fact without inference—for example, a
 pre-insert rejection or an observed successful rollback before any commit
-attempt. Once `COMMIT` is invoked and does not report success,
-`CommitStateUnknown` is the conservative public result.
+attempt.
+
+Before returning from any transaction-crossing failure, the implementation
+must finalize or drop transaction-owned statements and use SQLite transaction
+state, autocommit state, or an equivalently direct supported mechanism to
+determine whether the transaction already rolled back. If a write transaction
+remains active, Magpie must attempt an explicit `ROLLBACK`. An observed
+successful rollback establishes that this append did not commit. If a terminal
+non-write-transaction state cannot be established, Magpie must abandon/close
+the connection and report `CommitStateUnknown`. No poisoned writer returned to
+a caller may retain a live SQLite write transaction.
+
+`COMMIT -> SQLITE_BUSY` is a special, stronger-information case under the
+selected rollback-journal profile: SQLite did not complete the commit, leaves
+the transaction active, and permits a later commit retry. Magpie v0 deliberately
+does not take that retry path. It finalizes/drops transaction-owned statements,
+attempts explicit `ROLLBACK`, poisons the writer, and requires reopen. If
+rollback is observed successful, the append is definitely not committed. If
+rollback or connection cleanup cannot be established, Magpie abandons/closes
+the connection and conservatively reports `CommitStateUnknown`.
+
+Other transaction-crossing failures are not assigned that same factual state.
+SQLite may automatically roll back some `SQLITE_FULL`, `SQLITE_IOERR`,
+`SQLITE_NOMEM`, `SQLITE_BUSY`, or `SQLITE_INTERRUPT` failures, or may leave the
+transaction active depending on the statement and failure point. Magpie must
+inspect/force a terminal state where possible and otherwise abandon the
+connection as unknown; it must never infer either commit or rollback merely
+from a broad error class.
 
 This supersedes the current generic test assumption that every persistence
 `Err` means bytes were not stored and the same writer may retry. That assumption
@@ -752,8 +782,8 @@ that lacks that checkpoint. That is the complete stronger proposition.
 | P7 | Valid persisted history ends below checkpoint | Verification succeeds, checkpoint is `NotSatisfied`, writer construction is refused; history is not called invalid. |
 | P8 | Equal/greater-length sibling fork before checkpoint | Refuse because exact commitment is absent at exact position; length is not ancestry. |
 | P9 | Writers A and B open at the same `{N,T}`; A commits, B proposes sibling | B returns `WriterStale`, inserts nothing, and cannot silently refresh or retry. |
-| P10 | Reader holds stable snapshot while a writer attempts and later commits after the reader releases it | Every reader verification/checkpoint/replay observation remains on the original snapshot; lock/busy behavior is explicit and the later commit is visible only to a new transaction. |
-| P11 | Failure definitely before commit | No row commits. The error is typed; writer reuse is allowed only for an entirely pre-transaction rejection with unchanged predecessor. |
+| P10 | Reader R holds one stable read snapshot; writer W reaches `COMMIT`, which immediately returns `SQLITE_BUSY` because R holds the required read lock | W does not wait or retry `COMMIT`; it finalizes/drops transaction-owned statements, rolls back or terminates the transaction under the v0 cleanup law, and is poisoned. No row from W's attempt commits, no live transaction leaks, and R continues observing its original snapshot. Only a deliberately reopened/new writer may append after R releases the transaction. |
+| P11 | Failure before `COMMIT`, including one after the write transaction began | No row commits when rollback is mechanically established. The writer is poisoned after transaction crossing; uncertain cleanup abandons the connection and returns `CommitStateUnknown`. Reuse is allowed only for an entirely pre-transaction rejection with unchanged predecessor. |
 | P12 | Process dies after durable commit before caller observes `Ok` | Reopen may reveal the event. No blind retry or exactly-once claim is made. |
 | P13 | Commit result unknown | Writer is poisoned; no further append; reopen and complete verification are mandatory. |
 | P14 | Corrupt SQLite page or corrupt/malformed event bytes | Open fails operationally or at verification. No repair, truncation, checkpoint `D`, replay publication, or writer. |
@@ -796,6 +826,13 @@ that lacks that checkpoint. That is the complete stronger proposition.
 - [ ] Atomically compare the persisted terminal coordinate and insert one
       successor under `BEGIN IMMEDIATE`.
 - [ ] Return typed stale-writer failure and prohibit silent refresh/retry.
+- [ ] On `COMMIT -> SQLITE_BUSY`, perform no commit retry or wait; finalize/drop
+      transaction-owned statements, explicitly roll back, poison the writer,
+      and abandon the connection as `CommitStateUnknown` if terminal cleanup
+      cannot be established.
+- [ ] After every public failed append, directly establish that no active write
+      transaction remains before retaining a connection; otherwise close or
+      abandon that connection and require reopen.
 - [ ] Poison writer after every transaction-crossing or ambiguous persistence
       failure; expose `CommitStateUnknown` where commit cannot be proved absent.
 - [ ] Advance cached count/tip only after observed successful commit.
@@ -814,7 +851,10 @@ least:
 
 - two independent database connections/processes attempting sibling appends;
 - stale writer exact error plus unchanged row set;
-- stable read snapshot during a later commit;
+- stable reader causing `COMMIT -> SQLITE_BUSY`, with no wait or commit retry,
+  explicit rollback/transaction termination, a poisoned writer, no committed
+  row from that attempt, an unchanged reader snapshot, and append allowed only
+  through a deliberately reopened/new writer after the reader releases;
 - wrong-branch and below-checkpoint open refusal with successful history
   verification kept distinct;
 - a matching checkpoint followed by a late corrupt record producing no `D`;
@@ -826,6 +866,9 @@ least:
   materialized;
 - process termination before commit and after commit-before-ack where feasible;
 - explicit unknown-commit writer poisoning and later-call rejection;
+- direct transaction/autocommit-state evidence after every public failed append
+  proving that no retained poisoned writer has an active SQLite write
+  transaction, rather than inferring cleanup from row count alone;
 - create/open non-substitutability;
 - no public arbitrary result, raw insert, mutable connection, or writer-state
   constructor; and
@@ -885,6 +928,8 @@ This documentation tranche does not implement or authorize:
       rule.
 - [ ] Two stale writers cannot both commit siblings.
 - [ ] Busy/error handling performs no hidden retry or predecessor refresh.
+- [ ] `COMMIT -> SQLITE_BUSY` is explicitly rolled back/terminated; the writer
+      is poisoned and no live transaction remains attached to it.
 - [ ] `Err` is never universally translated as “nothing committed.”
 - [ ] Unknown commit poisons the writer and requires reopen/reverification.
 - [ ] `Ok` is conditional on the stated local storage failure model.
@@ -905,6 +950,8 @@ This documentation tranche does not implement or authorize:
 - [Public pre-alpha convergence baseline](../audits/public-pre-alpha-convergence-baseline-2026-08.md).
 - [Current audit disposition](../audits/audit-disposition-2026-08.md).
 - [SQLite transactions](https://www.sqlite.org/lang_transaction.html).
+- [SQLite autocommit transaction-state check](https://www.sqlite.org/c3ref/get_autocommit.html).
+- [SQLite per-schema transaction state](https://www.sqlite.org/c3ref/txn_state.html).
 - [SQLite isolation](https://www.sqlite.org/isolation.html).
 - [SQLite PRAGMA reference](https://www.sqlite.org/pragma.html).
 - [SQLite atomic commit](https://www.sqlite.org/atomiccommit.html).
