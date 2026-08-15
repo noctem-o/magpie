@@ -129,7 +129,7 @@ SQLite remained selected because:
 3. a SQLite `BEGIN IMMEDIATE` transaction can serialize competing writers and
    atomically compare the actual terminal coordinate before insert;
 4. one read transaction can preserve an unchanging ordered snapshot across
-   multiple bounded passes;
+   bounded verification and checkpoint observations;
 5. rollback-journal recovery supplies a mature physical crash boundary without
    turning FileStore into a custom database; and
 6. explicit application identity and schema refusal can avoid the episodic
@@ -178,6 +178,7 @@ shared cache disabled
 busy timeout = 0
 full PRAGMA integrity_check before event verification
 read = explicit stable transaction
+       first read of main establishes the snapshot
 write/create = BEGIN IMMEDIATE
 ```
 
@@ -204,6 +205,8 @@ exact-checked. No cached head/count/hash is an independent truth source.
 
 ```text
 create_new
+    consumes explicit finite L0ResourceLimitsV0
+    bounds genesis and staged logical database before commit
     initializes ownership + schema + genesis in one transaction
 
 open_verified_prefix
@@ -214,9 +217,26 @@ open_containing_checkpoint_v0(checkpoint)
     fixes ContainsCheckpoint by the named method
     reuses magpie-log-history-expectation-v0
     accepts no ambient/default relation
+    returns a dedicated checkpoint-qualified value carrying both
+        the writer
+        the genuine Satisfied HistoryExpectationEvaluationV0
 ```
 
-V0 does not add an exact-terminal writer-open method.
+The exact Rust wrapper name is left to implementation, but its private
+construction and exact evaluation carriage are mandatory. The evaluation is
+not reconstructed from caller input. Ordinary `open_verified_prefix` carries
+no checkpoint baggage. V0 does not add an exact-terminal writer-open method or
+a generic result-identity framework.
+
+### Stable snapshot vocabulary
+
+An explicit read transaction begins before semantic database observations. Its
+first read of `main` establishes the SQLite snapshot; page/schema/integrity
+reads may therefore anchor it before ordered record traversal. Every later
+semantic `main` read for that open/evaluation remains in the same transaction,
+so a concurrent commit cannot substitute another history partway through.
+Connection-profile setup before the transaction does not itself establish this
+historical snapshot.
 
 ### Resource vocabulary
 
@@ -236,7 +256,16 @@ is length-checked before an operation that may recover or open write-capably.
 Inside the stable snapshot, checked `page_count * page_size` remains a separate
 logical-page bound before integrity checking. Each record's BLOB length is
 checked before BLOB materialization. Resource failure is operational and
-produces no checkpoint outcome, projection publication, or writer.
+produces no checkpoint outcome, verification/open result, or writer.
+
+Creation consumes the same exact immutable limits. Before initialization can
+commit, the checked serialized genesis length must satisfy `max_record_bytes`
+and `max_total_record_bytes`, one record must satisfy `max_record_count`, and
+the staged transaction's checked logical `page_count * page_size` must satisfy
+`max_database_bytes`. Failure rolls back, returns no writer, and publishes no
+valid partially initialized L0. Successful commit initializes the writer with
+count one, the genesis tip, genesis record bytes as its checked cumulative
+total, and the exact supplied limits.
 
 A successfully opened writer retains the verified snapshot's checked total
 record bytes and the selected limits. Before append it computes checked
@@ -281,12 +310,12 @@ The implementation must prove all twenty design scenarios:
 
 | ID | Proof target |
 | --- | --- |
-| P1 | atomic creation and exactly one genesis |
+| P1 | limits admit genesis and staged logical database; atomic creation returns exactly one genesis and coherent writer count/tip/total/limits only after commit |
 | P2 | foreign SQLite refusal without mutation |
 | P3 | unknown future schema refusal |
 | P4 | explicit weak old-prefix reopen |
-| P5 | exact-terminal checkpoint containment reopen |
-| P6 | valid suffix beyond checkpoint succeeds under containment |
+| P5 | exact-terminal checkpoint containment reopen carries the genuine satisfied evaluation with its writer |
+| P6 | valid suffix beyond checkpoint succeeds under containment and preserves the exact genuine evaluation |
 | P7 | valid below-checkpoint history verifies but open refuses |
 | P8 | equal/longer wrong branch refuses |
 | P9 | two writers from one predecessor cannot commit siblings |
@@ -299,13 +328,29 @@ The implementation must prove all twenty design scenarios:
 | P16 | older history with newer retained checkpoint refuses |
 | P17 | projection database refused as L0 |
 | P18 | network filesystem outside supported guarantee |
-| P19 | physical main-file (including trailing bytes), applicable journal, logical-page, count/record/cumulative-byte, and sequential-append resource failures before publication |
+| P19 | create-time genesis/logical-page, physical main-file (including trailing bytes), applicable journal, logical-page, count/record/cumulative-byte, and sequential-append resource failures before publication |
 | P20 | no ambient checkpoint selection |
 
 Tests must reach the intended stage. A stale-writer test must show one exact
 committed successor; a wrong-branch test must use two otherwise valid chains;
 a corrupt-suffix test must verify the checkpoint prefix before the late error;
 and a foreign-database test must prove the unrelated data stayed unchanged.
+
+P1/P19 creation evidence must cover `max_record_count < 1`, genesis exceeding
+`max_record_bytes`, genesis exceeding `max_total_record_bytes`, initialized
+logical pages exceeding `max_database_bytes`, exact-at-limit cases where
+practical, successful writer initialization from genesis bytes, and failed
+creation leaving no writer or valid partially initialized L0.
+
+Snapshot evidence must show that a required pre-record `main` read can establish
+the transaction snapshot and that a concurrent writer cannot make later
+verification/checkpoint reads in that same operation observe another history.
+
+Checkpoint-carriage evidence must use two different checkpoints contained by
+the same terminal history: writer terminal coordinates may match, but the two
+dedicated successful open values must retain distinct genuine evaluations for
+the exact checkpoints. Callers must not fabricate such a success; ordinary
+prefix open carries no checkpoint result; operational failure produces none.
 
 Journal-profile evidence must show persistent WAL refusal without conversion,
 explicit `DELETE` establishment/exact-match on a supported non-WAL database,
@@ -318,6 +363,13 @@ the second fails before transaction only when the first successful append's
 updated cached total is used. Failed append must leave that cached total
 unchanged, while successful commit aligns count/tip/total with persisted
 history.
+
+#129 does not expose a general fallible second SQLite cursor pass into arbitrary
+current `Projection` values. The trait has no replay-wide atomic staging law,
+and existing consumers may commit per-event effects. A future bounded replay
+integration may claim no partial publication only with a directly tested
+all-or-nothing staging/commit-or-discard boundary covering the entire fallible
+pass. No trait or projection redesign is selected here.
 
 ## Changed-path allowlist
 
@@ -354,11 +406,17 @@ The next separately authorized tranche should:
 
 - [ ] add the supported SQLite L0 backend;
 - [ ] add exact ownership and schema identity;
-- [ ] add explicit creation;
+- [ ] add explicit creation with genesis/count/cumulative-byte and staged
+      logical-page limits before commit, then coherent genesis writer state;
 - [ ] add explicit weak verified-prefix reopen;
-- [ ] add explicit containment-checkpoint reopen;
+- [ ] add explicit containment-checkpoint reopen whose dedicated success value
+      carries both the writer and genuine `Satisfied`
+      `HistoryExpectationEvaluationV0`;
 - [ ] reuse PR #127 checkpoint semantics on the same stable snapshot;
-- [ ] replace unbounded supported-path history duplication with bounded passes;
+- [ ] make the first read of `main` inside the explicit read transaction the
+      snapshot anchor and keep every later semantic read in that transaction;
+- [ ] replace unbounded supported-path history duplication with bounded
+      verification/open;
 - [ ] keep SQLite off the whole-vector public `LogStore::read_records` seam
       while preserving existing custom read-store compatibility;
 - [ ] atomically compare expected terminal count/tip at append;
@@ -380,12 +438,15 @@ The next separately authorized tranche should:
 - [ ] poison writer after every transaction-crossing or unknown persistence
       outcome;
 - [ ] preserve `LogWriter` sole-write and verified-replay boundaries;
+- [ ] expose no general arbitrary-`Projection` second-cursor replay in #129;
+      any later no-partial-publication claim requires an explicit replay-wide
+      atomic staging sink;
 - [ ] preserve FileStore/MemStore and all golden/FORMAT bytes;
 - [ ] add P1-P20 hostile evidence; and
 - [ ] leave audit/readiness administration unchanged.
 
 The implementation must stop rather than broaden if exact database ownership,
-stable-snapshot replay, or uncertain-commit behavior cannot be represented
+stable-snapshot open/evaluation, or uncertain-commit behavior cannot be represented
 without reopening an Accepted invariant.
 
 ## Explicit non-goals
@@ -394,7 +455,9 @@ This ticket does not implement or authorize checkpoint storage, remembered
 heads, anti-rollback hardware, WAL, Merkle trees, exact-once retry, automatic
 repair/migration, projection co-location, claims/standing integration,
 currentness, authority, portable-verifier changes, release changes, or audit
-closure.
+closure. It also does not authorize generic result identity, checkpoint baggage
+on ordinary writer opens, general bounded projection replay, or a generic
+transactional `Projection` redesign.
 
 ## Publication authority
 
@@ -424,9 +487,15 @@ Stop and report rather than broadening if:
 - [ ] `MPL0` ownership is a file marker, not trust or authority.
 - [ ] Foreign and projection databases are never dropped or adopted.
 - [ ] Creation cannot hide inside reopen.
+- [ ] Creation applies all caller-selected limits before genesis commit and a
+      returned writer's count/tip/total/limits describe the same acknowledged
+      genesis history.
 - [ ] Prefix reopen does not imply expected/fresh history.
-- [ ] Checkpoint reopen fixes `ContainsCheckpoint` explicitly and reuses #127.
-- [ ] One stable read transaction covers every semantic observation.
+- [ ] Checkpoint reopen fixes `ContainsCheckpoint`, reuses #127, and carries the
+      genuine context-bearing satisfied evaluation in its dedicated success
+      value.
+- [ ] The first read of `main` inside one explicit read transaction establishes
+      the snapshot and every later semantic read stays in that transaction.
 - [ ] Resource limits are explicit, finite, and checked before BLOB allocation.
 - [ ] Observable persistent WAL is refused without conversion; discarded prior
       non-WAL modes are not claimed observable; each connection establishes
@@ -435,6 +504,9 @@ Stop and report rather than broadening if:
       opens independently of logical database pages.
 - [ ] Successful append advances cached count/tip/total together; sequential
       budget checks use the updated total and failed appends advance none.
+- [ ] #129 claims no atomic bounded replay through arbitrary current
+      `Projection`; any later claim is gated on replay-wide commit-or-discard
+      staging.
 - [ ] Competing writers cannot both commit siblings.
 - [ ] Stale writers never refresh or retry implicitly.
 - [ ] A busy `COMMIT` is explicitly rolled back/terminated without retry, and no
