@@ -386,9 +386,9 @@ change these boundaries only through explicit contracts and review.
   complete-producing-coordinate law and ADR-0003 reconciliation, explicitly
   owner-ratified on 2026-08-14.
 - [ADR 0009](docs/adr/0009-verified-supplied-history-and-explicit-checkpoint-expectations.md) -
-  proposed doctrine separating exact supplied-history verification from
-  explicit immutable checkpoint-expectation satisfaction; owner ratification
-  is required.
+  accepted doctrine separating exact supplied-history verification from
+  explicit immutable checkpoint-expectation satisfaction, explicitly
+  owner-ratified on 2026-08-15.
 - [Standing ceilings](docs/design/standing-view-evidence-ceilings.md) -
   evidence domains, candidate ceilings, and future boundaries.
 - [Provenance and origin admission](docs/design/artifact-provenance-origin-admission.md) -

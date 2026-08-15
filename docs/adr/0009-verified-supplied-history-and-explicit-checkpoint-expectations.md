@@ -1,12 +1,12 @@
 # ADR-0009: Verified Supplied History and Explicit Checkpoint Expectations
 
-**Status:** Proposed (explicit repository-owner ratification required)
+**Status:** Accepted (explicitly owner-ratified, 2026-08-15)
 
 ## Summary / Y-statement
 
 In the context of replay that completely verifies one exact supplied record
 snapshot but has no external expected-history input, facing the risk that a
-valid old prefix is described as the history a caller expected, we propose a
+valid old prefix is described as the history a caller expected, we decide a
 strict separation:
 
 ```text
@@ -28,8 +28,8 @@ does not make the checkpoint trusted and does not establish freshness, latest
 history, global completeness, non-equivocation, durability, or rollback
 resistance.
 
-This is a Proposed constitutional decision. It is not Accepted doctrine until
-the repository owner explicitly ratifies it.
+This is an Accepted constitutional decision, explicitly owner-ratified on
+2026-08-15.
 
 ## Context and current evidence
 
@@ -141,7 +141,7 @@ digest, or any other mechanism.
 
 ## Decision
 
-The following three invariants govern this proposal.
+The following three invariants govern this decision.
 
 ### 1. Verification describes only the exact supplied history
 
@@ -308,7 +308,7 @@ checkpoint nor makes its shape the constitutional representation.
 
 ## Complete producing context under ADR-0008
 
-This proposal is an application of, not an alternative to, ADR-0008:
+This decision is an application of, not an alternative to, ADR-0008:
 
 ```text
 D = Derive_G(I_G)
@@ -488,9 +488,9 @@ future result would not enlarge the meaning of this checkpoint relation.
   expectation agreement.
 - **The sole-write contract remains unchanged.** This ADR supplies no storage,
   locking, durability, acknowledgement, or recovery law.
-- **NEW-LOG-01 is not closed.** This proposal supplies a constitutional answer
-  for owner review; runtime and persistence evidence remain absent, and audit
-  and readiness records are not changed.
+- **NEW-LOG-01 is not closed.** This decision supplies a constitutional answer;
+  runtime and persistence evidence remain absent, and audit and readiness
+  records are not changed.
 
 ## Consequences
 
@@ -533,7 +533,7 @@ Costs and constraints:
 
 ## Non-goals
 
-This documentation-only proposal does not:
+This documentation-only decision does not:
 
 - change Rust runtime, tests, FORMAT, schemas, fixtures, Cargo metadata, CI, or
   release material;
@@ -554,19 +554,18 @@ This documentation-only proposal does not:
 
 ## Ratification and implementation boundary
 
-This ADR is Proposed. Explicit repository-owner ratification is required before
-it becomes Accepted doctrine.
+This ADR is Accepted, explicitly owner-ratified on 2026-08-15.
 
-Merge, green checks, a draft PR, or the presence of this file do not constitute
-owner ratification. Ratification would settle only the constitutional
-distinction. It would not implement checkpoint evaluation, prove secure
-checkpoint persistence, close NEW-LOG-01, or authorize rollback-resistance
-claims.
+The prior merge, green checks, draft PR, and presence of this file did not by
+themselves constitute owner ratification. Owner ratification settles only the
+constitutional distinction. It does not implement checkpoint evaluation,
+prove secure checkpoint persistence, close NEW-LOG-01, or authorize
+rollback-resistance claims.
 
-After ratification, a separately reviewed implementation contract may choose
-the exact checkpoint representation, relation packaging, typed outcomes,
-complete producing coordinates, and hostile runtime proofs. Secure checkpoint
-persistence remains a separate later L0/persistence tranche.
+A separately reviewed implementation contract may choose the exact checkpoint
+representation, relation packaging, typed outcomes, complete producing
+coordinates, and hostile runtime proofs. Secure checkpoint persistence remains
+a separate later L0/persistence tranche.
 
 ## Reviewer checklist
 
@@ -599,9 +598,10 @@ persistence remains a separate later L0/persistence tranche.
   non-equivocation, or consensus.
 - Confirm local history and local checkpoint may be rolled back together and
   still match.
-- Confirm runtime, persistence, Accepted ADRs, audits, readiness, and release
-  material remain unchanged.
-- Confirm Proposed status and explicit owner-ratification gate remain visible.
+- Confirm runtime, persistence, other Accepted ADRs, audits, readiness, and
+  release material remain unchanged.
+- Confirm Accepted status and the explicit owner-ratification date remain
+  visible without implying runtime implementation.
 
 ## References
 
