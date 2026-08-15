@@ -168,7 +168,7 @@ profile after L0 ownership has been established:
 | Database attachment | one `main` database; no `ATTACH` and no extension loading |
 | Shared cache | disabled |
 | Uncommitted reads | `read_uncommitted = OFF` |
-| Journal | rollback journal, `journal_mode = DELETE`; the returned mode must exact-match |
+| Journal | query before setting; refuse observed persistent `WAL`; then explicitly request rollback-journal `journal_mode = DELETE` and exact-match the returned mode |
 | Synchronization | `synchronous = EXTRA` on every connection; do not rely on a build or connection default |
 | Locking | normal SQLite locking, not a process-lifetime exclusive lease |
 | Stable reads | explicit read transaction; the first ordered record query establishes the snapshot, and the transaction remains open through every required pass |
@@ -187,10 +187,21 @@ Every pragma whose returned value can differ from the requested value must be
 queried and exact-matched. An unsupported or refused setting is an open/create
 failure, not permission to continue under an implementation default.
 
-The implementation must not silently convert an existing recognized database
-from WAL or another journal profile during ordinary open. A profile mismatch
-fails closed. Creation establishes the selected profile. Migration to another
-profile requires a later reviewed contract.
+SQLite persists `WAL` mode across connections, but a fresh connection does not
+retain the prior `PERSIST`, `TRUNCATE`, `MEMORY`, or `OFF` setting and instead
+returns to the default rollback mode. Ordinary open must therefore query
+`PRAGMA main.journal_mode` before issuing any journal-mode setting. An observed
+persistent incompatible mode—concretely `WAL` in v0—fails closed without
+issuing `journal_mode=DELETE` or otherwise migrating it.
+
+For a recognized non-WAL database, each supported connection must explicitly
+request `PRAGMA main.journal_mode=DELETE` and exact-match the returned mode.
+Failure or refusal to establish `DELETE` fails open/create. V0 makes no claim
+that it can detect a previous connection's non-persistent `PERSIST`, `TRUNCATE`,
+`MEMORY`, or `OFF` setting after SQLite has discarded that state. It adds no
+metadata to remember such historical settings. Creation establishes the
+selected current profile; migration from observable persistent incompatible
+state requires a later reviewed contract.
 
 ## Database ownership and schema identity
 
@@ -506,9 +517,14 @@ a deliberate reopen may select a different finite budget.
 
 The implementation must:
 
-- reject an existing main database file or associated rollback-journal file
-  whose logical file length exceeds `max_database_bytes` before a write-capable
-  SQLite open or recovery attempt;
+- stat and reject an existing physical main database file whose host-file
+  length exceeds `max_database_bytes` before any supported SQLite open,
+  including read-only open/replay;
+- for an operation that may invoke recovery or write-capable SQLite behavior,
+  also reject an associated rollback-journal file whose host-file length
+  exceeds `max_database_bytes` before that open/recovery attempt; a read-only
+  operation does not acquire a journal-recovery obligation merely from this
+  resource check;
 - inside the stable snapshot, reject checked `page_count * page_size` above
   `max_database_bytes` before full integrity checking or record iteration;
 - count ordered rows with checked arithmetic;
@@ -525,13 +541,30 @@ The implementation must:
 - return a typed operational resource failure with no verification summary,
   checkpoint `D`, writer, or projection publication.
 
-Before starting an append transaction, the writer must reject a proposed
-record when checked `event_count + 1` or `total_record_bytes + record_length`
-would exceed its retained limits. After inserting but before commit, it must
-also check the transaction's resulting `page_count * page_size` and roll back
-if `max_database_bytes` would be exceeded. The later transactional terminal-
-coordinate comparison prevents a concurrently advanced database from making
-cached totals authoritative for another history.
+The raw main-file length and in-database `page_count * page_size` checks are
+distinct defenses. The first bounds the physical host file, including trailing
+bytes outside SQLite's logical page count; the second bounds the logical
+database pages after SQLite opens one stable snapshot. Physical main-file check,
+SQLite open/snapshot, logical page bound, integrity checking, then bounded row
+and BLOB traversal is the required order. Any resource failure publishes no
+verification summary, checkpoint result, projection, or writer.
+
+Before starting an append transaction, the writer must compute:
+
+```text
+next_count = checked_add(writer.event_count, 1)
+next_total_record_bytes =
+    checked_add(writer.total_record_bytes, record_length)
+```
+
+Overflow is a typed pre-transaction resource/arithmetic failure. The writer
+must reject before `BEGIN IMMEDIATE` when `next_count` or
+`next_total_record_bytes` exceeds its retained limit. After inserting but
+before commit, it must also check the transaction's resulting
+`page_count * page_size` and roll back if `max_database_bytes` would be
+exceeded. The later transactional terminal-coordinate comparison prevents a
+concurrently advanced database from making cached totals authoritative for
+another history.
 
 The schema preserves the full eight-byte sequence domain. V0's event-count
 coordinate can represent at most `u64::MAX` events, so appending when the count
@@ -555,6 +588,8 @@ exclusive-open lease is not required. Each append must execute one transaction:
 
 ```text
 construct and serialize proposed successor for {N, T}
+compute checked next_count and next_total_record_bytes
+reject overflow or retained-limit excess before transaction
 BEGIN IMMEDIATE
 derive actual terminal coordinate from exact persisted records
 
@@ -567,7 +602,9 @@ insert exactly one row at sequence N
 COMMIT
 
 only after observed commit success:
-    advance writer cached count/tip
+    writer.event_count = next_count
+    writer.tip = new_tip
+    writer.total_record_bytes = next_total_record_bytes
     return Ok(SignedEvent)
 ```
 
@@ -575,6 +612,12 @@ The compare and insert occur in the same write transaction. Position uniqueness
 is defense in depth; comparing only row absence or count is insufficient. The
 actual terminal commitment is derived from the exact stored terminal record,
 not a mutable head alias.
+
+Cached `event_count`, `tip`, and `total_record_bytes` always describe the same
+last successfully acknowledged persisted history coordinate. They advance
+together only after observed `COMMIT` success. `WriterStale`,
+`BEGIN IMMEDIATE -> SQLITE_BUSY`, rollback, `CommitStateUnknown`, any other
+failed transaction, and later `WriterPoisoned` calls advance none of them.
 
 If writer A commits first, writer B's later attempt from the same predecessor
 must return typed `WriterStale` and insert nothing. The B event is not rewritten
@@ -600,7 +643,7 @@ classes, even if exact Rust variant names differ:
 | transaction-crossing failure before `COMMIT` | definitely not committed only when rollback or prior automatic rollback is mechanically established; otherwise state is unknown | unusable; force/verify rollback or abandon the connection; reopen required |
 | `COMMIT -> SQLITE_BUSY` | commit did not complete and SQLite leaves the transaction active; successful explicit rollback establishes definitely not committed, while uncertain cleanup becomes `CommitStateUnknown` | unusable; never retry `COMMIT`; terminate the transaction or abandon the connection; reopen required |
 | `CommitStateUnknown` | transaction may or may not have committed | unusable; connection abandoned; reopen and complete verification required |
-| observed successful commit | the exact row committed under the selected profile | cached count/tip advance exactly once |
+| observed successful commit | the exact row committed under the selected profile | cached count/tip/total-record-bytes advance together exactly once |
 | `WriterPoisoned` on a later call | no append is attempted | reopen required |
 
 After a write-transaction attempt begins, any returned failure poisons the
@@ -791,7 +834,7 @@ that lacks that checkpoint. That is the complete stronger proposition.
 | P16 | History restored to H80 while separately retained C100 survives | Checkpoint-aware open refuses because H80 does not contain C100. |
 | P17 | Episodic/projection database supplied as L0 | Refuse by ownership/schema gate without mutation. |
 | P18 | Database path is on a network filesystem | Outside the supported v0 guarantee; reject when mechanically identifiable and otherwise document the violated precondition. No network-FS durability/concurrency claim. |
-| P19 | Database/journal/record/count/total-byte budget would be exceeded | Typed operational resource failure before recovery, oversized BLOB materialization, or commit as applicable; no semantic result, writer, or partial projection. |
+| P19 | Physical main file (including trailing bytes), applicable recovery journal, logical database pages, record/count/cumulative bytes, or append budget would be exceeded | Typed operational resource failure at the applicable pre-open, pre-recovery, pre-integrity, pre-BLOB, pre-transaction, or pre-commit boundary; no semantic result, writer, or partial projection. |
 | P20 | Caller omits checkpoint and expects a database/environment “latest” value | No checkpoint-relative open exists. Checkpoint input must be explicit; no lookup or fallback occurs. |
 
 ## Implementation obligations for the runtime tranche
@@ -817,11 +860,15 @@ that lacks that checkpoint. That is the complete stronger proposition.
 - [ ] Keep `SqliteL0Store` off the whole-vector `LogStore::read_records` seam;
       preserve that public trait for existing compatibility readers through a
       specialized reader/private snapshot layout.
-- [ ] Check main/journal file size before recovery, database pages before
-      integrity checking, and record/cumulative lengths before BLOB allocation.
+- [ ] Check physical main-file size before every supported existing-database
+      open, including read-only replay; check an applicable rollback journal
+      before recovery/write-capable open; keep the logical page bound before
+      integrity checking and record/cumulative bounds before BLOB allocation.
 - [ ] Verify complete history before checkpoint outcome, replay application,
       projection publication, or writer construction.
-- [ ] Configure and exact-match `DELETE`, `EXTRA`, no shared cache,
+- [ ] Query journal mode before setting; refuse observable persistent `WAL`
+      without migration; then explicitly request and exact-match `DELETE` on
+      each supported connection. Exact-match `EXTRA`, no shared cache,
       `read_uncommitted=OFF`, and zero automatic busy timeout.
 - [ ] Atomically compare the persisted terminal coordinate and insert one
       successor under `BEGIN IMMEDIATE`.
@@ -835,7 +882,9 @@ that lacks that checkpoint. That is the complete stronger proposition.
       abandon that connection and require reopen.
 - [ ] Poison writer after every transaction-crossing or ambiguous persistence
       failure; expose `CommitStateUnknown` where commit cannot be proved absent.
-- [ ] Advance cached count/tip only after observed successful commit.
+- [ ] Compute checked `next_total_record_bytes` before the transaction and
+      advance cached count/tip/total-record-bytes together only after observed
+      successful commit; advance none after failure.
 - [ ] Preserve raw-versus-verified replay type state and no-partial-apply law.
 - [ ] Preserve FileStore/MemStore behavior and existing golden/FORMAT bytes.
 - [ ] Add process/concurrency/crash/resource/foreign-database hostile tests.
@@ -861,9 +910,20 @@ least:
 - zero second physical snapshot reads for checkpoint open;
 - foreign SQLite and projection database byte/hash preservation after refusal;
 - unknown-schema refusal without migration;
-- zero/exact/over-bound database, recovery-journal, record, count, and total-
-  byte budgets, with a test proving oversized BLOB bytes are not fetched or
-  materialized;
+- recognized `MPL0` database persistently in WAL refused without issuing a
+  conversion, a supported non-WAL database explicitly establishing/returning
+  `DELETE`, and open/create failure when the current profile cannot be
+  established;
+- zero/exact/over-bound physical main-file, recovery-journal, logical-page,
+  record, count, and total-byte budgets, including a logically valid database
+  padded beyond `max_database_bytes` that read-only open/replay rejects before
+  semantic publication, and a test proving oversized BLOB bytes are not fetched
+  or materialized;
+- sequential append budget evidence where append A advances the retained total
+  near `max_total_record_bytes`, append B would pass only against the stale
+  pre-A total and therefore fails before transaction against the required
+  updated total, failed append leaves the cached total unchanged, and successful
+  commit leaves count/tip/total aligned with persisted history;
 - process termination before commit and after commit-before-ack where feasible;
 - explicit unknown-commit writer poisoning and later-call rejection;
 - direct transaction/autocommit-state evidence after every public failed append
@@ -924,8 +984,14 @@ This documentation tranche does not implement or authorize:
 - [ ] The exact stored record remains authoritative over physical duplicates.
 - [ ] Foreign/projection/unknown-schema databases are refused without DROP or
       adoption.
-- [ ] `DELETE` plus `EXTRA` is exact-matched and is not called an event-format
-      rule.
+- [ ] Observable persistent WAL is refused without conversion; historical
+      non-WAL connection modes are not claimed observable; every supported
+      connection explicitly establishes/exact-matches `DELETE` plus `EXTRA`.
+- [ ] Physical main-file size is bounded before read-only and write-capable
+      opens separately from the logical page bound.
+- [ ] Successful append advances cached count/tip/total-record-bytes together;
+      every failed append advances none, and sequential limits use the updated
+      total.
 - [ ] Two stale writers cannot both commit siblings.
 - [ ] Busy/error handling performs no hidden retry or predecessor refresh.
 - [ ] `COMMIT -> SQLITE_BUSY` is explicitly rolled back/terminated; the writer
@@ -954,6 +1020,7 @@ This documentation tranche does not implement or authorize:
 - [SQLite per-schema transaction state](https://www.sqlite.org/c3ref/txn_state.html).
 - [SQLite isolation](https://www.sqlite.org/isolation.html).
 - [SQLite PRAGMA reference](https://www.sqlite.org/pragma.html).
+- [SQLite WAL-mode persistence](https://www.sqlite.org/wal.html#persistence_of_wal_mode).
 - [SQLite atomic commit](https://www.sqlite.org/atomiccommit.html).
 - [SQLite network-filesystem caveats](https://www.sqlite.org/useovernet.html).
 

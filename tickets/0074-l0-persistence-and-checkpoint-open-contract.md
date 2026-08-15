@@ -181,6 +181,13 @@ read = explicit stable transaction
 write/create = BEGIN IMMEDIATE
 ```
 
+Ordinary open first queries the current journal mode. Observable persistent
+`WAL` is refused without issuing a conversion. A recognized non-WAL database
+then explicitly requests `DELETE` and exact-matches the returned mode on every
+supported connection. V0 makes no claim that a fresh connection can detect a
+discarded historical `PERSIST`, `TRUNCATE`, `MEMORY`, or `OFF` setting, and adds
+no durable profile metadata.
+
 ### Physical records
 
 One row stores:
@@ -223,14 +230,21 @@ max_record_bytes
 max_total_record_bytes
 ```
 
-The main database and rollback journal are length-checked before write-capable
-open/recovery, and checked SQLite page size is bounded before integrity
-checking. Each record's BLOB length is checked before BLOB materialization.
-Resource failure is operational and produces no checkpoint outcome, projection
-publication, or writer. A successfully opened writer retains the verified
-snapshot's checked total record bytes and the selected limits so it can reject
-an over-budget append before entering the write transaction and can roll back
-a transaction whose resulting database pages exceed its budget.
+The physical main database file is length-checked before every supported open
+of an existing L0, including read-only replay. An associated rollback journal
+is length-checked before an operation that may recover or open write-capably.
+Inside the stable snapshot, checked `page_count * page_size` remains a separate
+logical-page bound before integrity checking. Each record's BLOB length is
+checked before BLOB materialization. Resource failure is operational and
+produces no checkpoint outcome, projection publication, or writer.
+
+A successfully opened writer retains the verified snapshot's checked total
+record bytes and the selected limits. Before append it computes checked
+`next_total_record_bytes = total_record_bytes + record_length` and rejects
+overflow or limit excess before the transaction. Only observed commit success
+advances cached count, tip, and total record bytes together; every failed append
+advances none. The transaction still rejects a stale physical terminal rather
+than trusting cached totals against another writer's history.
 
 ### Stale and uncertain writer vocabulary
 
@@ -242,7 +256,7 @@ a transaction whose resulting database pages exceed its budget.
 | transaction-crossing failure before `COMMIT` | definitely not committed only if rollback or prior automatic rollback is mechanically established; otherwise state is unknown | poison; force/verify rollback or abandon connection; reopen required |
 | `COMMIT -> SQLITE_BUSY` | commit did not complete and the transaction remains active; successful explicit rollback establishes definitely not committed | no commit retry/wait; terminate transaction or abandon connection; poison and reopen |
 | `CommitStateUnknown` | transaction may or may not have committed, including uncertain cleanup | abandon connection; poison; reopen and completely verify |
-| observed successful `COMMIT` | exact row committed under the fixed local SQLite profile | cached count/tip advance exactly once |
+| observed successful `COMMIT` | exact row committed under the fixed local SQLite profile | cached count/tip/total-record-bytes advance together exactly once |
 
 For `COMMIT -> SQLITE_BUSY`, Magpie finalizes/drops transaction-owned statements
 and explicitly attempts `ROLLBACK`; it does not use SQLite's permitted later
@@ -285,13 +299,25 @@ The implementation must prove all twenty design scenarios:
 | P16 | older history with newer retained checkpoint refuses |
 | P17 | projection database refused as L0 |
 | P18 | network filesystem outside supported guarantee |
-| P19 | database/journal/count/record/total-byte resource failures before publication |
+| P19 | physical main-file (including trailing bytes), applicable journal, logical-page, count/record/cumulative-byte, and sequential-append resource failures before publication |
 | P20 | no ambient checkpoint selection |
 
 Tests must reach the intended stage. A stale-writer test must show one exact
 committed successor; a wrong-branch test must use two otherwise valid chains;
 a corrupt-suffix test must verify the checkpoint prefix before the late error;
 and a foreign-database test must prove the unrelated data stayed unchanged.
+
+Journal-profile evidence must show persistent WAL refusal without conversion,
+explicit `DELETE` establishment/exact-match on a supported non-WAL database,
+and failure when the current profile cannot be established; it must not claim
+to detect discarded historical non-WAL settings. P19 evidence must separately
+exercise physical main-file size (including a logically valid database padded
+beyond the limit and rejected by read-only replay), applicable journal size,
+logical pages, record/count/cumulative bytes, and two sequential appends where
+the second fails before transaction only when the first successful append's
+updated cached total is used. Failed append must leave that cached total
+unchanged, while successful commit aligns count/tip/total with persisted
+history.
 
 ## Changed-path allowlist
 
@@ -337,6 +363,14 @@ The next separately authorized tranche should:
       while preserving existing custom read-store compatibility;
 - [ ] atomically compare expected terminal count/tip at append;
 - [ ] return stale-writer error with no sibling commit;
+- [ ] query journal mode before setting, refuse persistent WAL without
+      conversion, then explicitly request/exact-match DELETE; do not test for
+      discarded historical non-WAL connection modes;
+- [ ] enforce physical main-file size before read-only and write-capable opens,
+      applicable journal size before recovery, and logical page size separately
+      before integrity checking;
+- [ ] compute checked next total record bytes before append and advance cached
+      count/tip/total together only after successful commit, never after failure;
 - [ ] handle `COMMIT -> SQLITE_BUSY` without retry: finalize/drop transaction-
       owned statements, explicitly roll back/terminate, poison writer, and
       abandon the connection if cleanup cannot be established;
@@ -394,6 +428,13 @@ Stop and report rather than broadening if:
 - [ ] Checkpoint reopen fixes `ContainsCheckpoint` explicitly and reuses #127.
 - [ ] One stable read transaction covers every semantic observation.
 - [ ] Resource limits are explicit, finite, and checked before BLOB allocation.
+- [ ] Observable persistent WAL is refused without conversion; discarded prior
+      non-WAL modes are not claimed observable; each connection establishes
+      and exact-matches DELETE.
+- [ ] Physical main-file size is checked before read-only and write-capable
+      opens independently of logical database pages.
+- [ ] Successful append advances cached count/tip/total together; sequential
+      budget checks use the updated total and failed appends advance none.
 - [ ] Competing writers cannot both commit siblings.
 - [ ] Stale writers never refresh or retry implicitly.
 - [ ] A busy `COMMIT` is explicitly rolled back/terminated without retry, and no
