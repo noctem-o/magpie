@@ -451,7 +451,24 @@ fn check_empty_unowned_sqlite(path: &Path, limits: L0ResourceLimitsV0) -> Result
         });
     }
     let connection = open_connection(path, true, false)?;
-    configure_connection(&connection)?;
+    require_empty_unowned_connection(&connection)?;
+    configure_connection(&connection)
+}
+
+fn require_empty_unowned_connection(connection: &Connection) -> Result<(), LogError> {
+    let application_id: i64 = connection
+        .query_row("PRAGMA main.application_id", [], |row| row.get(0))
+        .map_err(|error| sqlite_error("inspect unowned application_id", error))?;
+    let user_version: i64 = connection
+        .query_row("PRAGMA main.user_version", [], |row| row.get(0))
+        .map_err(|error| sqlite_error("inspect unowned user_version", error))?;
+    if application_id != 0 || user_version != 0 {
+        return Err(LogError::ForeignDatabase {
+            detail: format!(
+                "SQLite destination is already claimed: application_id={application_id}, user_version={user_version}"
+            ),
+        });
+    }
     let object_count: i64 = connection
         .query_row(
             "SELECT count(*) FROM main.sqlite_schema WHERE name NOT LIKE 'sqlite_%'",
@@ -850,8 +867,49 @@ impl LogWriter<SqliteL0Store> {
         path: impl AsRef<Path>,
         signing_key: SigningKey,
         limits: L0ResourceLimitsV0,
-        mut clock: Clock,
+        clock: Clock,
     ) -> Result<Self, LogError> {
+        Self::create_new_with_clock_inner(
+            path,
+            signing_key,
+            limits,
+            clock,
+            |_: &Path| {},
+            |_: &Path| {},
+        )
+    }
+
+    #[cfg(test)]
+    fn create_new_with_test_hooks(
+        path: impl AsRef<Path>,
+        signing_key: SigningKey,
+        limits: L0ResourceLimitsV0,
+        clock: Clock,
+        before_open: impl FnOnce(&Path),
+        before_begin: impl FnOnce(&Path),
+    ) -> Result<Self, LogError> {
+        Self::create_new_with_clock_inner(
+            path,
+            signing_key,
+            limits,
+            clock,
+            before_open,
+            before_begin,
+        )
+    }
+
+    fn create_new_with_clock_inner<FOpen, FBegin>(
+        path: impl AsRef<Path>,
+        signing_key: SigningKey,
+        limits: L0ResourceLimitsV0,
+        mut clock: Clock,
+        before_open: FOpen,
+        before_begin: FBegin,
+    ) -> Result<Self, LogError>
+    where
+        FOpen: FnOnce(&Path),
+        FBegin: FnOnce(&Path),
+    {
         let path = path.as_ref().to_path_buf();
         let existing_length = check_main_file_limit(&path, limits)?;
         check_journal_file_limit(&path, limits)?;
@@ -860,8 +918,11 @@ impl LogWriter<SqliteL0Store> {
             Some(_) => check_empty_unowned_sqlite(&path, limits)?,
         }
 
+        before_open(&path);
         let connection = open_connection(&path, false, true)?;
+        require_empty_unowned_connection(&connection)?;
         configure_connection(&connection)?;
+        before_begin(&path);
         if let Err(error) = connection.execute_batch("BEGIN IMMEDIATE") {
             return if is_busy(&error) {
                 Err(LogError::StorageBusy {
@@ -873,6 +934,7 @@ impl LogWriter<SqliteL0Store> {
         }
 
         let result = (|| {
+            require_empty_unowned_connection(&connection)?;
             connection
                 .execute_batch(&format!(
                     "PRAGMA main.application_id = {MPL0_APPLICATION_ID};\
@@ -1306,6 +1368,129 @@ mod tests {
 
     fn limits() -> L0ResourceLimitsV0 {
         L0ResourceLimitsV0::new(16 * 1024 * 1024, 100, 1024 * 1024, 8 * 1024 * 1024).unwrap()
+    }
+
+    fn test_path(label: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!(
+            "magpie-sqlite-create-race-{label}-{}-{}.db",
+            std::process::id(),
+            system_clock()
+        ))
+    }
+
+    fn remove_test_path(path: &std::path::Path) {
+        for suffix in ["", "-journal", "-wal", "-shm"] {
+            let path = std::path::PathBuf::from(format!("{}{}", path.display(), suffix));
+            let _ = std::fs::remove_file(path);
+        }
+    }
+
+    fn create_empty_unowned_sqlite(path: &std::path::Path) {
+        let connection = Connection::open(path).unwrap();
+        connection.execute_batch("VACUUM").unwrap();
+    }
+
+    #[test]
+    fn create_revalidates_empty_unowned_state_inside_transaction() {
+        let path = test_path("schema-injection");
+        create_empty_unowned_sqlite(&path);
+
+        let result = LogWriter::<SqliteL0Store>::create_new_with_test_hooks(
+            &path,
+            SigningKey::from_bytes(&[93u8; 32]),
+            limits(),
+            Box::new(system_clock),
+            |_: &std::path::Path| {},
+            |path: &std::path::Path| {
+                let connection = Connection::open(path).unwrap();
+                connection
+                    .execute_batch(
+                        "CREATE TABLE precious(value TEXT); \
+                         INSERT INTO precious VALUES ('keep');",
+                    )
+                    .unwrap();
+            },
+        );
+        assert!(matches!(result, Err(LogError::ForeignDatabase { .. })));
+
+        let connection = Connection::open(&path).unwrap();
+        let application_id: i64 = connection
+            .query_row("PRAGMA main.application_id", [], |row| row.get(0))
+            .unwrap();
+        let user_version: i64 = connection
+            .query_row("PRAGMA main.user_version", [], |row| row.get(0))
+            .unwrap();
+        let precious: String = connection
+            .query_row("SELECT value FROM precious", [], |row| row.get(0))
+            .unwrap();
+        let magpie_objects: i64 = connection
+            .query_row(
+                "SELECT count(*) FROM main.sqlite_schema WHERE name = 'magpie_l0_records'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!((application_id, user_version), (0, 0));
+        assert_eq!(precious, "keep");
+        assert_eq!(magpie_objects, 0);
+
+        remove_test_path(&path);
+    }
+
+    #[test]
+    fn create_revalidates_the_database_opened_after_path_preflight() {
+        let destination = test_path("path-substitution-destination");
+        let foreign = test_path("path-substitution-foreign");
+        create_empty_unowned_sqlite(&destination);
+        {
+            let connection = Connection::open(&foreign).unwrap();
+            connection
+                .execute_batch(
+                    "CREATE TABLE precious(value TEXT); \
+                     INSERT INTO precious VALUES ('keep');",
+                )
+                .unwrap();
+        }
+        let foreign_before = std::fs::read(&foreign).unwrap();
+        let foreign_for_hook = foreign.clone();
+
+        let result = LogWriter::<SqliteL0Store>::create_new_with_test_hooks(
+            &destination,
+            SigningKey::from_bytes(&[94u8; 32]),
+            limits(),
+            Box::new(system_clock),
+            move |destination: &std::path::Path| {
+                std::fs::remove_file(destination).unwrap();
+                std::fs::rename(&foreign_for_hook, destination).unwrap();
+            },
+            |_: &std::path::Path| {},
+        );
+        assert!(matches!(result, Err(LogError::ForeignDatabase { .. })));
+        assert_eq!(std::fs::read(&destination).unwrap(), foreign_before);
+
+        let connection = Connection::open(&destination).unwrap();
+        let application_id: i64 = connection
+            .query_row("PRAGMA main.application_id", [], |row| row.get(0))
+            .unwrap();
+        let user_version: i64 = connection
+            .query_row("PRAGMA main.user_version", [], |row| row.get(0))
+            .unwrap();
+        let precious: String = connection
+            .query_row("SELECT value FROM precious", [], |row| row.get(0))
+            .unwrap();
+        let magpie_objects: i64 = connection
+            .query_row(
+                "SELECT count(*) FROM main.sqlite_schema WHERE name = 'magpie_l0_records'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!((application_id, user_version), (0, 0));
+        assert_eq!(precious, "keep");
+        assert_eq!(magpie_objects, 0);
+
+        remove_test_path(&destination);
+        remove_test_path(&foreign);
     }
 
     #[test]
