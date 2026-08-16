@@ -620,6 +620,136 @@ fn p19_append_terminal_blob_is_bounded_before_parsing() {
 }
 
 #[test]
+fn p2_append_revalidates_cumulative_bytes_after_terminal_rewrite() {
+    let reference = TestPath::new("byte-revalidation-reference-terminal");
+    let reference_writer = create(reference.path());
+    let genesis_length = reference_writer.total_record_bytes();
+    drop(reference_writer);
+
+    let path = TestPath::new("byte-revalidation-terminal");
+    let limits = L0ResourceLimitsV0::new(
+        32 * 1024 * 1024,
+        10,
+        2 * 1024 * 1024,
+        genesis_length + 10_000,
+    )
+    .unwrap();
+    let mut writer = LogWriter::<SqliteL0Store>::create_new_with_clock(
+        path.path(),
+        key(),
+        limits,
+        fixed_clock(),
+    )
+    .unwrap();
+    let before = (writer.len(), writer.tip(), writer.total_record_bytes());
+
+    let mut rewritten = records(path.path()).pop().unwrap();
+    rewritten.push(b' ');
+    raw_connection(path.path())
+        .execute(
+            "UPDATE magpie_l0_records SET record_bytes = ?1 WHERE position_be = ?2",
+            params![rewritten.as_slice(), 0u64.to_be_bytes().as_slice()],
+        )
+        .unwrap();
+    let terminal: SignedEvent =
+        serde_json::from_slice(&records(path.path()).pop().unwrap()).unwrap();
+    assert_eq!(terminal.hash, before.1);
+    assert_eq!(terminal.core.seq, before.0 - 1);
+
+    assert!(matches!(
+        writer.append(
+            provenance("rewritten-terminal"),
+            note("must revalidate total")
+        ),
+        Err(LogError::WriterStale)
+    ));
+    assert!(writer.is_poisoned());
+    assert_eq!(
+        (writer.len(), writer.tip(), writer.total_record_bytes()),
+        before
+    );
+    assert_eq!(records(path.path()).len(), 1);
+
+    drop(writer);
+    let reopened =
+        LogWriter::<SqliteL0Store>::open_verified_prefix(path.path(), key(), limits).unwrap();
+    assert_eq!(reopened.len(), before.0);
+    assert_eq!(reopened.tip(), before.1);
+    assert_eq!(reopened.total_record_bytes(), before.2 + 1);
+}
+
+#[test]
+fn p2_append_revalidates_cumulative_bytes_after_nonterminal_rewrite() {
+    let reference = TestPath::new("byte-revalidation-reference-nonterminal");
+    let reference_writer = create(reference.path());
+    let genesis_length = reference_writer.total_record_bytes();
+    drop(reference_writer);
+
+    let path = TestPath::new("byte-revalidation-nonterminal");
+    let max_total_record_bytes = genesis_length + 50_000;
+    let limits = L0ResourceLimitsV0::new(
+        32 * 1024 * 1024,
+        10,
+        2 * 1024 * 1024,
+        max_total_record_bytes,
+    )
+    .unwrap();
+    let mut writer = LogWriter::<SqliteL0Store>::create_new_with_clock(
+        path.path(),
+        key(),
+        limits,
+        fixed_clock(),
+    )
+    .unwrap();
+    writer
+        .append(provenance("before-rewrite-1"), note("first"))
+        .unwrap();
+    writer
+        .append(provenance("before-rewrite-2"), note("second"))
+        .unwrap();
+    let before = (writer.len(), writer.tip(), writer.total_record_bytes());
+    let mut rewritten = records(path.path())[0].clone();
+    let padding = usize::try_from(max_total_record_bytes - before.2 + 1).unwrap();
+    rewritten.extend(vec![0x20u8; padding]);
+    raw_connection(path.path())
+        .execute(
+            "UPDATE magpie_l0_records SET record_bytes = ?1 WHERE position_be = ?2",
+            params![rewritten.as_slice(), 0u64.to_be_bytes().as_slice()],
+        )
+        .unwrap();
+    let terminal: SignedEvent =
+        serde_json::from_slice(&records(path.path()).pop().unwrap()).unwrap();
+    assert_eq!(terminal.hash, before.1);
+    assert_eq!(terminal.core.seq, before.0 - 1);
+
+    assert!(matches!(
+        writer.append(
+            provenance("rewritten-nonterminal"),
+            note("must enforce total")
+        ),
+        Err(LogError::ResourceLimit {
+            resource: "cumulative record bytes",
+            ..
+        })
+    ));
+    assert!(writer.is_poisoned());
+    assert_eq!(
+        (writer.len(), writer.tip(), writer.total_record_bytes()),
+        before
+    );
+    assert_eq!(records(path.path()).len(), 3);
+    drop(writer);
+
+    assert!(matches!(
+        LogWriter::<SqliteL0Store>::open_verified_prefix(path.path(), key(), limits),
+        Err(LogError::ResourceLimit {
+            resource: "cumulative record bytes",
+            ..
+        })
+    ));
+}
+
+#[test]
 fn p9_stale_writers_cannot_commit_sibling_successors() {
     let path = TestPath::new("stale-writers");
     drop(create(path.path()));

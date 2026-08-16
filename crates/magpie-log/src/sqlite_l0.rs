@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use ed25519_dalek::{SigningKey, VerifyingKey};
-use rusqlite::ffi::ErrorCode;
+use rusqlite::ffi::{self, ErrorCode};
 use rusqlite::types::ValueRef;
 use rusqlite::{params, Connection, OpenFlags, Row};
 
@@ -373,6 +373,121 @@ fn reported_blob_length(
     u64::try_from(length).map_err(|_| LogError::UnsupportedDatabase {
         detail: "SQLite reported a negative record BLOB length".into(),
     })
+}
+
+fn opened_main_file_bytes(connection: &Connection) -> Result<u64, LogError> {
+    let mut file: *mut ffi::sqlite3_file = std::ptr::null_mut();
+    let main_database = b"main\0";
+    let file_control_result = unsafe {
+        // SAFETY: `connection.handle()` belongs to `connection`, which remains
+        // alive for this call. SQLite writes a pointer to the VFS file opened
+        // for the main database into `file`; the pointer is used only while
+        // that same connection remains alive below.
+        ffi::sqlite3_file_control(
+            connection.handle(),
+            main_database.as_ptr().cast(),
+            ffi::SQLITE_FCNTL_FILE_POINTER,
+            (&mut file as *mut *mut ffi::sqlite3_file).cast(),
+        )
+    };
+    if file_control_result != ffi::SQLITE_OK {
+        return Err(LogError::SqliteOperational {
+            operation: "inspect opened physical main database bytes",
+            detail: format!("sqlite3_file_control(FILE_POINTER) returned {file_control_result}"),
+        });
+    }
+    if file.is_null() {
+        return Err(LogError::SqliteOperational {
+            operation: "inspect opened physical main database bytes",
+            detail: "SQLite returned a null main database file pointer".into(),
+        });
+    }
+
+    let methods = unsafe {
+        // SAFETY: SQLite returned `file` for this live connection and the
+        // pointer is not retained after this function returns.
+        (*file).pMethods
+    };
+    if methods.is_null() {
+        return Err(LogError::SqliteOperational {
+            operation: "inspect opened physical main database bytes",
+            detail: "SQLite returned a main database file without I/O methods".into(),
+        });
+    }
+    let file_size = unsafe {
+        // SAFETY: `methods` is the live VFS method table for `file`, and the
+        // v1 SQLite I/O contract requires xFileSize to be present.
+        (*methods).xFileSize
+    }
+    .ok_or(LogError::SqliteOperational {
+        operation: "inspect opened physical main database bytes",
+        detail: "SQLite main database VFS has no xFileSize method".into(),
+    })?;
+    let mut size: ffi::sqlite3_int64 = 0;
+    let result = unsafe {
+        // SAFETY: `file_size` is the xFileSize method for the live `file`, and
+        // `size` is a valid writable sqlite3_int64 output.
+        file_size(file, &mut size)
+    };
+    if result != ffi::SQLITE_OK {
+        return Err(LogError::SqliteOperational {
+            operation: "inspect opened physical main database bytes",
+            detail: format!("SQLite xFileSize returned {result}"),
+        });
+    }
+    u64::try_from(size).map_err(|_| LogError::SqliteOperational {
+        operation: "inspect opened physical main database bytes",
+        detail: "SQLite xFileSize returned a negative size".into(),
+    })
+}
+
+fn persisted_record_byte_totals(
+    connection: &Connection,
+    limits: L0ResourceLimitsV0,
+) -> Result<(u64, u64), LogError> {
+    let mut statement = connection
+        .prepare(
+            "SELECT position_be, length(record_bytes) \
+             FROM main.magpie_l0_records ORDER BY position_be",
+        )
+        .map_err(|error| sqlite_error("prepare persisted byte totals", error))?;
+    let mut rows = statement
+        .query([])
+        .map_err(|error| sqlite_error("query persisted byte totals", error))?;
+    let mut count = 0u64;
+    let mut total_record_bytes = 0u64;
+    while let Some(row) = rows
+        .next()
+        .map_err(|error| sqlite_error("read persisted byte totals", error))?
+    {
+        count = count.checked_add(1).ok_or(LogError::ResourceLimit {
+            resource: "record count",
+            actual: u64::MAX,
+            limit: limits.max_record_count,
+        })?;
+        check_limit("record count", count, limits.max_record_count)?;
+
+        let record_length = reported_blob_length(row, 1, "read persisted record length")?;
+        check_limit(
+            "individual record bytes",
+            record_length,
+            limits.max_record_bytes,
+        )?;
+        total_record_bytes =
+            total_record_bytes
+                .checked_add(record_length)
+                .ok_or(LogError::ResourceLimit {
+                    resource: "cumulative record bytes",
+                    actual: u64::MAX,
+                    limit: limits.max_total_record_bytes,
+                })?;
+        check_limit(
+            "cumulative record bytes",
+            total_record_bytes,
+            limits.max_total_record_bytes,
+        )?;
+    }
+    Ok((count, total_record_bytes))
 }
 
 fn configure_connection(connection: &Connection) -> Result<(), LogError> {
@@ -788,12 +903,41 @@ fn open_owned_connection(
     limits: L0ResourceLimitsV0,
     read_only: bool,
 ) -> Result<Connection, LogError> {
+    open_owned_connection_inner(path, limits, read_only, |_: &Path| {})
+}
+
+#[cfg(test)]
+fn open_owned_connection_with_test_hook(
+    path: &Path,
+    limits: L0ResourceLimitsV0,
+    read_only: bool,
+    before_open: impl FnOnce(&Path),
+) -> Result<Connection, LogError> {
+    open_owned_connection_inner(path, limits, read_only, before_open)
+}
+
+fn open_owned_connection_inner<F>(
+    path: &Path,
+    limits: L0ResourceLimitsV0,
+    read_only: bool,
+    before_open: F,
+) -> Result<Connection, LogError>
+where
+    F: FnOnce(&Path),
+{
     check_main_file_limit(path, limits)?;
     require_owned_header(path)?;
     if !read_only {
         check_journal_file_limit(path, limits)?;
     }
+    before_open(path);
     let connection = open_connection(path, read_only, false)?;
+    let physical_bytes = opened_main_file_bytes(&connection)?;
+    check_limit(
+        "physical main database bytes",
+        physical_bytes,
+        limits.max_database_bytes,
+    )?;
     configure_connection(&connection)?;
     Ok(connection)
 }
@@ -1239,7 +1383,31 @@ impl LogWriter<SqliteL0Store> {
             return Err(LogError::CommitStateUnknown);
         }
 
-        let operation = (|| {
+        let operation = (|| -> Result<u64, LogError> {
+            let (persisted_count, persisted_total_record_bytes) =
+                persisted_record_byte_totals(connection, self.store.limits)?;
+            if persisted_count != self.next_seq
+                || persisted_total_record_bytes != self.store.total_record_bytes
+            {
+                return Err(LogError::WriterStale);
+            }
+            let authoritative_next_total_record_bytes = persisted_total_record_bytes
+                .checked_add(record_length)
+                .ok_or(LogError::ResourceLimit {
+                    resource: "cumulative record bytes",
+                    actual: u64::MAX,
+                    limit: self.store.limits.max_total_record_bytes,
+                })?;
+            check_limit(
+                "cumulative record bytes",
+                authoritative_next_total_record_bytes,
+                self.store.limits.max_total_record_bytes,
+            )?;
+            debug_assert_eq!(
+                authoritative_next_total_record_bytes,
+                next_total_record_bytes
+            );
+
             let terminal: (u64, ContentHash) = {
                 let mut statement = connection
                     .prepare(
@@ -1319,19 +1487,22 @@ impl LogWriter<SqliteL0Store> {
                 self.store.limits.max_database_bytes,
             )?;
             check_journal_file_limit(&self.store.path, self.store.limits)?;
-            Ok(())
+            Ok(authoritative_next_total_record_bytes)
         })();
 
-        if let Err(error) = operation {
-            self.store.poisoned = true;
-            let rollback_ok =
-                connection.execute_batch("ROLLBACK").is_ok() && connection.is_autocommit();
-            if !rollback_ok {
-                self.store.connection.take();
-                return Err(LogError::CommitStateUnknown);
+        let authoritative_next_total_record_bytes = match operation {
+            Ok(total_record_bytes) => total_record_bytes,
+            Err(error) => {
+                self.store.poisoned = true;
+                let rollback_ok =
+                    connection.execute_batch("ROLLBACK").is_ok() && connection.is_autocommit();
+                if !rollback_ok {
+                    self.store.connection.take();
+                    return Err(LogError::CommitStateUnknown);
+                }
+                return Err(error);
             }
-            return Err(error);
-        }
+        };
 
         if let Err(error) = connection.execute_batch("COMMIT") {
             self.store.poisoned = true;
@@ -1357,7 +1528,7 @@ impl LogWriter<SqliteL0Store> {
 
         self.next_seq = next_count;
         self.last_hash = event.hash;
-        self.store.total_record_bytes = next_total_record_bytes;
+        self.store.total_record_bytes = authoritative_next_total_record_bytes;
         Ok(event)
     }
 }
@@ -1491,6 +1662,84 @@ mod tests {
 
         remove_test_path(&destination);
         remove_test_path(&foreign);
+    }
+
+    #[test]
+    fn opened_connection_physical_size_check_follows_path_substitution() {
+        let first = test_path("physical-size-first");
+        let second = test_path("physical-size-second");
+        let key = SigningKey::from_bytes(&[95u8; 32]);
+        let broad = limits();
+        drop(
+            LogWriter::<SqliteL0Store>::create_new_with_clock(
+                &first,
+                key.clone(),
+                broad,
+                Box::new(system_clock),
+            )
+            .unwrap(),
+        );
+        drop(
+            LogWriter::<SqliteL0Store>::create_new_with_clock(
+                &second,
+                key,
+                broad,
+                Box::new(system_clock),
+            )
+            .unwrap(),
+        );
+
+        let first_length = std::fs::metadata(&first).unwrap().len();
+        let second_connection = Connection::open(&second).unwrap();
+        let page_count: i64 = second_connection
+            .query_row("PRAGMA main.page_count", [], |row| row.get(0))
+            .unwrap();
+        let page_size: i64 = second_connection
+            .query_row("PRAGMA main.page_size", [], |row| row.get(0))
+            .unwrap();
+        let logical_bytes = u64::try_from(page_count).unwrap() * u64::try_from(page_size).unwrap();
+        drop(second_connection);
+
+        let max_database_bytes = first_length.max(logical_bytes);
+        let second_bytes = std::fs::read(&second).unwrap();
+        let padding = usize::try_from(
+            max_database_bytes.saturating_sub(u64::try_from(second_bytes.len()).unwrap()) + 128,
+        )
+        .unwrap();
+        let mut padded_second = second_bytes;
+        padded_second.extend(vec![0u8; padding]);
+        std::fs::write(&second, &padded_second).unwrap();
+        assert!(std::fs::metadata(&second).unwrap().len() > max_database_bytes);
+        assert!(logical_bytes <= max_database_bytes);
+
+        let limits = L0ResourceLimitsV0::new(
+            max_database_bytes,
+            broad.max_record_count(),
+            broad.max_record_bytes(),
+            broad.max_total_record_bytes(),
+        )
+        .unwrap();
+        let second_for_hook = second.clone();
+        let result = open_owned_connection_with_test_hook(
+            &first,
+            limits,
+            true,
+            move |path: &std::path::Path| {
+                std::fs::remove_file(path).unwrap();
+                std::fs::rename(&second_for_hook, path).unwrap();
+            },
+        );
+        assert!(matches!(
+            result,
+            Err(LogError::ResourceLimit {
+                resource: "physical main database bytes",
+                ..
+            })
+        ));
+        assert_eq!(std::fs::read(&first).unwrap(), padded_second);
+
+        remove_test_path(&first);
+        remove_test_path(&second);
     }
 
     #[test]
