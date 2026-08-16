@@ -246,6 +246,54 @@ fn p1_creation_is_atomic_bounded_and_initializes_exact_writer_coordinates() {
 }
 
 #[test]
+fn p19_creation_rejects_oversized_journal_before_any_sqlite_open() {
+    let limits = L0ResourceLimitsV0::new(16 * 1024, 10, 2 * 1024 * 1024, 4 * 1024 * 1024).unwrap();
+    for (label, initialize) in [
+        ("absent", false),
+        ("zero-byte", true),
+        ("empty-unowned", true),
+    ] {
+        let path = TestPath::new(label);
+        if initialize {
+            if label == "empty-unowned" {
+                let connection = Connection::open(path.path()).unwrap();
+                connection.execute_batch("VACUUM").unwrap();
+            } else {
+                fs::write(path.path(), []).unwrap();
+            }
+        }
+        let before = if path.path().exists() {
+            Some(fs::read(path.path()).unwrap())
+        } else {
+            None
+        };
+        let journal_path = PathBuf::from(format!("{}-journal", path.path().display()));
+        fs::write(
+            &journal_path,
+            vec![0u8; usize::try_from(limits.max_database_bytes() + 1).unwrap()],
+        )
+        .unwrap();
+
+        assert!(matches!(
+            LogWriter::<SqliteL0Store>::create_new_with_clock(
+                path.path(),
+                key(),
+                limits,
+                fixed_clock(),
+            ),
+            Err(LogError::ResourceLimit {
+                resource: "physical rollback journal bytes",
+                ..
+            })
+        ));
+        match before {
+            None => assert!(!path.path().exists()),
+            Some(before) => assert_eq!(fs::read(path.path()).unwrap(), before),
+        }
+    }
+}
+
+#[test]
 fn p2_p3_p17_ownership_and_schema_refusals_do_not_adopt_or_repair() {
     let owned = TestPath::new("already-owned");
     drop(create(owned.path()));
@@ -496,6 +544,79 @@ fn p8_wrong_branch_length_never_substitutes_for_checkpoint_ancestry() {
     .err()
     .unwrap();
     assert!(matches!(error, SqliteCheckpointOpenError::NotSatisfied(_)));
+}
+
+#[test]
+fn p1_missing_persisted_terminal_is_stale_and_cannot_advance_writer() {
+    let path = TestPath::new("missing-terminal");
+    drop(create(path.path()));
+    let mut writer =
+        LogWriter::<SqliteL0Store>::open_verified_prefix(path.path(), key(), broad_limits())
+            .unwrap();
+    let before = (writer.len(), writer.tip(), writer.total_record_bytes());
+
+    raw_connection(path.path())
+        .execute("DELETE FROM magpie_l0_records", [])
+        .unwrap();
+
+    assert!(matches!(
+        writer.append(provenance("missing-terminal"), note("must not acknowledge")),
+        Err(LogError::WriterStale)
+    ));
+    assert!(writer.is_poisoned());
+    assert_eq!(
+        (writer.len(), writer.tip(), writer.total_record_bytes()),
+        before
+    );
+    assert!(records(path.path()).is_empty());
+    assert!(matches!(
+        writer.append(provenance("poisoned"), note("must not retry")),
+        Err(LogError::WriterPoisoned)
+    ));
+}
+
+#[test]
+fn p19_append_terminal_blob_is_bounded_before_parsing() {
+    let path = TestPath::new("oversized-terminal");
+    let limits = L0ResourceLimitsV0::new(32 * 1024 * 1024, 10, 1024, 24 * 1024 * 1024).unwrap();
+    let writer = LogWriter::<SqliteL0Store>::create_new_with_clock(
+        path.path(),
+        key(),
+        limits,
+        fixed_clock(),
+    )
+    .unwrap();
+    assert!(writer.total_record_bytes() < limits.max_record_bytes());
+    drop(writer);
+
+    let mut writer =
+        LogWriter::<SqliteL0Store>::open_verified_prefix(path.path(), key(), limits).unwrap();
+    let before = (writer.len(), writer.tip(), writer.total_record_bytes());
+    let oversized = limits.max_record_bytes() + 1;
+    raw_connection(path.path())
+        .execute(
+            "UPDATE magpie_l0_records SET record_bytes = zeroblob(?1) WHERE position_be = ?2",
+            params![
+                i64::try_from(oversized).unwrap(),
+                0u64.to_be_bytes().as_slice()
+            ],
+        )
+        .unwrap();
+
+    assert!(matches!(
+        writer.append(provenance("oversized-terminal"), note("must bound first")),
+        Err(LogError::ResourceLimit {
+            resource: "individual record bytes",
+            ..
+        })
+    ));
+    assert!(writer.is_poisoned());
+    assert_eq!(
+        (writer.len(), writer.tip(), writer.total_record_bytes()),
+        before
+    );
+    assert_eq!(records(path.path()).len(), 1);
+    assert_eq!(record_lengths(path.path()), vec![oversized]);
 }
 
 #[test]

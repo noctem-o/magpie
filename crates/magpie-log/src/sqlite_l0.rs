@@ -6,7 +6,7 @@ use std::time::Duration;
 use ed25519_dalek::{SigningKey, VerifyingKey};
 use rusqlite::ffi::ErrorCode;
 use rusqlite::types::ValueRef;
-use rusqlite::{params, Connection, OpenFlags};
+use rusqlite::{params, Connection, OpenFlags, Row};
 
 use crate::canonical::CANONICALIZATION_PROFILE;
 use crate::error::LogError;
@@ -362,6 +362,19 @@ fn query_text(
         .map_err(|error| sqlite_error(operation, error))
 }
 
+fn reported_blob_length(
+    row: &Row<'_>,
+    column: usize,
+    operation: &'static str,
+) -> Result<u64, LogError> {
+    let length: i64 = row
+        .get(column)
+        .map_err(|error| sqlite_error(operation, error))?;
+    u64::try_from(length).map_err(|_| LogError::UnsupportedDatabase {
+        detail: "SQLite reported a negative record BLOB length".into(),
+    })
+}
+
 fn configure_connection(connection: &Connection) -> Result<(), LogError> {
     connection
         .busy_timeout(Duration::ZERO)
@@ -647,13 +660,7 @@ fn verify_rows(
             .ok_or(LogError::SequenceExhausted)?;
         check_limit("record count", next_count, limits.max_record_count)?;
 
-        let reported_length: i64 = row
-            .get(1)
-            .map_err(|error| sqlite_error("read record length", error))?;
-        let reported_length =
-            u64::try_from(reported_length).map_err(|_| LogError::UnsupportedDatabase {
-                detail: "SQLite reported a negative record BLOB length".into(),
-            })?;
+        let reported_length = reported_blob_length(row, 1, "read record length")?;
         check_limit(
             "individual record bytes",
             reported_length,
@@ -847,6 +854,7 @@ impl LogWriter<SqliteL0Store> {
     ) -> Result<Self, LogError> {
         let path = path.as_ref().to_path_buf();
         let existing_length = check_main_file_limit(&path, limits)?;
+        check_journal_file_limit(&path, limits)?;
         match existing_length {
             Some(0) | None => {}
             Some(_) => check_empty_unowned_sqlite(&path, limits)?,
@@ -1170,28 +1178,33 @@ impl LogWriter<SqliteL0Store> {
         }
 
         let operation = (|| {
-            let terminal: Option<(u64, ContentHash)> = {
+            let terminal: (u64, ContentHash) = {
                 let mut statement = connection
                     .prepare(
-                        "SELECT position_be, record_bytes FROM main.magpie_l0_records \
+                        "SELECT position_be, length(record_bytes), record_bytes \
+                         FROM main.magpie_l0_records \
                          ORDER BY position_be DESC LIMIT 1",
                     )
                     .map_err(|error| sqlite_error("prepare persisted terminal", error))?;
                 let mut rows = statement
                     .query([])
                     .map_err(|error| sqlite_error("query persisted terminal", error))?;
-                let Some(row) = rows
+                let row = rows
                     .next()
                     .map_err(|error| sqlite_error("read persisted terminal", error))?
-                else {
-                    return Ok::<_, LogError>(None);
-                };
+                    .ok_or(LogError::WriterStale)?;
+                let reported_length = reported_blob_length(row, 1, "read terminal record length")?;
+                check_limit(
+                    "individual record bytes",
+                    reported_length,
+                    self.store.limits.max_record_bytes,
+                )?;
                 let position = decode_position(
                     row.get_ref(0)
                         .map_err(|error| sqlite_error("read terminal position", error))?,
                 )?;
                 let bytes = match row
-                    .get_ref(1)
+                    .get_ref(2)
                     .map_err(|error| sqlite_error("read terminal record", error))?
                 {
                     ValueRef::Blob(bytes) => bytes,
@@ -1201,6 +1214,19 @@ impl LogWriter<SqliteL0Store> {
                         });
                     }
                 };
+                let actual_length =
+                    u64::try_from(bytes.len()).map_err(|_| LogError::ResourceLimit {
+                        resource: "individual record bytes",
+                        actual: u64::MAX,
+                        limit: self.store.limits.max_record_bytes,
+                    })?;
+                if actual_length != reported_length {
+                    return Err(LogError::UnsupportedDatabase {
+                        detail:
+                            "terminal record BLOB length changed within one SQLite row observation"
+                                .into(),
+                    });
+                }
                 let terminal_event: SignedEvent = serde_json::from_slice(bytes)?;
                 if terminal_event.core.seq != position {
                     return Err(LogError::ChainBroken {
@@ -1209,12 +1235,12 @@ impl LogWriter<SqliteL0Store> {
                     });
                 }
                 verify_event_integrity(&self.signing_key.verifying_key(), &terminal_event)?;
-                Some((
+                (
                     position.checked_add(1).ok_or(LogError::SequenceExhausted)?,
                     terminal_event.hash,
-                ))
+                )
             };
-            if terminal != Some((self.next_seq, self.last_hash)) {
+            if terminal != (self.next_seq, self.last_hash) {
                 return Err(LogError::WriterStale);
             }
 
@@ -1231,7 +1257,7 @@ impl LogWriter<SqliteL0Store> {
                 self.store.limits.max_database_bytes,
             )?;
             check_journal_file_limit(&self.store.path, self.store.limits)?;
-            Ok(Some(()))
+            Ok(())
         })();
 
         if let Err(error) = operation {
