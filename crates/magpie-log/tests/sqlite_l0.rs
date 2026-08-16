@@ -776,6 +776,36 @@ fn p9_stale_writers_cannot_commit_sibling_successors() {
 }
 
 #[test]
+fn p1_append_rechecks_delete_journal_mode_after_begin() {
+    let path = TestPath::new("append-journal-mode-race");
+    let mut writer = create(path.path());
+    let before = (writer.len(), writer.tip(), writer.total_record_bytes());
+
+    {
+        let connection = raw_connection(path.path());
+        let mode: String = connection
+            .query_row("PRAGMA main.journal_mode = WAL", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(mode.to_ascii_lowercase(), "wal");
+    }
+
+    let result = writer.append(provenance("journal-mode-race"), note("must refuse WAL"));
+    assert!(matches!(result, Err(LogError::UnsupportedDatabase { .. })));
+    assert!(writer.is_poisoned());
+    assert_eq!(
+        (writer.len(), writer.tip(), writer.total_record_bytes()),
+        before
+    );
+    assert_eq!(records(path.path()).len(), 1);
+
+    let connection = raw_connection(path.path());
+    let mode: String = connection
+        .query_row("PRAGMA main.journal_mode", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(mode.to_ascii_lowercase(), "wal");
+}
+
+#[test]
 fn p10_stable_reader_forces_commit_busy_cleanup_without_hidden_retry() {
     let path = TestPath::new("commit-busy");
     drop(create(path.path()));

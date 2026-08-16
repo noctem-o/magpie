@@ -441,6 +441,18 @@ fn opened_main_file_bytes(connection: &Connection) -> Result<u64, LogError> {
     })
 }
 
+fn check_opened_main_file_limit(
+    connection: &Connection,
+    limits: L0ResourceLimitsV0,
+) -> Result<(), LogError> {
+    let physical_bytes = opened_main_file_bytes(connection)?;
+    check_limit(
+        "physical main database bytes",
+        physical_bytes,
+        limits.max_database_bytes,
+    )
+}
+
 fn persisted_record_byte_totals(
     connection: &Connection,
     limits: L0ResourceLimitsV0,
@@ -555,6 +567,23 @@ fn configure_connection(connection: &Connection) -> Result<(), LogError> {
         });
     }
     Ok(())
+}
+
+fn require_delete_journal_mode(connection: &Connection) -> Result<(), LogError> {
+    let journal_mode = query_text(
+        connection,
+        "PRAGMA main.journal_mode",
+        "verify transaction journal mode",
+    )?;
+    if journal_mode.eq_ignore_ascii_case("delete") {
+        Ok(())
+    } else {
+        Err(LogError::UnsupportedDatabase {
+            detail: format!(
+                "SQLite journal mode changed to {journal_mode:?}; transaction requires DELETE"
+            ),
+        })
+    }
 }
 
 fn check_empty_unowned_sqlite(path: &Path, limits: L0ResourceLimitsV0) -> Result<(), LogError> {
@@ -864,8 +893,10 @@ fn verify_owned_snapshot(
         .map_err(|error| sqlite_error("begin stable read transaction", error))?;
 
     let result = (|| {
-        // This is deliberately the first read of main inside the transaction;
-        // it anchors the snapshot before every later semantic database read.
+        require_delete_journal_mode(connection)?;
+        // The journal-mode query above is deliberately the first read of main
+        // inside the transaction; it anchors the snapshot before every later
+        // semantic database read.
         let logical_bytes = logical_database_bytes(connection)?;
         check_limit(
             "logical database bytes",
@@ -932,12 +963,7 @@ where
     }
     before_open(path);
     let connection = open_connection(path, read_only, false)?;
-    let physical_bytes = opened_main_file_bytes(&connection)?;
-    check_limit(
-        "physical main database bytes",
-        physical_bytes,
-        limits.max_database_bytes,
-    )?;
+    check_opened_main_file_limit(&connection, limits)?;
     configure_connection(&connection)?;
     Ok(connection)
 }
@@ -1064,6 +1090,7 @@ impl LogWriter<SqliteL0Store> {
 
         before_open(&path);
         let connection = open_connection(&path, false, true)?;
+        check_opened_main_file_limit(&connection, limits)?;
         require_empty_unowned_connection(&connection)?;
         configure_connection(&connection)?;
         before_begin(&path);
@@ -1078,6 +1105,7 @@ impl LogWriter<SqliteL0Store> {
         }
 
         let result = (|| {
+            require_delete_journal_mode(&connection)?;
             require_empty_unowned_connection(&connection)?;
             connection
                 .execute_batch(&format!(
@@ -1384,6 +1412,7 @@ impl LogWriter<SqliteL0Store> {
         }
 
         let operation = (|| -> Result<u64, LogError> {
+            require_delete_journal_mode(connection)?;
             let (persisted_count, persisted_total_record_bytes) =
                 persisted_record_byte_totals(connection, self.store.limits)?;
             if persisted_count != self.next_seq
@@ -1665,6 +1694,46 @@ mod tests {
     }
 
     #[test]
+    fn create_rejects_journal_mode_changed_after_begin() {
+        let path = test_path("create-journal-mode-race");
+        create_empty_unowned_sqlite(&path);
+
+        let result = LogWriter::<SqliteL0Store>::create_new_with_test_hooks(
+            &path,
+            SigningKey::from_bytes(&[96u8; 32]),
+            limits(),
+            Box::new(system_clock),
+            |_: &std::path::Path| {},
+            |path: &std::path::Path| {
+                let connection = Connection::open(path).unwrap();
+                let mode: String = connection
+                    .query_row("PRAGMA main.journal_mode = WAL", [], |row| row.get(0))
+                    .unwrap();
+                assert_eq!(mode.to_ascii_lowercase(), "wal");
+            },
+        );
+        assert!(matches!(result, Err(LogError::UnsupportedDatabase { .. })));
+
+        let connection = Connection::open(&path).unwrap();
+        let application_id: i64 = connection
+            .query_row("PRAGMA main.application_id", [], |row| row.get(0))
+            .unwrap();
+        let user_version: i64 = connection
+            .query_row("PRAGMA main.user_version", [], |row| row.get(0))
+            .unwrap();
+        let magpie_objects: i64 = connection
+            .query_row(
+                "SELECT count(*) FROM main.sqlite_schema WHERE name = 'magpie_l0_records'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!((application_id, user_version, magpie_objects), (0, 0, 0));
+
+        remove_test_path(&path);
+    }
+
+    #[test]
     fn opened_connection_physical_size_check_follows_path_substitution() {
         let first = test_path("physical-size-first");
         let second = test_path("physical-size-second");
@@ -1740,6 +1809,84 @@ mod tests {
 
         remove_test_path(&first);
         remove_test_path(&second);
+    }
+
+    #[test]
+    fn creation_physical_size_check_follows_path_substitution() {
+        let destination = test_path("create-physical-size-destination");
+        let replacement = test_path("create-physical-size-replacement");
+        create_empty_unowned_sqlite(&destination);
+        create_empty_unowned_sqlite(&replacement);
+
+        let destination_length = std::fs::metadata(&destination).unwrap().len();
+        let replacement_connection = Connection::open(&replacement).unwrap();
+        let page_count: i64 = replacement_connection
+            .query_row("PRAGMA main.page_count", [], |row| row.get(0))
+            .unwrap();
+        let page_size: i64 = replacement_connection
+            .query_row("PRAGMA main.page_size", [], |row| row.get(0))
+            .unwrap();
+        let logical_bytes = u64::try_from(page_count).unwrap() * u64::try_from(page_size).unwrap();
+        drop(replacement_connection);
+
+        let max_database_bytes = destination_length.max(logical_bytes);
+        let replacement_bytes = std::fs::read(&replacement).unwrap();
+        let padding = usize::try_from(
+            max_database_bytes.saturating_sub(u64::try_from(replacement_bytes.len()).unwrap())
+                + 128,
+        )
+        .unwrap();
+        let mut padded_replacement = replacement_bytes;
+        padded_replacement.extend(vec![0u8; padding]);
+        std::fs::write(&replacement, &padded_replacement).unwrap();
+
+        let broad = limits();
+        let creation_limits = L0ResourceLimitsV0::new(
+            max_database_bytes,
+            broad.max_record_count(),
+            broad.max_record_bytes(),
+            broad.max_total_record_bytes(),
+        )
+        .unwrap();
+        let replacement_for_hook = replacement.clone();
+        let result = LogWriter::<SqliteL0Store>::create_new_with_test_hooks(
+            &destination,
+            SigningKey::from_bytes(&[97u8; 32]),
+            creation_limits,
+            Box::new(system_clock),
+            move |path: &std::path::Path| {
+                std::fs::remove_file(path).unwrap();
+                std::fs::rename(&replacement_for_hook, path).unwrap();
+            },
+            |_: &std::path::Path| {},
+        );
+        assert!(matches!(
+            result,
+            Err(LogError::ResourceLimit {
+                resource: "physical main database bytes",
+                ..
+            })
+        ));
+        assert_eq!(std::fs::read(&destination).unwrap(), padded_replacement);
+
+        let connection = Connection::open(&destination).unwrap();
+        let application_id: i64 = connection
+            .query_row("PRAGMA main.application_id", [], |row| row.get(0))
+            .unwrap();
+        let user_version: i64 = connection
+            .query_row("PRAGMA main.user_version", [], |row| row.get(0))
+            .unwrap();
+        let magpie_objects: i64 = connection
+            .query_row(
+                "SELECT count(*) FROM main.sqlite_schema WHERE name = 'magpie_l0_records'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!((application_id, user_version, magpie_objects), (0, 0, 0));
+
+        remove_test_path(&destination);
+        remove_test_path(&replacement);
     }
 
     #[test]
