@@ -1341,3 +1341,223 @@ fn p20_schema_has_no_ambient_checkpoint_or_mutable_head_state() {
     .unwrap();
     assert_eq!(summary.event_count(), 1);
 }
+
+fn invalid_payload() -> Payload {
+    Payload::ClaimAssertedV2 {
+        claim_id: String::new(),
+        statement: "invalid".into(),
+        scope_ref: "scope".into(),
+        actor_class: "AgentProposer".into(),
+        content_hash: String::new(),
+        metadata_json: String::new(),
+    }
+}
+
+#[test]
+fn p1_append_fails_on_same_length_interior_semantic_rewrite() {
+    let path = TestPath::new("interior-semantic-rewrite");
+    let mut writer = create(path.path());
+    writer
+        .append(provenance("interior-a"), note("alpha body"))
+        .unwrap();
+    writer
+        .append(provenance("interior-b"), note("omega body"))
+        .unwrap();
+    let before = (writer.len(), writer.tip(), writer.total_record_bytes());
+    assert_eq!(before.0, 3);
+
+    // Rewrite a NON-TERMINAL record with a same-length BLOB that remains valid
+    // JSON but alters signed semantic content (one provenance character), so
+    // the failure must come from hash/chain verification, not serde syntax.
+    let mut tampered = records(path.path());
+    let target = &mut tampered[1];
+    let needle = b"interior-a";
+    let offset = target
+        .windows(needle.len())
+        .position(|window| window == needle)
+        .expect("record contains its provenance source");
+    target[offset] = b'j';
+    let tampered_record = tampered[1].clone();
+    assert_eq!(tampered_record.len(), records(path.path())[1].len());
+    let reparsed: SignedEvent = serde_json::from_slice(&tampered_record).unwrap();
+    assert_ne!(reparsed.core.hash(), reparsed.hash);
+    raw_connection(path.path())
+        .execute(
+            "UPDATE magpie_l0_records SET record_bytes = ?1 WHERE position_be = ?2",
+            params![tampered_record.as_slice(), 1u64.to_be_bytes().as_slice()],
+        )
+        .unwrap();
+
+    // The consolidated-away incremental guards all still observe equality.
+    let persisted = records(path.path());
+    assert_eq!(persisted.len() as u64, before.0, "row count unchanged");
+    let persisted_total: u64 = record_lengths(path.path()).iter().sum();
+    assert_eq!(persisted_total, before.2, "cumulative byte total unchanged");
+    let terminal: SignedEvent = serde_json::from_slice(persisted.last().unwrap()).unwrap();
+    assert_eq!(
+        terminal.core.seq + 1,
+        before.0,
+        "terminal position unchanged"
+    );
+    assert_eq!(terminal.hash, before.1, "terminal hash unchanged");
+
+    assert!(matches!(
+        writer.append(provenance("after-rewrite"), note("must not acknowledge")),
+        Err(LogError::ChainBroken { .. })
+    ));
+    assert!(writer.is_poisoned());
+    assert_eq!(
+        (writer.len(), writer.tip(), writer.total_record_bytes()),
+        before
+    );
+    assert_eq!(records(path.path()).len(), 3, "no successor row committed");
+    assert!(matches!(
+        writer.append(provenance("poisoned"), note("must not run")),
+        Err(LogError::WriterPoisoned)
+    ));
+}
+
+#[test]
+fn p1_append_fails_on_interior_position_swap() {
+    let path = TestPath::new("interior-position-swap");
+    let mut writer = create(path.path());
+    writer
+        .append(provenance("position-a"), note("first"))
+        .unwrap();
+    writer
+        .append(provenance("position-b"), note("second"))
+        .unwrap();
+    let before = (writer.len(), writer.tip(), writer.total_record_bytes());
+    let terminal_before = records(path.path()).last().unwrap().clone();
+
+    // Swap the physical positions of the two NON-TERMINAL records through a
+    // temporary unused key inside one raw hostile SQLite transaction.
+    let hostile = raw_connection(path.path());
+    hostile.execute_batch("BEGIN IMMEDIATE").unwrap();
+    let p0 = 0u64.to_be_bytes();
+    let p1 = 1u64.to_be_bytes();
+    let temporary = u64::MAX.to_be_bytes();
+    for (from, to) in [(p0, temporary), (p1, p0), (temporary, p1)] {
+        hostile
+            .execute(
+                "UPDATE magpie_l0_records SET position_be = ?1 WHERE position_be = ?2",
+                params![to.as_slice(), from.as_slice()],
+            )
+            .unwrap();
+    }
+    hostile.execute_batch("COMMIT").unwrap();
+
+    // Row count, total record bytes, and the terminal row are all preserved.
+    assert_eq!(records(path.path()).len() as u64, before.0);
+    let persisted_total: u64 = record_lengths(path.path()).iter().sum();
+    assert_eq!(persisted_total, before.2);
+    assert_eq!(records(path.path()).last().unwrap(), &terminal_before);
+
+    assert!(matches!(
+        writer.append(provenance("after-swap"), note("must not acknowledge")),
+        Err(LogError::ChainBroken { .. })
+    ));
+    assert!(writer.is_poisoned());
+    assert_eq!(
+        (writer.len(), writer.tip(), writer.total_record_bytes()),
+        before
+    );
+    assert_eq!(records(path.path()).len(), 3, "no successor row committed");
+    assert!(matches!(
+        writer.append(provenance("poisoned"), note("must not run")),
+        Err(LogError::WriterPoisoned)
+    ));
+}
+
+#[test]
+fn p1_append_fails_on_schema_mutation_after_writer_open() {
+    let path = TestPath::new("append-schema-mutation");
+    let mut writer = create(path.path());
+    let before = (writer.len(), writer.tip(), writer.total_record_bytes());
+
+    raw_connection(path.path())
+        .execute_batch("CREATE TABLE projection_cache(x); INSERT INTO projection_cache VALUES (1);")
+        .unwrap();
+
+    assert!(matches!(
+        writer.append(provenance("schema-race"), note("must refuse")),
+        Err(LogError::UnsupportedDatabase { .. })
+    ));
+    assert!(writer.is_poisoned());
+    assert_eq!(
+        (writer.len(), writer.tip(), writer.total_record_bytes()),
+        before
+    );
+    assert_eq!(records(path.path()).len(), 1, "no successor row committed");
+    assert!(matches!(
+        writer.append(provenance("poisoned"), note("must not run")),
+        Err(LogError::WriterPoisoned)
+    ));
+
+    // No repair, drop, or adoption: the foreign object survives untouched.
+    let connection = raw_connection(path.path());
+    let foreign_objects: i64 = connection
+        .query_row(
+            "SELECT count(*) FROM main.sqlite_schema WHERE name = 'projection_cache'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(foreign_objects, 1);
+}
+
+#[test]
+fn p1_append_fails_on_identity_mutation_after_writer_open() {
+    for (label, sql) in [
+        (
+            "append-application-id-race",
+            "PRAGMA main.application_id = 0x464F5247",
+        ),
+        ("append-user-version-race", "PRAGMA main.user_version = 2"),
+    ] {
+        let path = TestPath::new(label);
+        let mut writer = create(path.path());
+        let before = (writer.len(), writer.tip(), writer.total_record_bytes());
+
+        raw_connection(path.path()).execute_batch(sql).unwrap();
+
+        assert!(matches!(
+            writer.append(provenance("identity-race"), note("must refuse")),
+            Err(LogError::UnsupportedDatabase { .. })
+        ));
+        assert!(writer.is_poisoned());
+        assert_eq!(
+            (writer.len(), writer.tip(), writer.total_record_bytes()),
+            before
+        );
+        assert_eq!(records(path.path()).len(), 1, "no successor row committed");
+        assert!(matches!(
+            writer.append(provenance("poisoned"), note("must not run")),
+            Err(LogError::WriterPoisoned)
+        ));
+        drop(writer);
+    }
+}
+
+#[test]
+fn sqlite_rejected_append_does_not_consume_injected_clock() {
+    let reference = TestPath::new("clock-reference-sqlite");
+    let mut reference_writer = create(reference.path());
+    let baseline = reference_writer
+        .append(provenance("clock"), note("clocked"))
+        .unwrap();
+
+    let path = TestPath::new("clock-rejected-sqlite");
+    let mut writer = create(path.path());
+    let rejected = writer.append(provenance("clock"), invalid_payload());
+    assert!(matches!(rejected, Err(LogError::ChainBroken { .. })));
+    assert!(
+        !writer.is_poisoned(),
+        "pre-transaction rejection keeps the writer usable"
+    );
+    assert_eq!(records(path.path()).len(), 1, "rejection persisted nothing");
+
+    let accepted = writer.append(provenance("clock"), note("clocked")).unwrap();
+    assert_eq!(accepted.core.timestamp_nanos, baseline.core.timestamp_nanos);
+    assert_eq!(accepted.hash, baseline.hash);
+}

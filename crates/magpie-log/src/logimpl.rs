@@ -385,11 +385,18 @@ pub struct LogWriter<S> {
     pub(crate) clock: Clock,
 }
 
+/// Construct, hash, and sign one event record.
+///
+/// The clock is lazy on purpose: sequence/genesis and payload validation run
+/// before `clock` is invoked, so an event that fails validation never consumes
+/// a value from a stateful injected clock. A timestamp is observed only for an
+/// event that passed validation and will actually be constructed and offered
+/// to the persistence path.
 pub(crate) fn build_signed_record(
     signing_key: &SigningKey,
     sequence: u64,
     previous_hash: ContentHash,
-    timestamp_nanos: u64,
+    clock: &mut dyn FnMut() -> u64,
     provenance: Provenance,
     payload: Payload,
 ) -> Result<(SignedEvent, Vec<u8>), LogError> {
@@ -408,6 +415,7 @@ pub(crate) fn build_signed_record(
         seq: sequence,
         detail: detail.into(),
     })?;
+    let timestamp_nanos = clock();
     let core = EventCore {
         seq: sequence,
         timestamp_nanos,
@@ -466,7 +474,7 @@ fn append_to_writer<S: WriterStore>(
         &writer.signing_key,
         writer.next_seq,
         writer.last_hash,
-        (writer.clock)(),
+        &mut writer.clock,
         provenance,
         payload,
     )?;
@@ -943,5 +951,82 @@ mod tests {
         assert_eq!(writer.len(), original_len + 1);
         assert_eq!(writer.tip(), next.hash);
         assert_eq!(control.inner.records().len(), original_records.len() + 1);
+    }
+
+    fn invalid_payload() -> Payload {
+        Payload::ClaimAssertedV2 {
+            claim_id: String::new(),
+            statement: "invalid".into(),
+            scope_ref: "scope".into(),
+            actor_class: "AgentProposer".into(),
+            content_hash: String::new(),
+            metadata_json: String::new(),
+        }
+    }
+
+    #[test]
+    fn rejected_append_does_not_consume_injected_clock_memstore() {
+        let mut baseline =
+            open_writer_with_clock(MemStore::new(), test_key(), test_clock()).unwrap();
+        let expected =
+            append_to_writer(&mut baseline, test_provenance(), test_note("clocked")).unwrap();
+
+        let store = MemStore::new();
+        let mut writer = open_writer_with_clock(store.clone(), test_key(), test_clock()).unwrap();
+        let rejected =
+            append_to_writer(&mut writer, test_provenance(), invalid_payload()).unwrap_err();
+        assert!(
+            matches!(rejected, LogError::ChainBroken { .. }),
+            "invalid payload must be rejected: {rejected:?}"
+        );
+        assert_eq!(store.records().len(), 1, "rejection persisted nothing");
+        assert_eq!(writer.len(), 1);
+        assert_eq!(writer.tip(), expected.core.prev_hash);
+
+        let accepted =
+            append_to_writer(&mut writer, test_provenance(), test_note("clocked")).unwrap();
+        assert_eq!(accepted.core.timestamp_nanos, expected.core.timestamp_nanos);
+        assert_eq!(accepted.hash, expected.hash);
+    }
+
+    #[test]
+    fn rejected_append_does_not_consume_injected_clock_filestore() {
+        let unique = format!(
+            "magpie-clock-rejection-{}-{}.jsonl",
+            std::process::id(),
+            system_clock()
+        );
+        let baseline_path = std::env::temp_dir().join(format!("baseline-{unique}"));
+        let rejected_path = std::env::temp_dir().join(format!("rejected-{unique}"));
+
+        let mut baseline =
+            open_writer_with_clock(FileStore::new(&baseline_path), test_key(), test_clock())
+                .unwrap();
+        let expected =
+            append_to_writer(&mut baseline, test_provenance(), test_note("clocked")).unwrap();
+
+        let mut writer =
+            open_writer_with_clock(FileStore::new(&rejected_path), test_key(), test_clock())
+                .unwrap();
+        let rejected =
+            append_to_writer(&mut writer, test_provenance(), invalid_payload()).unwrap_err();
+        assert!(matches!(rejected, LogError::ChainBroken { .. }));
+        let persisted = std::fs::read(&rejected_path).unwrap();
+        assert_eq!(
+            persisted
+                .split(|byte| *byte == b'\n')
+                .filter(|line| !line.is_empty())
+                .count(),
+            1,
+            "rejection persisted nothing beyond genesis"
+        );
+
+        let accepted =
+            append_to_writer(&mut writer, test_provenance(), test_note("clocked")).unwrap();
+        assert_eq!(accepted.core.timestamp_nanos, expected.core.timestamp_nanos);
+        assert_eq!(accepted.hash, expected.hash);
+
+        let _ = std::fs::remove_file(&baseline_path);
+        let _ = std::fs::remove_file(&rejected_path);
     }
 }
