@@ -121,7 +121,8 @@ Freeze consequences:
 
 - `crates/magpie-log` — L0: event model, `magpie-core-v1` codec, hashing, signing, chain verification, stores (`FileStore`, `MemStore`)
 - `crates/magpie-claims` — first projection: `ClaimsView`, the epistemic claim store
-- `crates/magpie-episodic` — second projection: `EpisodicView`, SQLite + FTS5 full-text search over events (rusqlite bundled; the only crate that may depend on SQLite)
+- `crates/magpie-episodic` — second projection: `EpisodicView`, SQLite + FTS5 full-text search over events
+- `crates/magpie-log` — also owns the contract-selected supported SQLite L0 persistence backend; L0 and projection databases remain separate
 - `docs/FORMAT.md` — normative spec; a from-scratch reimplementation must reproduce the golden vectors from this page alone
 - `tools/verify_chain.py` — independent Python verifier, written from FORMAT.md alone; CI runs it against the golden fixture with a pinned trust root
 

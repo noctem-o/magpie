@@ -15,7 +15,7 @@
 //!
 //! ## Public capability boundary
 //!
-//! [`LogStore`] is a read-only substitution surface. Neither built-in storage
+//! [`LogStore`] is a read-only substitution surface. No supported storage
 //! backend exposes Magpie's private record-persistence seam:
 //!
 //! ```compile_fail,E0599
@@ -94,6 +94,7 @@ mod event;
 mod hashing;
 mod history_expectation;
 mod logimpl;
+mod sqlite_l0;
 mod store;
 
 pub use canonical::CANONICALIZATION_PROFILE;
@@ -106,6 +107,9 @@ pub use history_expectation::{
 };
 pub use logimpl::{
     Clock, LogReader, LogWriter, Projection, VerifiedReplayEvent, VerifiedReplaySummary,
+};
+pub use sqlite_l0::{
+    CheckpointQualifiedWriterOpenV0, L0ResourceLimitsV0, SqliteCheckpointOpenError, SqliteL0Store,
 };
 pub use store::{FileStore, LogStore, MemStore};
 

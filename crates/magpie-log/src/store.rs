@@ -6,9 +6,11 @@ use std::rc::Rc;
 
 use crate::error::LogError;
 
-/// Where the log's bytes live. One serialized [`crate::SignedEvent`] per record.
-/// Deliberately tiny: the log is an abstraction, storage is swappable (file now;
-/// a NAS path, an mmap, or a SQLite WAL later).
+/// Compatibility read surface for one serialized [`crate::SignedEvent`] per record.
+///
+/// This deliberately tiny whole-vector trait remains the FileStore/MemStore and
+/// downstream custom-reader boundary. The supported bounded SQLite L0 path has
+/// a separate stable-snapshot implementation and does not implement this trait.
 pub trait LogStore {
     fn read_records(&self) -> Result<Vec<Vec<u8>>, LogError>;
 }
@@ -20,7 +22,10 @@ pub(crate) trait WriterStore: LogStore {
     fn append_record(&mut self, bytes: &[u8]) -> Result<(), LogError>;
 }
 
-/// Real, durable storage: an append-only file, one JSON record per line.
+/// Simple JSONL compatibility/development/inspection storage.
+///
+/// This preserves its existing append behavior but makes no supported SQLite
+/// L0 transaction, concurrent-writer, or crash-durability guarantee.
 pub struct FileStore {
     path: PathBuf,
 }

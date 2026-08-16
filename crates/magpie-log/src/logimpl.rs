@@ -13,7 +13,7 @@ use crate::store::{FileStore, LogStore, MemStore, WriterStore};
 /// A source of timestamps (nanoseconds). Injectable so tests are deterministic.
 pub type Clock = Box<dyn FnMut() -> u64>;
 
-fn system_clock() -> u64 {
+pub(crate) fn system_clock() -> u64 {
     use std::time::{SystemTime, UNIX_EPOCH};
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -49,9 +49,10 @@ enum VerificationRetention {
     RetainEvents,
 }
 
-struct VerifiedSummary {
-    count: u64,
-    tip: ContentHash,
+pub(crate) struct VerifiedSummary {
+    pub(crate) count: u64,
+    pub(crate) tip: ContentHash,
+    pub(crate) total_record_bytes: u64,
 }
 
 struct VerifiedSnapshot {
@@ -190,6 +191,10 @@ pub struct VerifiedReplaySummary {
 }
 
 impl VerifiedReplaySummary {
+    pub(crate) fn from_verified_parts(event_count: u64, tip: ContentHash) -> Self {
+        Self { event_count, tip }
+    }
+
     pub fn event_count(&self) -> u64 {
         self.event_count
     }
@@ -207,122 +212,226 @@ fn parse_and_verify_records(
     vk: &VerifyingKey,
     retention: VerificationRetention,
 ) -> Result<VerifiedRecords, LogError> {
-    let mut prev = ContentHash::ZERO;
-    let mut count = 0u64;
+    let mut verifier = IncrementalVerifier::new(*vk);
+    let mut total_record_bytes = 0u64;
     let mut events = match retention {
         VerificationRetention::SummaryOnly => None,
         VerificationRetention::RetainEvents => Some(Vec::with_capacity(records.len())),
     };
 
-    for (expected_seq, record) in records.iter().enumerate() {
-        let expected_seq = expected_seq as u64;
-        let event: SignedEvent = serde_json::from_slice(record)?;
-
-        if event.core.seq != expected_seq {
-            return Err(LogError::ChainBroken {
-                seq: event.core.seq,
-                detail: format!("out-of-order: expected seq {expected_seq}"),
-            });
-        }
-        if event.core.prev_hash != prev {
-            return Err(LogError::ChainBroken {
-                seq: event.core.seq,
-                detail: "prev_hash does not match the previous event".into(),
-            });
-        }
-        if event.core.hash() != event.hash {
-            return Err(LogError::ChainBroken {
-                seq: event.core.seq,
-                detail: "content hash mismatch (event was altered)".into(),
-            });
-        }
-        let sig = Signature::from_bytes(event.signature.as_bytes());
-        vk.verify(&signed_message(&event.hash), &sig)
-            .map_err(|_| LogError::BadSignature {
-                seq: event.core.seq,
-            })?;
-        event
-            .core
-            .payload
-            .validate()
-            .map_err(|detail| LogError::ChainBroken {
-                seq: event.core.seq,
-                detail: detail.into(),
-            })?;
-
-        // Genesis rules: exactly one, exactly at seq 0, self-describing and
-        // consistent with the externally provided key. Trust in the key comes
-        // from outside; the genesis makes the chain *self-describing*.
-        match (&event.core.payload, event.core.seq) {
-            (
-                Payload::Genesis {
-                    canonicalization_profile,
-                    verifying_key,
-                },
-                0,
-            ) => {
-                if canonicalization_profile != CANONICALIZATION_PROFILE {
-                    return Err(LogError::ChainBroken {
-                        seq: 0,
-                        detail: format!(
-                            "genesis declares profile {canonicalization_profile:?}; \
-this implementation verifies {CANONICALIZATION_PROFILE:?}"
-                        ),
-                    });
-                }
-                if verifying_key != &hex::encode(vk.as_bytes()) {
-                    return Err(LogError::ChainBroken {
-                        seq: 0,
-                        detail: "genesis-declared verifying key does not match the provided key"
-                            .into(),
-                    });
-                }
-            }
-            (Payload::Genesis { .. }, seq) => {
-                return Err(LogError::ChainBroken {
-                    seq,
-                    detail: "genesis event after seq 0".into(),
-                });
-            }
-            (_, 0) => {
-                return Err(LogError::ChainBroken {
-                    seq: 0,
-                    detail: "chain does not begin with a genesis event".into(),
-                });
-            }
-            _ => {}
-        }
-
-        prev = event.hash;
-        count += 1;
+    for record in records {
+        total_record_bytes = total_record_bytes
+            .checked_add(u64::try_from(record.len()).map_err(|_| LogError::SequenceExhausted)?)
+            .ok_or(LogError::SequenceExhausted)?;
+        let event = verifier.verify_record(verifier.count(), record)?;
         if let Some(events) = &mut events {
             events.push(event);
         }
     }
 
+    let summary = verifier.finish(total_record_bytes);
+
     match events {
-        None => Ok(VerifiedRecords::Summary(VerifiedSummary {
-            count,
-            tip: prev,
-        })),
+        None => Ok(VerifiedRecords::Summary(summary)),
         Some(events) => Ok(VerifiedRecords::Snapshot(VerifiedSnapshot {
             events,
-            tip: prev,
+            tip: summary.tip,
         })),
     }
+}
+
+/// Shared incremental `magpie-core-v1` verifier. SQLite feeds one bounded row
+/// at a time; compatibility stores feed their already-materialized snapshot.
+pub(crate) struct IncrementalVerifier {
+    verifying_key: VerifyingKey,
+    previous_hash: ContentHash,
+    count: u64,
+}
+
+impl IncrementalVerifier {
+    pub(crate) fn new(verifying_key: VerifyingKey) -> Self {
+        Self {
+            verifying_key,
+            previous_hash: ContentHash::ZERO,
+            count: 0,
+        }
+    }
+
+    pub(crate) fn count(&self) -> u64 {
+        self.count
+    }
+
+    pub(crate) fn verify_record(
+        &mut self,
+        physical_position: u64,
+        record: &[u8],
+    ) -> Result<SignedEvent, LogError> {
+        if physical_position != self.count {
+            return Err(LogError::ChainBroken {
+                seq: physical_position,
+                detail: format!("physical position mismatch: expected {}", self.count),
+            });
+        }
+
+        let event: SignedEvent = serde_json::from_slice(record)?;
+        if event.core.seq != physical_position {
+            return Err(LogError::ChainBroken {
+                seq: event.core.seq,
+                detail: format!("out-of-order: expected seq {physical_position}"),
+            });
+        }
+        if event.core.prev_hash != self.previous_hash {
+            return Err(LogError::ChainBroken {
+                seq: event.core.seq,
+                detail: "prev_hash does not match the previous event".into(),
+            });
+        }
+        verify_event_integrity(&self.verifying_key, &event)?;
+
+        self.previous_hash = event.hash;
+        self.count = self
+            .count
+            .checked_add(1)
+            .ok_or(LogError::SequenceExhausted)?;
+        Ok(event)
+    }
+
+    pub(crate) fn finish(&self, total_record_bytes: u64) -> VerifiedSummary {
+        VerifiedSummary {
+            count: self.count,
+            tip: self.previous_hash,
+            total_record_bytes,
+        }
+    }
+}
+
+pub(crate) fn verify_event_integrity(
+    expected_verifying_key: &VerifyingKey,
+    event: &SignedEvent,
+) -> Result<(), LogError> {
+    if event.core.hash() != event.hash {
+        return Err(LogError::ChainBroken {
+            seq: event.core.seq,
+            detail: "content hash mismatch (event was altered)".into(),
+        });
+    }
+    let signature = Signature::from_bytes(event.signature.as_bytes());
+    expected_verifying_key
+        .verify(&signed_message(&event.hash), &signature)
+        .map_err(|_| LogError::BadSignature {
+            seq: event.core.seq,
+        })?;
+    event
+        .core
+        .payload
+        .validate()
+        .map_err(|detail| LogError::ChainBroken {
+            seq: event.core.seq,
+            detail: detail.into(),
+        })?;
+
+    match (&event.core.payload, event.core.seq) {
+        (
+            Payload::Genesis {
+                canonicalization_profile,
+                verifying_key: declared_verifying_key,
+            },
+            0,
+        ) => {
+            if canonicalization_profile != CANONICALIZATION_PROFILE {
+                return Err(LogError::ChainBroken {
+                    seq: 0,
+                    detail: format!(
+                        "genesis declares profile {canonicalization_profile:?}; \
+this implementation verifies {CANONICALIZATION_PROFILE:?}"
+                    ),
+                });
+            }
+            if declared_verifying_key != &hex::encode(expected_verifying_key.as_bytes()) {
+                return Err(LogError::ChainBroken {
+                    seq: 0,
+                    detail: "genesis-declared verifying key does not match the provided key".into(),
+                });
+            }
+        }
+        (Payload::Genesis { .. }, seq) => {
+            return Err(LogError::ChainBroken {
+                seq,
+                detail: "genesis event after seq 0".into(),
+            });
+        }
+        (_, 0) => {
+            return Err(LogError::ChainBroken {
+                seq: 0,
+                detail: "chain does not begin with a genesis event".into(),
+            });
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 /// The **write capability**. Possessing a `LogWriter` is the authority to append.
 /// In the full system the gate (`deadbolt`) is its only holder. There is no
 /// `update` or `delete` — corrections are new, superseding events. Public
-/// construction and append methods exist only for the crate-supported
-/// [`crate::FileStore`] and [`crate::MemStore`] backends.
+/// construction and append methods exist only for crate-supported backends.
+/// [`crate::SqliteL0Store`] adds explicit create, verified-prefix reopen, and
+/// checkpoint-qualified reopen operations rather than an ambiguous `open`.
 pub struct LogWriter<S> {
-    store: S,
-    signing_key: SigningKey,
-    last_hash: ContentHash,
-    next_seq: u64,
-    clock: Clock,
+    pub(crate) store: S,
+    pub(crate) signing_key: SigningKey,
+    pub(crate) last_hash: ContentHash,
+    pub(crate) next_seq: u64,
+    pub(crate) clock: Clock,
+}
+
+/// Construct, hash, and sign one event record.
+///
+/// The clock is lazy on purpose: sequence/genesis and payload validation run
+/// before `clock` is invoked, so an event that fails validation never consumes
+/// a value from a stateful injected clock. A timestamp is observed only for an
+/// event that passed validation and will actually be constructed and offered
+/// to the persistence path.
+pub(crate) fn build_signed_record(
+    signing_key: &SigningKey,
+    sequence: u64,
+    previous_hash: ContentHash,
+    clock: &mut dyn FnMut() -> u64,
+    provenance: Provenance,
+    payload: Payload,
+) -> Result<(SignedEvent, Vec<u8>), LogError> {
+    let is_genesis = matches!(payload, Payload::Genesis { .. });
+    if is_genesis != (sequence == 0) {
+        return Err(LogError::ChainBroken {
+            seq: sequence,
+            detail: if is_genesis {
+                "genesis may only be written at seq 0".into()
+            } else {
+                "seq 0 must be the genesis event".into()
+            },
+        });
+    }
+    payload.validate().map_err(|detail| LogError::ChainBroken {
+        seq: sequence,
+        detail: detail.into(),
+    })?;
+    let timestamp_nanos = clock();
+    let core = EventCore {
+        seq: sequence,
+        timestamp_nanos,
+        prev_hash: previous_hash,
+        provenance,
+        payload,
+    };
+    let hash = core.hash();
+    let signature = signing_key.sign(&signed_message(&hash));
+    let signed = SignedEvent {
+        core,
+        hash,
+        signature: Sig::new(signature.to_bytes()),
+    };
+    let record = serde_json::to_vec(&signed)?;
+    Ok((signed, record))
 }
 
 fn open_writer_with_clock<S: WriterStore>(
@@ -357,41 +466,22 @@ fn append_to_writer<S: WriterStore>(
     provenance: Provenance,
     payload: Payload,
 ) -> Result<SignedEvent, LogError> {
-    let is_genesis = matches!(payload, Payload::Genesis { .. });
-    if is_genesis != (writer.next_seq == 0) {
-        return Err(LogError::ChainBroken {
-            seq: writer.next_seq,
-            detail: if is_genesis {
-                "genesis may only be written at seq 0".into()
-            } else {
-                "seq 0 must be the genesis event".into()
-            },
-        });
-    }
-    payload.validate().map_err(|detail| LogError::ChainBroken {
-        seq: writer.next_seq,
-        detail: detail.into(),
-    })?;
-    let core = EventCore {
-        seq: writer.next_seq,
-        timestamp_nanos: (writer.clock)(),
-        prev_hash: writer.last_hash,
+    let next_seq = writer
+        .next_seq
+        .checked_add(1)
+        .ok_or(LogError::SequenceExhausted)?;
+    let (signed, record) = build_signed_record(
+        &writer.signing_key,
+        writer.next_seq,
+        writer.last_hash,
+        &mut writer.clock,
         provenance,
         payload,
-    };
-    let hash = core.hash();
-    let signature = writer.signing_key.sign(&signed_message(&hash));
-    let signed = SignedEvent {
-        core,
-        hash,
-        signature: Sig::new(signature.to_bytes()),
-    };
-
-    let record = serde_json::to_vec(&signed)?;
+    )?;
     writer.store.append_record(&record)?;
 
-    writer.last_hash = hash;
-    writer.next_seq += 1;
+    writer.last_hash = signed.hash;
+    writer.next_seq = next_seq;
     Ok(signed)
 }
 
@@ -470,7 +560,7 @@ impl<S> LogWriter<S> {
 /// Read-only access to the log. Holds no signing key and exposes no `append`:
 /// memory layers get one of these, so "the gate is the only writer" is a
 /// compile-time fact, not a guideline.
-pub struct LogReader<S: LogStore> {
+pub struct LogReader<S> {
     store: S,
     verifying_key: VerifyingKey,
 }
@@ -861,5 +951,82 @@ mod tests {
         assert_eq!(writer.len(), original_len + 1);
         assert_eq!(writer.tip(), next.hash);
         assert_eq!(control.inner.records().len(), original_records.len() + 1);
+    }
+
+    fn invalid_payload() -> Payload {
+        Payload::ClaimAssertedV2 {
+            claim_id: String::new(),
+            statement: "invalid".into(),
+            scope_ref: "scope".into(),
+            actor_class: "AgentProposer".into(),
+            content_hash: String::new(),
+            metadata_json: String::new(),
+        }
+    }
+
+    #[test]
+    fn rejected_append_does_not_consume_injected_clock_memstore() {
+        let mut baseline =
+            open_writer_with_clock(MemStore::new(), test_key(), test_clock()).unwrap();
+        let expected =
+            append_to_writer(&mut baseline, test_provenance(), test_note("clocked")).unwrap();
+
+        let store = MemStore::new();
+        let mut writer = open_writer_with_clock(store.clone(), test_key(), test_clock()).unwrap();
+        let rejected =
+            append_to_writer(&mut writer, test_provenance(), invalid_payload()).unwrap_err();
+        assert!(
+            matches!(rejected, LogError::ChainBroken { .. }),
+            "invalid payload must be rejected: {rejected:?}"
+        );
+        assert_eq!(store.records().len(), 1, "rejection persisted nothing");
+        assert_eq!(writer.len(), 1);
+        assert_eq!(writer.tip(), expected.core.prev_hash);
+
+        let accepted =
+            append_to_writer(&mut writer, test_provenance(), test_note("clocked")).unwrap();
+        assert_eq!(accepted.core.timestamp_nanos, expected.core.timestamp_nanos);
+        assert_eq!(accepted.hash, expected.hash);
+    }
+
+    #[test]
+    fn rejected_append_does_not_consume_injected_clock_filestore() {
+        let unique = format!(
+            "magpie-clock-rejection-{}-{}.jsonl",
+            std::process::id(),
+            system_clock()
+        );
+        let baseline_path = std::env::temp_dir().join(format!("baseline-{unique}"));
+        let rejected_path = std::env::temp_dir().join(format!("rejected-{unique}"));
+
+        let mut baseline =
+            open_writer_with_clock(FileStore::new(&baseline_path), test_key(), test_clock())
+                .unwrap();
+        let expected =
+            append_to_writer(&mut baseline, test_provenance(), test_note("clocked")).unwrap();
+
+        let mut writer =
+            open_writer_with_clock(FileStore::new(&rejected_path), test_key(), test_clock())
+                .unwrap();
+        let rejected =
+            append_to_writer(&mut writer, test_provenance(), invalid_payload()).unwrap_err();
+        assert!(matches!(rejected, LogError::ChainBroken { .. }));
+        let persisted = std::fs::read(&rejected_path).unwrap();
+        assert_eq!(
+            persisted
+                .split(|byte| *byte == b'\n')
+                .filter(|line| !line.is_empty())
+                .count(),
+            1,
+            "rejection persisted nothing beyond genesis"
+        );
+
+        let accepted =
+            append_to_writer(&mut writer, test_provenance(), test_note("clocked")).unwrap();
+        assert_eq!(accepted.core.timestamp_nanos, expected.core.timestamp_nanos);
+        assert_eq!(accepted.hash, expected.hash);
+
+        let _ = std::fs::remove_file(&baseline_path);
+        let _ = std::fs::remove_file(&rejected_path);
     }
 }

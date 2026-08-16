@@ -155,7 +155,7 @@ pub struct HistoryExpectationEvaluationV0 {
 }
 
 impl HistoryExpectationEvaluationV0 {
-    fn new(
+    pub(crate) fn new(
         verification_key_bytes: [u8; 32],
         verified_history: VerifiedReplaySummary,
         checkpoint: HistoryCheckpointV0,
@@ -237,13 +237,29 @@ pub(crate) fn evaluate_history_expectation_v0<S: LogStore>(
     let mut observer = CheckpointObserver::new(checkpoint.event_count);
     let verified_history = reader.replay_with_summary(&mut observer)?;
 
+    Ok(evaluate_verified_history_expectation_v0(
+        verification_key_bytes,
+        verified_history,
+        checkpoint,
+        relation,
+        observer.observed_commitment,
+    ))
+}
+
+pub(crate) fn evaluate_verified_history_expectation_v0(
+    verification_key_bytes: [u8; 32],
+    verified_history: VerifiedReplaySummary,
+    checkpoint: HistoryCheckpointV0,
+    relation: HistoryExpectationRelationV0,
+    observed_commitment: Option<ContentHash>,
+) -> HistoryExpectationEvaluationV0 {
     let satisfied = match relation {
         HistoryExpectationRelationV0::Exact => {
             verified_history.event_count() == checkpoint.event_count
                 && verified_history.tip() == checkpoint.commitment
         }
         HistoryExpectationRelationV0::ContainsCheckpoint => {
-            observer.observed_commitment == Some(checkpoint.commitment)
+            observed_commitment == Some(checkpoint.commitment)
         }
     };
     let outcome = if satisfied {
@@ -252,11 +268,11 @@ pub(crate) fn evaluate_history_expectation_v0<S: LogStore>(
         HistoryExpectationOutcomeV0::NotSatisfied
     };
 
-    Ok(HistoryExpectationEvaluationV0::new(
+    HistoryExpectationEvaluationV0::new(
         verification_key_bytes,
         verified_history,
         checkpoint,
         relation,
         outcome,
-    ))
+    )
 }

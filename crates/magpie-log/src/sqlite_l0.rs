@@ -1,0 +1,2141 @@
+use std::fs::File;
+use std::io::Read;
+use std::path::{Path, PathBuf};
+use std::time::Duration;
+
+use ed25519_dalek::{SigningKey, VerifyingKey};
+use rusqlite::ffi::{self, ErrorCode};
+use rusqlite::types::ValueRef;
+use rusqlite::{params, Connection, OpenFlags, Row};
+
+use crate::canonical::CANONICALIZATION_PROFILE;
+use crate::error::LogError;
+use crate::event::{Payload, Provenance, SignedEvent};
+use crate::hashing::ContentHash;
+use crate::history_expectation::{
+    evaluate_verified_history_expectation_v0, HistoryCheckpointV0, HistoryExpectationEvaluationV0,
+    HistoryExpectationOutcomeV0, HistoryExpectationRelationV0,
+};
+use crate::logimpl::{
+    build_signed_record, system_clock, Clock, IncrementalVerifier, LogReader, LogWriter,
+    VerifiedReplaySummary, VerifiedSummary,
+};
+
+const SQLITE_HEADER_LEN: usize = 100;
+const SQLITE_MAGIC: &[u8; 16] = b"SQLite format 3\0";
+const USER_VERSION_OFFSET: usize = 60;
+const APPLICATION_ID_OFFSET: usize = 68;
+const MPL0_APPLICATION_ID: u32 = 0x4D50_4C30;
+const MPL0_USER_VERSION: u32 = 1;
+const RECORDS_TABLE: &str = "magpie_l0_records";
+const CREATE_SCHEMA_SQL: &str = "CREATE TABLE magpie_l0_records (\
+position_be BLOB NOT NULL PRIMARY KEY CHECK(length(position_be) = 8), \
+record_bytes BLOB NOT NULL\
+) STRICT, WITHOUT ROWID";
+
+/// Explicit finite limits for one supported SQLite L0 operation.
+///
+/// Every value is positive. There is no default or ambient unlimited mode.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct L0ResourceLimitsV0 {
+    max_database_bytes: u64,
+    max_record_count: u64,
+    max_record_bytes: u64,
+    max_total_record_bytes: u64,
+}
+
+impl L0ResourceLimitsV0 {
+    pub fn new(
+        max_database_bytes: u64,
+        max_record_count: u64,
+        max_record_bytes: u64,
+        max_total_record_bytes: u64,
+    ) -> Result<Self, LogError> {
+        let limits = Self {
+            max_database_bytes,
+            max_record_count,
+            max_record_bytes,
+            max_total_record_bytes,
+        };
+        if [
+            max_database_bytes,
+            max_record_count,
+            max_record_bytes,
+            max_total_record_bytes,
+        ]
+        .contains(&0)
+        {
+            return Err(LogError::InvalidResourceLimits {
+                detail: "all four limits must be positive".into(),
+            });
+        }
+        Ok(limits)
+    }
+
+    pub fn max_database_bytes(&self) -> u64 {
+        self.max_database_bytes
+    }
+
+    pub fn max_record_count(&self) -> u64 {
+        self.max_record_count
+    }
+
+    pub fn max_record_bytes(&self) -> u64 {
+        self.max_record_bytes
+    }
+
+    pub fn max_total_record_bytes(&self) -> u64 {
+        self.max_total_record_bytes
+    }
+}
+
+/// Supported local SQLite L0 storage capability.
+///
+/// This type exposes neither its SQLite connection nor raw SQL and deliberately
+/// does not implement [`crate::LogStore`]. Creation and reopening are available
+/// only through the semantically named `LogWriter<SqliteL0Store>` operations.
+/// It exposes no general second cursor pass into arbitrary [`crate::Projection`]
+/// implementations because that trait has no replay-wide atomic staging law.
+/// The supported durability and locking profile assumes a local filesystem;
+/// no network-filesystem guarantee is made.
+///
+/// ```compile_fail,E0599
+/// use magpie_log::SqliteL0Store;
+/// let _ = SqliteL0Store::new("history.db");
+/// ```
+///
+/// ```compile_fail,E0277
+/// use magpie_log::{LogStore, SqliteL0Store};
+/// fn needs_whole_vector<S: LogStore>() {}
+/// needs_whole_vector::<SqliteL0Store>();
+/// ```
+///
+/// ```compile_fail,E0599
+/// use magpie_log::SqliteL0Store;
+/// fn cannot_escape_connection(store: &SqliteL0Store) {
+///     let _ = store.connection();
+/// }
+/// ```
+///
+/// ```compile_fail,E0599
+/// use magpie_log::SqliteL0Store;
+/// fn cannot_raw_append(store: &mut SqliteL0Store) {
+///     store.append_record(b"caller bytes").unwrap();
+/// }
+/// ```
+pub struct SqliteL0Store {
+    path: PathBuf,
+    connection: Option<Connection>,
+    limits: L0ResourceLimitsV0,
+    total_record_bytes: u64,
+    poisoned: bool,
+    #[cfg(test)]
+    fault_after_commit_unknown: bool,
+}
+
+/// A successful checkpoint-qualified writer open.
+///
+/// The genuine evaluation is retained alongside the writer so two opens of the
+/// same terminal history under different checkpoints remain distinguishable.
+/// `Satisfied` means only that the exact verified history contained the exact
+/// explicit checkpoint under `magpie-log-history-expectation-v0`. It does not
+/// establish checkpoint authenticity, trust, authority, freshness, currentness,
+/// canonicality, non-equivocation, secure retention, or rollback resistance.
+///
+/// Callers cannot fabricate this value by pairing arbitrary parts:
+///
+/// ```compile_fail,E0451
+/// use magpie_log::{CheckpointQualifiedWriterOpenV0, SqliteL0Store, LogWriter,
+///     HistoryExpectationEvaluationV0};
+/// fn fabricate(writer: LogWriter<SqliteL0Store>, evaluation: HistoryExpectationEvaluationV0) {
+///     let _ = CheckpointQualifiedWriterOpenV0 { writer, evaluation };
+/// }
+/// ```
+///
+/// The retained writer also cannot be replaced through a mutable accessor:
+///
+/// ```compile_fail,E0599
+/// use magpie_log::{CheckpointQualifiedWriterOpenV0, LogWriter, SqliteL0Store};
+/// fn substitute(
+///     qualified: &mut CheckpointQualifiedWriterOpenV0,
+///     other: LogWriter<SqliteL0Store>,
+/// ) {
+///     let _ = std::mem::replace(qualified.writer_mut(), other);
+/// }
+/// ```
+pub struct CheckpointQualifiedWriterOpenV0 {
+    writer: LogWriter<SqliteL0Store>,
+    evaluation: HistoryExpectationEvaluationV0,
+}
+
+impl CheckpointQualifiedWriterOpenV0 {
+    pub fn evaluation(&self) -> &HistoryExpectationEvaluationV0 {
+        &self.evaluation
+    }
+
+    pub fn writer(&self) -> &LogWriter<SqliteL0Store> {
+        &self.writer
+    }
+
+    pub fn append(
+        &mut self,
+        provenance: Provenance,
+        payload: Payload,
+    ) -> Result<SignedEvent, LogError> {
+        self.writer.append(provenance, payload)
+    }
+}
+
+/// Failure from checkpoint-qualified reopening.
+#[derive(Debug, thiserror::Error)]
+pub enum SqliteCheckpointOpenError {
+    /// The history verified completely, but did not contain the checkpoint.
+    #[error("verified SQLite L0 history did not contain the explicit checkpoint")]
+    NotSatisfied(HistoryExpectationEvaluationV0),
+    /// Verification or an operational step could not complete, so no semantic
+    /// checkpoint conclusion exists.
+    #[error(transparent)]
+    Operational(#[from] LogError),
+}
+
+impl SqliteCheckpointOpenError {
+    pub fn not_satisfied_evaluation(&self) -> Option<&HistoryExpectationEvaluationV0> {
+        match self {
+            Self::NotSatisfied(evaluation) => Some(evaluation),
+            Self::Operational(_) => None,
+        }
+    }
+}
+
+struct RawHeader {
+    application_id: u32,
+    user_version: u32,
+}
+
+struct OpenVerification {
+    summary: VerifiedSummary,
+    observed_checkpoint_commitment: Option<ContentHash>,
+}
+
+fn sqlite_error(operation: &'static str, error: rusqlite::Error) -> LogError {
+    LogError::SqliteOperational {
+        operation,
+        detail: error.to_string(),
+    }
+}
+
+fn is_busy(error: &rusqlite::Error) -> bool {
+    matches!(
+        error.sqlite_error_code(),
+        Some(ErrorCode::DatabaseBusy | ErrorCode::DatabaseLocked)
+    )
+}
+
+fn check_limit(resource: &'static str, actual: u64, limit: u64) -> Result<(), LogError> {
+    if actual > limit {
+        Err(LogError::ResourceLimit {
+            resource,
+            actual,
+            limit,
+        })
+    } else {
+        Ok(())
+    }
+}
+
+fn checked_file_len(path: &Path) -> Result<Option<u64>, LogError> {
+    match std::fs::metadata(path) {
+        Ok(metadata) => Ok(Some(metadata.len())),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error.into()),
+    }
+}
+
+fn check_main_file_limit(path: &Path, limits: L0ResourceLimitsV0) -> Result<Option<u64>, LogError> {
+    let length = checked_file_len(path)?;
+    if let Some(length) = length {
+        check_limit(
+            "physical main database bytes",
+            length,
+            limits.max_database_bytes,
+        )?;
+    }
+    Ok(length)
+}
+
+fn check_journal_file_limit(path: &Path, limits: L0ResourceLimitsV0) -> Result<(), LogError> {
+    let mut journal_name = path.as_os_str().to_os_string();
+    journal_name.push("-journal");
+    let journal = PathBuf::from(journal_name);
+    if let Some(length) = checked_file_len(&journal)? {
+        check_limit(
+            "physical rollback journal bytes",
+            length,
+            limits.max_database_bytes,
+        )?;
+    }
+    Ok(())
+}
+
+/// Parse the fixed 100-byte SQLite header read from any source.
+///
+/// This is the single place that knows the magic and field offsets; both the
+/// path-level preflight and the opened-handle (`sqlite3_file`) gate parse
+/// through it so the two can never drift.
+fn parse_raw_sqlite_header(bytes: &[u8; SQLITE_HEADER_LEN]) -> Result<RawHeader, LogError> {
+    if &bytes[..SQLITE_MAGIC.len()] != SQLITE_MAGIC {
+        return Err(LogError::ForeignDatabase {
+            detail: "non-empty file does not have SQLite format-3 magic".into(),
+        });
+    }
+    Ok(RawHeader {
+        user_version: u32::from_be_bytes(
+            bytes[USER_VERSION_OFFSET..USER_VERSION_OFFSET + 4]
+                .try_into()
+                .expect("fixed SQLite header slice"),
+        ),
+        application_id: u32::from_be_bytes(
+            bytes[APPLICATION_ID_OFFSET..APPLICATION_ID_OFFSET + 4]
+                .try_into()
+                .expect("fixed SQLite header slice"),
+        ),
+    })
+}
+
+/// Shared MPL0 v1 ownership predicate over one already-read raw header.
+///
+/// `source` identifies which physical observation failed so a path-level
+/// preflight refusal stays distinguishable from the opened-handle gate.
+fn require_mpl0_v1_header(header: &RawHeader, source: &'static str) -> Result<(), LogError> {
+    if header.application_id != MPL0_APPLICATION_ID {
+        return Err(LogError::ForeignDatabase {
+            detail: format!(
+                "{source}: application_id is 0x{:08X}, expected MPL0 0x{MPL0_APPLICATION_ID:08X}",
+                header.application_id
+            ),
+        });
+    }
+    if header.user_version != MPL0_USER_VERSION {
+        return Err(LogError::UnsupportedDatabase {
+            detail: format!(
+                "{source}: MPL0 user_version is {}, supported version is {MPL0_USER_VERSION}",
+                header.user_version
+            ),
+        });
+    }
+    Ok(())
+}
+
+fn read_header(path: &Path) -> Result<RawHeader, LogError> {
+    let mut bytes = [0u8; SQLITE_HEADER_LEN];
+    let mut file = File::open(path)?;
+    file.read_exact(&mut bytes).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::UnexpectedEof {
+            LogError::ForeignDatabase {
+                detail: "non-empty file is shorter than the SQLite header".into(),
+            }
+        } else {
+            error.into()
+        }
+    })?;
+    parse_raw_sqlite_header(&bytes)
+}
+
+fn require_owned_header(path: &Path) -> Result<(), LogError> {
+    require_mpl0_v1_header(&read_header(path)?, "path preflight")
+}
+
+fn open_flags(read_only: bool, create: bool) -> OpenFlags {
+    let access = if read_only {
+        OpenFlags::SQLITE_OPEN_READ_ONLY
+    } else {
+        OpenFlags::SQLITE_OPEN_READ_WRITE
+    };
+    access
+        | if create {
+            OpenFlags::SQLITE_OPEN_CREATE
+        } else {
+            OpenFlags::empty()
+        }
+        | OpenFlags::SQLITE_OPEN_NO_MUTEX
+        | OpenFlags::SQLITE_OPEN_PRIVATE_CACHE
+        | OpenFlags::SQLITE_OPEN_NOFOLLOW
+        | OpenFlags::SQLITE_OPEN_EXRESCODE
+}
+
+fn open_connection(path: &Path, read_only: bool, create: bool) -> Result<Connection, LogError> {
+    Connection::open_with_flags(path, open_flags(read_only, create))
+        .map_err(|error| sqlite_error("open", error))
+}
+
+fn query_text(
+    connection: &Connection,
+    sql: &str,
+    operation: &'static str,
+) -> Result<String, LogError> {
+    connection
+        .query_row(sql, [], |row| row.get(0))
+        .map_err(|error| sqlite_error(operation, error))
+}
+
+fn reported_blob_length(
+    row: &Row<'_>,
+    column: usize,
+    operation: &'static str,
+) -> Result<u64, LogError> {
+    let length: i64 = row
+        .get(column)
+        .map_err(|error| sqlite_error(operation, error))?;
+    u64::try_from(length).map_err(|_| LogError::UnsupportedDatabase {
+        detail: "SQLite reported a negative record BLOB length".into(),
+    })
+}
+
+/// Live VFS handles for the connection's actual opened main `sqlite3_file`.
+///
+/// The raw pointers are valid only while the owning `Connection` is alive and
+/// are never stored beyond one scoped acquisition: this exists to keep the
+/// unsafe VFS surface to one small helper plus its immediate consumers.
+struct OpenedMainFile {
+    file: *mut ffi::sqlite3_file,
+    methods: *const ffi::sqlite3_io_methods,
+}
+
+fn opened_main_file(connection: &Connection) -> Result<OpenedMainFile, LogError> {
+    let mut file: *mut ffi::sqlite3_file = std::ptr::null_mut();
+    let main_database = b"main\0";
+    let file_control_result = unsafe {
+        // SAFETY: `connection.handle()` belongs to `connection`, which remains
+        // alive for this call. SQLite writes a pointer to the VFS file opened
+        // for the main database into `file`; the pointer is used only while
+        // that same connection remains alive, by the immediate caller below.
+        ffi::sqlite3_file_control(
+            connection.handle(),
+            main_database.as_ptr().cast(),
+            ffi::SQLITE_FCNTL_FILE_POINTER,
+            (&mut file as *mut *mut ffi::sqlite3_file).cast(),
+        )
+    };
+    if file_control_result != ffi::SQLITE_OK {
+        return Err(LogError::SqliteOperational {
+            operation: "inspect opened physical main database file",
+            detail: format!("sqlite3_file_control(FILE_POINTER) returned {file_control_result}"),
+        });
+    }
+    if file.is_null() {
+        return Err(LogError::SqliteOperational {
+            operation: "inspect opened physical main database file",
+            detail: "SQLite returned a null main database file pointer".into(),
+        });
+    }
+    let methods = unsafe {
+        // SAFETY: SQLite returned `file` for this live connection and the
+        // pointer is not retained after this function returns.
+        (*file).pMethods
+    };
+    if methods.is_null() {
+        return Err(LogError::SqliteOperational {
+            operation: "inspect opened physical main database file",
+            detail: "SQLite returned a main database file without I/O methods".into(),
+        });
+    }
+    Ok(OpenedMainFile { file, methods })
+}
+
+fn opened_main_file_bytes(connection: &Connection) -> Result<u64, LogError> {
+    let opened = opened_main_file(connection)?;
+    let file_size = unsafe {
+        // SAFETY: `opened.methods` is the live VFS method table for
+        // `opened.file`, and the v1 SQLite I/O contract requires xFileSize to
+        // be present.
+        (*opened.methods).xFileSize
+    }
+    .ok_or(LogError::SqliteOperational {
+        operation: "inspect opened physical main database bytes",
+        detail: "SQLite main database VFS has no xFileSize method".into(),
+    })?;
+    let mut size: ffi::sqlite3_int64 = 0;
+    let result = unsafe {
+        // SAFETY: `file_size` is the xFileSize method for the live
+        // `opened.file`, and `size` is a valid writable sqlite3_int64 output.
+        file_size(opened.file, &mut size)
+    };
+    if result != ffi::SQLITE_OK {
+        return Err(LogError::SqliteOperational {
+            operation: "inspect opened physical main database bytes",
+            detail: format!("SQLite xFileSize returned {result}"),
+        });
+    }
+    u64::try_from(size).map_err(|_| LogError::SqliteOperational {
+        operation: "inspect opened physical main database bytes",
+        detail: "SQLite xFileSize returned a negative size".into(),
+    })
+}
+
+/// Read the raw 100-byte SQLite header of the ACTUAL opened main database
+/// file through its own VFS object, not through a second pathname lookup.
+fn opened_main_file_header(connection: &Connection) -> Result<RawHeader, LogError> {
+    let opened = opened_main_file(connection)?;
+    let x_read = unsafe {
+        // SAFETY: `opened.methods` is the live VFS method table for
+        // `opened.file`, and the v1 SQLite I/O contract requires xRead to be
+        // present.
+        (*opened.methods).xRead
+    }
+    .ok_or(LogError::SqliteOperational {
+        operation: "read opened raw main database header",
+        detail: "SQLite main database VFS has no xRead method".into(),
+    })?;
+    let mut bytes = [0u8; SQLITE_HEADER_LEN];
+    let result = unsafe {
+        // SAFETY: `x_read` is the xRead method of the live `opened.file`;
+        // `bytes` is valid and writable for exactly SQLITE_HEADER_LEN bytes;
+        // the read starts at offset 0. Per the SQLite VFS contract a short
+        // read returns SQLITE_IOERR_SHORT_READ with the unread tail zeroed;
+        // it is mapped explicitly below. No pointer escapes this scope.
+        x_read(
+            opened.file,
+            bytes.as_mut_ptr().cast(),
+            SQLITE_HEADER_LEN as i32,
+            0,
+        )
+    };
+    match result {
+        ffi::SQLITE_OK => parse_raw_sqlite_header(&bytes),
+        ffi::SQLITE_IOERR_SHORT_READ => Err(LogError::ForeignDatabase {
+            detail: "opened main database file is shorter than the SQLite header".into(),
+        }),
+        code => Err(LogError::SqliteOperational {
+            operation: "read opened raw main database header",
+            detail: format!("SQLite xRead returned {code}"),
+        }),
+    }
+}
+
+/// Raw MPL0 ownership gate bound to the ACTUAL opened main `sqlite3_file`.
+///
+/// The pathname can be replaced between the path-level preflight and SQLite's
+/// open, so ownership is re-established here against the file SQLite actually
+/// opened. This runs before `configure_connection` so that no pager read —
+/// including hot-journal recovery — can act on a substituted foreign database
+/// before its opened identity is checked. The raw header observed this way is
+/// the pre-recovery committed header; the in-transaction schema verification
+/// re-checks identity after any recovery.
+fn require_opened_owned_header(connection: &Connection) -> Result<(), LogError> {
+    #[cfg(test)]
+    record_open_order("opened-handle-ownership");
+    require_mpl0_v1_header(
+        &opened_main_file_header(connection)?,
+        "opened main database file",
+    )
+}
+
+fn check_opened_main_file_limit(
+    connection: &Connection,
+    limits: L0ResourceLimitsV0,
+) -> Result<(), LogError> {
+    let physical_bytes = opened_main_file_bytes(connection)?;
+    check_limit(
+        "physical main database bytes",
+        physical_bytes,
+        limits.max_database_bytes,
+    )
+}
+
+fn configure_connection(connection: &Connection) -> Result<(), LogError> {
+    #[cfg(test)]
+    record_open_order("configure-connection");
+    connection
+        .busy_timeout(Duration::ZERO)
+        .map_err(|error| sqlite_error("configure busy timeout", error))?;
+
+    let journal_mode = query_text(connection, "PRAGMA main.journal_mode", "query journal mode")?;
+    if journal_mode.eq_ignore_ascii_case("wal") {
+        return Err(LogError::UnsupportedDatabase {
+            detail: "persistent WAL journal mode is outside the supported v0 profile".into(),
+        });
+    }
+    let selected = query_text(
+        connection,
+        "PRAGMA main.journal_mode = DELETE",
+        "select DELETE journal mode",
+    )?;
+    if !selected.eq_ignore_ascii_case("delete") {
+        return Err(LogError::UnsupportedDatabase {
+            detail: format!("SQLite selected journal mode {selected:?}, expected DELETE"),
+        });
+    }
+
+    connection
+        .execute_batch(
+            "PRAGMA main.synchronous = EXTRA;\
+             PRAGMA main.locking_mode = NORMAL;\
+             PRAGMA main.read_uncommitted = OFF;",
+        )
+        .map_err(|error| sqlite_error("configure connection profile", error))?;
+
+    let synchronous: i64 = connection
+        .query_row("PRAGMA main.synchronous", [], |row| row.get(0))
+        .map_err(|error| sqlite_error("verify synchronous", error))?;
+    let locking_mode = query_text(
+        connection,
+        "PRAGMA main.locking_mode",
+        "verify locking mode",
+    )?;
+    let read_uncommitted: i64 = connection
+        .query_row("PRAGMA main.read_uncommitted", [], |row| row.get(0))
+        .map_err(|error| sqlite_error("verify read_uncommitted", error))?;
+    if synchronous != 3 || !locking_mode.eq_ignore_ascii_case("normal") || read_uncommitted != 0 {
+        return Err(LogError::UnsupportedDatabase {
+            detail: format!(
+                "connection profile mismatch: synchronous={synchronous}, locking_mode={locking_mode:?}, read_uncommitted={read_uncommitted}"
+            ),
+        });
+    }
+
+    let databases: Vec<(i64, String)> = {
+        let mut statement = connection
+            .prepare("PRAGMA database_list")
+            .map_err(|error| sqlite_error("prepare database-list check", error))?;
+        let rows = statement
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .map_err(|error| sqlite_error("query database-list check", error))?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|error| sqlite_error("read database-list check", error))?
+    };
+    if databases != vec![(0, "main".into())] {
+        return Err(LogError::UnsupportedDatabase {
+            detail: format!("unexpected attached databases: {databases:?}"),
+        });
+    }
+    Ok(())
+}
+
+fn require_delete_journal_mode(connection: &Connection) -> Result<(), LogError> {
+    let journal_mode = query_text(
+        connection,
+        "PRAGMA main.journal_mode",
+        "verify transaction journal mode",
+    )?;
+    if journal_mode.eq_ignore_ascii_case("delete") {
+        Ok(())
+    } else {
+        Err(LogError::UnsupportedDatabase {
+            detail: format!(
+                "SQLite journal mode changed to {journal_mode:?}; transaction requires DELETE"
+            ),
+        })
+    }
+}
+
+fn check_empty_unowned_sqlite(path: &Path, limits: L0ResourceLimitsV0) -> Result<(), LogError> {
+    check_main_file_limit(path, limits)?;
+    let header = read_header(path)?;
+    if header.application_id != 0 || header.user_version != 0 {
+        return Err(LogError::ForeignDatabase {
+            detail: "existing SQLite destination is not empty and unowned".into(),
+        });
+    }
+    let connection = open_connection(path, true, false)?;
+    require_empty_unowned_connection(&connection)?;
+    configure_connection(&connection)
+}
+
+fn require_empty_unowned_connection(connection: &Connection) -> Result<(), LogError> {
+    let application_id: i64 = connection
+        .query_row("PRAGMA main.application_id", [], |row| row.get(0))
+        .map_err(|error| sqlite_error("inspect unowned application_id", error))?;
+    let user_version: i64 = connection
+        .query_row("PRAGMA main.user_version", [], |row| row.get(0))
+        .map_err(|error| sqlite_error("inspect unowned user_version", error))?;
+    if application_id != 0 || user_version != 0 {
+        return Err(LogError::ForeignDatabase {
+            detail: format!(
+                "SQLite destination is already claimed: application_id={application_id}, user_version={user_version}"
+            ),
+        });
+    }
+    let object_count: i64 = connection
+        .query_row(
+            "SELECT count(*) FROM main.sqlite_schema WHERE name NOT LIKE 'sqlite_%'",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| sqlite_error("inspect unowned schema", error))?;
+    if object_count != 0 {
+        return Err(LogError::ForeignDatabase {
+            detail: "existing unowned SQLite destination contains user objects".into(),
+        });
+    }
+    Ok(())
+}
+
+fn logical_database_bytes(connection: &Connection) -> Result<u64, LogError> {
+    let page_count: i64 = connection
+        .query_row("PRAGMA main.page_count", [], |row| row.get(0))
+        .map_err(|error| sqlite_error("query page count", error))?;
+    let page_size: i64 = connection
+        .query_row("PRAGMA main.page_size", [], |row| row.get(0))
+        .map_err(|error| sqlite_error("query page size", error))?;
+    let page_count = u64::try_from(page_count).map_err(|_| LogError::SqliteOperational {
+        operation: "query page count",
+        detail: "SQLite returned a negative page count".into(),
+    })?;
+    let page_size = u64::try_from(page_size).map_err(|_| LogError::SqliteOperational {
+        operation: "query page size",
+        detail: "SQLite returned a negative page size".into(),
+    })?;
+    page_count
+        .checked_mul(page_size)
+        .ok_or(LogError::ResourceLimit {
+            resource: "logical database bytes",
+            actual: u64::MAX,
+            limit: u64::MAX,
+        })
+}
+
+fn verify_schema(connection: &Connection) -> Result<(), LogError> {
+    let application_id: i64 = connection
+        .query_row("PRAGMA main.application_id", [], |row| row.get(0))
+        .map_err(|error| sqlite_error("verify application_id", error))?;
+    let user_version: i64 = connection
+        .query_row("PRAGMA main.user_version", [], |row| row.get(0))
+        .map_err(|error| sqlite_error("verify user_version", error))?;
+    if application_id != i64::from(MPL0_APPLICATION_ID)
+        || user_version != i64::from(MPL0_USER_VERSION)
+    {
+        return Err(LogError::UnsupportedDatabase {
+            detail: format!(
+                "in-database ownership mismatch: application_id={application_id}, user_version={user_version}"
+            ),
+        });
+    }
+
+    let object_count: i64 = connection
+        .query_row(
+            "SELECT count(*) FROM main.sqlite_schema WHERE name NOT LIKE 'sqlite_%'",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| sqlite_error("count schema objects", error))?;
+    if object_count != 1 {
+        return Err(LogError::UnsupportedDatabase {
+            detail: format!("schema contains {object_count} user objects, expected exactly one"),
+        });
+    }
+    let object: (String, String, String, Option<String>) = connection
+        .query_row(
+            "SELECT type, name, tbl_name, sql FROM main.sqlite_schema \
+             WHERE name NOT LIKE 'sqlite_%'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )
+        .map_err(|error| sqlite_error("read schema fingerprint", error))?;
+    let expected = (
+        "table".into(),
+        RECORDS_TABLE.into(),
+        RECORDS_TABLE.into(),
+        Some(CREATE_SCHEMA_SQL.into()),
+    );
+    if object != expected {
+        return Err(LogError::UnsupportedDatabase {
+            detail: format!("schema fingerprint mismatch: {object:?}"),
+        });
+    }
+
+    let table_shape: Vec<(String, String, i64, i64, i64)> = {
+        let mut statement = connection
+            .prepare("PRAGMA main.table_xinfo('magpie_l0_records')")
+            .map_err(|error| sqlite_error("prepare table shape", error))?;
+        let rows = statement
+            .query_map([], |row| {
+                Ok((
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(5)?,
+                    row.get(6)?,
+                ))
+            })
+            .map_err(|error| sqlite_error("query table shape", error))?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|error| sqlite_error("read table shape", error))?
+    };
+    if table_shape
+        != vec![
+            ("position_be".into(), "BLOB".into(), 1, 1, 0),
+            ("record_bytes".into(), "BLOB".into(), 1, 0, 0),
+        ]
+    {
+        return Err(LogError::UnsupportedDatabase {
+            detail: format!("record table shape mismatch: {table_shape:?}"),
+        });
+    }
+
+    let table_flags: (i64, i64, i64) = connection
+        .query_row(
+            "SELECT ncol, wr, strict FROM pragma_table_list('magpie_l0_records') \
+             WHERE schema = 'main' AND name = 'magpie_l0_records'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .map_err(|error| sqlite_error("verify table flags", error))?;
+    if table_flags != (2, 1, 1) {
+        return Err(LogError::UnsupportedDatabase {
+            detail: format!("record table flags mismatch: {table_flags:?}"),
+        });
+    }
+    Ok(())
+}
+
+fn verify_integrity(connection: &Connection) -> Result<(), LogError> {
+    let mut statement = connection
+        .prepare("PRAGMA main.integrity_check")
+        .map_err(|error| sqlite_error("prepare integrity check", error))?;
+    let mut rows = statement
+        .query([])
+        .map_err(|error| sqlite_error("run integrity check", error))?;
+    let first = rows
+        .next()
+        .map_err(|error| sqlite_error("read integrity check", error))?
+        .ok_or_else(|| LogError::UnsupportedDatabase {
+            detail: "SQLite integrity_check returned no result".into(),
+        })?;
+    let first: String = first
+        .get(0)
+        .map_err(|error| sqlite_error("read integrity-check result", error))?;
+    let has_more = rows
+        .next()
+        .map_err(|error| sqlite_error("advance integrity check", error))?
+        .is_some();
+    if first != "ok" || has_more {
+        return Err(LogError::UnsupportedDatabase {
+            detail: format!(
+                "SQLite integrity_check failed; first result was {first:?}, additional results={has_more}"
+            ),
+        });
+    }
+    Ok(())
+}
+
+fn decode_position(value: ValueRef<'_>) -> Result<u64, LogError> {
+    let ValueRef::Blob(bytes) = value else {
+        return Err(LogError::UnsupportedDatabase {
+            detail: "record position is not a BLOB".into(),
+        });
+    };
+    let bytes: [u8; 8] = bytes
+        .try_into()
+        .map_err(|_| LogError::UnsupportedDatabase {
+            detail: "record position is not exactly eight bytes".into(),
+        })?;
+    Ok(u64::from_be_bytes(bytes))
+}
+
+fn verify_rows(
+    connection: &Connection,
+    verifying_key: VerifyingKey,
+    limits: L0ResourceLimitsV0,
+    checkpoint_event_count: Option<u64>,
+) -> Result<OpenVerification, LogError> {
+    let mut verifier = IncrementalVerifier::new(verifying_key);
+    let mut total_record_bytes = 0u64;
+    let mut observed = checkpoint_event_count
+        .filter(|count| *count == 0)
+        .map(|_| ContentHash::ZERO);
+    let mut statement = connection
+        .prepare(
+            "SELECT position_be, length(record_bytes), record_bytes \
+             FROM main.magpie_l0_records ORDER BY position_be",
+        )
+        .map_err(|error| sqlite_error("prepare bounded record traversal", error))?;
+    let mut rows = statement
+        .query([])
+        .map_err(|error| sqlite_error("query bounded record traversal", error))?;
+
+    while let Some(row) = rows
+        .next()
+        .map_err(|error| sqlite_error("advance bounded record traversal", error))?
+    {
+        let next_count = verifier
+            .count()
+            .checked_add(1)
+            .ok_or(LogError::SequenceExhausted)?;
+        check_limit("record count", next_count, limits.max_record_count)?;
+
+        let reported_length = reported_blob_length(row, 1, "read record length")?;
+        check_limit(
+            "individual record bytes",
+            reported_length,
+            limits.max_record_bytes,
+        )?;
+        let next_total =
+            total_record_bytes
+                .checked_add(reported_length)
+                .ok_or(LogError::ResourceLimit {
+                    resource: "cumulative record bytes",
+                    actual: u64::MAX,
+                    limit: limits.max_total_record_bytes,
+                })?;
+        check_limit(
+            "cumulative record bytes",
+            next_total,
+            limits.max_total_record_bytes,
+        )?;
+
+        let physical_position = decode_position(
+            row.get_ref(0)
+                .map_err(|error| sqlite_error("borrow physical position", error))?,
+        )?;
+        // The limits above precede any Magpie-owned copy or allocation of the
+        // record. `get_ref` borrows SQLite's row-owned BLOB storage.
+        let record = match row
+            .get_ref(2)
+            .map_err(|error| sqlite_error("borrow bounded record", error))?
+        {
+            ValueRef::Blob(bytes) => bytes,
+            _ => {
+                return Err(LogError::UnsupportedDatabase {
+                    detail: "record_bytes is not a BLOB".into(),
+                });
+            }
+        };
+        let actual_length = u64::try_from(record.len()).map_err(|_| LogError::ResourceLimit {
+            resource: "individual record bytes",
+            actual: u64::MAX,
+            limit: limits.max_record_bytes,
+        })?;
+        if actual_length != reported_length {
+            return Err(LogError::UnsupportedDatabase {
+                detail: "record BLOB length changed within one SQLite row observation".into(),
+            });
+        }
+
+        let event = verifier.verify_record(physical_position, record)?;
+        if event.core.seq.checked_add(1) == checkpoint_event_count {
+            observed = Some(event.hash);
+        }
+        total_record_bytes = next_total;
+    }
+
+    Ok(OpenVerification {
+        summary: verifier.finish(total_record_bytes),
+        observed_checkpoint_commitment: observed,
+    })
+}
+
+/// Complete supported-history verification over an ALREADY ACTIVE SQLite
+/// transaction.
+///
+/// This kernel never begins, commits, or rolls back a transaction: its caller
+/// owns the transaction boundary so the identical semantic verification law
+/// serves both
+///
+/// ```text
+/// verify_owned_snapshot: BEGIN DEFERRED -> kernel -> COMMIT/ROLLBACK
+/// append:                BEGIN IMMEDIATE -> kernel -> exact cached-state
+///                        comparison -> INSERT
+/// ```
+///
+/// The order is fixed and shared: the selected journal profile must hold for
+/// this transaction; the logical `page_count * page_size` budget; the exact
+/// MPL0 identity and user_version; the exact allowed v1 schema fingerprint;
+/// full `integrity_check` returning exactly one `ok`; then one bounded ordered
+/// pass that verifies every persisted record's physical position, sequence,
+/// predecessor chain, content hash, signature, payload validity, and genesis
+/// binding while accumulating the exact `{count, tip, total_record_bytes}`
+/// summary and at most the requested same-pass checkpoint observation. The
+/// kernel keeps O(1) state plus the current bounded record and never
+/// materializes the history.
+fn verify_owned_history_in_current_transaction(
+    connection: &Connection,
+    verifying_key: VerifyingKey,
+    limits: L0ResourceLimitsV0,
+    checkpoint_event_count: Option<u64>,
+) -> Result<OpenVerification, LogError> {
+    // The journal-mode query is deliberately the first read of main inside the
+    // transaction: at open it anchors the stable snapshot before every later
+    // semantic read; at append it revalidates the required journal profile
+    // under the acquired write lock.
+    require_delete_journal_mode(connection)?;
+    let logical_bytes = logical_database_bytes(connection)?;
+    check_limit(
+        "logical database bytes",
+        logical_bytes,
+        limits.max_database_bytes,
+    )?;
+    verify_schema(connection)?;
+    verify_integrity(connection)?;
+    verify_rows(connection, verifying_key, limits, checkpoint_event_count)
+}
+
+fn verify_owned_snapshot(
+    connection: &Connection,
+    verifying_key: VerifyingKey,
+    limits: L0ResourceLimitsV0,
+    checkpoint_event_count: Option<u64>,
+) -> Result<OpenVerification, LogError> {
+    connection
+        .execute_batch("BEGIN DEFERRED")
+        .map_err(|error| sqlite_error("begin stable read transaction", error))?;
+
+    let result = (|| {
+        let verified = verify_owned_history_in_current_transaction(
+            connection,
+            verifying_key,
+            limits,
+            checkpoint_event_count,
+        )?;
+        if verified.summary.count == 0 {
+            return Err(LogError::ChainBroken {
+                seq: 0,
+                detail: "recognized MPL0 database contains no genesis record".into(),
+            });
+        }
+        Ok(verified)
+    })();
+
+    match result {
+        Ok(verified) => {
+            connection
+                .execute_batch("COMMIT")
+                .map_err(|error| sqlite_error("end stable read transaction", error))?;
+            Ok(verified)
+        }
+        Err(error) => {
+            let _ = connection.execute_batch("ROLLBACK");
+            Err(error)
+        }
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    static OPEN_ORDER_LOG: std::cell::RefCell<Vec<&'static str>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+#[cfg(test)]
+fn record_open_order(event: &'static str) {
+    OPEN_ORDER_LOG.with(|log| log.borrow_mut().push(event));
+}
+
+#[cfg(test)]
+fn take_open_order_log() -> Vec<&'static str> {
+    OPEN_ORDER_LOG.with(|log| std::mem::take(&mut *log.borrow_mut()))
+}
+
+fn open_owned_connection(
+    path: &Path,
+    limits: L0ResourceLimitsV0,
+    read_only: bool,
+) -> Result<Connection, LogError> {
+    open_owned_connection_inner(path, limits, read_only, |_: &Path| {})
+}
+
+#[cfg(test)]
+fn open_owned_connection_with_test_hook(
+    path: &Path,
+    limits: L0ResourceLimitsV0,
+    read_only: bool,
+    before_open: impl FnOnce(&Path),
+) -> Result<Connection, LogError> {
+    open_owned_connection_inner(path, limits, read_only, before_open)
+}
+
+fn open_owned_connection_inner<F>(
+    path: &Path,
+    limits: L0ResourceLimitsV0,
+    read_only: bool,
+    before_open: F,
+) -> Result<Connection, LogError>
+where
+    F: FnOnce(&Path),
+{
+    check_main_file_limit(path, limits)?;
+    require_owned_header(path)?;
+    if !read_only {
+        check_journal_file_limit(path, limits)?;
+    }
+    before_open(path);
+    let connection = open_connection(path, read_only, false)?;
+    check_opened_main_file_limit(&connection, limits)?;
+    // The raw ownership gate is bound to the actual opened sqlite3_file rather
+    // than the pathname, closing substitution between the path preflight and
+    // this open. It reads through the VFS object before `configure_connection`
+    // so no pager read can engage (or recover) a foreign replacement first.
+    require_opened_owned_header(&connection)?;
+    configure_connection(&connection)?;
+    Ok(connection)
+}
+
+fn make_writer(
+    path: PathBuf,
+    connection: Connection,
+    signing_key: SigningKey,
+    limits: L0ResourceLimitsV0,
+    verified: VerifiedSummary,
+    clock: Clock,
+) -> LogWriter<SqliteL0Store> {
+    LogWriter {
+        store: SqliteL0Store {
+            path,
+            connection: Some(connection),
+            limits,
+            total_record_bytes: verified.total_record_bytes,
+            poisoned: false,
+            #[cfg(test)]
+            fault_after_commit_unknown: false,
+        },
+        signing_key,
+        last_hash: verified.tip,
+        next_seq: verified.count,
+        clock,
+    }
+}
+
+impl LogReader<SqliteL0Store> {
+    /// Completely verify one existing supported SQLite L0 prefix with bounded
+    /// memory and one stable read transaction.
+    ///
+    /// This returns an inspectable count-and-tip compatibility summary of the
+    /// exact persisted prefix observed by this call. It is not a complete
+    /// producing-coordinate envelope or a coordinate-complete governed input;
+    /// trust in the caller-supplied key remains external. It does not establish
+    /// expected history, freshness, latest state, currentness, canonicality, or
+    /// rollback resistance.
+    pub fn verify_persisted_prefix(
+        path: impl AsRef<Path>,
+        verifying_key: VerifyingKey,
+        limits: L0ResourceLimitsV0,
+    ) -> Result<VerifiedReplaySummary, LogError> {
+        let path = path.as_ref();
+        let connection = open_owned_connection(path, limits, true)?;
+        let verified = verify_owned_snapshot(&connection, verifying_key, limits, None)?;
+        Ok(VerifiedReplaySummary::from_verified_parts(
+            verified.summary.count,
+            verified.summary.tip,
+        ))
+    }
+}
+
+impl LogWriter<SqliteL0Store> {
+    /// Create exactly one new MPL0 v1 history and its genesis event.
+    ///
+    /// Creation accepts only an absent, zero-byte, or exact empty/unowned SQLite
+    /// destination. It applies the explicit limits before initialization commit
+    /// and never acts as an implicit reopen, migration, adoption, or repair.
+    pub fn create_new(
+        path: impl AsRef<Path>,
+        signing_key: SigningKey,
+        limits: L0ResourceLimitsV0,
+    ) -> Result<Self, LogError> {
+        Self::create_new_with_clock(path, signing_key, limits, Box::new(system_clock))
+    }
+
+    /// Deterministic-clock variant of [`Self::create_new`] for testing.
+    pub fn create_new_with_clock(
+        path: impl AsRef<Path>,
+        signing_key: SigningKey,
+        limits: L0ResourceLimitsV0,
+        clock: Clock,
+    ) -> Result<Self, LogError> {
+        Self::create_new_with_clock_inner(
+            path,
+            signing_key,
+            limits,
+            clock,
+            |_: &Path| {},
+            |_: &Path| {},
+        )
+    }
+
+    #[cfg(test)]
+    fn create_new_with_test_hooks(
+        path: impl AsRef<Path>,
+        signing_key: SigningKey,
+        limits: L0ResourceLimitsV0,
+        clock: Clock,
+        before_open: impl FnOnce(&Path),
+        before_begin: impl FnOnce(&Path),
+    ) -> Result<Self, LogError> {
+        Self::create_new_with_clock_inner(
+            path,
+            signing_key,
+            limits,
+            clock,
+            before_open,
+            before_begin,
+        )
+    }
+
+    fn create_new_with_clock_inner<FOpen, FBegin>(
+        path: impl AsRef<Path>,
+        signing_key: SigningKey,
+        limits: L0ResourceLimitsV0,
+        mut clock: Clock,
+        before_open: FOpen,
+        before_begin: FBegin,
+    ) -> Result<Self, LogError>
+    where
+        FOpen: FnOnce(&Path),
+        FBegin: FnOnce(&Path),
+    {
+        let path = path.as_ref().to_path_buf();
+        let existing_length = check_main_file_limit(&path, limits)?;
+        check_journal_file_limit(&path, limits)?;
+        match existing_length {
+            Some(0) | None => {}
+            Some(_) => check_empty_unowned_sqlite(&path, limits)?,
+        }
+
+        before_open(&path);
+        let connection = open_connection(&path, false, true)?;
+        check_opened_main_file_limit(&connection, limits)?;
+        require_empty_unowned_connection(&connection)?;
+        configure_connection(&connection)?;
+        before_begin(&path);
+        if let Err(error) = connection.execute_batch("BEGIN IMMEDIATE") {
+            return if is_busy(&error) {
+                Err(LogError::StorageBusy {
+                    operation: "begin create transaction",
+                })
+            } else {
+                Err(sqlite_error("begin create transaction", error))
+            };
+        }
+
+        let result = (|| {
+            require_delete_journal_mode(&connection)?;
+            require_empty_unowned_connection(&connection)?;
+            connection
+                .execute_batch(&format!(
+                    "PRAGMA main.application_id = {MPL0_APPLICATION_ID};\
+                     PRAGMA main.user_version = {MPL0_USER_VERSION};\
+                     {CREATE_SCHEMA_SQL};"
+                ))
+                .map_err(|error| sqlite_error("initialize MPL0 schema", error))?;
+
+            let (genesis, record) = build_signed_record(
+                &signing_key,
+                0,
+                ContentHash::ZERO,
+                &mut clock,
+                Provenance::new("magpie-log", "genesis"),
+                Payload::Genesis {
+                    canonicalization_profile: CANONICALIZATION_PROFILE.to_string(),
+                    verifying_key: hex::encode(signing_key.verifying_key().as_bytes()),
+                },
+            )?;
+            let record_length =
+                u64::try_from(record.len()).map_err(|_| LogError::ResourceLimit {
+                    resource: "genesis record bytes",
+                    actual: u64::MAX,
+                    limit: limits.max_record_bytes,
+                })?;
+            check_limit("initial record count", 1, limits.max_record_count)?;
+            check_limit(
+                "individual record bytes",
+                record_length,
+                limits.max_record_bytes,
+            )?;
+            check_limit(
+                "cumulative record bytes",
+                record_length,
+                limits.max_total_record_bytes,
+            )?;
+            connection
+                .execute(
+                    "INSERT INTO main.magpie_l0_records(position_be, record_bytes) VALUES (?1, ?2)",
+                    params![0u64.to_be_bytes().as_slice(), record.as_slice()],
+                )
+                .map_err(|error| sqlite_error("insert genesis", error))?;
+            let logical_bytes = logical_database_bytes(&connection)?;
+            check_limit(
+                "logical database bytes",
+                logical_bytes,
+                limits.max_database_bytes,
+            )?;
+            check_journal_file_limit(&path, limits)?;
+            Ok((genesis, record_length))
+        })();
+
+        let (genesis, record_length) = match result {
+            Ok(values) => values,
+            Err(error) => {
+                let rollback = connection.execute_batch("ROLLBACK");
+                if rollback.is_err() || !connection.is_autocommit() {
+                    drop(connection);
+                    return Err(LogError::CommitStateUnknown);
+                }
+                return Err(error);
+            }
+        };
+
+        if let Err(error) = connection.execute_batch("COMMIT") {
+            if is_busy(&error)
+                && !connection.is_autocommit()
+                && connection.execute_batch("ROLLBACK").is_ok()
+                && connection.is_autocommit()
+            {
+                return Err(LogError::StorageBusy {
+                    operation: "commit creation",
+                });
+            }
+            drop(connection);
+            return Err(LogError::CommitStateUnknown);
+        }
+
+        Ok(make_writer(
+            path,
+            connection,
+            signing_key,
+            limits,
+            VerifiedSummary {
+                count: 1,
+                tip: genesis.hash,
+                total_record_bytes: record_length,
+            },
+            clock,
+        ))
+    }
+
+    /// Reopen one existing completely verified persisted prefix for writing.
+    ///
+    /// This deliberately weak mode establishes only validity of the exact
+    /// observed prefix under the supplied key. It establishes no expected
+    /// history, freshness, latest state, currentness, canonicality,
+    /// non-equivocation, checkpoint protection, or rollback resistance.
+    ///
+    /// ```compile_fail,E0599
+    /// use magpie_log::{LogWriter, SqliteL0Store};
+    /// fn ordinary_open_has_no_checkpoint_result(writer: &LogWriter<SqliteL0Store>) {
+    ///     let _ = writer.evaluation();
+    /// }
+    /// ```
+    pub fn open_verified_prefix(
+        path: impl AsRef<Path>,
+        signing_key: SigningKey,
+        limits: L0ResourceLimitsV0,
+    ) -> Result<Self, LogError> {
+        Self::open_verified_prefix_with_clock(path, signing_key, limits, Box::new(system_clock))
+    }
+
+    /// Deterministic-clock variant of [`Self::open_verified_prefix`] for testing.
+    pub fn open_verified_prefix_with_clock(
+        path: impl AsRef<Path>,
+        signing_key: SigningKey,
+        limits: L0ResourceLimitsV0,
+        clock: Clock,
+    ) -> Result<Self, LogError> {
+        let path = path.as_ref().to_path_buf();
+        let connection = open_owned_connection(&path, limits, false)?;
+        let verified =
+            verify_owned_snapshot(&connection, signing_key.verifying_key(), limits, None)?;
+        Ok(make_writer(
+            path,
+            connection,
+            signing_key,
+            limits,
+            verified.summary,
+            clock,
+        ))
+    }
+
+    /// Reopen only when the verified history contains the explicit checkpoint.
+    ///
+    /// Method identity fixes `ContainsCheckpoint`; no relation is inferred or
+    /// selected from ambient state. Success retains the genuine context-bearing
+    /// evaluation alongside the writer. It does not authenticate the checkpoint
+    /// or establish freshness, authority, currentness, or rollback resistance.
+    ///
+    /// ```compile_fail,E0061
+    /// use magpie_log::{L0ResourceLimitsV0, LogWriter, SigningKey, SqliteL0Store};
+    /// fn checkpoint_is_mandatory(path: &std::path::Path) {
+    ///     let key = SigningKey::from_bytes(&[7u8; 32]);
+    ///     let limits = L0ResourceLimitsV0::new(4096, 1, 1024, 1024).unwrap();
+    ///     let _ = LogWriter::<SqliteL0Store>::open_containing_checkpoint_v0(
+    ///         path, key, limits,
+    ///     );
+    /// }
+    /// ```
+    pub fn open_containing_checkpoint_v0(
+        path: impl AsRef<Path>,
+        signing_key: SigningKey,
+        limits: L0ResourceLimitsV0,
+        checkpoint: HistoryCheckpointV0,
+    ) -> Result<CheckpointQualifiedWriterOpenV0, SqliteCheckpointOpenError> {
+        Self::open_containing_checkpoint_v0_with_clock(
+            path,
+            signing_key,
+            limits,
+            checkpoint,
+            Box::new(system_clock),
+        )
+    }
+
+    /// Deterministic-clock variant of [`Self::open_containing_checkpoint_v0`].
+    pub fn open_containing_checkpoint_v0_with_clock(
+        path: impl AsRef<Path>,
+        signing_key: SigningKey,
+        limits: L0ResourceLimitsV0,
+        checkpoint: HistoryCheckpointV0,
+        clock: Clock,
+    ) -> Result<CheckpointQualifiedWriterOpenV0, SqliteCheckpointOpenError> {
+        let path = path.as_ref().to_path_buf();
+        let connection = open_owned_connection(&path, limits, false)?;
+        let verified = verify_owned_snapshot(
+            &connection,
+            signing_key.verifying_key(),
+            limits,
+            Some(checkpoint.event_count()),
+        )?;
+        let summary = VerifiedReplaySummary::from_verified_parts(
+            verified.summary.count,
+            verified.summary.tip,
+        );
+        let evaluation = evaluate_verified_history_expectation_v0(
+            signing_key.verifying_key().to_bytes(),
+            summary,
+            checkpoint,
+            HistoryExpectationRelationV0::ContainsCheckpoint,
+            verified.observed_checkpoint_commitment,
+        );
+        if evaluation.outcome() == HistoryExpectationOutcomeV0::NotSatisfied {
+            return Err(SqliteCheckpointOpenError::NotSatisfied(evaluation));
+        }
+        Ok(CheckpointQualifiedWriterOpenV0 {
+            writer: make_writer(
+                path,
+                connection,
+                signing_key,
+                limits,
+                verified.summary,
+                clock,
+            ),
+            evaluation,
+        })
+    }
+
+    /// Exact serialized record-byte total at the last acknowledged coordinate.
+    pub fn total_record_bytes(&self) -> u64 {
+        self.store.total_record_bytes
+    }
+
+    /// Exact immutable limits supplied when this writer was created or reopened.
+    pub fn resource_limits(&self) -> L0ResourceLimitsV0 {
+        self.store.limits
+    }
+
+    /// Whether a transaction-crossing failure has made deliberate reopen mandatory.
+    pub fn is_poisoned(&self) -> bool {
+        self.store.poisoned
+    }
+
+    /// Append one successor through an atomic expected-history transaction.
+    ///
+    /// Under the same `BEGIN IMMEDIATE` transaction that may publish the
+    /// successor, the persisted history is completely revalidated as one
+    /// supported MPL0 v1 history under this writer's verification key and
+    /// retained limits, and its exact `{count, tip, total_record_bytes}` must
+    /// equal this writer's acknowledged state; otherwise nothing is inserted.
+    /// `Ok` means SQLite reported successful `COMMIT` under the selected local
+    /// profile. An error does not universally mean nothing committed; an unknown
+    /// outcome poisons and abandons the connection, requiring complete reopen.
+    pub fn append(
+        &mut self,
+        provenance: Provenance,
+        payload: Payload,
+    ) -> Result<SignedEvent, LogError> {
+        if self.store.poisoned {
+            return Err(LogError::WriterPoisoned);
+        }
+
+        let next_count = self
+            .next_seq
+            .checked_add(1)
+            .ok_or(LogError::SequenceExhausted)?;
+        check_limit(
+            "record count",
+            next_count,
+            self.store.limits.max_record_count,
+        )?;
+        let (event, record) = build_signed_record(
+            &self.signing_key,
+            self.next_seq,
+            self.last_hash,
+            &mut self.clock,
+            provenance,
+            payload,
+        )?;
+        let record_length = u64::try_from(record.len()).map_err(|_| LogError::ResourceLimit {
+            resource: "individual record bytes",
+            actual: u64::MAX,
+            limit: self.store.limits.max_record_bytes,
+        })?;
+        check_limit(
+            "individual record bytes",
+            record_length,
+            self.store.limits.max_record_bytes,
+        )?;
+        let next_total_record_bytes = self
+            .store
+            .total_record_bytes
+            .checked_add(record_length)
+            .ok_or(LogError::ResourceLimit {
+                resource: "cumulative record bytes",
+                actual: u64::MAX,
+                limit: self.store.limits.max_total_record_bytes,
+            })?;
+        check_limit(
+            "cumulative record bytes",
+            next_total_record_bytes,
+            self.store.limits.max_total_record_bytes,
+        )?;
+
+        let connection = self
+            .store
+            .connection
+            .as_mut()
+            .ok_or(LogError::WriterPoisoned)?;
+        if let Err(error) = connection.execute_batch("BEGIN IMMEDIATE") {
+            self.store.poisoned = true;
+            let mapped = if is_busy(&error) {
+                LogError::StorageBusy {
+                    operation: "begin append transaction",
+                }
+            } else {
+                sqlite_error("begin append transaction", error)
+            };
+            if connection.is_autocommit() {
+                return Err(mapped);
+            }
+            if connection.execute_batch("ROLLBACK").is_ok() && connection.is_autocommit() {
+                return Err(mapped);
+            }
+            self.store.connection.take();
+            return Err(LogError::CommitStateUnknown);
+        }
+
+        let operation = (|| -> Result<u64, LogError> {
+            // Completely revalidate the persisted history under the same write
+            // transaction that may publish the successor. `Ok(event)` is
+            // impossible unless the entire persisted history still verifies as
+            // one valid supported MPL0 v1 history under this writer's
+            // verification key and retained limits AND its exact
+            // `{count, tip, total_record_bytes}` reproduces this writer's
+            // acknowledged state. A cached terminal coordinate alone is never
+            // sufficient evidence that the history beneath it remained valid.
+            let verified = verify_owned_history_in_current_transaction(
+                connection,
+                self.signing_key.verifying_key(),
+                self.store.limits,
+                None,
+            )?;
+            if verified.summary.count != self.next_seq
+                || verified.summary.tip != self.last_hash
+                || verified.summary.total_record_bytes != self.store.total_record_bytes
+            {
+                // Complete verification succeeded but describes a different
+                // history than this writer acknowledged. The writer is never
+                // refreshed from the observed history, the proposed event is
+                // never rebuilt onto another predecessor, and no cache field
+                // advances: reopen is required.
+                return Err(LogError::WriterStale);
+            }
+            let authoritative_next_total_record_bytes = verified
+                .summary
+                .total_record_bytes
+                .checked_add(record_length)
+                .ok_or(LogError::ResourceLimit {
+                    resource: "cumulative record bytes",
+                    actual: u64::MAX,
+                    limit: self.store.limits.max_total_record_bytes,
+                })?;
+            check_limit(
+                "cumulative record bytes",
+                authoritative_next_total_record_bytes,
+                self.store.limits.max_total_record_bytes,
+            )?;
+            debug_assert_eq!(
+                authoritative_next_total_record_bytes,
+                next_total_record_bytes
+            );
+
+            connection
+                .execute(
+                    "INSERT INTO main.magpie_l0_records(position_be, record_bytes) VALUES (?1, ?2)",
+                    params![self.next_seq.to_be_bytes().as_slice(), record.as_slice()],
+                )
+                .map_err(|error| sqlite_error("insert successor", error))?;
+            let logical_bytes = logical_database_bytes(connection)?;
+            check_limit(
+                "logical database bytes",
+                logical_bytes,
+                self.store.limits.max_database_bytes,
+            )?;
+            check_journal_file_limit(&self.store.path, self.store.limits)?;
+            Ok(authoritative_next_total_record_bytes)
+        })();
+
+        let authoritative_next_total_record_bytes = match operation {
+            Ok(total_record_bytes) => total_record_bytes,
+            Err(error) => {
+                self.store.poisoned = true;
+                let rollback_ok =
+                    connection.execute_batch("ROLLBACK").is_ok() && connection.is_autocommit();
+                if !rollback_ok {
+                    self.store.connection.take();
+                    return Err(LogError::CommitStateUnknown);
+                }
+                return Err(error);
+            }
+        };
+
+        if let Err(error) = connection.execute_batch("COMMIT") {
+            self.store.poisoned = true;
+            if is_busy(&error)
+                && !connection.is_autocommit()
+                && connection.execute_batch("ROLLBACK").is_ok()
+                && connection.is_autocommit()
+            {
+                return Err(LogError::StorageBusy {
+                    operation: "commit append transaction",
+                });
+            }
+            self.store.connection.take();
+            return Err(LogError::CommitStateUnknown);
+        }
+
+        #[cfg(test)]
+        if self.store.fault_after_commit_unknown {
+            self.store.poisoned = true;
+            self.store.connection.take();
+            return Err(LogError::CommitStateUnknown);
+        }
+
+        self.next_seq = next_count;
+        self.last_hash = event.hash;
+        self.store.total_record_bytes = authoritative_next_total_record_bytes;
+        Ok(event)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn limits() -> L0ResourceLimitsV0 {
+        L0ResourceLimitsV0::new(16 * 1024 * 1024, 100, 1024 * 1024, 8 * 1024 * 1024).unwrap()
+    }
+
+    fn test_path(label: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!(
+            "magpie-sqlite-create-race-{label}-{}-{}.db",
+            std::process::id(),
+            system_clock()
+        ))
+    }
+
+    fn remove_test_path(path: &std::path::Path) {
+        for suffix in ["", "-journal", "-wal", "-shm"] {
+            let path = std::path::PathBuf::from(format!("{}{}", path.display(), suffix));
+            let _ = std::fs::remove_file(path);
+        }
+    }
+
+    fn create_empty_unowned_sqlite(path: &std::path::Path) {
+        let connection = Connection::open(path).unwrap();
+        connection.execute_batch("VACUUM").unwrap();
+    }
+
+    #[test]
+    fn create_revalidates_empty_unowned_state_inside_transaction() {
+        let path = test_path("schema-injection");
+        create_empty_unowned_sqlite(&path);
+
+        let result = LogWriter::<SqliteL0Store>::create_new_with_test_hooks(
+            &path,
+            SigningKey::from_bytes(&[93u8; 32]),
+            limits(),
+            Box::new(system_clock),
+            |_: &std::path::Path| {},
+            |path: &std::path::Path| {
+                let connection = Connection::open(path).unwrap();
+                connection
+                    .execute_batch(
+                        "CREATE TABLE precious(value TEXT); \
+                         INSERT INTO precious VALUES ('keep');",
+                    )
+                    .unwrap();
+            },
+        );
+        assert!(matches!(result, Err(LogError::ForeignDatabase { .. })));
+
+        let connection = Connection::open(&path).unwrap();
+        let application_id: i64 = connection
+            .query_row("PRAGMA main.application_id", [], |row| row.get(0))
+            .unwrap();
+        let user_version: i64 = connection
+            .query_row("PRAGMA main.user_version", [], |row| row.get(0))
+            .unwrap();
+        let precious: String = connection
+            .query_row("SELECT value FROM precious", [], |row| row.get(0))
+            .unwrap();
+        let magpie_objects: i64 = connection
+            .query_row(
+                "SELECT count(*) FROM main.sqlite_schema WHERE name = 'magpie_l0_records'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!((application_id, user_version), (0, 0));
+        assert_eq!(precious, "keep");
+        assert_eq!(magpie_objects, 0);
+
+        remove_test_path(&path);
+    }
+
+    #[test]
+    fn create_revalidates_the_database_opened_after_path_preflight() {
+        let destination = test_path("path-substitution-destination");
+        let foreign = test_path("path-substitution-foreign");
+        create_empty_unowned_sqlite(&destination);
+        {
+            let connection = Connection::open(&foreign).unwrap();
+            connection
+                .execute_batch(
+                    "CREATE TABLE precious(value TEXT); \
+                     INSERT INTO precious VALUES ('keep');",
+                )
+                .unwrap();
+        }
+        let foreign_before = std::fs::read(&foreign).unwrap();
+        let foreign_for_hook = foreign.clone();
+
+        let result = LogWriter::<SqliteL0Store>::create_new_with_test_hooks(
+            &destination,
+            SigningKey::from_bytes(&[94u8; 32]),
+            limits(),
+            Box::new(system_clock),
+            move |destination: &std::path::Path| {
+                std::fs::remove_file(destination).unwrap();
+                std::fs::rename(&foreign_for_hook, destination).unwrap();
+            },
+            |_: &std::path::Path| {},
+        );
+        assert!(matches!(result, Err(LogError::ForeignDatabase { .. })));
+        assert_eq!(std::fs::read(&destination).unwrap(), foreign_before);
+
+        let connection = Connection::open(&destination).unwrap();
+        let application_id: i64 = connection
+            .query_row("PRAGMA main.application_id", [], |row| row.get(0))
+            .unwrap();
+        let user_version: i64 = connection
+            .query_row("PRAGMA main.user_version", [], |row| row.get(0))
+            .unwrap();
+        let precious: String = connection
+            .query_row("SELECT value FROM precious", [], |row| row.get(0))
+            .unwrap();
+        let magpie_objects: i64 = connection
+            .query_row(
+                "SELECT count(*) FROM main.sqlite_schema WHERE name = 'magpie_l0_records'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!((application_id, user_version), (0, 0));
+        assert_eq!(precious, "keep");
+        assert_eq!(magpie_objects, 0);
+
+        remove_test_path(&destination);
+        remove_test_path(&foreign);
+    }
+
+    #[test]
+    fn create_rejects_journal_mode_changed_after_begin() {
+        let path = test_path("create-journal-mode-race");
+        create_empty_unowned_sqlite(&path);
+
+        let result = LogWriter::<SqliteL0Store>::create_new_with_test_hooks(
+            &path,
+            SigningKey::from_bytes(&[96u8; 32]),
+            limits(),
+            Box::new(system_clock),
+            |_: &std::path::Path| {},
+            |path: &std::path::Path| {
+                let connection = Connection::open(path).unwrap();
+                let mode: String = connection
+                    .query_row("PRAGMA main.journal_mode = WAL", [], |row| row.get(0))
+                    .unwrap();
+                assert_eq!(mode.to_ascii_lowercase(), "wal");
+            },
+        );
+        assert!(matches!(result, Err(LogError::UnsupportedDatabase { .. })));
+
+        let connection = Connection::open(&path).unwrap();
+        let application_id: i64 = connection
+            .query_row("PRAGMA main.application_id", [], |row| row.get(0))
+            .unwrap();
+        let user_version: i64 = connection
+            .query_row("PRAGMA main.user_version", [], |row| row.get(0))
+            .unwrap();
+        let magpie_objects: i64 = connection
+            .query_row(
+                "SELECT count(*) FROM main.sqlite_schema WHERE name = 'magpie_l0_records'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!((application_id, user_version, magpie_objects), (0, 0, 0));
+
+        remove_test_path(&path);
+    }
+
+    #[test]
+    fn opened_connection_physical_size_check_follows_path_substitution() {
+        let first = test_path("physical-size-first");
+        let second = test_path("physical-size-second");
+        let key = SigningKey::from_bytes(&[95u8; 32]);
+        let broad = limits();
+        drop(
+            LogWriter::<SqliteL0Store>::create_new_with_clock(
+                &first,
+                key.clone(),
+                broad,
+                Box::new(system_clock),
+            )
+            .unwrap(),
+        );
+        drop(
+            LogWriter::<SqliteL0Store>::create_new_with_clock(
+                &second,
+                key,
+                broad,
+                Box::new(system_clock),
+            )
+            .unwrap(),
+        );
+
+        let first_length = std::fs::metadata(&first).unwrap().len();
+        let second_connection = Connection::open(&second).unwrap();
+        let page_count: i64 = second_connection
+            .query_row("PRAGMA main.page_count", [], |row| row.get(0))
+            .unwrap();
+        let page_size: i64 = second_connection
+            .query_row("PRAGMA main.page_size", [], |row| row.get(0))
+            .unwrap();
+        let logical_bytes = u64::try_from(page_count).unwrap() * u64::try_from(page_size).unwrap();
+        drop(second_connection);
+
+        let max_database_bytes = first_length.max(logical_bytes);
+        let second_bytes = std::fs::read(&second).unwrap();
+        let padding = usize::try_from(
+            max_database_bytes.saturating_sub(u64::try_from(second_bytes.len()).unwrap()) + 128,
+        )
+        .unwrap();
+        let mut padded_second = second_bytes;
+        padded_second.extend(vec![0u8; padding]);
+        std::fs::write(&second, &padded_second).unwrap();
+        assert!(std::fs::metadata(&second).unwrap().len() > max_database_bytes);
+        assert!(logical_bytes <= max_database_bytes);
+
+        let limits = L0ResourceLimitsV0::new(
+            max_database_bytes,
+            broad.max_record_count(),
+            broad.max_record_bytes(),
+            broad.max_total_record_bytes(),
+        )
+        .unwrap();
+        let second_for_hook = second.clone();
+        let result = open_owned_connection_with_test_hook(
+            &first,
+            limits,
+            true,
+            move |path: &std::path::Path| {
+                std::fs::remove_file(path).unwrap();
+                std::fs::rename(&second_for_hook, path).unwrap();
+            },
+        );
+        assert!(matches!(
+            result,
+            Err(LogError::ResourceLimit {
+                resource: "physical main database bytes",
+                ..
+            })
+        ));
+        assert_eq!(std::fs::read(&first).unwrap(), padded_second);
+
+        remove_test_path(&first);
+        remove_test_path(&second);
+    }
+
+    #[test]
+    fn creation_physical_size_check_follows_path_substitution() {
+        let destination = test_path("create-physical-size-destination");
+        let replacement = test_path("create-physical-size-replacement");
+        create_empty_unowned_sqlite(&destination);
+        create_empty_unowned_sqlite(&replacement);
+
+        let destination_length = std::fs::metadata(&destination).unwrap().len();
+        let replacement_connection = Connection::open(&replacement).unwrap();
+        let page_count: i64 = replacement_connection
+            .query_row("PRAGMA main.page_count", [], |row| row.get(0))
+            .unwrap();
+        let page_size: i64 = replacement_connection
+            .query_row("PRAGMA main.page_size", [], |row| row.get(0))
+            .unwrap();
+        let logical_bytes = u64::try_from(page_count).unwrap() * u64::try_from(page_size).unwrap();
+        drop(replacement_connection);
+
+        let max_database_bytes = destination_length.max(logical_bytes);
+        let replacement_bytes = std::fs::read(&replacement).unwrap();
+        let padding = usize::try_from(
+            max_database_bytes.saturating_sub(u64::try_from(replacement_bytes.len()).unwrap())
+                + 128,
+        )
+        .unwrap();
+        let mut padded_replacement = replacement_bytes;
+        padded_replacement.extend(vec![0u8; padding]);
+        std::fs::write(&replacement, &padded_replacement).unwrap();
+
+        let broad = limits();
+        let creation_limits = L0ResourceLimitsV0::new(
+            max_database_bytes,
+            broad.max_record_count(),
+            broad.max_record_bytes(),
+            broad.max_total_record_bytes(),
+        )
+        .unwrap();
+        let replacement_for_hook = replacement.clone();
+        let result = LogWriter::<SqliteL0Store>::create_new_with_test_hooks(
+            &destination,
+            SigningKey::from_bytes(&[97u8; 32]),
+            creation_limits,
+            Box::new(system_clock),
+            move |path: &std::path::Path| {
+                std::fs::remove_file(path).unwrap();
+                std::fs::rename(&replacement_for_hook, path).unwrap();
+            },
+            |_: &std::path::Path| {},
+        );
+        assert!(matches!(
+            result,
+            Err(LogError::ResourceLimit {
+                resource: "physical main database bytes",
+                ..
+            })
+        ));
+        assert_eq!(std::fs::read(&destination).unwrap(), padded_replacement);
+
+        let connection = Connection::open(&destination).unwrap();
+        let application_id: i64 = connection
+            .query_row("PRAGMA main.application_id", [], |row| row.get(0))
+            .unwrap();
+        let user_version: i64 = connection
+            .query_row("PRAGMA main.user_version", [], |row| row.get(0))
+            .unwrap();
+        let magpie_objects: i64 = connection
+            .query_row(
+                "SELECT count(*) FROM main.sqlite_schema WHERE name = 'magpie_l0_records'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!((application_id, user_version, magpie_objects), (0, 0, 0));
+
+        remove_test_path(&destination);
+        remove_test_path(&replacement);
+    }
+
+    #[test]
+    fn unknown_commit_fault_abandons_connection_and_poison_writer() {
+        let path = std::env::temp_dir().join(format!(
+            "magpie-sqlite-unknown-{}-{}.db",
+            std::process::id(),
+            system_clock()
+        ));
+        let key = SigningKey::from_bytes(&[91u8; 32]);
+        let mut writer =
+            LogWriter::<SqliteL0Store>::create_new(&path, key.clone(), limits()).unwrap();
+        writer.store.fault_after_commit_unknown = true;
+        let result = writer.append(
+            Provenance::new("test", "unknown-commit"),
+            Payload::Note {
+                text: "committed but acknowledgement lost".into(),
+            },
+        );
+        assert!(matches!(result, Err(LogError::CommitStateUnknown)));
+        assert!(writer.is_poisoned());
+        assert!(writer.store.connection.is_none());
+        assert!(matches!(
+            writer.append(
+                Provenance::new("test", "poisoned"),
+                Payload::Note {
+                    text: "must not run SQL".into()
+                },
+            ),
+            Err(LogError::WriterPoisoned)
+        ));
+        drop(writer);
+        let reopened =
+            LogWriter::<SqliteL0Store>::open_verified_prefix(&path, key, limits()).unwrap();
+        assert_eq!(reopened.len(), 2);
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn opened_handle_ownership_gate_rejects_substituted_foreign_database() {
+        for read_only in [true, false] {
+            let destination = test_path("opened-ownership-destination");
+            let foreign = test_path("opened-ownership-foreign");
+            drop(
+                LogWriter::<SqliteL0Store>::create_new_with_clock(
+                    &destination,
+                    SigningKey::from_bytes(&[98u8; 32]),
+                    limits(),
+                    Box::new(system_clock),
+                )
+                .unwrap(),
+            );
+            {
+                let connection = Connection::open(&foreign).unwrap();
+                connection
+                    .execute_batch(
+                        "PRAGMA application_id = 0x464F5247; PRAGMA user_version = 7; CREATE TABLE precious(value TEXT); INSERT INTO precious VALUES ('keep');",
+                    )
+                    .unwrap();
+            }
+            let foreign_before = std::fs::read(&foreign).unwrap();
+            let foreign_for_hook = foreign.clone();
+            take_open_order_log();
+
+            let result = open_owned_connection_with_test_hook(
+                &destination,
+                limits(),
+                read_only,
+                move |path: &std::path::Path| {
+                    std::fs::remove_file(path).unwrap();
+                    std::fs::rename(&foreign_for_hook, path).unwrap();
+                },
+            );
+
+            assert!(
+                matches!(result, Err(LogError::ForeignDatabase { .. })),
+                "read_only={read_only}: substituted foreign database must be refused"
+            );
+            assert_eq!(
+                take_open_order_log(),
+                vec!["opened-handle-ownership"],
+                "read_only={read_only}: the opened-handle gate must fire before configure_connection"
+            );
+            assert_eq!(std::fs::read(&destination).unwrap(), foreign_before);
+
+            let connection = Connection::open(&destination).unwrap();
+            let application_id: i64 = connection
+                .query_row("PRAGMA main.application_id", [], |row| row.get(0))
+                .unwrap();
+            let precious: String = connection
+                .query_row("SELECT value FROM precious", [], |row| row.get(0))
+                .unwrap();
+            let magpie_objects: i64 = connection
+                .query_row(
+                    "SELECT count(*) FROM main.sqlite_schema WHERE name = 'magpie_l0_records'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(application_id, 0x464F5247);
+            assert_eq!(precious, "keep");
+            assert_eq!(magpie_objects, 0);
+
+            remove_test_path(&destination);
+            remove_test_path(&foreign);
+        }
+    }
+
+    #[test]
+    fn opened_handle_ownership_gate_precedes_hot_journal_recovery() {
+        let destination = test_path("opened-hot-journal-destination");
+        let foreign = test_path("opened-hot-journal-foreign");
+        let staged = test_path("opened-hot-journal-staged");
+        drop(
+            LogWriter::<SqliteL0Store>::create_new_with_clock(
+                &destination,
+                SigningKey::from_bytes(&[99u8; 32]),
+                limits(),
+                Box::new(system_clock),
+            )
+            .unwrap(),
+        );
+
+        // Capture a foreign database with a genuine hot rollback journal by
+        // copying the database and journal while a write transaction is live.
+        {
+            let connection = Connection::open(&foreign).unwrap();
+            connection
+                .execute_batch(
+                    "PRAGMA main.journal_mode = DELETE; PRAGMA application_id = 0x464F5247; CREATE TABLE precious(value TEXT); INSERT INTO precious VALUES ('original');",
+                )
+                .unwrap();
+            connection.execute_batch("BEGIN IMMEDIATE").unwrap();
+            connection
+                .execute("UPDATE precious SET value = 'recovered'", [])
+                .unwrap();
+            std::fs::copy(&foreign, &staged).unwrap();
+            std::fs::copy(
+                format!("{}-journal", foreign.display()),
+                format!("{}-journal", staged.display()),
+            )
+            .unwrap();
+            connection.execute_batch("ROLLBACK").unwrap();
+        }
+        let staged_bytes = std::fs::read(&staged).unwrap();
+        let staged_journal = std::fs::read(format!("{}-journal", staged.display())).unwrap();
+        take_open_order_log();
+
+        let staged_for_hook = staged.clone();
+        let result = open_owned_connection_with_test_hook(
+            &destination,
+            limits(),
+            false,
+            move |path: &std::path::Path| {
+                std::fs::remove_file(path).unwrap();
+                std::fs::copy(&staged_for_hook, path).unwrap();
+                std::fs::copy(
+                    format!("{}-journal", staged_for_hook.display()),
+                    format!("{}-journal", path.display()),
+                )
+                .unwrap();
+            },
+        );
+
+        assert!(matches!(result, Err(LogError::ForeignDatabase { .. })));
+        assert_eq!(
+            take_open_order_log(),
+            vec!["opened-handle-ownership"],
+            "the opened-handle gate must fire before configure_connection"
+        );
+        // No pager read or recovery acted on the substituted pair: the database
+        // bytes are identical and the hot journal remains present and
+        // unprocessed.
+        assert_eq!(std::fs::read(&destination).unwrap(), staged_bytes);
+        assert_eq!(
+            std::fs::read(format!("{}-journal", destination.display())).unwrap(),
+            staged_journal
+        );
+
+        // Sanity: the staged pair really was hot — an ordinary raw SQLite read
+        // recovers it now and observes the pre-transaction value.
+        let probe = Connection::open(&destination).unwrap();
+        let value: String = probe
+            .query_row("SELECT value FROM precious", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(value, "original");
+        drop(probe);
+
+        remove_test_path(&destination);
+        remove_test_path(&foreign);
+        remove_test_path(&staged);
+    }
+}
