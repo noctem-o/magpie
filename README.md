@@ -51,6 +51,10 @@ Current main implements:
 
 - a frozen signed event format with canonical encoding and golden vectors;
 - an append-only, hash-chained log with an independent Python verifier;
+- a supported local SQLite L0 with explicit bounded creation, verified reopen,
+  stale-writer detection, and atomic successor append;
+- explicit weak `VerifiedPrefix` reopen and checkpoint-qualified history
+  expectation evaluation;
 - complete verification before deterministic replay;
 - byte-identical regeneration of derived state;
 - typed claims, evidence, and justification edges;
@@ -192,6 +196,33 @@ current interpretation of an earlier one.
 The genesis event makes the chain self-describing, but trust in the supplied
 verifying key remains external.
 
+### Supported local L0 persistence
+
+`SqliteL0Store` is the supported local persistent L0 backend. Creation is
+explicit and separate from reopening. Supported reopen checks the exact MPL0
+ownership/schema/profile, applies explicit finite resource limits, and
+completely verifies the retained signed history before publishing a writer or
+verified result. Append re-establishes the current persisted history under the
+same write transaction that may publish its successor and refuses stale
+writers rather than refreshing or rebasing them.
+
+`FileStore` remains a small JSONL compatibility/development/inspection backend;
+it is not the supported durability or concurrent-writer boundary. `MemStore`
+remains the in-memory testing/embedding backend.
+
+### Verified history is not expected or current history
+
+A successful `open_verified_prefix` establishes complete verification of the
+exact retained history supplied by that stable SQLite snapshot under the
+selected key and limits. It does not establish that the history is the one an
+external caller expected.
+
+`open_containing_checkpoint_v0` additionally evaluates one explicit caller-
+supplied checkpoint under the fixed `ContainsCheckpoint` relation. Checkpoint
+satisfaction is still not freshness, latest history, canonicality,
+non-equivocation, checkpoint authenticity, secure checkpoint retention,
+universal rollback resistance, authority, or currentness.
+
 ### Capability-based low-level writing
 
 `LogWriter` holds the signing key and is the low-level append capability.
@@ -240,8 +271,11 @@ The signed append-only history:
 - frozen canonical encoding and event vocabulary;
 - hash chaining and Ed25519 signatures;
 - `LogWriter` and read-only `LogReader`;
-- durable `FileStore` and in-memory `MemStore`; and
-- golden vectors, complete verification, and deterministic replay.
+- supported local persistent L0 via `SqliteL0Store`;
+- JSONL compatibility/development/inspection via `FileStore` and in-memory
+  testing/embedding via `MemStore`; and
+- golden vectors, complete verification, explicit history expectations, and
+  deterministic replay.
 
 ### `magpie-claims`
 
@@ -291,6 +325,9 @@ Magpie is not:
 ### Implemented
 
 - signed historical authority and deterministic replay;
+- supported bounded local SQLite L0 creation, verified reopen, and append;
+- explicit weak verified-prefix and checkpoint-qualified history expectation
+  semantics;
 - rebuildable search and typed evidence projections;
 - immutable closure, provenance verification, and origin admission;
 - direct positive standing and narrow external-report corroboration;
@@ -299,6 +336,7 @@ Magpie is not:
 
 ### Future
 
+- secure retained checkpoints or broader rollback-resistance mechanisms;
 - an ordinary governed claim/evidence writer and `EpistemicGate`;
 - an acquisition loader and content-addressed store;
 - filesystem or network ingestion;
@@ -320,6 +358,9 @@ change these boundaries only through explicit contracts and review.
   frozen vectors.
 - [Portable base](docs/portable-base.md) - the dependency-minimal core and
   optional seams.
+- [Supported L0 persistence and checkpoint-aware open](docs/design/l0-persistence-and-checkpoint-open-v0.md) -
+  the bounded local SQLite L0, verified-prefix, checkpoint-open, transaction,
+  acknowledgement, and resource contract.
 - [Deadbolt anchor contract](docs/seams/deadbolt-anchor-contract.md) - the
   protocol and writer boundary.
 - [MCP boundary contract](docs/design/mcp-boundary-contract.md) - the agent
@@ -347,8 +388,7 @@ change these boundaries only through explicit contracts and review.
   a worked external-occurrence example stress-testing the unresolved
   boundary (exploration, not doctrine).
 - [Admission boundary minimal semantics](docs/design/admission-boundary-minimal-semantics.md) -
-  the minimum semantic claim admission may make (exploration, not
-  doctrine).
+  the minimum semantic claim admission may make (exploration, not doctrine).
 - [Admission record boundary contract](docs/design/admission-record-boundary-contract.md) -
   what may cross the admission boundary into the historical record
   (proposed contract).
