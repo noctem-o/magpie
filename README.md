@@ -1,5 +1,11 @@
 # Magpie
 
+[![CI](https://github.com/noctem-o/magpie/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/noctem-o/magpie/actions/workflows/ci.yml)
+![Status: experimental](https://img.shields.io/badge/status-experimental-2f6f4e?style=flat-square)
+![Release: v0.1.0](https://img.shields.io/badge/release-v0.1.0-315a7d?style=flat-square)
+![Rust](https://img.shields.io/badge/Rust-stable-5b4636?style=flat-square)
+![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-5b4636?style=flat-square)
+
 **A local-first, replayable memory kernel for AI systems.**
 
 Magpie keeps a signed history of what was recorded and derives everything else from that history.
