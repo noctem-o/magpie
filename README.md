@@ -1,94 +1,101 @@
 # Magpie
 
-**A local-first, replayable epistemic memory kernel for AI systems.**
+**A local-first, replayable memory kernel for AI systems.**
 
-Magpie records what happened, what was claimed, what evidence exists, and what
-an explicit policy is allowed to conclude.
+Magpie keeps a signed history of what was recorded and derives everything else from that history.
 
-It does **not** treat retrieval, repetition, model confidence, or serialized
-audit output as authority.
+It tracks claims, evidence, provenance, search state, and policy conclusions without quietly treating any of them as the same thing.
 
 > **Conserve the log. Derive the rest.**
 
-Here, *epistemic* means keeping the basis and limits of a conclusion visible.
-*Kernel* means a small set of typed mechanisms, not a finished end-user
-application.
+That rule is the project.
 
-Magpie is a functioning experimental Rust workspace. Current development
-includes explicit standing policies v0 through v4. The latest formal
-owner-created source release remains v0.1.0; this README does not announce a
-v0.2.0 release.
+A search hit is not evidence. Verified bytes are not automatically well-sourced. Two matching reports are not automatically independent. A serialized audit result does not gain authority because somebody loaded it again.
+
+Magpie is deliberately fussy about those distinctions.
+
+It is an experimental Rust workspace, not a finished memory product. Current `main` implements standing policies v0 through v4. The latest formal source release is still v0.1.0. Development has moved beyond it, but there is no v0.2.0 release yet.
 
 ## Why Magpie exists
 
-Memory for an AI system is not just a retrieval problem. A stored item may be
-available without being verified, verified without having useful provenance,
-or well-provenanced without being admitted as an independent contribution.
-Even admitted evidence may be only a candidate for a policy rule, not achieved
-standing.
+AI memory gets dangerous when "stored", "verified", and "believed" collapse into one state.
 
-Magpie keeps these concepts separate:
+Suppose an agent remembers a claim from last week.
 
-- **Observation** records what an event said.
-- **Availability** says that exact bytes were supplied to a resolution.
-- **Verification** checks those bytes or a signed history against a named
-  procedure and trust root.
-- **Provenance** connects an artifact to recorded acquisition or derivation.
-- **Origin admission** decides whether a contribution has an admitted origin
-  in an exact comparison namespace.
-- **Candidate eligibility** decides whether evidence may enter a policy rule.
-- **Governed standing** is the conclusion an explicitly selected policy
-  actually achieves.
+The bytes may still exist, but where did they come from?
 
-The signed append-only log is historical authority relative to an externally
-supplied verifying key. Search indexes, claim graphs, standing views, and audit
-traces are derived. They can explain history and policy, but they cannot write
-authority back into the log.
+Maybe the artifact has a valid digest. That proves something about those bytes, but not who produced them.
 
-## Current milestone
+Maybe two reports agree. Did they actually come from separate origins, or did one copy the other?
 
-Current main implements:
+Maybe a deterministic checker passed. What exact proposition did it check?
 
-- a frozen signed event format with canonical encoding and golden vectors;
-- an append-only, hash-chained log with an independent Python verifier;
-- a supported local SQLite L0 with explicit bounded creation, verified reopen,
-  stale-writer detection, and atomic successor append;
-- explicit weak `VerifiedPrefix` reopen and checkpoint-qualified history
-  expectation evaluation;
-- complete verification before deterministic replay;
-- byte-identical regeneration of derived state;
-- typed claims, evidence, and justification edges;
-- an optional live protocol seam for anchoring sealed Deadbolt execution
-  evidence;
-- immutable resolution-content closure: an exact set of supplied artifact and
-  foreign-bundle bytes;
-- artifact-provenance verification and origin-admission audit;
-- admitted-contribution and support-contribution audits;
-- governed standing policies v0 through v4; and
-- deterministic, one-way audit traces that cannot be reinjected as authority.
+Maybe yesterday's policy considered the claim supported. Does today's caller even intend to use that policy?
 
-This is a working experimental kernel, not a complete memory product.
+Magpie refuses to answer those questions by implication.
+
+It keeps the pieces separate until an explicitly chosen rule says what may follow.
+
+A few terms appear throughout the code and documentation:
+
+- **Observation.** What a recorded event said.
+- **Availability.** Whether the exact bytes required for a computation were supplied.
+- **Verification.** Whether those bytes or a signed history satisfy a named checking procedure.
+- **Provenance.** How an artifact is connected to a recorded acquisition or derivation.
+- **Origin admission.** Whether a contribution is admitted into an exact origin comparison.
+- **Eligibility.** Whether a piece of evidence may participate in a particular policy rule.
+- **Governed standing.** The conclusion produced by the exact standing policy the caller chose.
+
+The signed append-only log is historical authority relative to the verifying key supplied by the caller.
+
+Search indexes, claim graphs, standing results, and audit traces are derived from it.
+
+They can explain what Magpie concluded. They cannot rewrite the history that produced the conclusion.
+
+## What works today
+
+Current `main` has a real experimental kernel behind the design.
+
+It includes:
+
+- a frozen signed event format with canonical encoding and golden vectors
+- an append-only hash-chained log with Ed25519 signatures
+- an independent Python chain verifier
+- a supported local SQLite L0 store with bounded creation and verified reopen
+- stale-writer detection and atomic successor append
+- complete history verification before deterministic replay
+- explicit verified-prefix and checkpoint expectation APIs
+- byte-identical regeneration of derived state
+- typed claims, evidence, and justification edges
+- immutable supplied content for standing computations
+- provenance, origin admission, and contribution audits
+- governed standing policies v0 through v4
+- an optional protocol connection to sealed Deadbolt execution evidence
+- deterministic audit output that cannot be loaded back in as authority
+
+The scope is still intentionally small.
+
+There is no general ingestion system, no autonomous research agent, no ordinary governed claim writer, and no magic "latest truth" resolver.
 
 ## Quick start
 
-From the repository root, run the full locked workspace tests:
+Run the full workspace tests:
 
 ```sh
 cargo test --workspace --locked
 ```
 
-Run the deterministic governed-standing tour:
+Run the deterministic standing tour:
 
 ```sh
 cargo run --locked --example tour -p magpie-claims
 ```
 
-The frozen tour writes and verifies one signed history, resolves policies
-v0-v2, drops the derived state, replays the history, and checks byte-identical
-regeneration. Policies v3 and v4 are implemented and tested separately; they
-are not part of the frozen tour output.
+The frozen tour creates and verifies one signed history, resolves policies v0 through v2, deletes the derived state, replays the history, and checks that regeneration is byte-identical.
 
-Verify the golden chain with the independent Python implementation:
+Policies v3 and v4 are implemented and tested separately. They are not part of the frozen tour output.
+
+You can also verify the golden event chain with the independent Python implementation:
 
 ```sh
 python tools/verify_chain.py \
@@ -96,354 +103,414 @@ python tools/verify_chain.py \
   ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c
 ```
 
-The verifier independently checks canonical encoding, sequence and previous
-hash links, stored hashes, signatures, genesis binding, and payload validity
-against the supplied verifying key.
+That verifier checks canonical encoding, sequence numbers, previous-hash links, stored hashes, signatures, genesis binding, and payload validity against the verifying key you supply.
 
-## How it works
+## How Magpie works
 
 ```text
 signed append-only history
         |
         v
-verified deterministic replay
+complete verification
         |
-        +-- episodic/search projection
-        +-- typed claims, evidence, and edges
-        +-- anchors and immutable closure context
-        +-- provenance and origin-admission audits
+        v
+deterministic replay
+        |
+        +-- episodic search
+        +-- claims, evidence, and edges
+        +-- foreign-bundle anchors
+        +-- provenance and origin checks
         `-- explicit standing policies
                     |
                     v
              governed standing
 ```
 
-Only signed events are conserved as historical authority. Replay first reads
-one record snapshot, verifies that complete snapshot, and then folds those same
-events into projections. Standing paths that need artifacts or foreign bundles
-also receive an immutable closure of exact bytes; resolution performs no
-ambient filesystem, content-addressed store, or network lookup.
+Magpie first reads one exact record snapshot.
 
-The policy path is deliberately staged:
+It verifies that complete supplied snapshot before any authoritative replay result is published. The same retained events then feed the derived projections.
 
-1. Exact bytes must be available in the supplied closure.
-2. Named verifiers establish only their exact predicates.
-3. Provenance binds content to recorded acquisition or derivation.
-4. Origin admission evaluates attributed origin under explicit policy.
-5. Contribution audits retain complete, typed eligibility decisions.
-6. An explicitly selected standing policy may produce governed standing.
+Some standing policies also need external artifacts or foreign bundles. Those bytes must be supplied explicitly in an immutable content closure. Resolution does not wander onto the filesystem, query a content store, or make a network request to fill in something that happens to be missing.
 
-Verification is not provenance. Provenance is not origin separation. Origin
-separation is not statistical independence. Eligibility is not achieved
-standing.
+That is important because otherwise replay would stop meaning replay.
 
-## Governed standing policies
+The rough progression is:
 
-Standing is a policy result such as `Conjectured`, `Supported`, `Settled`, or
-`Refuted`. Raw serialized status is retained for historical audit, but governed
-standing comes only from a named resolver. Standing is defined canonically by
-[ADR 0003](docs/adr/0003-canonical-definition-of-standing.md).
+1. Supply the exact bytes the computation needs.
+2. Run the named verifier for the exact predicate it knows how to check.
+3. Establish the permitted provenance relationship.
+4. Evaluate origin admission under the selected policy.
+5. Determine which contributions are eligible for the standing rule.
+6. Apply the explicitly chosen standing policy.
 
-| Policy | Authority added | Result and boundary |
+Each step has a smaller claim than the next.
+
+Verification is not provenance.
+
+Provenance is not proof of independent origin.
+
+Independent origin is not statistical independence.
+
+Eligibility is not standing.
+
+## Standing
+
+Magpie calls a policy-produced claim status its **governed standing**.
+
+Current standing values include `Conjectured`, `Supported`, `Settled`, and `Refuted`.
+
+A status merely stored in an event does not become governed standing. Magpie retains raw historical status for audit, but only a named resolver can produce the governed result.
+
+[ADR 0003](docs/adr/0003-canonical-definition-of-standing.md) defines the standing model.
+
+Current policies are:
+
+| Policy | What it adds | Maximum effect |
 | --- | --- | --- |
-| v0 | Candidate explanation, ceilings, and blockers | Explains eligible-looking evidence without promoting it. |
-| v1 | Exact same-replay Deadbolt occurrence/inclusion rule | A matching five-field anchor occurrence may achieve `Settled` for that exact proposition. |
-| v2 | One exact deterministic direct-support rule | A matched `sha256_bytes_equals_v0` candidate may achieve `Supported`, never `Settled`. |
-| v3 | One exact `ExternalSource` x `ExternalReport` corroboration rule | At least two distinct admitted origin groups in one exact comparison namespace may achieve `Supported`, never `Settled`; this is not a statistical-independence claim. |
-| v4 | One exact subject-bound deterministic direct-refutation rule | The eligible negative lane may achieve governed `Refuted` under conservative inherited-standing precedence. |
+| v0 | Candidate explanation, ceilings, and blockers | Explains possible evidence without promoting standing |
+| v1 | Exact same-replay Deadbolt occurrence and inclusion rule | May produce `Settled` for the exact proposition |
+| v2 | Exact deterministic direct support | May produce `Supported`, never `Settled` |
+| v3 | Narrow external-report corroboration | May produce `Supported`, never `Settled` |
+| v4 | Subject-bound deterministic direct refutation | May produce governed `Refuted` under conservative precedence |
 
-These are explicit versioned surfaces, not an ambient sequence in which every
-new version silently replaces the last. There is no implicit
-`resolved_standing_latest` selector.
+These policies do not form an automatic upgrade chain.
 
-### Why v4 is subject-bound
+There is deliberately no `resolved_standing_latest`.
 
-An earlier proposed v4 path, recorded in Ticket 0056, exposed an
-evidence-relative substitution failure. Evidence could supply unrelated
-`witness_hex` bytes; inequality against the expected digest would then show
-only that those evidence-selected bytes differed, not that the claim's subject
-was false. That path was not ratified.
+The caller chooses the policy.
 
-The implemented v4 path closes the substitution:
+### A note about v3 and origin groups
 
-- the claim owns both the exact subject bytes and expected digest;
-- evidence supplies routing and binding, never alternate subject bytes;
-- one claim-owned digest relation is evaluated per policy call;
-- each candidate evidence and `contradicts` edge binds separately; and
-- parse or binding failure is a resolution failure, never digest inequality or
-  falsity.
+Current v3 can count distinct admitted origin groups inside one exact comparison namespace.
 
-Only the exact `DigestUnequal` + `contradicts` + `RefutationEligible` lane with
-the compiled `Refuted` ceiling can produce governed `Refuted`. Inherited
-`None`, `Open`, or `Conjectured` may promote. Inherited `Supported` and
-`Settled` are preserved behind an explicit contradiction-policy blocker.
-Inherited governed `Refuted` is preserved without another application.
-Legacy raw `Refuted` remains audit-only and cannot authorize the result.
+That does **not** mean Magpie has proved those groups statistically, causally, or organisationally independent.
 
-`SupportEligible` remains standing-inert in v4. The rule is direct and
-non-amplifying: several eligible candidates remain visible in the trace but
-produce at most one policy application.
+There is another important limit.
 
-## Core guarantees
+The existing compatibility path does not independently authenticate the claimant's right to assign an origin group. [ADR 0007](docs/adr/0007-authority-bound-origin-corroboration.md) defines the stricter authority-bound model needed to close that gap.
 
-### Append-only historical authority
+ADR 0007 is accepted doctrine. Acceptance of the ADR does not mean that authority-bound runtime has already been implemented.
 
-There is no update or delete operation on the log. A correction must be a
-later signed event, so the prior record remains inspectable. The log itself
-does not decide that a later event invalidates, supersedes, or becomes the
-current interpretation of an earlier one.
+Until that work lands, current v3 results must be read under the existing compatibility semantics rather than reinterpreted as authenticated grouping decisions.
 
-The genesis event makes the chain self-describing, but trust in the supplied
-verifying key remains external.
+### Why v4 owns its subject
 
-### Supported local L0 persistence
+An earlier direct-refutation design exposed a nasty substitution problem.
 
-`SqliteL0Store` is the supported local persistent L0 backend. Creation is
-explicit and separate from reopening. Supported reopen checks the exact MPL0
-ownership/schema/profile, applies explicit finite resource limits, and
-completely verifies the retained signed history before publishing a writer or
-verified result. Append re-establishes the current persisted history under the
-same write transaction that may publish its successor and refuses stale
-writers rather than refreshing or rebasing them.
+Evidence could provide some unrelated `witness_hex` value. If that value differed from the expected digest, the system could observe inequality and accidentally talk as though the claim itself had been disproved.
 
-`FileStore` remains a small JSONL compatibility/development/inspection backend;
-it is not the supported durability or concurrent-writer boundary. `MemStore`
-remains the in-memory testing/embedding backend.
+It had not.
 
-### Verified history is not expected or current history
+It had only shown that evidence-selected bytes differed from the expected digest.
 
-A successful `open_verified_prefix` establishes complete verification of the
-exact retained history supplied by that stable SQLite snapshot under the
-selected key and limits. It does not establish that the history is the one an
-external caller expected.
+That design was rejected.
 
-`open_containing_checkpoint_v0` additionally evaluates one explicit caller-
-supplied checkpoint under the fixed `ContainsCheckpoint` relation. Checkpoint
-satisfaction is still not freshness, latest history, canonicality,
-non-equivocation, checkpoint authenticity, secure checkpoint retention,
-universal rollback resistance, authority, or currentness.
+The implemented v4 rule instead keeps both the subject bytes and expected digest on the claim. Evidence can identify and bind the route to that claim, but it cannot substitute a different subject.
 
-### Capability-based low-level writing
+A parse failure or binding failure stays a failure.
 
-`LogWriter` holds the signing key and is the low-level append capability.
-`LogReader` and projection types expose no append method. The optional Deadbolt
-anchor path has a reviewed writer boundary, but Magpie does not yet provide an
-ordinary governed claim/evidence writer or `EpistemicGate`.
+It does not turn into inequality.
 
-### Regenerable, same-replay projections
+Inequality does not turn into falsity unless the complete v4 rule says it may.
 
-Authoritative resolution uses one completely verified record snapshot.
-Derived claim, anchor, and episodic state can be dropped and rebuilt from that
-history. Same-replay composition prevents a result from mixing observations
-from different log prefixes.
+Only the exact eligible negative path can produce governed `Refuted`.
 
-### Audit is not authority
+If the inherited governed standing is already `Supported` or `Settled`, v4 preserves it behind an explicit contradiction blocker instead of casually overwriting it.
 
-Standing and contribution traces are deterministic, serializable explanations.
-Authority-bearing audit types have no public deserialization or caller-supplied
-resolver path. Serialized audit output is one-way: it can be inspected, stored
-elsewhere, or compared, but not fed back in as authority.
+Several eligible refutation candidates also do not amplify the result. The direct rule applies at most once.
+
+## Rules Magpie refuses to blur
+
+### History is append-only
+
+The log has no update or delete operation.
+
+Corrections are later signed events. The earlier record remains part of history.
+
+The log itself does not decide that the newer event supersedes the older one. Supersession and currentness are derived questions with their own policy.
+
+The genesis event makes the chain self-describing, but trust in the verifying key still comes from outside the log.
+
+### Verified history is not current history
+
+This is one of the easiest claims to overstate.
+
+If Magpie successfully opens a verified prefix, it has completely verified the exact history supplied in that SQLite snapshot under the selected key and limits.
+
+That says nothing about whether a longer valid history exists somewhere else.
+
+It does not establish freshness.
+
+It does not establish "latest".
+
+It does not establish global completeness.
+
+ADR 0009 makes this separation explicit.
+
+`open_containing_checkpoint_v0` can additionally ask whether the supplied verified history contains one exact checkpoint supplied by the caller.
+
+Even then, satisfying the checkpoint does not prove that the checkpoint itself is trustworthy, securely retained, current, canonical, or protected against rollback.
+
+Those are separate problems.
+
+### A derived result must name what produced it
+
+Standing can depend on more than a log tip and policy name.
+
+It may also depend on exact supplied artifacts, caller-selected subjects, inherited results, and future authority inputs.
+
+ADR 0008 therefore requires every governed detached result to carry enough immutable information to identify the complete computation that produced it.
+
+If a result can change when an input changes, that input cannot disappear behind an ambient lookup, mutable alias, or implementation default.
+
+Two equal-looking results produced from different semantic inputs are not automatically the same derivation.
+
+### Audit output is not authority
+
+Magpie produces deterministic standing and contribution traces so a reviewer can inspect how a result was reached.
+
+Those traces are explanations.
+
+They do not become authority-bearing input if someone serializes them and loads them later.
+
+Authority-bearing audit types have no public caller-supplied deserialization path back into resolution.
+
+The arrow goes one way.
 
 ### Failure is not falsity
 
-Missing bytes, malformed metadata, an unknown kind, a failed signature, a
-binding mismatch, or incomplete audit state cannot manufacture a negative
-fact. Failures remain typed failures.
+Missing bytes do not mean "false".
 
-### Repetition does not amplify without policy
+Malformed metadata does not mean "false".
 
-Repeated anchors, evidence, or audit outcomes do not become stronger merely
-through multiplicity. Policy v3 counts distinct admitted origin groups and
-counts same-origin multiplicity once. Policy v4 emits at most one direct
-application regardless of how many eligible candidates are retained.
+A bad signature does not mean "false".
 
-### Policy selection is explicit
+A failed binding does not mean "false".
 
-Each standing policy has a stable identifier and resolver. Callers choose the
-version they intend to apply; Magpie does not silently select a latest policy.
+An incomplete audit does not mean "false".
+
+They mean the computation failed in the specific way Magpie reports.
+
+This sounds obvious until a negative policy starts consuming verifier output. Then it matters a lot.
+
+### Repetition is not strength
+
+Ten copies of the same evidence do not become ten independent reasons.
+
+Repeated anchors and repeated audit results do not gain authority merely because there are more of them.
+
+Current v3 counts distinct admitted origin groups and collapses same-origin multiplicity.
+
+Current v4 keeps all eligible candidates visible for audit but still applies its direct rule at most once.
+
+### Policy is explicit
+
+Every standing policy has its own stable identity and resolver.
+
+The caller chooses which one to run.
+
+Magpie never silently says, "v4 exists, therefore v4 is what you meant."
+
+## Persistence
+
+`SqliteL0Store` is the supported local persistent L0 backend.
+
+Creation and reopen are separate operations.
+
+A supported reopen checks the Magpie L0 ownership, schema, and storage profile, applies finite resource limits, and completely verifies the retained signed history before publishing a writer or verified result.
+
+Append revalidates the persisted history inside the write transaction that may add its successor.
+
+A stale writer is refused. Magpie does not quietly refresh or rebase it.
+
+`FileStore` still exists as a small JSONL backend for compatibility, development, and inspection. It is not the supported durability or concurrent-writer boundary.
+
+`MemStore` is for in-memory tests and embedding.
+
+## Writing authority
+
+`LogWriter` owns the signing key and is the low-level append capability.
+
+`LogReader` cannot append.
+
+Derived projections cannot append.
+
+The optional Deadbolt anchor path has its own reviewed writer boundary.
+
+Magpie does **not** yet provide an ordinary governed claim and evidence writer or an `EpistemicGate`.
+
+That missing piece is intentional. Recording something and admitting it into an epistemic process should not become the same operation by accident.
 
 ## Workspace
 
 ### `magpie-log`
 
-The signed append-only history:
+The historical record.
 
-- frozen canonical encoding and event vocabulary;
-- hash chaining and Ed25519 signatures;
-- `LogWriter` and read-only `LogReader`;
-- supported local persistent L0 via `SqliteL0Store`;
-- JSONL compatibility/development/inspection via `FileStore` and in-memory
-  testing/embedding via `MemStore`; and
-- golden vectors, complete verification, explicit history expectations, and
-  deterministic replay.
+It contains the frozen event encoding, hash chain, Ed25519 signatures, readers and writers, persistent SQLite L0 storage, compatibility stores, golden vectors, complete verification, checkpoint expectations, and deterministic replay.
 
 ### `magpie-claims`
 
-The epistemic policy projection:
+The claim and policy machinery.
 
-- typed claim, evidence, and justification-edge graph;
-- immutable content closure plus provenance and origin-audit substrate;
-- governed standing policies v0-v4; and
-- deterministic standing traces and canonical one-way audit output.
+It contains typed claims, evidence, justification edges, immutable supplied content, provenance checks, origin admission, contribution audits, standing policies v0 through v4, and one-way deterministic audit output.
 
 ### `magpie-episodic`
 
-A rebuildable SQLite event projection with FTS5 full-text search. It provides
-deterministic log-order search over replayed events. It is useful as a search
-surface, but it is not a second source of authority and has no write path back
-to the log.
+A rebuildable SQLite projection with FTS5 search.
+
+It provides deterministic log-order search over replayed events.
+
+It is useful for finding things.
+
+It is not another source of historical authority, and it has no path for writing search results back into the log.
 
 ## Deadbolt integration
 
-Magpie remains portable without Deadbolt. The optional integration is defined
-by protocol rather than a Rust crate dependency.
+Magpie does not require Deadbolt.
 
-`SegmentAnchored` records the exact identity of a sealed foreign bundle:
-`bundle_kind`, `witness_root`, `witness_algorithm`,
-`canonicalization_profile`, and `run_id`. Magpie verifies the signed event's
-chain order, signature, and inclusion. Verification of the foreign bundle's
-contents remains the responsibility of the appropriate foreign verifier.
+The optional connection is a protocol boundary rather than a Rust crate dependency.
 
-New foreign bundle kinds remain values of the `bundle_kind` string. They do
-not require new Magpie payload variants.
+A `SegmentAnchored` event records the identity of one sealed foreign bundle:
+
+```text
+bundle_kind
+witness_root
+witness_algorithm
+canonicalization_profile
+run_id
+```
+
+Magpie can verify that the anchor event belongs to the signed Magpie history and that its exact fields were included there.
+
+That does not verify the contents of the foreign bundle.
+
+The appropriate foreign verifier still owns that job.
+
+This is deliberate. An anchor says which foreign object the history referred to. It does not absorb the foreign system's verifier semantics into Magpie.
+
+New foreign bundle kinds can use new `bundle_kind` values without requiring a new Magpie event variant.
 
 ## What Magpie is not
 
 Magpie is not:
 
-- a chatbot or autonomous research agent;
-- a vector database or mutable knowledge graph;
-- a general-purpose truth engine;
-- a statistical-independence oracle;
-- an automatic contradiction resolver;
-- a crawler or public ingestion service;
-- a production key-management system; or
-- a system with ambient latest-policy selection.
+- a chatbot
+- an autonomous research agent
+- a vector database
+- a mutable knowledge graph
+- a general truth engine
+- a statistical-independence oracle
+- an automatic contradiction resolver
+- a crawler
+- a public ingestion service
+- a production key-management system
+- a system that silently chooses the newest policy
 
-## Current boundaries
+Some of those things may eventually sit around Magpie.
 
-### Implemented
+They are not Magpie itself.
 
-- signed historical authority and deterministic replay;
-- supported bounded local SQLite L0 creation, verified reopen, and append;
-- explicit weak verified-prefix and checkpoint-qualified history expectation
-  semantics;
-- rebuildable search and typed evidence projections;
-- immutable closure, provenance verification, and origin admission;
-- direct positive standing and narrow external-report corroboration;
-- subject-bound deterministic direct refutation; and
-- deterministic explanations with one-way audit output.
+## Current boundary
 
-### Future
+Implemented today:
 
-- secure retained checkpoints or broader rollback-resistance mechanisms;
-- an ordinary governed claim/evidence writer and `EpistemicGate`;
-- an acquisition loader and content-addressed store;
-- filesystem or network ingestion;
-- contradiction debt and broader conflict policy;
-- runtime representation, eligibility policies, and resolver implementation
-  for invalidation, supersession, and currentness under the Accepted ADR-0006
-  boundaries;
-- broader source-standing propagation;
-- a read-only librarian or research navigator; and
-- production key custody and rotation.
+- signed append-only historical authority
+- complete verification before replay
+- bounded local SQLite L0 persistence
+- explicit verified-prefix and checkpoint expectation semantics
+- rebuildable search and claim projections
+- exact supplied content for closure-dependent resolution
+- provenance verification and origin admission
+- direct deterministic support
+- narrow external-report corroboration
+- subject-bound deterministic direct refutation
+- deterministic one-way audit explanations
+- optional Deadbolt bundle anchoring
 
-The contradiction lifecycle is a natural next architectural arc, not an
-implemented behavior or an approved implementation ticket. Future work may
-change these boundaries only through explicit contracts and review.
+Important work that is **not** implemented yet includes:
 
-## Documentation map
+- secure retained checkpoints and stronger rollback resistance
+- authority-bound origin-group admission under ADR 0007
+- an ordinary governed claim and evidence writer
+- `EpistemicGate`
+- acquisition loading and content-addressed storage
+- filesystem and network ingestion
+- broader contradiction policy and contradiction debt
+- runtime currentness, invalidation, and supersession handling under ADR 0006
+- broader propagation of source standing
+- a read-only librarian or research navigator
+- production key custody and rotation
 
-- [Signed event format](docs/FORMAT.md) - canonical bytes, payload tags, and
-  frozen vectors.
-- [Portable base](docs/portable-base.md) - the dependency-minimal core and
-  optional seams.
-- [Supported L0 persistence and checkpoint-aware open](docs/design/l0-persistence-and-checkpoint-open-v0.md) -
-  the bounded local SQLite L0, verified-prefix, checkpoint-open, transaction,
-  acknowledgement, and resource contract.
-- [Deadbolt anchor contract](docs/seams/deadbolt-anchor-contract.md) - the
-  protocol and writer boundary.
-- [MCP boundary contract](docs/design/mcp-boundary-contract.md) - the agent
-  and tool interface boundary: reads, proposals, and no authority.
-- [MCP librarian contract](docs/design/mcp-librarian-contract.md) - the
-  read-only query surface: verified state, traces, and provenance.
-- [Verified librarian query contract](docs/design/verified-librarian-query-contract.md) -
-  what queries and query results may and may not be.
-- [Provenance response contract](docs/design/provenance-response-contract.md) -
-  what must accompany a Magpie-derived response.
-- [MCP capability boundary contract](docs/design/mcp-capability-boundary-contract.md) -
-  what capability discovery may and may not mean.
-- [AgentProposer boundary contract](docs/design/agent-proposer-boundary-contract.md) -
-  the semantic weight of agent proposals before governed admission.
-- [Admission boundary questions](docs/design/admission-boundary-questions.md) -
-  unresolved questions and invariants for a future governed admission
-  boundary (exploration, not doctrine).
-- [Admission boundary threat model](docs/design/admission-boundary-threat-model.md) -
-  how a future admission mechanism could accidentally violate doctrine
-  (exploration, not doctrine).
-- [Admission design readiness checklist](docs/design/admission-design-readiness-checklist.md) -
-  what must be answered before any admission mechanism is designed
-  (exploration, not doctrine).
-- [Admission boundary scenario analysis](docs/design/admission-boundary-scenario-analysis.md) -
-  a worked external-occurrence example stress-testing the unresolved
-  boundary (exploration, not doctrine).
-- [Admission boundary minimal semantics](docs/design/admission-boundary-minimal-semantics.md) -
-  the minimum semantic claim admission may make (exploration, not doctrine).
-- [Admission record boundary contract](docs/design/admission-record-boundary-contract.md) -
-  what may cross the admission boundary into the historical record
-  (proposed contract).
-- [Evidence admission boundary contract](docs/design/evidence-admission-boundary-contract.md) -
-  what prevents recorded material from silently becoming evidence
-  (proposed contract).
-- [Epistemic pipeline separation contract](docs/design/epistemic-pipeline-separation-contract.md) -
-  the connected separation model: transformations and authority ownership
-  per pipeline stage (proposed contract).
-- [Epistemic boundary map](docs/design/epistemic-boundary-map.md) -
-  orientation: which existing boundary owns a given question (reference,
-  not doctrine).
-- [Epistemic invariant ledger](docs/design/epistemic-invariant-ledger.md) -
-  review lookup: which existing invariant a proposed change touches
-  (reference, not doctrine).
-- [ADR 0001](docs/adr/0001-deadbolt-seam.md) - why foreign execution evidence
-  is anchored through a minimal payload.
-- [ADR 0002](docs/adr/0002-governed-claim-memory.md) - typed governed claim
-  memory and raw-status quarantine.
-- [ADR 0003](docs/adr/0003-canonical-definition-of-standing.md) - the
-  canonical definition of standing.
-- [ADR 0004](docs/adr/0004-claim-lifecycle-facets.md) - lifecycle as
-  derived facet views, never stored state.
-- [ADR 0005](docs/adr/0005-claim-withdrawal-acts.md) - withdrawal as a
-  self-targeted act that never asserts falsity.
-- [ADR 0006](docs/adr/0006-claim-currency-and-currentness-semantics.md) -
-  accepted doctrine defining currentness as a derived, coordinate-bound
-  applicability facet;
-  supersession as lineage without self-executing authority.
-- [ADR 0007](docs/adr/0007-authority-bound-origin-corroboration.md) -
-  accepted doctrine requiring profile-bound candidate-designation authority
-  and independently verified authority binding before origin groups may create
-  corroboration separation.
-- [ADR 0008](docs/adr/0008-complete-producing-coordinates.md) - accepted
-  complete-producing-coordinate law and ADR-0003 reconciliation, explicitly
-  owner-ratified on 2026-08-14.
-- [ADR 0009](docs/adr/0009-verified-supplied-history-and-explicit-checkpoint-expectations.md) -
-  accepted doctrine separating exact supplied-history verification from
-  explicit immutable checkpoint-expectation satisfaction, explicitly
-  owner-ratified on 2026-08-15.
-- [Standing ceilings](docs/design/standing-view-evidence-ceilings.md) -
-  evidence domains, candidate ceilings, and future boundaries.
-- [Provenance and origin admission](docs/design/artifact-provenance-origin-admission.md) -
-  the staged authority model.
-- [Policy v3](docs/design/standing-policy-v3-external-report-corroboration-v0.md) -
-  the exact external-report corroboration rule.
-- [Policy v4](docs/design/standing-policy-v4-claim-inline-direct-refutation-v0.md) -
-  subject-bound direct refutation and conservative precedence.
-- [v0.1.0 release contract](docs/releases/v0.1.0-contract.md) - the frozen
-  formal source-release boundary.
-- [Tickets](tickets/) - detailed implementation records and review history.
+The contradiction lifecycle is a plausible next architectural direction.
+
+It is not current behavior and it is not automatically authorized future work.
+
+## Documentation
+
+If you want the exact rules rather than this overview, start with the documents closest to the mechanism you care about.
+
+### History and storage
+
+- [Signed event format](docs/FORMAT.md) defines canonical bytes, payload tags, and frozen vectors.
+- [Portable base](docs/portable-base.md) describes the dependency-minimal core and optional connections.
+- [Supported L0 persistence and checkpoint-aware open](docs/design/l0-persistence-and-checkpoint-open-v0.md) defines the SQLite L0 and history expectation contract.
+- [Deadbolt anchor contract](docs/seams/deadbolt-anchor-contract.md) defines the foreign execution-evidence connection.
+
+### Agent and query boundaries
+
+- [MCP boundary contract](docs/design/mcp-boundary-contract.md)
+- [MCP librarian contract](docs/design/mcp-librarian-contract.md)
+- [Verified librarian query contract](docs/design/verified-librarian-query-contract.md)
+- [Provenance response contract](docs/design/provenance-response-contract.md)
+- [MCP capability boundary contract](docs/design/mcp-capability-boundary-contract.md)
+- [AgentProposer boundary contract](docs/design/agent-proposer-boundary-contract.md)
+
+These documents separate reading, proposing, querying, and authority. A useful answer from an agent is still not permission to write history.
+
+### Admission work
+
+The admission documents deliberately range from open questions to proposed contracts.
+
+- [Admission boundary questions](docs/design/admission-boundary-questions.md)
+- [Admission boundary threat model](docs/design/admission-boundary-threat-model.md)
+- [Admission design readiness checklist](docs/design/admission-design-readiness-checklist.md)
+- [Admission boundary scenario analysis](docs/design/admission-boundary-scenario-analysis.md)
+- [Admission boundary minimal semantics](docs/design/admission-boundary-minimal-semantics.md)
+- [Admission record boundary contract](docs/design/admission-record-boundary-contract.md)
+- [Evidence admission boundary contract](docs/design/evidence-admission-boundary-contract.md)
+- [Epistemic pipeline separation contract](docs/design/epistemic-pipeline-separation-contract.md)
+- [Epistemic boundary map](docs/design/epistemic-boundary-map.md)
+- [Epistemic invariant ledger](docs/design/epistemic-invariant-ledger.md)
+
+Their status matters. Exploratory documents are not runtime behavior merely because they live beside accepted doctrine.
+
+### Architecture decisions
+
+- [ADR 0001](docs/adr/0001-deadbolt-seam.md) defines the Deadbolt protocol connection.
+- [ADR 0002](docs/adr/0002-governed-claim-memory.md) defines governed claim memory and raw-status quarantine.
+- [ADR 0003](docs/adr/0003-canonical-definition-of-standing.md) defines standing.
+- [ADR 0004](docs/adr/0004-claim-lifecycle-facets.md) keeps lifecycle state derived.
+- [ADR 0005](docs/adr/0005-claim-withdrawal-acts.md) defines withdrawal without claiming falsity.
+- [ADR 0006](docs/adr/0006-claim-currency-and-currentness-semantics.md) defines currentness and supersession doctrine.
+- [ADR 0007](docs/adr/0007-authority-bound-origin-corroboration.md) defines authority-bound origin-group assignment.
+- [ADR 0008](docs/adr/0008-complete-producing-coordinates.md) requires complete immutable producing inputs for governed derived results.
+- [ADR 0009](docs/adr/0009-verified-supplied-history-and-explicit-checkpoint-expectations.md) separates supplied-history verification from caller expectations.
+
+For standing details:
+
+- [Standing ceilings](docs/design/standing-view-evidence-ceilings.md)
+- [Provenance and origin admission](docs/design/artifact-provenance-origin-admission.md)
+- [Policy v3](docs/design/standing-policy-v3-external-report-corroboration-v0.md)
+- [Policy v4](docs/design/standing-policy-v4-claim-inline-direct-refutation-v0.md)
+
+The [v0.1.0 release contract](docs/releases/v0.1.0-contract.md) records the latest formal release boundary.
+
+The [`tickets/`](tickets/) directory contains the implementation and review history.
 
 ## Development
 
-The principal local validation surface is:
+Run the main local checks with:
 
 ```sh
 cargo fmt --all --check
@@ -453,17 +520,18 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 python tools/check_release_metadata.py
 ```
 
-The workspace also carries focused hostile and integration tests for
-provenance, origin admission, policies v3 and v4, raw-status quarantine,
-same-replay binding, failure ordering, non-amplification, and canonical audit
-vectors.
+The workspace also contains focused hostile and integration tests for provenance, origin admission, v3 and v4 standing, raw-status quarantine, same-replay binding, failure ordering, non-amplification, and canonical audit vectors.
 
-Changes should remain small, typed, replayable, and explicit about authority.
-See [AGENTS.md](AGENTS.md) for repository working rules.
+Repository changes should stay small, typed, replayable, and explicit about what grants authority.
+
+See [AGENTS.md](AGENTS.md) for the working rules.
 
 ## Release status
 
-v0.1.0 is the latest formal owner-created source release. Current main has
-advanced beyond that milestone into a prospective v0.2-shaped development
-state. This README does not imply a v0.2.0 tag or release, registry
-publication, or package availability.
+v0.1.0 remains the latest formal owner-created source release.
+
+Current `main` has moved beyond that milestone and is developing toward a possible v0.2-shaped state.
+
+There is no v0.2.0 tag yet.
+
+This README does not claim registry publication or package availability.
