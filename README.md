@@ -503,6 +503,7 @@ Their status matters. Exploratory documents are not runtime behavior merely beca
 - [ADR 0008](docs/adr/0008-complete-producing-coordinates.md) requires complete immutable producing inputs for governed derived results.
 - [ADR 0009](docs/adr/0009-verified-supplied-history-and-explicit-checkpoint-expectations.md) separates supplied-history verification from caller expectations.
 - [ADR 0010](docs/adr/0010-ed25519-verification-profile-and-external-trust-root-admissibility.md) is the Accepted, owner-ratified explicit Ed25519 signature-verification subprofile decision; implementation and cross-language conformance remain separate gates.
+- [Portable verifier corpus v1](docs/design/portable-verifier-corpus-v1.md) is the candidate exact-byte conformance manifest pending hostile review and owner merge; it is not a conformer or finding closure.
 
 For standing details:
 
