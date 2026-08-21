@@ -34,8 +34,9 @@ The subprofile is selected outside the history. It does not change
 signature bytes, or the current unprofiled Rust/Python verifier behavior. It
 must be selected explicitly, with no ambient default, alias, negotiation,
 fallback, or downgrade. A result intended to be portable must retain the exact
-subprofile identity as part of its complete ADR-0008 producing context; that
-identity alone is not a complete history-verification coordinate set.
+subprofile identity directly or through an immutable, unambiguous commitment
+inside its complete ADR-0008 producing context; that identity alone is not a
+complete history-verification coordinate set.
 
 Existing unprofiled verification remains compatibility-only behavior. It is
 not silently renamed as `V_sig`, and `V_sig` is not declared to be the
@@ -207,8 +208,12 @@ ADR does not select, name, or otherwise broaden into that future complete
 history-verification profile.
 
 Accordingly, a detached portable history result must carry or be immutably
-bound to its complete `(G_history, I_G_history)` under ADR-0008. Retaining
-`V_sig` is necessary when it was consumed, but retaining only `V_sig` is not
+bound to its complete `(G_history, I_G_history)` under ADR-0008. The selected
+`V_sig` must remain identifiable in that complete producing context, either as
+a direct member of `I_G_history` or transitively through an immutable,
+unambiguous `G_history` commitment to exactly that subprofile. Redundant direct
+carriage is not required when `G_history` provides that commitment. Retaining
+only `V_sig`, without the remaining complete producing context, is not
 sufficient.
 
 The signature subprofile is distinct from:
@@ -233,7 +238,8 @@ default.
 After ratification, any semantic change to any of the following requires a
 distinct subprofile identity and a separate owner decision:
 
-- accepted public-key representation or public-key admissibility;
+- accepted `A_bytes` length, compressed-point decoding, or public-key
+  structural admissibility;
 - signature length or `R || S` layout;
 - accepted `R` representation, subgroup law, or identity treatment;
 - the scalar `S` range or decoding law;
@@ -248,6 +254,14 @@ identifier. A conforming implementation may change algorithms, language,
 library, or internal representation while preserving identical semantics;
 those implementation identities are assurance provenance, not new
 cryptographic semantic subprofiles.
+
+This identity law freezes the cryptographic byte relation. It does not make a
+particular JSON, CLI, hexadecimal, or other transport spelling part of
+`V_sig`. The enclosing frozen input-language or transport profile owns how it
+produces the exact `A_bytes` consumed here, including lexical failures and
+failure ordering. A semantic change at that layer requires the appropriate new
+input-language or transport identity, but it does not require a new `V_sig`
+when the same exact `A_bytes` reach the unchanged cryptographic relation.
 
 ## Current-behavior characterization
 
@@ -445,20 +459,33 @@ Unknown identities fail closed before signature verification. There is no
 `latest`, empty, legacy alias, library-default, negotiation, automatic
 fallback, or try-strict-then-permissive mode.
 
-The exact `V_sig` identity must be retained in the complete producing context
-of any portable verification outcome. A detached Boolean or summary that loses
-`V_sig` is not portable; one that carries only `V_sig` but omits the remaining
-`(G_history, I_G_history)` is still not coordinate-complete under ADR-0008.
+The exact `V_sig` identity must remain identifiable in the complete producing
+context of any portable verification outcome. A detached Boolean or summary is
+portable only when it carries, or is immutably and unambiguously bound to, the
+complete `(G_history, I_G_history)` that identifies the selected `V_sig`.
+`V_sig` may be identified directly through `I_G_history` or transitively
+through an immutable `G_history` commitment; the latter does not require a
+redundant direct field. A value that carries only `V_sig` but omits the
+remaining complete producing context is still not coordinate-complete under
+ADR-0008.
 
 The subprofile identity is not a new field in `SignedEvent` or Genesis. Adding
 such a field would be separate core-format work.
 
-### 2. External public-key representation and admissibility
+### 2. Cryptographic public-key byte representation and admissibility
 
-The cryptographic key input is exactly 32 bytes `A_bytes`. A textual Magpie
-transport for this profile must use exactly 64 lowercase ASCII hexadecimal
-characters, with no prefix, whitespace, case folding, or alternate encoding,
-and decode to those 32 bytes.
+The cryptographic key input to `V_sig` is exactly 32 bytes `A_bytes`. `V_sig`
+begins after an enclosing input-language or transport profile has produced
+those exact bytes; it does not define their JSON, CLI, hexadecimal, binary, or
+other external representation.
+
+For the current reference portable JSONL path, the portable-verifier
+input-language contract independently requires exactly 64 lowercase ASCII
+hexadecimal characters, with no prefix, whitespace, case folding, or alternate
+encoding, and decodes them to `A_bytes` before this subprofile is invoked. This
+ADR preserves that #120 lexical gate by cross-reference; it neither weakens nor
+absorbs it. A future binary or other transport may supply the same exact
+`A_bytes` under its own frozen semantics without requiring a new `V_sig`.
 
 Decode `A_bytes` using canonical compressed Edwards25519 decoding above.
 Reject any failure. Then require:
@@ -621,9 +648,10 @@ If ratified:
   may receive different verdicts without either result silently rewriting the
   other;
 - any portable result is bound to its complete ADR-0008 producing context,
-  including the exact `V_sig` identity, external key bytes or their immutable
-  identity, exact supplied-history identity, and the enclosing complete
-  history-verification profile and other semantic inputs;
+  including direct or transitive immutable identification of the exact `V_sig`,
+  external key bytes or their immutable identity, exact supplied-history
+  identity, and the enclosing complete history-verification profile and other
+  semantic inputs;
 - there is no automatic migration, fallback, or reinterpretation of an old
   success as a `V_sig` success; and
 - a future requirement that the chain itself sign or declare the verification
@@ -765,19 +793,20 @@ ratification and conforming implementation evidence exist.
 > `V_sig = "magpie-ed25519-canonical-prime-subgroup-v1"` as the only Ed25519
 > signature-verification subprofile eligible for the candidate portable public
 > pre-alpha path, with that identifier frozen and non-repointable and every
-> semantic change requiring a distinct identity; with `A_bytes` exactly 32
-> canonically encoded bytes satisfying `A != I` and `[L]A = I`, and portable
-> textual key input exactly 64 lowercase ASCII hexadecimal characters; with each
-> signature exactly `R_bytes || S_bytes`, canonical `R` satisfying `[L]R = I`
-> and explicitly permitting canonical `R = I`, and canonical little-endian
-> `0 <= S < L`; with
+> change to its cryptographic byte relation requiring a distinct identity;
+> with `A_bytes` exactly 32 canonically encoded bytes satisfying `A != I` and
+> `[L]A = I`, while textual encoding remains outside `V_sig` and the current
+> reference portable JSONL path independently retains #120's exact external-key
+> gate of 64 lowercase ASCII hexadecimal characters; with each signature exactly
+> `R_bytes || S_bytes`, canonical `R` satisfying `[L]R = I` and explicitly
+> permitting canonical `R = I`, and canonical little-endian `0 <= S < L`; with
 > `M = ASCII("magpie-sig-v1") || content_hash`,
 > `k = LE_INT(SHA-512(R_bytes || A_bytes || M)) mod L`, and acceptance exactly
 > when `[S]B = R + [k]A`; with explicit selection, unknown-identity rejection,
-> no alias, negotiation, substitution, or fallback, and retention of `V_sig`
-> inside the complete ADR-0008 producing context; while keeping the profile
-> identity outside signed `magpie-core-v1` bytes, keeping existing unprofiled
-> verification unchanged and compatibility-only, keeping key trust external,
-> and accepting that structurally inadmissible keys and signatures formerly
-> accepted by unprofiled paths are rejected only when this additive subprofile
-> is explicitly selected?
+> no alias, negotiation, substitution, or fallback, and direct or transitive
+> immutable identification of `V_sig` inside the complete ADR-0008 producing
+> context; while keeping the profile identity outside signed
+> `magpie-core-v1` bytes, keeping existing unprofiled verification unchanged and
+> compatibility-only, keeping key trust external, and accepting that
+> structurally inadmissible keys and signatures formerly accepted by unprofiled
+> paths are rejected only when this additive subprofile is explicitly selected?
