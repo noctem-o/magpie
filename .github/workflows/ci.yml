@@ -45,6 +45,9 @@ jobs:
       - name: Check release metadata and package inventories
         run: python tools/check_release_metadata.py
 
+      - name: Verify portable verifier corpus manifest
+        run: python tools/check_verifier_corpus_manifest.py
+
       - name: Verify magpie-log package
         run: cargo package -p magpie-log --locked
 
