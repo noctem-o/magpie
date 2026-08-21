@@ -1,5 +1,12 @@
 # Ticket 0073: A-021 Ed25519 verification semantics
 
+> **2026-08-21 status update:** The owner accepted ADR-0010, not this ticket's
+> permissive-v1 recommendation. Accepted ADR-0010 selects the additive
+> `magpie-ed25519-canonical-prime-subgroup-v1` subprofile and keeps unprofiled
+> behavior compatibility-only. This ticket remains preserved evidence; the
+> next gate is the exact candidate corpus/profile manifest. A-021 remains
+> Confirmed pending independent conformer implementation and review.
+
 ## Status
 
 Owner-decision contract only. No Rust, Python, Go, fixture, FORMAT, release,

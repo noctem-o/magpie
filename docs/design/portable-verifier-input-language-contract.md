@@ -1,5 +1,17 @@
 # Portable Verifier Input-Language Contract
 
+> **ADR-0010 ratification update (2026-08-21):** Accepted ADR-0010 now supplies
+> the exact `magpie-ed25519-canonical-prime-subgroup-v1` predicate at this
+> contract's existing `Signature` stage. In the composed portable evaluation,
+> #120 owns external-key text decoding and `V_sig` owns the resulting
+> `A_bytes` structural admissibility; both complete before input framing. Any
+> historical statement below that A-021 is undecided, that A21-D1/A21-D2 lack
+> a portable verdict, or that they remain dependency sentinels is superseded.
+> Under the selected composed relation A21-D1 is `REJECT(ExternalKey)` with no
+> coordinates, and A21-D2 is `ACCEPT` when its complete committed construction
+> passes every earlier stage. Ratification does not implement any conformer or
+> close A-021, A-004, or RQ-006.
+
 ## Status
 
 Narrow documentation-only implementation contract for A-004 / RQ-006.

@@ -1,5 +1,13 @@
 # A-021 — Ed25519 signature-verification semantics contract
 
+> **Superseded recommendation (2026-08-21):** This document preserves the
+> pre-ADR evidence and permissive-v1 recommendation reviewed in PR #121.
+> Accepted ADR-0010 instead selects the additive, explicitly identified
+> `magpie-ed25519-canonical-prime-subgroup-v1` relation while leaving existing
+> unprofiled behavior compatibility-only. This historical design contract is
+> not the current portable verification law. A-021 remains Confirmed pending
+> corpus and independent conformer evidence.
+
 ## Status and decision boundary
 
 This is a narrow, documentation-only owner-decision contract for A-021. It
