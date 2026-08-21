@@ -453,11 +453,17 @@ If this ADR is ratified, a conformer implements
 
 ### 1. Explicit profile selection
 
-The caller of an enclosing history verifier explicitly selects the exact
-signature-subprofile identity and supplies the external verification key.
-Unknown identities fail closed before signature verification. There is no
-`latest`, empty, legacy alias, library-default, negotiation, automatic
-fallback, or try-strict-then-permissive mode.
+The complete producing context of an enclosing history verifier explicitly and
+immutably identifies exactly one signature-subprofile identity. This
+identification is direct when the caller supplies `V_sig` as a member of
+`I_G_history`, or transitive when immutable `G_history` itself commits to
+exactly `V_sig`; the caller need not supply `V_sig` separately in the latter
+case. The external verification key remains an explicit input.
+
+An unknown directly supplied subprofile identity fails closed before signature
+verification. There is no ambient, empty, `latest`, legacy alias,
+library-default, negotiated, automatically selected, fallback, or
+try-strict-then-permissive mode.
 
 The exact `V_sig` identity must remain identifiable in the complete producing
 context of any portable verification outcome. A detached Boolean or summary is
