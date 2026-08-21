@@ -33,6 +33,78 @@ FAILURE_CLASSES = [
     "PayloadValidation",
     "Genesis",
 ]
+EXPECTED_PRODUCING_CONTEXT = {
+    "signature_profile_identity": V_SIG,
+    "signature_profile_selection": "directly fixed for every case in this manifest",
+    "canonical_event_profile": "magpie-core-v1",
+    "signature_message_domain": "magpie-sig-v1",
+    "portable_input_language_revision": {
+        "kind": "repository-path-plus-sha256",
+        "path": "docs/design/portable-verifier-input-language-contract.md",
+        "note": "No independent mutable input-language alias is minted here.",
+    },
+    "complete_history_derivation_profile": None,
+    "adr0008_boundary": (
+        "This corpus freezes cases over the cited semantics but does not mint "
+        "G_history. A portable result is identified by this manifest identity plus "
+        "case ID and remains incomplete as a general detached history result until "
+        "an enclosing immutable G_history and I_G_history are supplied."
+    ),
+    "external_key_trust": "external and not established by any corpus ACCEPT",
+}
+EXPECTED_RESULT_SCHEMA = {
+    "verdicts": ["ACCEPT", "REJECT"],
+    "rejection_classes": FAILURE_CLASSES,
+    "rejection_precedence": FAILURE_CLASSES[1:],
+    "line_coordinate": "one-based physical line where defined",
+    "record_index_coordinate": (
+        "zero-based non-zero-length candidate index where defined"
+    ),
+    "accept_fields": ["event_count", "tip", "ordered_recomputed_hashes"],
+    "no_third_semantic_result": True,
+}
+EXPECTED_A21_CASES = {
+    "S4": (
+        "a21-s4-identity-key-s-zero",
+        "A21-S4",
+        "REJECT",
+        "ExternalKey",
+        {"a21-named-vector", "external-key", "negative"},
+    ),
+    "S5": (
+        "a21-s5-identity-key-s-l-minus-one",
+        "A21-S5",
+        "REJECT",
+        "ExternalKey",
+        {"a21-named-vector", "external-key", "negative"},
+    ),
+    "D1": (
+        "a21-d1-order-two-forged-chain",
+        "A21-D1",
+        "REJECT",
+        "ExternalKey",
+        {"a21-named-vector", "external-key", "forged-chain", "negative"},
+    ),
+    "D2": (
+        "a21-d2-identity-r-equation-true",
+        "A21-D2",
+        "ACCEPT",
+        None,
+        {"equation", "identity-r", "positive", "signature"},
+    ),
+    "T2": (
+        "a21-t2-mixed-torsion-key",
+        "A21-T2",
+        "REJECT",
+        "ExternalKey",
+        {"a21-named-vector", "external-key", "mixed-torsion", "negative"},
+    ),
+}
+SCHEMA_MUTATION_PREFIXES = {
+    "duplicate": "n8-duplicate",
+    "omission": "n17-omission",
+    "null": "n18-null",
+}
 FRAMING_WITHOUT_RECORD_INDEX_CASES = {
     "n30-extra-final-terminator",
     "n6-interior-zero-length",
@@ -204,7 +276,76 @@ def is_exact_lower_hex(value: object, length: int) -> bool:
 
 
 def is_coordinate(value: object, minimum: int) -> bool:
+    return is_non_boolean_integer(value, minimum)
+
+
+def is_non_boolean_integer(value: object, minimum: int) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value >= minimum
+
+
+def has_exact_json_value(actual: object, expected: object) -> bool:
+    if type(actual) is not type(expected):
+        return False
+    if isinstance(expected, dict):
+        return set(actual) == set(expected) and all(
+            has_exact_json_value(actual[key], value) for key, value in expected.items()
+        )
+    if isinstance(expected, list):
+        return len(actual) == len(expected) and all(
+            has_exact_json_value(actual_value, expected_value)
+            for actual_value, expected_value in zip(actual, expected, strict=True)
+        )
+    return actual == expected
+
+
+def repository_path_without_symlinks(path_text: str, label: str) -> Path:
+    relative = Path(path_text)
+    require(
+        not relative.is_absolute()
+        and not relative.drive
+        and relative.parts
+        and ".." not in relative.parts,
+        f"{label}: path is not a repository-relative descendant: {path_text}",
+    )
+    path = ROOT / relative
+    current = ROOT
+    for part in relative.parts:
+        current = current / part
+        require(
+            not current.is_symlink(),
+            f"{label}: path traverses symlink {current.relative_to(ROOT).as_posix()}",
+        )
+    return path
+
+
+def require_regular_repository_file(path_text: str, label: str) -> Path:
+    path = repository_path_without_symlinks(path_text, label)
+    require(path.exists(), f"{label}: path does not exist: {path_text}")
+    require(path.is_file(), f"{label}: path is not a regular file: {path_text}")
+    return path
+
+
+def expected_schema_mutation_case_id(coordinate: str, mode: str) -> str:
+    return f"{SCHEMA_MUTATION_PREFIXES[mode]}-{coordinate.lower().replace('.', '-')}"
+
+
+def validate_generated_case_tree(expected_paths: set[str]) -> None:
+    cases_path_text = CASES_PATH.relative_to(ROOT).as_posix()
+    cases_path = repository_path_without_symlinks(cases_path_text, "case directory")
+    require(cases_path.exists(), "case directory does not exist")
+    require(cases_path.is_dir(), "case directory is not a real directory")
+
+    actual_paths: set[str] = set()
+    for path in cases_path.rglob("*"):
+        relative = path.relative_to(ROOT).as_posix()
+        require(not path.is_symlink(), f"case subtree contains symlink: {relative}")
+        require(path.parent == cases_path, f"case subtree is not flat: {relative}")
+        require(path.is_file(), f"case subtree contains non-file entry: {relative}")
+        actual_paths.add(relative)
+    require(
+        actual_paths == expected_paths,
+        "unreferenced or missing generated case file",
+    )
 
 
 def load_json_without_duplicate_members(text: str, source: str) -> object:
@@ -365,6 +506,22 @@ def validate_governing_source_commitments(manifest: dict) -> None:
         )
 
 
+def validate_producing_context(manifest: dict) -> None:
+    require(
+        has_exact_json_value(
+            manifest.get("producing_context"), EXPECTED_PRODUCING_CONTEXT
+        ),
+        "producing_context declaration mismatch",
+    )
+
+
+def validate_result_schema(manifest: dict) -> None:
+    require(
+        has_exact_json_value(manifest.get("result_schema"), EXPECTED_RESULT_SCHEMA),
+        "result_schema declaration mismatch",
+    )
+
+
 def validate_case(case: dict, seen_ids: set[str], seen_paths: set[str]) -> None:
     case_id = case.get("id")
     require(isinstance(case_id, str) and case_id, "case ID must be a non-empty string")
@@ -373,12 +530,7 @@ def validate_case(case: dict, seen_ids: set[str], seen_paths: set[str]) -> None:
 
     path_text = case.get("input_path")
     require(isinstance(path_text, str) and path_text, f"{case_id}: missing input_path")
-    path = (ROOT / path_text).resolve()
-    try:
-        path.relative_to(ROOT.resolve())
-    except ValueError:
-        fail(f"{case_id}: input path escapes repository root")
-    require(path.is_file(), f"{case_id}: input path does not exist: {path_text}")
+    path = require_regular_repository_file(path_text, f"{case_id} input")
     require(sha256(path) == case.get("input_sha256"), f"{case_id}: SHA-256 mismatch")
     require(byte_properties(path.read_bytes()) == case.get("byte_properties"), f"{case_id}: byte_properties mismatch")
     if path_text.startswith("fixtures/verifier-language-v1/cases/"):
@@ -416,7 +568,10 @@ def validate_case(case: dict, seen_ids: set[str], seen_paths: set[str]) -> None:
         )
     if verdict == "ACCEPT":
         require(expected["class"] is None and expected["line"] is None and expected["record_index"] is None, f"{case_id}: ACCEPT has rejection metadata")
-        require(isinstance(expected["event_count"], int) and expected["event_count"] >= 0, f"{case_id}: invalid event_count")
+        require(
+            is_non_boolean_integer(expected["event_count"], 0),
+            f"{case_id}: invalid event_count",
+        )
         require(is_exact_lower_hex(expected["tip"], 64), f"{case_id}: invalid tip")
         hashes = expected["ordered_recomputed_hashes"]
         require(isinstance(hashes, list) and len(hashes) == expected["event_count"], f"{case_id}: ordered hash count mismatch")
@@ -489,8 +644,14 @@ def validate_coverage(manifest: dict, by_id: dict[str, dict]) -> None:
     for coordinate, mapping in schema.items():
         require(set(mapping) == {"duplicate", "omission", "null"}, f"{coordinate}: incomplete mutation map")
         for mode, case_id in mapping.items():
+            expected_case_id = expected_schema_mutation_case_id(coordinate, mode)
+            require(
+                case_id == expected_case_id,
+                f"{coordinate}/{mode}: expected case {expected_case_id}, got {case_id}",
+            )
             require(case_id not in used_mutations, f"schema mutation case reused: {case_id}")
             used_mutations.add(case_id)
+            require(case_id in by_id, f"{coordinate}/{mode}: unknown case ID")
             case = by_id[case_id]
             require(case["expected"]["verdict"] == "REJECT" and case["expected"]["class"] == "Schema", f"{coordinate}/{mode}: wrong result")
             expected_rule = {"duplicate": "N8", "omission": "N17", "null": "N18"}[mode]
@@ -586,18 +747,55 @@ def validate_coverage(manifest: dict, by_id: dict[str, dict]) -> None:
 
 def validate_a21(manifest: dict, by_id: dict[str, dict]) -> None:
     vectors = manifest["a21_named_vectors"]
-    require(set(vectors) == {"S4", "S5", "D1", "D2", "T2"}, "A-021 named-vector set mismatch")
-    for name in ("S4", "S5", "D1", "T2"):
+    require(set(vectors) == set(EXPECTED_A21_CASES), "A-021 named-vector set mismatch")
+    for name, (
+        expected_case_id,
+        expected_rule,
+        expected_verdict,
+        expected_class,
+        required_tags,
+    ) in EXPECTED_A21_CASES.items():
         vector = vectors[name]
-        case = by_id[vector["case_id"]]
+        require(
+            isinstance(vector, dict)
+            and set(vector) == {"case_id", "expected_verdict", "first_gate", "proof"},
+            f"A21-{name}: invalid named-vector shape",
+        )
+        require(
+            vector["case_id"] == expected_case_id,
+            f"A21-{name}: expected case {expected_case_id}, got {vector['case_id']}",
+        )
+        require(expected_case_id in by_id, f"A21-{name}: unknown designated case")
+        case = by_id[expected_case_id]
         expected = case["expected"]
-        require(vector["expected_verdict"] == "REJECT" and vector["first_gate"] == "ExternalKey", f"A21-{name}: manifest classification mismatch")
-        require(expected["verdict"] == "REJECT" and expected["class"] == "ExternalKey", f"A21-{name}: case result mismatch")
-        require(expected["line"] is None and expected["record_index"] is None, f"A21-{name}: key rejection has coordinates")
-    d2 = vectors["D2"]
-    d2_case = by_id[d2["case_id"]]
-    require(d2["expected_verdict"] == "ACCEPT" and d2_case["expected"]["verdict"] == "ACCEPT", "A21-D2 must be ACCEPT")
-    require("identity-r" in d2_case["tags"] and "equation" in d2_case["tags"], "A21-D2 lacks construction tags")
+        expected_gate = "none" if expected_class is None else expected_class
+        require(
+            vector["expected_verdict"] == expected_verdict
+            and vector["first_gate"] == expected_gate,
+            f"A21-{name}: manifest classification mismatch",
+        )
+        require(
+            isinstance(vector["proof"], str) and vector["proof"],
+            f"A21-{name}: missing proof summary",
+        )
+        require(
+            expected["verdict"] == expected_verdict
+            and expected["class"] == expected_class,
+            f"A21-{name}: case result mismatch",
+        )
+        require(
+            expected_rule in case["owning_rules"],
+            f"A21-{name}: designated case lacks reciprocal owning rule",
+        )
+        require(
+            required_tags.issubset(case["tags"]),
+            f"A21-{name}: designated case lacks construction tags",
+        )
+        if expected_class == "ExternalKey":
+            require(
+                expected["line"] is None and expected["record_index"] is None,
+                f"A21-{name}: key rejection has coordinates",
+            )
 
 
 def validate_exact_byte_families(by_id: dict[str, dict]) -> None:
@@ -617,16 +815,20 @@ def main() -> int:
         require(manifest.get("schema_version") == 1, "unexpected manifest schema version")
         require(manifest.get("manifest_identity") == MANIFEST_ID, "unexpected manifest identity")
         require(manifest.get("status") == "candidate-pending-owner-review-and-merge", "manifest is not explicitly candidate")
-        context = manifest.get("producing_context", {})
-        require(context.get("signature_profile_identity") == V_SIG, "V_sig is not fixed")
-        require(context.get("complete_history_derivation_profile") is None, "manifest silently minted G_history")
+        validate_producing_context(manifest)
         require("latest" not in manifest["identity_law"].lower() or "may not" in manifest["identity_law"].lower(), "manifest identity law permits latest")
 
         validate_governing_source_commitments(manifest)
 
         fixture_commitments = manifest["existing_fixture_commitments"]
-        require(sha256(ROOT / "crates/magpie-log/testdata/golden-v1.jsonl") == fixture_commitments["golden_v1_sha256"], "golden fixture changed")
-        require(sha256(ROOT / "fixtures/deadbolt-anchor-v1/anchor-log.jsonl") == fixture_commitments["deadbolt_anchor_v1_sha256"], "Deadbolt fixture changed")
+        golden_path = require_regular_repository_file(
+            "crates/magpie-log/testdata/golden-v1.jsonl", "golden fixture"
+        )
+        deadbolt_path = require_regular_repository_file(
+            "fixtures/deadbolt-anchor-v1/anchor-log.jsonl", "Deadbolt fixture"
+        )
+        require(sha256(golden_path) == fixture_commitments["golden_v1_sha256"], "golden fixture changed")
+        require(sha256(deadbolt_path) == fixture_commitments["deadbolt_anchor_v1_sha256"], "Deadbolt fixture changed")
 
         cases = manifest.get("cases")
         require(isinstance(cases, list) and cases, "manifest has no cases")
@@ -646,10 +848,7 @@ def main() -> int:
             framing_without_index == FRAMING_WITHOUT_RECORD_INDEX_CASES,
             "Framing no-record-index case set mismatch",
         )
-        actual_case_paths = {
-            path.relative_to(ROOT).as_posix() for path in CASES_PATH.iterdir() if path.is_file()
-        }
-        require(actual_case_paths == seen_paths, "unreferenced or missing generated case file")
+        validate_generated_case_tree(seen_paths)
 
         accept_count = sum(case["expected"]["verdict"] == "ACCEPT" for case in cases)
         reject_count = len(cases) - accept_count
@@ -662,10 +861,7 @@ def main() -> int:
         require(summary["accept_count"] == accept_count and summary["reject_count"] == reject_count, "summary verdict counts mismatch")
         require(summary["reject_counts_by_class"] == class_counts, "summary class counts mismatch")
 
-        result_schema = manifest["result_schema"]
-        require(result_schema["verdicts"] == ["ACCEPT", "REJECT"] and result_schema["no_third_semantic_result"] is True, "result vocabulary drift")
-        require(result_schema["rejection_classes"] == FAILURE_CLASSES, "failure class vocabulary/order drift")
-        require(result_schema["rejection_precedence"] == FAILURE_CLASSES[1:], "record-stage precedence drift")
+        validate_result_schema(manifest)
 
         validate_coverage(manifest, by_id)
         validate_a21(manifest, by_id)
