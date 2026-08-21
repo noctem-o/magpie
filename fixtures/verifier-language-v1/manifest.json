@@ -37,7 +37,7 @@
     },
     {
       "path": "docs/design/portable-verifier-input-language-contract.md",
-      "sha256": "5aad602769e55bd3fcbe8511ede378151a355ba10d4bb1db368368291e34d4c7"
+      "sha256": "2f8e386c7edfdaca614f5d6e8256b7a377c8e1a7f0b597a1c065cc499241a91b"
     }
   ],
   "result_schema": {
@@ -90,8 +90,8 @@
       "PreviousLink": 5,
       "ContentHash": 3,
       "Signature": 16,
-      "PayloadValidation": 48,
-      "Genesis": 13
+      "PayloadValidation": 46,
+      "Genesis": 15
     }
   },
   "existing_fixture_commitments": {
@@ -686,52 +686,12 @@
       "P1": [
         "p1-golden-v1"
       ],
-      "P10": [
-        "n28-content-hash-before-payload",
-        "n28-core-hex-before-sequence",
-        "n28-later-link-before-signature",
-        "n28-link-before-payload",
-        "n28-payload-before-genesis",
-        "n28-schema-before-sequence",
-        "n28-sequence-before-payload",
-        "n28-signature-before-genesis",
-        "n28-signature-before-payload"
-      ],
       "P12": [
         "p1-golden-v1",
         "p2-deadbolt-anchor-v1"
       ],
       "P2": [
         "p2-deadbolt-anchor-v1"
-      ],
-      "P3": [
-        "n7-k6-k14-empty-golden-key",
-        "p1-golden-v1",
-        "p2-deadbolt-anchor-v1",
-        "positive-complete-vocabulary"
-      ],
-      "P4": [
-        "n7-k6-k14-empty-golden-key",
-        "p1-golden-v1",
-        "p2-deadbolt-anchor-v1",
-        "positive-complete-vocabulary"
-      ],
-      "P5": [
-        "p1-golden-v1",
-        "p2-deadbolt-anchor-v1",
-        "positive-complete-vocabulary",
-        "u64-p1-timestamp-9007199254740993",
-        "u64-p2-timestamp-9223372036854775808",
-        "u64-p3-timestamp-18446744073709551615"
-      ],
-      "P6": [
-        "a21-d2-identity-r-equation-true",
-        "p1-golden-v1",
-        "p2-deadbolt-anchor-v1",
-        "positive-complete-vocabulary",
-        "u64-p1-timestamp-9007199254740993",
-        "u64-p2-timestamp-9223372036854775808",
-        "u64-p3-timestamp-18446744073709551615"
       ],
       "P7": [
         "p7-member-order-permutation"
@@ -8913,7 +8873,7 @@
     {
       "id": "n20-edge-case",
       "input_path": "fixtures/verifier-language-v1/cases/n20-edge-case.jsonl",
-      "input_sha256": "34119241b3ab1c151e3b31ae6ff9de9c40c90f0da70b0a94e8f90eb999349b71",
+      "input_sha256": "5662e4dc3b332c81bb6cb026a57a4506b7f1d011d002a8e65fba054a1479ed49",
       "external_verifying_key_hex": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
       "expected": {
         "verdict": "REJECT",
@@ -8924,11 +8884,12 @@
         "tip": null,
         "ordered_recomputed_hashes": []
       },
-      "rationale": "A signed closed-vocabulary string fails PayloadValidation after cryptographic checks.",
+      "rationale": "The case-changed edge_kind Supports is outside the exact closed vocabulary and fails PayloadValidation after valid hash and signature checks.",
       "owning_rules": [
         "N20"
       ],
       "tags": [
+        "case-changed",
         "closed-vocabulary",
         "edge",
         "negative",
@@ -9863,14 +9824,14 @@
       "external_verifying_key_hex": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
       "expected": {
         "verdict": "REJECT",
-        "class": "PayloadValidation",
+        "class": "Genesis",
         "line": 1,
         "record_index": 0,
         "event_count": null,
         "tip": null,
         "ordered_recomputed_hashes": []
       },
-      "rationale": "The claim-content-hash value passes signed-byte checks and fails its owned PayloadValidation lexical rule.",
+      "rationale": "Empty tag-6 content_hash is permitted, so the signed record passes PayloadValidation and reaches the record-zero Genesis failure.",
       "owning_rules": [
         "N3"
       ],
@@ -9878,7 +9839,9 @@
         "claim-content-hash",
         "empty",
         "hex",
-        "negative"
+        "genesis",
+        "negative",
+        "optional-empty"
       ],
       "byte_properties": {
         "length": 565,
@@ -10094,14 +10057,14 @@
       "external_verifying_key_hex": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
       "expected": {
         "verdict": "REJECT",
-        "class": "PayloadValidation",
+        "class": "Genesis",
         "line": 1,
         "record_index": 0,
         "event_count": null,
         "tip": null,
         "ordered_recomputed_hashes": []
       },
-      "rationale": "The evidence-content-hash value passes signed-byte checks and fails its owned PayloadValidation lexical rule.",
+      "rationale": "Empty tag-7 content_hash is permitted, so the signed record passes PayloadValidation and reaches the record-zero Genesis failure.",
       "owning_rules": [
         "N3"
       ],
@@ -10109,7 +10072,9 @@
         "empty",
         "evidence-content-hash",
         "hex",
-        "negative"
+        "genesis",
+        "negative",
+        "optional-empty"
       ],
       "byte_properties": {
         "length": 624,

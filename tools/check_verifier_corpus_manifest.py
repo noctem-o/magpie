@@ -32,6 +32,73 @@ FAILURE_CLASSES = [
     "PayloadValidation",
     "Genesis",
 ]
+REQUIRED_GOVERNING_SOURCE_PATHS = {
+    "docs/FORMAT.md",
+    "docs/adr/0008-complete-producing-coordinates.md",
+    "docs/adr/0009-verified-supplied-history-and-explicit-checkpoint-expectations.md",
+    "docs/adr/0010-ed25519-verification-profile-and-external-trust-root-admissibility.md",
+    "docs/design/portable-verifier-input-language-contract.md",
+}
+FUTURE_ONLY_OBLIGATIONS = {"P3", "P4", "P5", "P6", "P10", "P11"}
+HEX_MUTATIONS = (
+    "short",
+    "odd",
+    "nonhex",
+    "empty",
+    "whitespace",
+    "prefix",
+    "unicode-lookalike",
+)
+HEX_ROLE_CASES = {
+    role: [f"n3-{role}-{mutation}" for mutation in HEX_MUTATIONS]
+    for role in (
+        "prev-hash",
+        "stored-hash",
+        "signature",
+        "genesis-key",
+        "witness-root",
+        "claim-content-hash",
+        "evidence-content-hash",
+    )
+}
+HEX_ROLE_FAILURE_CLASS = {
+    "prev-hash": "Schema",
+    "stored-hash": "Schema",
+    "signature": "Schema",
+    "genesis-key": "Genesis",
+    "witness-root": "PayloadValidation",
+    "claim-content-hash": "PayloadValidation",
+    "evidence-content-hash": "PayloadValidation",
+}
+SIGNATURE_BOUNDARIES = {
+    "R-nondecompress": ("a21-r-nondecompress", "A21-R1", "r-encoding"),
+    "R-noncanonical": ("a21-r-y-equals-p", "A21-R2", "r-encoding"),
+    "R-x0-sign1": ("a21-r-x-zero-sign-one", "A21-R3", "r-encoding"),
+    "R-identity-false": (
+        "a21-r-identity-equation-false",
+        "A21-R-IDENTITY-FALSE",
+        "identity-r",
+    ),
+    "R-small-order": (
+        "a21-r-nonidentity-small-order",
+        "A21-R-SMALL",
+        "small-order-r",
+    ),
+    "R-mixed": ("a21-r-mixed-torsion-cofactor", "A21-R-MIXED", "mixed-torsion-r"),
+    "R-order4": ("a21-r-order-four-cofactor", "A21-C1", "small-order-r"),
+    "S-zero": ("a21-r-identity-equation-false", "A21-S3", "identity-r"),
+    "S-L-minus-one": (
+        "a21-s-l-minus-one-equation-false",
+        "A21-S-L-1",
+        "scalar-boundary",
+    ),
+    "S-L": ("a21-s-equals-l", "A21-S1", "scalar-boundary"),
+    "S-L-plus-one": ("a21-s-l-plus-one", "A21-S2", "scalar-boundary"),
+    "S-max": ("a21-s-all-ff", "A21-S2", "scalar-boundary"),
+    "altered-signature": ("a21-altered-signature", "A21-ALTERED-SIGNATURE", "equation"),
+    "altered-message": ("a21-altered-message", "A21-M1", "message"),
+    "A21-D2": ("a21-d2-identity-r-equation-true", "A21-D2", "identity-r"),
+}
 PAYLOAD_MEMBERS = {
     "Genesis": ["kind", "canonicalization_profile", "verifying_key"],
     "ClaimAsserted": ["kind", "claim_id", "statement", "status"],
@@ -163,6 +230,35 @@ def load_manifest() -> dict:
         fail(f"cannot load manifest: {error}")
 
 
+def validate_governing_source_commitments(manifest: dict) -> None:
+    sources = manifest.get("governing_source_commitments")
+    require(isinstance(sources, list), "governing_source_commitments must be a list")
+    paths: list[str] = []
+    for index, source in enumerate(sources):
+        require(
+            isinstance(source, dict) and set(source) == {"path", "sha256"},
+            f"governing source commitment {index} has an invalid shape",
+        )
+        path_text = source["path"]
+        expected_hash = source["sha256"]
+        require(isinstance(path_text, str) and path_text, f"governing source commitment {index} has no path")
+        require(
+            isinstance(expected_hash, str)
+            and len(expected_hash) == 64
+            and all(character in "0123456789abcdef" for character in expected_hash),
+            f"governing source commitment {path_text} has an invalid SHA-256",
+        )
+        paths.append(path_text)
+    require(len(paths) == len(set(paths)), "duplicate governing source commitment path")
+    require(set(paths) == REQUIRED_GOVERNING_SOURCE_PATHS, "governing source commitment path set mismatch")
+    for source in sources:
+        path = ROOT / source["path"]
+        require(
+            path.is_file() and sha256(path) == source["sha256"],
+            f"governing source commitment mismatch: {source['path']}",
+        )
+
+
 def validate_case(case: dict, seen_ids: set[str], seen_paths: set[str]) -> None:
     case_id = case.get("id")
     require(isinstance(case_id, str) and case_id, "case ID must be a non-empty string")
@@ -236,7 +332,7 @@ def validate_case(case: dict, seen_ids: set[str], seen_paths: set[str]) -> None:
 def validate_coverage(manifest: dict, by_id: dict[str, dict]) -> None:
     coverage = manifest["coverage"]
     obligations = coverage["obligation_case_ids"]
-    required_obligations = (
+    required_obligations = set(
         [f"N{number}" for number in range(1, 31)]
         + [f"K{number}" for number in list(range(1, 8)) + list(range(9, 16))]
         + [f"P{number}" for number in range(1, 13)]
@@ -244,8 +340,16 @@ def validate_coverage(manifest: dict, by_id: dict[str, dict]) -> None:
         + ["A21-S4", "A21-S5", "A21-D1", "A21-D2", "A21-T2"]
     )
     future = coverage["future_conformer_assertions"]
-    for obligation in required_obligations:
-        require(obligation in obligations or obligation in future, f"missing obligation coverage: {obligation}")
+    require(isinstance(obligations, dict), "obligation_case_ids must be an object")
+    require(isinstance(future, dict), "future_conformer_assertions must be an object")
+    require(set(future) == FUTURE_ONLY_OBLIGATIONS, "future-conformer obligation set mismatch")
+    require(
+        all(isinstance(description, str) and description for description in future.values()),
+        "future-conformer assertion must have a non-empty description",
+    )
+    require(not (set(obligations) & set(future)), "obligation appears in both static and future coverage")
+    for obligation in required_obligations - FUTURE_ONLY_OBLIGATIONS:
+        require(obligation in obligations, f"missing static obligation coverage: {obligation}")
     for obligation, ids in obligations.items():
         require(isinstance(ids, list) and ids, f"{obligation}: empty case mapping")
         require(len(ids) == len(set(ids)), f"{obligation}: duplicate mapped case")
@@ -294,6 +398,53 @@ def validate_coverage(manifest: dict, by_id: dict[str, dict]) -> None:
             require(isinstance(ids, list) and ids, f"{family}.{value}: no ACCEPT case")
             require(all(by_id[case_id]["expected"]["verdict"] == "ACCEPT" for case_id in ids), f"{family}.{value}: mapped to non-ACCEPT")
 
+    hex_roles = coverage["hex_role_cases"]
+    require(isinstance(hex_roles, dict), "hex_role_cases must be an object")
+    require(set(hex_roles) == set(HEX_ROLE_CASES), "hex-role inventory mismatch")
+    used_hex_cases: set[str] = set()
+    for role, expected_ids in HEX_ROLE_CASES.items():
+        actual_ids = hex_roles[role]
+        require(actual_ids == expected_ids, f"{role}: hex-role case mapping mismatch")
+        for mutation, case_id in zip(HEX_MUTATIONS, actual_ids, strict=True):
+            require(case_id not in used_hex_cases, f"hex-role case reused: {case_id}")
+            used_hex_cases.add(case_id)
+            require(case_id in by_id, f"{role}/{mutation}: unknown case ID")
+            case = by_id[case_id]
+            expected_class = HEX_ROLE_FAILURE_CLASS[role]
+            if mutation == "empty" and role in {"claim-content-hash", "evidence-content-hash"}:
+                expected_class = "Genesis"
+            require(
+                case["expected"]["verdict"] == "REJECT"
+                and case["expected"]["class"] == expected_class,
+                f"{role}/{mutation}: wrong result",
+            )
+            require("N3" in case["owning_rules"], f"{role}/{mutation}: wrong owning rule")
+            require(
+                {"hex", role, mutation}.issubset(case["tags"]),
+                f"{role}/{mutation}: incompatible case tags",
+            )
+
+    signature_boundaries = coverage["signature_boundaries"]
+    require(isinstance(signature_boundaries, dict), "signature_boundaries must be an object")
+    require(set(signature_boundaries) == set(SIGNATURE_BOUNDARIES), "signature-boundary inventory mismatch")
+    for boundary, (expected_id, expected_rule, expected_tag) in SIGNATURE_BOUNDARIES.items():
+        case_id = signature_boundaries[boundary]
+        require(case_id == expected_id, f"{boundary}: signature-boundary case mapping mismatch")
+        require(case_id in by_id, f"{boundary}: unknown case ID")
+        case = by_id[case_id]
+        expected_verdict = "ACCEPT" if boundary == "A21-D2" else "REJECT"
+        expected_class = None if boundary == "A21-D2" else "Signature"
+        require(
+            case["expected"]["verdict"] == expected_verdict
+            and case["expected"]["class"] == expected_class,
+            f"{boundary}: wrong result",
+        )
+        require(expected_rule in case["owning_rules"], f"{boundary}: wrong owning rule")
+        require(
+            "signature" in case["tags"] and expected_tag in case["tags"],
+            f"{boundary}: incompatible case tags",
+        )
+
 
 def validate_a21(manifest: dict, by_id: dict[str, dict]) -> None:
     vectors = manifest["a21_named_vectors"]
@@ -332,9 +483,7 @@ def main() -> int:
         require(context.get("complete_history_derivation_profile") is None, "manifest silently minted G_history")
         require("latest" not in manifest["identity_law"].lower() or "may not" in manifest["identity_law"].lower(), "manifest identity law permits latest")
 
-        for source in manifest.get("governing_source_commitments", []):
-            path = ROOT / source["path"]
-            require(path.is_file() and sha256(path) == source["sha256"], f"governing source commitment mismatch: {source['path']}")
+        validate_governing_source_commitments(manifest)
 
         fixture_commitments = manifest["existing_fixture_commitments"]
         require(sha256(ROOT / "crates/magpie-log/testdata/golden-v1.jsonl") == fixture_commitments["golden_v1_sha256"], "golden fixture changed")
@@ -383,7 +532,10 @@ def main() -> int:
         "schema inventory: 57 required members x duplicate/omission/null; "
         "12 unknown-member object shapes"
     )
-    print("exact-byte hashes, A-021 named classifications, and positive vocabularies checked")
+    print(
+        "exact-byte hashes, governing commitments, coverage inventories, "
+        "A-021 named classifications, and positive vocabularies checked"
+    )
     return 0
 
 

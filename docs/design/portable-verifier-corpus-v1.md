@@ -118,8 +118,8 @@ The manifest records 19 ACCEPT cases and 413 REJECT cases:
 | `PreviousLink` | 5 |
 | `ContentHash` | 3 |
 | `Signature` | 16 |
-| `PayloadValidation` | 48 |
-| `Genesis` | 13 |
+| `PayloadValidation` | 46 |
+| `Genesis` | 15 |
 
 ## Coverage inventories
 
@@ -135,9 +135,14 @@ The manifest makes the required coverage mechanical rather than inferential:
 - exactly one literal duplicate, omission, and null vector for each of 57
   required member coordinates;
 - one isolated unknown-member vector for `SignedEvent`, `EventCore`,
-  `Provenance`, and all nine payload variants; and
+  `Provenance`, and all nine payload variants;
 - focused escaped-name duplicates proving comparison after JSON member-name
-  decoding.
+  decoding;
+- all seven governed hex roles across short, odd, non-hex, empty, whitespace,
+  prefix, and Unicode-lookalike forms, with empty tag-6/tag-7 `content_hash`
+  correctly proceeding to `Genesis`; and
+- the exact ADR-0010 `A`, `R`, `S`, altered-message, altered-signature, and
+  A21-D2 boundary inventory.
 
 P3–P6, P10, and P11 retain their future conformer-level assertions in the
 manifest. The corpus supplies their exact inputs and expected results but does

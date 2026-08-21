@@ -33,7 +33,9 @@ This tranche adds:
   inventories;
 - exact S4/S5/D1/D2/T2 classifications under Accepted ADR-0010;
 - a path-specific binary/no-text Git rule for hostile corpus bytes; and
-- a metadata/hash/inventory checker that is not a verifier implementation.
+- a metadata/hash/inventory checker that is not a verifier implementation; and
+- one owner-authorized CI invariant that runs that checker on GitHub's normal
+  clean checkout.
 
 The corpus does not mint an ADR-0008 `G_history`. Its manifest directly fixes
 `V_sig` and commits to the cited input-language/FORMAT/ADR revisions while
@@ -63,7 +65,11 @@ This ticket does not change:
 - canonical encoding or signature bytes;
 - standing, admission, currentness, persistence, checkpoint, or release
   semantics; or
-- CI.
+- CI other than the explicitly owner-authorized step that runs
+  `tools/check_verifier_corpus_manifest.py`.
+
+That step is not a conformer, does not make CI a second specification, does not
+close A-021/A-004/RQ-006, and does not authorize broader workflow changes.
 
 A-021 remains Confirmed because ratification and a candidate corpus are not
 conformer implementation/conformance evidence. A-004 and RQ-006 remain
