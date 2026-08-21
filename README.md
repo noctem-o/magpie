@@ -502,6 +502,7 @@ Their status matters. Exploratory documents are not runtime behavior merely beca
 - [ADR 0007](docs/adr/0007-authority-bound-origin-corroboration.md) defines authority-bound origin-group assignment.
 - [ADR 0008](docs/adr/0008-complete-producing-coordinates.md) requires complete immutable producing inputs for governed derived results.
 - [ADR 0009](docs/adr/0009-verified-supplied-history-and-explicit-checkpoint-expectations.md) separates supplied-history verification from caller expectations.
+- [ADR 0010](docs/adr/0010-ed25519-verification-profile-and-external-trust-root-admissibility.md) proposes an explicit portable Ed25519 verification profile; it is not doctrine unless owner-ratified.
 
 For standing details:
 
