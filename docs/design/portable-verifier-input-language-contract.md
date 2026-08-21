@@ -479,7 +479,7 @@ sign, separator, surrounding whitespace or Unicode lookalike.
 | `Genesis.verifying_key` | 64 lowercase hex characters | `Genesis` |
 | `SegmentAnchored.witness_root` | 64 lowercase hex characters | `PayloadValidation` |
 | tag 6/7 `content_hash` | empty string or 64 lowercase hex characters | `PayloadValidation` |
-| portable CLI external key | 64 lowercase hex characters decoding to 32 bytes that satisfy the verification-key representation law below | `ExternalKey`, before record processing |
+| portable CLI external key | 64 lowercase hex characters decoding to 32 bytes that satisfy the complete composed external-key gate below | `ExternalKey`, before record processing |
 
 ### Portable external-key gate
 
@@ -502,7 +502,11 @@ processing any record:
 7. reject when recovered `x = 0` and `x_0 = 1`; otherwise choose the root
    whose least-significant bit equals `x_0`; and
 8. encode the recovered point by RFC 8032 section 5.1.2 and require the
-   resulting 32 octets to equal the supplied 32 octets byte-for-byte.
+   resulting 32 octets to equal the supplied 32 octets byte-for-byte;
+9. under Accepted ADR-0010's selected `V_sig`, require the decoded point
+   `A != I`; and
+10. under that same `V_sig`, require `[L]A = I`, where `L` is the prime order
+    of the Edwards25519 base point.
 
 The governing point algorithms are
 [RFC 8032 section 5.1.2](https://www.rfc-editor.org/rfc/rfc8032#section-5.1.2)
@@ -510,7 +514,7 @@ and
 [section 5.1.3](https://www.rfc-editor.org/rfc/rfc8032#section-5.1.3),
 not a host library's broader decoding profile.
 
-Failure at any step is `REJECT(ExternalKey)` with no line and no
+Failure at any of these ten steps is `REJECT(ExternalKey)` with no line and no
 `record_index`. In particular, a representation-invalid key plus zero input is
 `REJECT(ExternalKey)`, not empty-snapshot `ACCEPT`. The empty-snapshot rule is
 evaluated only after the complete key gate succeeds.
@@ -521,8 +525,9 @@ constructor defaults. Locked `ed25519-dalek` 2.2.0 explicitly documents its
 `VerifyingKey::from_bytes` rule as ZIP-215 rather than RFC 8032/NIST point
 validation, and its reduction-oriented decompression accepts the probed
 `y >= p` and zero-`x` sign-bit encodings. The future Rust path therefore needs
-an explicit canonical gate in addition to the host constructor. Every
-conformer MUST independently reproduce the eight contract steps above.
+an explicit canonical gate in addition to the host constructor. The input
+language owns steps 1-8; Accepted ADR-0010 owns steps 9-10. Every conformer MUST
+independently reproduce the complete composed gate.
 
 Representation validity stops at successful canonical RFC 8032 point decoding
 and byte-identical re-encoding. That transport-owned substage does not reject a
@@ -670,10 +675,11 @@ record, Genesis, signature or key-binding claim to make.
 This contract owns signature **transport**: `SignedEvent.signature` is exactly
 128 lowercase ASCII hexadecimal characters decoding to exactly 64 bytes, and a
 transport failure is `Schema` before the `Signature` stage. “Well-shaped” does
-not mean “valid.” A-021 owns the complete mathematical acceptance relation for
-those 64 bytes, including point, scalar, cofactor and verification-equation
-semantics. Exact frozen positive signatures retain their compatibility verdicts;
-arbitrary well-shaped signatures do not acquire a general verdict from #120.
+not mean “valid.” Accepted ADR-0010 owns `V_sig`, including point, scalar,
+cofactor and verification-equation semantics for those 64 bytes. A-021 remains
+open pending implementation and cross-language conformance evidence. Exact
+frozen positive signatures retain their compatibility verdicts; arbitrary
+well-shaped signatures do not acquire a general verdict from #120.
 
 ## First-failure law
 
@@ -683,7 +689,7 @@ The portable verdict vocabulary is exactly:
 
 | Class | Meaning |
 | --- | --- |
-| `ExternalKey` | supplied key text fails exact lowercase 64-hex syntax, exact 32-byte decoding, or any canonical RFC 8032 representation step: `y < p`, curve-point recovery, zero-`x` sign-bit validity, or byte-identical canonical re-encoding |
+| `ExternalKey` | supplied key fails the complete pre-framing composed gate: exact lowercase 64-hex text, exact 32-byte decoding, canonical RFC 8032 representation (`y < p`, curve-point recovery, zero-`x` sign-bit validity, and byte-identical canonical re-encoding), or Accepted ADR-0010's `A != I` and `[L]A = I` admissibility requirements |
 | `Framing` | byte encoding, BOM, record terminator, empty record or other file/record framing violation |
 | `JsonSyntax` | one framed record is not exactly one syntactically valid JSON value, including a numeric-looking token forbidden by RFC 8259 such as `+1` or `01` |
 | `Schema` | wrong JSON shape/type, duplicate/unknown/missing member, syntactically valid JSON value/number that violates the u64 type/form/range law, invalid status/payload kind, invalid core/stored hex, null, or invalid decoded string |
@@ -709,10 +715,11 @@ confused with a governed rejection or silently converted to acceptance.
 
 ### Ordering
 
-The verifier first completes the entire portable external-key gate: syntax,
-32-byte decoding and verification-key representation. Any failure is
-`ExternalKey` before framing, including for zero-byte input. It then processes
-records in physical order. For each record, the first applicable stage wins:
+The verifier first completes the entire portable external-key gate: exact text
+syntax, 32-byte decoding, canonical RFC 8032 representation, `A != I`, and
+`[L]A = I`. Any failure is `ExternalKey` before framing, including for
+zero-byte input. It then processes records in physical order. For each record,
+the first applicable stage wins:
 
 ```text
 1  Framing
@@ -1191,18 +1198,18 @@ particular it must address:
   in each governed payload variant as well as the non-payload object shapes;
 - raw JSON integer-token constraints;
 - stable class/coordinate mapping; and
-- the complete external-key representation gate before the selected
-  empty-snapshot result.
+- the complete composed external-key gate before the selected empty-snapshot
+  result.
 
 Because a locked-dalek `VerifyingKey` can retain a ZIP-215 representation that
 fails this canonical law, the real Rust path or its portable entry adapter MUST
 validate `VerifyingKey::as_bytes()` under the contract before reading the
 snapshot. Successful construction of the Rust type is not sufficient.
 
-Rust's current ordinary signature verification is runtime evidence, not an
-A-021 decision. The future portable verifier implementation MUST follow the
-Accepted ADR-0010 relation. Passing exact frozen signatures under the golden
-key does not establish a general signature domain for that key.
+Rust's current ordinary signature verification is runtime evidence, not the
+Accepted ADR-0010 law. The future portable verifier implementation MUST follow
+the Accepted ADR-0010 relation. Passing exact frozen signatures under the
+golden key does not establish a general signature domain for that key.
 
 The existing `magpie-core-v1` canonical encoder and cryptographic operations
 remain the production implementation. Their outputs MUST be compared with the
@@ -1284,8 +1291,9 @@ parser behavior explicit. At minimum it must:
 - reject duplicate names, unknown members and non-finite numbers;
 - enforce exact integer token syntax rather than Python integer coercion;
 - accept only named JSON statuses;
-- enforce the complete external-key syntax, exact decode and compressed-point
-  representation gate before opening or framing the input;
+- enforce the complete composed external-key syntax, exact decode,
+  compressed-point representation, `A != I`, and `[L]A = I` gate before
+  opening or framing the input;
 - separate canonical byte construction from semantic payload validation so
   hash/signature failures retain their precedence; and
 - expose the same first class and coordinate as Rust and Go.
@@ -1694,9 +1702,9 @@ implementation or edit the living programme ledger.
 - [ ] JSONL remains non-canonical transport around unchanged
       `magpie-core-v1` typed identity.
 - [ ] Empty zero-byte input and LF-only input are distinguished explicitly.
-- [ ] The complete external-key representation gate runs before empty-snapshot
-      acceptance and follows canonical RFC 8032 decoding, including `y < p`,
-      zero-`x` sign handling and byte-identical re-encoding.
+- [ ] The complete composed external-key gate runs before empty-snapshot
+      acceptance and covers text/decoding, canonical RFC 8032 representation,
+      `A != I`, and `[L]A = I`.
 - [ ] Canonical representation, `V_sig` structural admissibility, and external
       trust remain distinct layers.
 - [ ] Every candidate normative case has exactly one complete result under the

@@ -26,13 +26,15 @@ This tranche adds:
 - `magpie-portable-verifier-corpus-v1` as a candidate, immutable-on-approval
   manifest identity;
 - one SHA-256-bound machine-readable manifest;
+- one external `manifest.sha256` identity-to-exact-manifest-bytes commitment
+  that becomes frozen and non-repointable only after owner approval and merge;
 - 430 new exact-byte case artifacts plus in-place references to the existing
   golden and Deadbolt fixtures, for 432 total cases;
 - one complete ACCEPT/REJECT result per case;
 - mechanical schema, numeric, vocabulary, hostile-family, and A-021
   inventories;
 - exact S4/S5/D1/D2/T2 classifications under Accepted ADR-0010;
-- a path-specific binary/no-text Git rule for hostile corpus bytes; and
+- a path-specific binary/no-text Git rule for hostile corpus bytes;
 - a metadata/hash/inventory checker that is not a verifier implementation; and
 - one owner-authorized CI invariant that runs that checker on GitHub's normal
   clean checkout.
@@ -41,6 +43,11 @@ The corpus does not mint an ADR-0008 `G_history`. Its manifest directly fixes
 `V_sig` and commits to the cited input-language/FORMAT/ADR revisions while
 leaving the eventual complete history-verification derivation profile as a
 separate coordinate-design and implementation matter.
+
+The sidecar binds the candidate identity to the exact reviewed manifest bytes;
+it is not a second semantic specification. After owner approval and merge, any
+semantic manifest change requires a new corpus identity rather than an edited
+v1 identity-to-digest mapping.
 
 ## Exact result boundary
 

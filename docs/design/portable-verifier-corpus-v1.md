@@ -15,6 +15,11 @@ magpie-portable-verifier-corpus-v1
 
 The machine-readable artifact is
 [`fixtures/verifier-language-v1/manifest.json`](../../fixtures/verifier-language-v1/manifest.json).
+Its external exact-byte identity commitment is
+[`fixtures/verifier-language-v1/manifest.sha256`](../../fixtures/verifier-language-v1/manifest.sha256),
+which records the corpus identity and the SHA-256 of the exact `manifest.json`
+bytes without creating a self-reference inside the manifest.
+
 Once owner-approved and merged, this identity names the exact governing-source
 commitments, input bytes, external-key text, and expected results in that
 manifest. It is never a mutable `latest` alias. Any semantic change to a case
@@ -22,6 +27,20 @@ input, expected result, source commitment, failure vocabulary, or coverage
 inventory requires a distinct manifest identity. Corrections made while this
 artifact remains an unmerged candidate are review amendments, not silent
 repointing of an accepted identity.
+
+The candidate identity-to-digest mapping is:
+
+```text
+magpie-portable-verifier-corpus-v1
+-> 7d758d3f2dac1161fe15dd064b130ccbfcdaf0437ea8ab8d7772492194801a81
+```
+
+If the owner approves and merges this candidate, that mapping is frozen and
+non-repointable. A later semantic or exact-manifest-byte change requires a new
+corpus identity and its own external digest commitment; no registry, alias,
+`latest`, or edited sidecar may redirect v1. The sidecar is only an exact-byte
+identity commitment. It does not duplicate case semantics, become a verifier,
+or displace `manifest.json` as the candidate oracle.
 
 ## Governing composition
 
@@ -193,10 +212,12 @@ fixtures/deadbolt-anchor-v1/anchor-log.jsonl
 ```
 
 [`tools/check_verifier_corpus_manifest.py`](../../tools/check_verifier_corpus_manifest.py)
-checks manifest structure, unique IDs, source/file hashes, result completeness,
-all mechanical inventories, named A-021 classifications, and representative
-hostile byte properties. It does not parse histories, implement V_sig, or
-override a reviewed expected result.
+first verifies the external identity-to-digest commitment against the exact
+`manifest.json` bytes, then checks manifest structure, unique IDs, source/file
+hashes, result completeness, all mechanical inventories, named A-021
+classifications, and representative hostile byte properties. It does not parse
+histories, implement V_sig, duplicate manifest semantics, or override a
+reviewed expected result.
 
 ## Security and epistemic boundary
 

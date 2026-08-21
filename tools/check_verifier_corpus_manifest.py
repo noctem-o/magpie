@@ -16,6 +16,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = ROOT / "fixtures" / "verifier-language-v1" / "manifest.json"
+MANIFEST_DIGEST_PATH = MANIFEST_PATH.with_name("manifest.sha256")
 CASES_PATH = MANIFEST_PATH.parent / "cases"
 MANIFEST_ID = "magpie-portable-verifier-corpus-v1"
 V_SIG = "magpie-ed25519-canonical-prime-subgroup-v1"
@@ -187,6 +188,20 @@ def sha256(path: Path) -> str:
 def require(condition: bool, message: str) -> None:
     if not condition:
         fail(message)
+
+
+def validate_manifest_identity_commitment() -> str:
+    manifest_digest = sha256(MANIFEST_PATH)
+    try:
+        commitment_lines = MANIFEST_DIGEST_PATH.read_text(encoding="ascii").splitlines()
+    except (OSError, UnicodeError) as error:
+        fail(f"cannot load manifest identity commitment: {error}")
+    require(
+        commitment_lines
+        == [f"# {MANIFEST_ID}", f"{manifest_digest}  {MANIFEST_PATH.name}"],
+        "manifest identity commitment does not match exact manifest bytes",
+    )
+    return manifest_digest
 
 
 def expected_schema_coordinates() -> set[str]:
@@ -474,6 +489,7 @@ def validate_exact_byte_families(by_id: dict[str, dict]) -> None:
 
 def main() -> int:
     try:
+        manifest_digest = validate_manifest_identity_commitment()
         manifest = load_manifest()
         require(manifest.get("schema_version") == 1, "unexpected manifest schema version")
         require(manifest.get("manifest_identity") == MANIFEST_ID, "unexpected manifest identity")
@@ -536,6 +552,7 @@ def main() -> int:
         "exact-byte hashes, governing commitments, coverage inventories, "
         "A-021 named classifications, and positive vocabularies checked"
     )
+    print(f"manifest identity commitment: {MANIFEST_ID} -> {manifest_digest}")
     return 0
 
 
