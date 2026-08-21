@@ -33,6 +33,11 @@ FAILURE_CLASSES = [
     "PayloadValidation",
     "Genesis",
 ]
+FRAMING_WITHOUT_RECORD_INDEX_CASES = {
+    "n30-extra-final-terminator",
+    "n6-interior-zero-length",
+    "n7-lf-only-empty-record",
+}
 REQUIRED_GOVERNING_SOURCE_PATHS = {
     "docs/FORMAT.md",
     "docs/adr/0008-complete-producing-coordinates.md",
@@ -190,6 +195,32 @@ def require(condition: bool, message: str) -> None:
         fail(message)
 
 
+def is_exact_lower_hex(value: object, length: int) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == length
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def is_coordinate(value: object, minimum: int) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= minimum
+
+
+def load_json_without_duplicate_members(text: str, source: str) -> object:
+    def reject_duplicate_members(pairs: list[tuple[str, object]]) -> dict:
+        result: dict = {}
+        for name, value in pairs:
+            require(name not in result, f"{source}: duplicate JSON object member {name!r}")
+            result[name] = value
+        return result
+
+    try:
+        return json.loads(text, object_pairs_hook=reject_duplicate_members)
+    except json.JSONDecodeError as error:
+        fail(f"cannot load {source}: {error}")
+
+
 def validate_manifest_identity_commitment() -> str:
     manifest_digest = sha256(MANIFEST_PATH)
     try:
@@ -240,9 +271,69 @@ def byte_properties(data: bytes) -> dict:
 
 def load_manifest() -> dict:
     try:
-        return json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        text = MANIFEST_PATH.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as error:
         fail(f"cannot load manifest: {error}")
+    manifest = load_json_without_duplicate_members(text, "manifest")
+    require(isinstance(manifest, dict), "manifest must be a JSON object")
+    return manifest
+
+
+def accepted_case_vocabulary(case: dict) -> dict[str, set[str]]:
+    case_id = case["id"]
+    path = ROOT / case["input_path"]
+    data = path.read_bytes()
+    if not data:
+        record_bytes: list[bytes] = []
+    else:
+        record_bytes = data.split(b"\n")
+        if record_bytes[-1] == b"":
+            record_bytes.pop()
+
+    values = {family: set() for family in VOCABULARIES}
+    for record_index, encoded_record in enumerate(record_bytes):
+        if encoded_record.endswith(b"\r"):
+            encoded_record = encoded_record[:-1]
+        require(encoded_record, f"{case_id}: ACCEPT vocabulary input has an empty record")
+        try:
+            text = encoded_record.decode("utf-8")
+        except UnicodeDecodeError as error:
+            fail(f"{case_id}: cannot decode ACCEPT record {record_index}: {error}")
+        record = load_json_without_duplicate_members(
+            text, f"{case_id} record {record_index}"
+        )
+        require(isinstance(record, dict), f"{case_id}: ACCEPT record is not an object")
+        core = record.get("core")
+        require(isinstance(core, dict), f"{case_id}: ACCEPT record has no core object")
+        payload = core.get("payload")
+        require(
+            isinstance(payload, dict),
+            f"{case_id}: ACCEPT record has no payload object",
+        )
+        kind = payload.get("kind")
+        if isinstance(kind, str):
+            values["payload_kind"].add(kind)
+        if kind == "ClaimAsserted" and isinstance(payload.get("status"), str):
+            values["status"].add(payload["status"])
+        if kind == "ClaimStatusChanged":
+            for field in ("from", "to"):
+                if isinstance(payload.get(field), str):
+                    values["status"].add(payload[field])
+        if kind in {
+            "ClaimAssertedV2",
+            "EvidenceRegistered",
+            "JustificationEdgeRecorded",
+        } and isinstance(payload.get("actor_class"), str):
+            values["actor_class"].add(payload["actor_class"])
+        if kind == "EvidenceRegistered" and isinstance(
+            payload.get("evidence_kind"), str
+        ):
+            values["evidence_kind"].add(payload["evidence_kind"])
+        if kind == "JustificationEdgeRecorded" and isinstance(
+            payload.get("edge_kind"), str
+        ):
+            values["edge_kind"].add(payload["edge_kind"])
+    return values
 
 
 def validate_governing_source_commitments(manifest: dict) -> None:
@@ -303,7 +394,8 @@ def validate_case(case: dict, seen_ids: set[str], seen_paths: set[str]) -> None:
             f"{case_id}: unexpected out-of-subtree reference {path_text}",
         )
 
-    require(isinstance(case.get("external_verifying_key_hex"), str), f"{case_id}: external key is not exact text")
+    external_key = case.get("external_verifying_key_hex")
+    require(isinstance(external_key, str), f"{case_id}: external key is not exact text")
     expected = case.get("expected")
     required_result_keys = {
         "verdict",
@@ -317,13 +409,18 @@ def validate_case(case: dict, seen_ids: set[str], seen_paths: set[str]) -> None:
     require(isinstance(expected, dict) and set(expected) == required_result_keys, f"{case_id}: incomplete or extra result fields")
     verdict = expected["verdict"]
     require(verdict in {"ACCEPT", "REJECT"}, f"{case_id}: third or missing verdict {verdict!r}")
+    if verdict == "ACCEPT" or expected["class"] != "ExternalKey":
+        require(
+            is_exact_lower_hex(external_key, 64),
+            f"{case_id}: case expected past ExternalKey lacks lowercase hex64 key text",
+        )
     if verdict == "ACCEPT":
         require(expected["class"] is None and expected["line"] is None and expected["record_index"] is None, f"{case_id}: ACCEPT has rejection metadata")
         require(isinstance(expected["event_count"], int) and expected["event_count"] >= 0, f"{case_id}: invalid event_count")
-        require(isinstance(expected["tip"], str) and len(expected["tip"]) == 64, f"{case_id}: invalid tip")
+        require(is_exact_lower_hex(expected["tip"], 64), f"{case_id}: invalid tip")
         hashes = expected["ordered_recomputed_hashes"]
         require(isinstance(hashes, list) and len(hashes) == expected["event_count"], f"{case_id}: ordered hash count mismatch")
-        require(all(isinstance(value, str) and len(value) == 64 for value in hashes), f"{case_id}: malformed ordered hash")
+        require(all(is_exact_lower_hex(value, 64) for value in hashes), f"{case_id}: malformed ordered hash")
         if expected["event_count"] == 0:
             require(expected["tip"] == ZERO_HASH and hashes == [], f"{case_id}: empty ACCEPT identity mismatch")
         else:
@@ -331,13 +428,26 @@ def validate_case(case: dict, seen_ids: set[str], seen_paths: set[str]) -> None:
     else:
         require(expected["class"] in FAILURE_CLASSES, f"{case_id}: unknown failure class")
         require(expected["event_count"] is None and expected["tip"] is None and expected["ordered_recomputed_hashes"] == [], f"{case_id}: REJECT carries success summary")
-        for coordinate in ("line", "record_index"):
-            value = expected[coordinate]
-            require(value is None or (isinstance(value, int) and value >= (1 if coordinate == "line" else 0)), f"{case_id}: invalid {coordinate}")
         if expected["class"] == "ExternalKey":
             require(expected["line"] is None and expected["record_index"] is None, f"{case_id}: ExternalKey has record coordinates")
+        elif expected["class"] == "Framing":
+            require(is_coordinate(expected["line"], 1), f"{case_id}: invalid line")
+            if case_id in FRAMING_WITHOUT_RECORD_INDEX_CASES:
+                require(
+                    expected["record_index"] is None,
+                    f"{case_id}: zero-length Framing slice has a record index",
+                )
+            else:
+                require(
+                    is_coordinate(expected["record_index"], 0),
+                    f"{case_id}: candidate-bound Framing failure has no record index",
+                )
         else:
-            require(expected["line"] is not None, f"{case_id}: record rejection has no physical line")
+            require(is_coordinate(expected["line"], 1), f"{case_id}: invalid line")
+            require(
+                is_coordinate(expected["record_index"], 0),
+                f"{case_id}: candidate-bound rejection has no record index",
+            )
 
     require(isinstance(case.get("owning_rules"), list) and case["owning_rules"], f"{case_id}: no owning rules")
     require(isinstance(case.get("rationale"), str) and case["rationale"], f"{case_id}: no rationale")
@@ -406,12 +516,25 @@ def validate_coverage(manifest: dict, by_id: dict[str, dict]) -> None:
 
     vocabularies = coverage["positive_vocabularies"]
     require(set(vocabularies) == set(VOCABULARIES), "positive vocabulary family mismatch")
+    vocabulary_by_case: dict[str, dict[str, set[str]]] = {}
     for family, expected_values in VOCABULARIES.items():
         actual = vocabularies[family]
         require(set(actual) == set(expected_values), f"{family}: positive vocabulary mismatch")
         for value, ids in actual.items():
             require(isinstance(ids, list) and ids, f"{family}.{value}: no ACCEPT case")
-            require(all(by_id[case_id]["expected"]["verdict"] == "ACCEPT" for case_id in ids), f"{family}.{value}: mapped to non-ACCEPT")
+            for case_id in ids:
+                require(case_id in by_id, f"{family}.{value}: unknown case ID {case_id}")
+                case = by_id[case_id]
+                require(
+                    case["expected"]["verdict"] == "ACCEPT",
+                    f"{family}.{value}: mapped to non-ACCEPT",
+                )
+                if case_id not in vocabulary_by_case:
+                    vocabulary_by_case[case_id] = accepted_case_vocabulary(case)
+                require(
+                    value in vocabulary_by_case[case_id][family],
+                    f"{family}.{value}: absent from mapped ACCEPT case {case_id}",
+                )
 
     hex_roles = coverage["hex_role_cases"]
     require(isinstance(hex_roles, dict), "hex_role_cases must be an object")
@@ -512,6 +635,17 @@ def main() -> int:
         for case in cases:
             validate_case(case, seen_ids, seen_paths)
         by_id = {case["id"]: case for case in cases}
+        framing_without_index = {
+            case["id"]
+            for case in cases
+            if case["expected"]["verdict"] == "REJECT"
+            and case["expected"]["class"] == "Framing"
+            and case["expected"]["record_index"] is None
+        }
+        require(
+            framing_without_index == FRAMING_WITHOUT_RECORD_INDEX_CASES,
+            "Framing no-record-index case set mismatch",
+        )
         actual_case_paths = {
             path.relative_to(ROOT).as_posix() for path in CASES_PATH.iterdir() if path.is_file()
         }
