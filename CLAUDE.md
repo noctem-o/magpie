@@ -142,20 +142,18 @@ Freeze consequences:
 
 ## Queued work (keep current; update as things land)
 
-1. Reconcile post-PR-#131 corpus lifecycle, public-pre-alpha convergence, and
-   living audit evidence without changing runtime or frozen bytes.
-2. Implement a typed Rust `V_sig` and explicit profile-selection path against
+1. Implement a typed Rust `V_sig` and explicit profile-selection path against
    frozen `magpie-portable-verifier-corpus-v1`; retain unprofiled behavior as
    compatibility-only.
-3. Add the matching profile-aware Python conformer.
-4. Add an independent Go conformer.
-5. Run all three conformers differentially over the exact corpus, hostile-review
+2. Add the matching profile-aware Python conformer.
+3. Add an independent Go conformer.
+4. Run all three conformers differentially over the exact corpus, hostile-review
    the evidence, then reconcile A-021/A-004/RQ-006 separately.
-6. If the advertised pre-alpha still needs detachable governed output, add the
+5. If the advertised pre-alpha still needs detachable governed output, add the
    smallest coordinate-complete verification/replay result or receipt.
-7. Harden the applicable public assurance boundary: pinned validation inputs,
+6. Harden the applicable public assurance boundary: pinned validation inputs,
    platform evidence, and release-environment reproducibility.
-8. Write the pre-alpha release contract, freeze a candidate, and falsify it
+7. Write the pre-alpha release contract, freeze a candidate, and falsify it
    before an owner release decision.
 
 Keep general ingestion/CAS, `EpistemicGate`, governed ordinary agent writing,

@@ -955,8 +955,12 @@ Recorded preservation and scope checks:
   `C157931FBCBD861091E053400BD9D89C116B470E1863BFBCBB2A7BDEA2FE9B79`;
 - frozen corpus manifest SHA256 before and after:
   `7D758D3F2DAC1161FE15DD064B130CCBFCDAF0437EA8AB8D7772492194801A81`;
-- manifest sidecar SHA256 before and after:
+- manifest sidecar repository-canonical Git-blob/LF SHA256 before and after:
+  `19422B8D572CE0946824BAE92A0D60E6C4B2DBB9AC8810AC04870C5DD55C6F4E`;
+- Windows reconciliation-worktree CRLF SHA256 observed for the same sidecar:
   `E04CB0838B00BA6D5A197B68BF02F6FAC0F179DAA82642E69366BCAC952A497D`;
+  this checkout-transformed digest is not the repository-canonical identity
+  of the committed sidecar bytes;
 - generated corpus case-tree diff: none;
 - golden fixture SHA256 before and after:
   `767EF86B7E2AD1D65E8315AE28BAC682BCEEE29223B5F1A0612EC7EF062CFFB4`;
