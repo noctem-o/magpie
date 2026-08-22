@@ -10,5 +10,8 @@
 *.yml text eol=lf
 *.yaml text eol=lf
 
+# Exact-byte portable verifier corpus; hostile framing/UTF-8 bytes are normative.
+fixtures/verifier-language-v1/cases/** binary
+
 # Exact-byte artifact provenance fixtures
 fixtures/artifact-provenance-v0/*.txt text eol=lf

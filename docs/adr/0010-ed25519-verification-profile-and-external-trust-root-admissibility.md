@@ -1,13 +1,13 @@
 # ADR-0010: Ed25519 Verification Profile and External Trust-Root Admissibility
 
-**Status:** Proposed (explicit repository-owner ratification required)
+**Status:** Accepted (explicitly owner-ratified, 2026-08-21)
 
 ## Summary / Y-statement
 
 In the context of `magpie-core-v1` histories signed with ordinary Ed25519 over
 `"magpie-sig-v1" || content_hash`, facing host libraries that accept
 structurally weak and non-canonical material differently and a current accepted
-language that includes weak-root witnesses, we propose one additive, explicitly
+language that includes weak-root witnesses, we decide one additive, explicitly
 selected Ed25519 signature-verification subprofile:
 
 ```text
@@ -40,18 +40,18 @@ complete history-verification coordinate set.
 
 Existing unprofiled verification remains compatibility-only behavior. It is
 not silently renamed as `V_sig`, and `V_sig` is not declared to be the
-historical meaning of `magpie-core-v1`. This is what prevents the proposal from
+historical meaning of `magpie-core-v1`. This is what prevents the decision from
 hiding an accepted-language break behind unchanged serialized bytes.
 
-This is a Proposed constitutional decision. It is not Accepted doctrine until
-the repository owner explicitly ratifies it. Its presence, review, merge, or
-passing checks would not constitute ratification.
+This is an Accepted constitutional decision, explicitly owner-ratified on
+2026-08-21. The owner accepted the exact relation merged by PR #130; no
+implementation, corpus, or finding closure is implied by ratification.
 
 ## Authority and relationship to existing material
 
 `docs/FORMAT.md` remains the authority for `magpie-core-v1` bytes, the
 `magpie-sig-v1` message, genesis key declaration, and the externally supplied
-trust-root boundary. This ADR does not amend FORMAT while Proposed.
+trust-root boundary. This ADR does not amend FORMAT.
 
 Accepted ADR-0008 remains the authority for complete producing coordinates and
 for the constitutional meaning of derivation-profile symbol `G`. This ADR's
@@ -63,7 +63,7 @@ The following documents are evidence and design inputs, not authority capable
 of silently amending FORMAT or ratifying this ADR:
 
 - `docs/design/portable-verifier-input-language-contract.md` defines the
-  proposed canonical external-input gate;
+  canonical external-input gate;
 - `docs/design/a021-ed25519-verification-semantics-contract.md` reconstructs a
   portable permissive relation and supplies concrete weak/torsion witnesses;
 - `docs/audits/magpie-architecture-audit-2026-08-01.md` preserves the historical
@@ -71,7 +71,7 @@ of silently amending FORMAT or ratifying this ADR:
 - `docs/audits/audit-disposition-2026-08.md` remains the living administrative
   ledger, where A-021 stays Confirmed.
 
-If ratified, this ADR supersedes the design contract's recommendation to make
+This Accepted ADR supersedes the design contract's recommendation to make
 its permissive relation the portable public meaning of v1. It does not erase
 that contract, change the historical audit, or retroactively change a verdict
 returned by an existing unprofiled verifier.
@@ -106,7 +106,7 @@ unversioned host-library default.
 
 ## Scope
 
-This ADR proposes:
+This ADR decides:
 
 1. one exact Ed25519 signature-verification subprofile identity;
 2. its public-key, signature, challenge, and equation relation;
@@ -114,7 +114,7 @@ This ADR proposes:
 4. its compatibility relationship to existing unprofiled v1 verification;
 5. its eligibility for the narrow candidate portable public pre-alpha path;
    and
-6. the owner decision and implementation sequence required to proceed.
+6. the recorded owner decision and post-ratification implementation sequence.
 
 It does not implement the profile, ratify a corpus, or decide that any supplied
 key is trusted.
@@ -228,14 +228,13 @@ its host library without an explicit Magpie signature-subprofile identity.
 
 ### Immutable subprofile identity law
 
-While this ADR is Proposed, the owner may accept, amend, or reject the proposed
-relation. If it is ratified, the exact identifier
+The exact identifier
 `magpie-ed25519-canonical-prime-subgroup-v1` names exactly the frozen relation
 in this ADR forever. Its meaning may not be repointed by a registry, living
 document, release annotation, alias, deployment setting, or implementation
 default.
 
-After ratification, any semantic change to any of the following requires a
+Any semantic change to any of the following requires a
 distinct subprofile identity and a separate owner decision:
 
 - accepted `A_bytes` length, compressed-point decoding, or public-key
@@ -267,7 +266,7 @@ when the same exact `A_bytes` reach the unchanged cryptographic relation.
 
 This characterization was repeated against repository baseline
 `2e3178bcb3e63e78ea729ff1873024ada91e5ac2`. It records evidence; it is not the
-proposed normative relation.
+normative relation.
 
 ### Rust path
 
@@ -376,7 +375,7 @@ corpus exists.
 The term `strict` is particularly unsafe as doctrine. Dalek's
 `verify_strict` rejects pure small-order `A` and `R` but does not reject all
 mixed-torsion points; Python exposes no corresponding Magpie profile. Calling
-one library function would therefore not define the relation proposed here.
+one library function would therefore not define the relation selected here.
 
 All scratch probes were characterization only and were removed. This ADR adds
 no conformance corpus.
@@ -405,11 +404,11 @@ portable public profile.
 
 ### Option B — tighten `magpie-core-v1` in place
 
-Declare the proposed relation to be what `magpie-core-v1` always meant and
+Declare the selected relation to be what `magpie-core-v1` always meant and
 change both existing verifiers.
 
 Rejected. A21-S4, A21-S5, A21-D1, and A21-T2 demonstrate inputs accepted by
-current ordinary verification that the proposed relation rejects. The
+current ordinary verification that the selected relation rejects. The
 non-canonical-key probe adds another accepted class. A21-D2 is not in that
 rejected set under the revised relation because canonical identity `R` remains
 admissible. Unchanged EventCore bytes do not make the remaining
@@ -446,9 +445,9 @@ migration problem without improving the stated external-trust boundary.
 Rejected. It does not settle `R`, scalar, equation, batch, or mixed-torsion
 semantics, and it preserves the risk of callers omitting or varying the gate.
 
-## Proposed normative relation
+## Normative relation
 
-If this ADR is ratified, a conformer implements
+A conformer implements
 `V_sig = "magpie-ed25519-canonical-prime-subgroup-v1"` exactly as follows.
 
 ### 1. Explicit profile selection
@@ -550,7 +549,7 @@ For admissible `A = [a]B`, identity `R` reduces the uncofactored equation to
 breaking the ordinary discrete-log/preimage assumptions). A21-D2 is exactly a
 deliberate keyholder construction of that equation-valid form. It demonstrates
 ordinary-versus-small-order-rejecting library divergence; it is not evidence
-that this proposed subprofile admits a non-keyholder forgery.
+that this subprofile admits a non-keyholder forgery.
 
 The identity is the neutral element of the prime-order subgroup. Canonical
 decoding, `[L]R = I`, prime-subgroup non-identity `A`, canonical `S`, and the
@@ -621,7 +620,7 @@ identify these exact gates.
 | Canonical byte compatibility | `SignedEvent`, EventCore, `magpie-core-v1` canonical bytes, hashes, and Genesis fields are unchanged. |
 | Signature byte compatibility | Existing ordinary writers still sign the same `"magpie-sig-v1" || content_hash` bytes and produce the same signatures. The `R` rule admits every canonical prime-subgroup point such a signer can emit, including the theoretical zero-nonce `R = I` case. |
 | Accepted-language compatibility | `V_sig` is a strict subset of current unprofiled behavior. Non-canonical keys, identity/other small-order keys, mixed-torsion keys, non-subgroup `R`, and other inputs outside the exact relation are rejected by `V_sig`. Canonical identity `R` is permitted when the equation holds. Existing unprofiled verdicts are not changed. |
-| Golden compatibility | An independent scratch implementation of the proposed relation accepted all 9 frozen golden records and both Deadbolt anchor records. No fixture bytes were changed. |
+| Golden compatibility | An independent scratch implementation of the selected relation accepted all 9 frozen golden records and both Deadbolt anchor records. No fixture bytes were changed. |
 | Profile identity compatibility | The stricter relation cannot honestly be called the meaning of `magpie-core-v1` alone. It requires the additive external identity `magpie-ed25519-canonical-prime-subgroup-v1`. |
 
 The frozen inputs checked above were:
@@ -634,7 +633,7 @@ fixtures/deadbolt-anchor-v1/anchor-log.jsonl
 SHA-256 2c715006e3e5bef571b3d31b95f47d3c4bbb3ea68fa9750365b4a62b66cd41e5
 ```
 
-The proposed public-key gate rejects A21-S4, A21-S5, A21-D1, and A21-T2 at
+The selected public-key gate rejects A21-S4, A21-S5, A21-D1, and A21-T2 at
 public-key admissibility. Independent re-evaluation of a concrete A21-D2
 construction over the unchanged golden Genesis bytes gives `ACCEPT` under
 `V_sig`: its ordinary golden `A` is non-identity and prime-subgroup, its
@@ -645,7 +644,7 @@ path.
 
 ### Coexistence and migration consequence
 
-If ratified:
+As ratified:
 
 - existing unprofiled Rust/Python APIs retain their current behavior and are
   labelled compatibility-only, not portable `V_sig` verification;
@@ -663,12 +662,12 @@ If ratified:
 - a future requirement that the chain itself sign or declare the verification
   profile reopens Option D and requires separate owner-ratified format work.
 
-No successor core profile or signature domain is required by this proposal.
+No successor core profile or signature domain is required by this decision.
 The additive boundary is the verification profile, not `magpie-core-v2`.
 
 ## Security and epistemic consequences
 
-The proposal removes library-default ambiguity from the candidate portable
+The decision removes library-default ambiguity from the candidate portable
 boundary and rejects structural weak-root and torsion witnesses before their
 equations can produce a success. Full subgroup checks are more exact than
 dalek's `verify_strict` small-order test and are deliberately reviewable by an
@@ -703,9 +702,9 @@ DID, ambient key discovery, or key-rotation authority is introduced.
 
 ## Implications for the portable corpus and conformers
 
-This ADR intentionally contains no permanent vector files. After ratification,
-the next tranche must be the **exact normative portable corpus/profile
-manifest**.
+This ADR intentionally contains no permanent vector files. The first
+post-ratification tranche must be the **exact normative portable
+corpus/profile manifest**.
 
 That manifest must identify `V_sig` exactly, bind it into the complete
 history-verification case context, and freeze, at minimum:
@@ -786,16 +785,19 @@ An equation-only probe is supporting evidence, not a complete corpus result.
    dependency/toolchain identities.
 7. Only after agreement, reconcile A-021 administrative status and the public
    portability claim.
-8. Consider a small FORMAT cross-reference only after this ADR is Accepted and
-   the implementation boundary exists.
+8. Consider a small FORMAT cross-reference only after the implementation
+   boundary exists.
 
-No step above is authorized by this Proposed ADR alone. A-021 remains
-Confirmed and blocking for a portable-verification claim until owner
-ratification and conforming implementation evidence exist.
+No implementation step above is authorized by this Accepted ADR alone. A-021
+remains Confirmed and blocking for a portable-verification claim until
+conforming implementation evidence exists.
 
-## Owner decision required
+## Owner decision recorded
 
-> **Accept, amend, or reject:** Do we ratify
+On 2026-08-21, the repository owner explicitly **Accepted** the following
+proposition as the exact meaning of this ADR:
+
+> **Accepted:** We ratify
 > `V_sig = "magpie-ed25519-canonical-prime-subgroup-v1"` as the only Ed25519
 > signature-verification subprofile eligible for the candidate portable public
 > pre-alpha path, with that identifier frozen and non-repointable and every
@@ -815,4 +817,4 @@ ratification and conforming implementation evidence exist.
 > `magpie-core-v1` bytes, keeping existing unprofiled verification unchanged and
 > compatibility-only, keeping key trust external, and accepting that
 > structurally inadmissible keys and signatures formerly accepted by unprofiled
-> paths are rejected only when this additive subprofile is explicitly selected?
+> paths are rejected only when this additive subprofile is explicitly selected.

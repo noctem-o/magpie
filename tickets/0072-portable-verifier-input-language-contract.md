@@ -1,5 +1,13 @@
 # Ticket 0072: Portable verifier input-language contract
 
+> **2026-08-21 status update:** Accepted ADR-0010 satisfies this ticket's
+> owner-ratified A-021 decision dependency. Its pre-ratification sentinel and
+> sequencing language is preserved as historical handoff evidence, but no
+> longer governs A21-D1/A21-D2 classification. The exact candidate
+> corpus/profile manifest is now recorded by Ticket 0075; its next gate is
+> hostile corpus review. A-021, A-004, and RQ-006 remain open pending
+> independent conformer evidence.
+
 ## Status
 
 Documentation-only implementation contract candidate for A-004 / RQ-006.

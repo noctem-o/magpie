@@ -48,13 +48,15 @@ This narrow administrative annotation was made against live `origin/main`
 `2e3178bcb3e63e78ea729ff1873024ada91e5ac2`. It does not repin or reassess the
 other finding families recorded at the original baseline above.
 
-Proposed ADR-0010 makes the A-021 owner choice decision-ready and recommends
-the additive external verification profile
-`magpie-ed25519-canonical-prime-subgroup-v1`. It has not been owner-ratified.
-No Rust or Python verifier behavior, permanent corpus, profile manifest, or Go
+ADR-0010 is Accepted and was explicitly owner-ratified on 2026-08-21. It
+selects the additive external signature-verification subprofile
+`magpie-ed25519-canonical-prime-subgroup-v1`. Ratification resolves the
+constitutional owner choice only. The candidate exact-byte corpus/profile
+manifest is now recorded in `fixtures/verifier-language-v1/`, pending hostile
+review and owner merge; no Rust or Python profile implementation or Go
 conformer has landed. A-021 therefore remains Confirmed and a pre-alpha blocker
-for a portable-verification claim. If the owner ratifies the proposal, the next
-A-021 tranche is the exact normative portable corpus/profile manifest.
+for a portable-verification claim. The next gate is hostile corpus review,
+not implementation or administrative closure.
 
 | PR | Merge commit | Recorded result |
 | --- | --- | --- |
@@ -141,7 +143,7 @@ programme work; no C0–C5 item is an irrevocable implementation commitment.
 | NEW-LOG-01 valid prefix versus expected history | Verification covers the supplied snapshot as a whole; no external expected-head or checkpoint-match mechanism is present. | **BOUNDARY EXCLUSION** | Use `verified supplied snapshot` or `verified prefix`, never freshness, expected-history, or head-completeness language. Becomes a **PRE-ALPHA BLOCKER** if such a claim is advertised. |
 | A-008 / RQ-007 / RQ-008 physical persistence | The sole-write capability boundary is landed, while `FileStore` lacks a full durability, locking, framing, acknowledgement, crash, and outer-resource law. | **BOUNDARY EXCLUSION** | Do not advertise FileStore as durable, crash-safe, concurrent-writer-safe, or a checkpoint-matched history source. |
 | A-004 / RQ-006 portable input language | PR #120 supplies a contract; current Rust and Python behaviour remains divergent and no Go conformer exists. | **PRE-ALPHA BLOCKER** for a portable-verification claim | C2 must provide the corpus and independent conformers before that claim may be public. A Rust-only experimental boundary must say that it is not portable verification. |
-| A-021 signature semantics | PR #121 supplies permissive-relation evidence and hostile witnesses. Proposed ADR-0010 now specifies the additive `magpie-ed25519-canonical-prime-subgroup-v1` profile, but it is unratified and no conformer implements it. | **PRE-ALPHA BLOCKER** for a portable-verification claim | A-021 is decision-ready, not remediated. Owner ratification must precede the exact normative portable corpus/profile manifest; do not treat either proposal as cross-language realization. |
+| A-021 signature semantics | PR #121 supplies permissive-relation evidence and hostile witnesses. Accepted ADR-0010 selects the additive `magpie-ed25519-canonical-prime-subgroup-v1` profile, and a candidate exact-byte corpus now records its cases, but no conformer implements it. | **PRE-ALPHA BLOCKER** for a portable-verification claim | The owner choice is resolved, but A-021 is not remediated. Hostile corpus review must precede conformer implementation; do not treat ratification or the candidate corpus as cross-language realization. |
 | NEW-ADR-01 producing-coordinate contradiction | ADR-0003 says standing has exactly snapshot, policy version, and resolver coordinates; closure-dependent paths consume further immutable material. | **PRE-ALPHA BLOCKER** for any advertised reproducible standing claim beyond the constrained candidate boundary | C0 owner decision: reconcile the complete producing-coordinate law without amending it here. |
 | A-003 / A-019 / A-023 / RQ-011 detached results | Older standing and query/result surfaces do not carry complete immutable producing coordinates. | **BOUNDARY EXCLUSION** | No detached result, response, search row, or legacy resolution may be presented as a reproducible authority-bearing public result. |
 | A-007 / A-012 / RQ-009 / RQ-010 derived state | Projection failure/publication and foreign SQLite ownership remain insufficiently governed. | **BOUNDARY EXCLUSION** | Derived state may remain rebuildable local material, not an authority-bearing or safely publishable public store. |
