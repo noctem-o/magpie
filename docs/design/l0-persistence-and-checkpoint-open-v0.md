@@ -1,5 +1,13 @@
 # Supported L0 persistence and checkpoint-aware open contract v0
 
+> **Current runtime overlay (2026-08-22):** PR #129 subsequently implemented
+> this PR-#128 contract. `SqliteL0Store` is now the supported local persistent
+> L0 path; `FileStore` remains a compatibility/development/inspection surface.
+> The historical documentation-only baseline below is preserved. Secure
+> checkpoint retention, whole-system anti-rollback, freshness/latest,
+> canonical-branch, global-completeness, non-equivocation, and network-filesystem
+> guarantees remain explicitly outside the implemented boundary.
+>
 ## Status and scope
 
 Narrow documentation-only implementation contract for the supported local L0

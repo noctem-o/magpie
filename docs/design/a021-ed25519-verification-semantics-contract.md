@@ -6,7 +6,9 @@
 > `magpie-ed25519-canonical-prime-subgroup-v1` relation while leaving existing
 > unprofiled behavior compatibility-only. This historical design contract is
 > not the current portable verification law. A-021 remains Confirmed pending
-> corpus and independent conformer evidence.
+> profile-aware Rust, Python, and Go implementation plus independent
+> differential conformance evidence. The exact corpus was owner-approved and
+> frozen after PR #131 on 2026-08-22; corpus definition is no longer the gate.
 
 ## Status and decision boundary
 

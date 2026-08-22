@@ -2,12 +2,14 @@
 
 ## Status and identity
 
-This is the **candidate normative portable-verifier corpus/profile manifest**
-required by Accepted ADR-0010. It is pending owner review and merge. It is not
-an Accepted ADR, a conformer implementation, cross-language conformance
-evidence, or finding closure.
+This is the **owner-approved, merged, frozen normative portable-verifier
+corpus/profile manifest** required by Accepted ADR-0010. PR #131 merged its
+exact reviewed bytes on 2026-08-22; after that merge and final hostile review,
+the owner explicitly approved the exact merged corpus on 2026-08-22. It is not
+an ADR, a conformer implementation, cross-language conformance evidence, or
+finding closure.
 
-Its immutable candidate identity is:
+Its immutable corpus identity is:
 
 ```text
 magpie-portable-verifier-corpus-v1
@@ -20,27 +22,30 @@ Its external exact-byte identity commitment is
 which records the corpus identity and the SHA-256 of the exact `manifest.json`
 bytes without creating a self-reference inside the manifest.
 
-Once owner-approved and merged, this identity names the exact governing-source
-commitments, input bytes, external-key text, and expected results in that
-manifest. It is never a mutable `latest` alias. Any semantic change to a case
-input, expected result, source commitment, failure vocabulary, or coverage
-inventory requires a distinct manifest identity. Corrections made while this
-artifact remains an unmerged candidate are review amendments, not silent
-repointing of an accepted identity.
+This identity now names the exact governing-source commitments, input bytes,
+external-key text, expected results, and coverage inventory in that manifest.
+It is never a mutable `latest` alias. Any semantic or exact-byte change requires
+a distinct manifest identity; v1 cannot be corrected or repointed in place.
 
-The candidate identity-to-digest mapping is:
+The frozen identity-to-digest mapping is:
 
 ```text
 magpie-portable-verifier-corpus-v1
 -> 7d758d3f2dac1161fe15dd064b130ccbfcdaf0437ea8ab8d7772492194801a81
 ```
 
-If the owner approves and merges this candidate, that mapping is frozen and
-non-repointable. A later semantic or exact-manifest-byte change requires a new
-corpus identity and its own external digest commitment; no registry, alias,
-`latest`, or edited sidecar may redirect v1. The sidecar is only an exact-byte
-identity commitment. It does not duplicate case semantics, become a verifier,
-or displace `manifest.json` as the candidate oracle.
+That mapping is frozen and non-repointable. A later semantic or
+exact-manifest-byte change requires a new corpus identity and its own external
+digest commitment; no registry, alias, `latest`, or edited sidecar may redirect
+v1. The sidecar is only an exact-byte identity commitment. It does not
+duplicate case semantics, become a verifier, or displace `manifest.json` as
+the corpus oracle.
+
+The literal manifest field
+`"status": "candidate-pending-owner-review-and-merge"` records the artifact's
+freeze-time state. Owner approval and merge occurred later and are recorded in
+living documentation such as this status layer. Rewriting that embedded field
+would change the frozen manifest digest and is prohibited.
 
 ## Governing composition
 
@@ -232,13 +237,12 @@ trusted. The profile identity remains outside signed `magpie-core-v1` bytes.
 
 ## Review and follow-up
 
-This candidate requires hostile corpus review before implementation. Reviewers
-should independently reconstruct A21-D1/D2 and the cofactor-sensitive cases,
-verify every supposed late-stage failure reaches its claimed first gate, and
-prove exact bytes survive a clean checkout.
+PR #131's hostile corpus review completed before the owner's explicit
+post-merge approval. Future evidence may falsify a case or reveal the need for
+a successor corpus, but it may not repoint v1.
 
-After owner review and merge, the smallest next implementation tranche is a
-typed Rust `V_sig` and explicit profile-selection path exercised over this
-corpus, without changing the legacy unprofiled verifier. Matching Python and
-independent Go conformers follow. A-021, A-004, and RQ-006 remain open until
-all conformers agree and the separate administrative closure gate is met.
+The smallest next implementation tranche is a typed Rust `V_sig` and explicit
+profile-selection path exercised over this corpus, without changing the legacy
+unprofiled verifier. Matching Python and independent Go conformers follow.
+A-021, A-004, and RQ-006 remain open until all conformers agree and the separate
+administrative closure gate is met.

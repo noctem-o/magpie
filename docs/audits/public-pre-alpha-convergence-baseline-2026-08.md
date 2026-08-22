@@ -1,5 +1,12 @@
 # Public pre-alpha convergence baseline — 2026-08
 
+> **Historical planning notice (2026-08-22):** This document preserves the
+> post-PR-#121 baseline and its later narrow A-021 annotation. Current planning
+> is superseded by the
+> [post-PR-#131 reassessment](public-pre-alpha-convergence-reassessment-2026-08-22.md).
+> The historical classifications below remain evidence at their recorded
+> revisions; they are not current lifecycle or sequencing claims.
+>
 ## Status and administrative boundary
 
 This is a living administrative programme baseline for one pinned `main`

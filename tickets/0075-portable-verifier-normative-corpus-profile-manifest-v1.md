@@ -1,5 +1,14 @@
 # Ticket 0075: Portable verifier normative corpus/profile manifest v1
 
+> **2026-08-22 lifecycle update:** PR #131 merged after hostile corpus review.
+> The owner subsequently explicitly approved the exact merged corpus on
+> 2026-08-22. `magpie-portable-verifier-corpus-v1` and its manifest digest
+> `7d758d3f2dac1161fe15dd064b130ccbfcdaf0437ea8ab8d7772492194801a81`
+> are now frozen and non-repointable. The status and sequence below preserve the
+> tranche's pre-approval record. No conformer exists yet; typed Rust
+> `V_sig`/profile selection is next. A-021, A-004, RQ-006, and RQ-013 remain
+> open within their respective implementation/conformance/assurance scopes.
+>
 ## Status
 
 Candidate exact-byte corpus and profile manifest pending hostile owner review
