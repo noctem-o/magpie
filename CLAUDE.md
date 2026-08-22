@@ -142,16 +142,26 @@ Freeze consequences:
 
 ## Queued work (keep current; update as things land)
 
-1. Operate the seam (deadbolt repo): dogfood real workloads through the four
-   seal points and let anchors accumulate. Small ops tickets in support:
-   `cog anchor status` read-only debt view (deadbolt ticket 0010, drafted);
-   `--require-anchor` strict mode after status shows the real debt rhythm.
-2. Governed claim write-path — the ADR-0002-shaped design conversation: who
-   may assert `ClaimAsserted`/`EvidenceRecorded`/`ClaimStatusChanged` into the
-   log, through what policy, with what provenance discipline. Claim lifecycle
-   design is on the do-not-delegate list; this is a conversation, not a ticket,
-   and nothing else mid-tier starts before it.
-3. Only after that: typed stores, reranker, evaluator. Earn each from use.
+1. Reconcile post-PR-#131 corpus lifecycle, public-pre-alpha convergence, and
+   living audit evidence without changing runtime or frozen bytes.
+2. Implement a typed Rust `V_sig` and explicit profile-selection path against
+   frozen `magpie-portable-verifier-corpus-v1`; retain unprofiled behavior as
+   compatibility-only.
+3. Add the matching profile-aware Python conformer.
+4. Add an independent Go conformer.
+5. Run all three conformers differentially over the exact corpus, hostile-review
+   the evidence, then reconcile A-021/A-004/RQ-006 separately.
+6. If the advertised pre-alpha still needs detachable governed output, add the
+   smallest coordinate-complete verification/replay result or receipt.
+7. Harden the applicable public assurance boundary: pinned validation inputs,
+   platform evidence, and release-environment reproducibility.
+8. Write the pre-alpha release contract, freeze a candidate, and falsify it
+   before an owner release decision.
+
+Keep general ingestion/CAS, `EpistemicGate`, governed ordinary agent writing,
+contradiction/currentness runtime, ADR-0007 authority runtime, librarian,
+effectful MCP, production KMS, and ambient/Vesper agent work deferred unless a
+separate owner decision moves one into the release boundary.
 
 Landed: SQLite + FTS5 episodic projection (`magpie-episodic`, PR #5, 2026-07-02).
 Landed: Deadbolt seam ratified as anchored hierarchy — ADR-0001, `SegmentAnchored`

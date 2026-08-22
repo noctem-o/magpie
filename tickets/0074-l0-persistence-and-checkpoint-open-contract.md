@@ -1,5 +1,13 @@
 # Ticket 0074: Supported L0 persistence and checkpoint-aware open contract v0
 
+> **2026-08-22 lifecycle update:** PR #128 froze this contract and PR #129
+> implemented its supported local SQLite L0 path. `SqliteL0Store` is now the
+> supported persistence boundary; `FileStore` remains compatibility,
+> development, fixture, export, and inspection material. Any audit
+> reclassification belongs to the living disposition ledger. Secure retained
+> checkpoints, whole-system anti-rollback, freshness, and non-equivocation
+> remain deferred and unclaimed.
+>
 ## Status
 
 Documentation-only implementation-contract tranche for A-008 / RQ-007 /

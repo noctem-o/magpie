@@ -1,5 +1,12 @@
 # Ticket 0072: Portable verifier input-language contract
 
+> **2026-08-22 lifecycle update:** PR #131 merged the exact corpus and its
+> hostile review completed; the owner then explicitly approved the exact
+> merged `magpie-portable-verifier-corpus-v1` identity and digest. The corpus is
+> frozen and non-repointable. C2 now proceeds to typed Rust, matching Python,
+> and independent Go conformers plus differential evidence. A-004 and RQ-006
+> remain open; the approved oracle is not executable conformance.
+>
 > **2026-08-21 status update:** Accepted ADR-0010 satisfies this ticket's
 > owner-ratified A-021 decision dependency. Its pre-ratification sentinel and
 > sequencing language is preserved as historical handoff evidence, but no

@@ -66,7 +66,8 @@ It includes:
 
 - a frozen signed event format with canonical encoding and golden vectors
 - an append-only hash-chained log with Ed25519 signatures
-- an independent Python chain verifier
+- an independent unprofiled Python chain verifier retained for compatibility
+- an owner-approved, frozen 432-case exact-byte portable-verifier corpus
 - a supported local SQLite L0 store with bounded creation and verified reopen
 - stale-writer detection and atomic successor append
 - complete history verification before deterministic replay
@@ -82,6 +83,11 @@ It includes:
 The scope is still intentionally small.
 
 There is no general ingestion system, no autonomous research agent, no ordinary governed claim writer, and no magic "latest truth" resolver.
+
+The frozen portable corpus is normative oracle material, not a conformer. No
+Rust, Python, or Go implementation yet realizes the selected ADR-0010
+signature profile over that complete corpus, so current `main` makes no
+portable cross-language verification claim.
 
 ## Quick start
 
@@ -425,6 +431,8 @@ Implemented today:
 - complete verification before replay
 - bounded local SQLite L0 persistence
 - explicit verified-prefix and checkpoint expectation semantics
+- an owner-approved, exact-byte portable-verifier corpus frozen under
+  `magpie-portable-verifier-corpus-v1`
 - rebuildable search and claim projections
 - exact supplied content for closure-dependent resolution
 - provenance verification and origin admission
@@ -437,6 +445,10 @@ Implemented today:
 Important work that is **not** implemented yet includes:
 
 - secure retained checkpoints and stronger rollback resistance
+- profile-aware Rust, Python, and Go portable conformers plus differential
+  execution over the frozen corpus
+- coordinate-complete detached verification/replay results for any advertised
+  governed detachable-result boundary
 - authority-bound origin-group admission under ADR 0007
 - an ordinary governed claim and evidence writer
 - `EpistemicGate`
@@ -503,7 +515,7 @@ Their status matters. Exploratory documents are not runtime behavior merely beca
 - [ADR 0008](docs/adr/0008-complete-producing-coordinates.md) requires complete immutable producing inputs for governed derived results.
 - [ADR 0009](docs/adr/0009-verified-supplied-history-and-explicit-checkpoint-expectations.md) separates supplied-history verification from caller expectations.
 - [ADR 0010](docs/adr/0010-ed25519-verification-profile-and-external-trust-root-admissibility.md) is the Accepted, owner-ratified explicit Ed25519 signature-verification subprofile decision; implementation and cross-language conformance remain separate gates.
-- [Portable verifier corpus v1](docs/design/portable-verifier-corpus-v1.md) is the candidate exact-byte conformance manifest pending hostile review and owner merge; it is not a conformer or finding closure.
+- [Portable verifier corpus v1](docs/design/portable-verifier-corpus-v1.md) is the owner-approved, merged, exact-byte oracle frozen as `magpie-portable-verifier-corpus-v1`; it is not a conformer, cross-language evidence, or finding closure.
 
 For standing details:
 

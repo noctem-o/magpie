@@ -1,5 +1,12 @@
 # Ticket 0073: A-021 Ed25519 verification semantics
 
+> **2026-08-22 lifecycle update:** PR #131 merged the exact corpus after hostile
+> review, and the owner then explicitly approved the exact merged
+> `magpie-portable-verifier-corpus-v1` identity and digest. A-021 is no longer
+> blocked on constitutional choice or corpus definition. It remains Confirmed
+> because no Rust, Python, or Go profile-aware conformer or differential
+> conformance evidence exists.
+>
 > **2026-08-21 status update:** The owner accepted ADR-0010, not this ticket's
 > permissive-v1 recommendation. Accepted ADR-0010 selects the additive
 > `magpie-ed25519-canonical-prime-subgroup-v1` subprofile and keeps unprofiled
