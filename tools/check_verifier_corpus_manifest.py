@@ -19,6 +19,9 @@ MANIFEST_PATH = ROOT / "fixtures" / "verifier-language-v1" / "manifest.json"
 MANIFEST_DIGEST_PATH = MANIFEST_PATH.with_name("manifest.sha256")
 CASES_PATH = MANIFEST_PATH.parent / "cases"
 MANIFEST_ID = "magpie-portable-verifier-corpus-v1"
+EXPECTED_MANIFEST_SHA256 = (
+    "7d758d3f2dac1161fe15dd064b130ccbfcdaf0437ea8ab8d7772492194801a81"
+)
 V_SIG = "magpie-ed25519-canonical-prime-subgroup-v1"
 ZERO_HASH = "0" * 64
 FAILURE_CLASSES = [
@@ -98,6 +101,29 @@ EXPECTED_A21_CASES = {
         "REJECT",
         "ExternalKey",
         {"a21-named-vector", "external-key", "mixed-torsion", "negative"},
+    ),
+}
+EXPECTED_ESCAPED_DUPLICATE_CASES = frozenset(
+    {
+        "n8-escaped-duplicate-signed-event-core",
+        "n8-escaped-duplicate-event-core-seq",
+        "n8-escaped-duplicate-payload-kind",
+    }
+)
+EXPECTED_UNKNOWN_MEMBER_CASES = {
+    "SignedEvent": "n10-unknown-signedevent",
+    "EventCore": "n10-unknown-eventcore",
+    "Provenance": "n10-unknown-provenance",
+    "Payload.Genesis": "n10-unknown-payload-genesis",
+    "Payload.ClaimAsserted": "n10-unknown-payload-claimasserted",
+    "Payload.EvidenceRecorded": "n10-unknown-payload-evidencerecorded",
+    "Payload.ClaimStatusChanged": "n10-unknown-payload-claimstatuschanged",
+    "Payload.Note": "n10-unknown-payload-note",
+    "Payload.SegmentAnchored": "n10-unknown-payload-segmentanchored",
+    "Payload.ClaimAssertedV2": "n10-unknown-payload-claimassertedv2",
+    "Payload.EvidenceRegistered": "n10-unknown-payload-evidenceregistered",
+    "Payload.JustificationEdgeRecorded": (
+        "n10-unknown-payload-justificationedgerecorded"
     ),
 }
 SCHEMA_MUTATION_PREFIXES = {
@@ -364,14 +390,21 @@ def load_json_without_duplicate_members(text: str, source: str) -> object:
 
 def validate_manifest_identity_commitment() -> str:
     manifest_digest = sha256(MANIFEST_PATH)
+    require(
+        manifest_digest == EXPECTED_MANIFEST_SHA256,
+        "manifest bytes do not match the independently pinned v1 digest",
+    )
     try:
         commitment_lines = MANIFEST_DIGEST_PATH.read_text(encoding="ascii").splitlines()
     except (OSError, UnicodeError) as error:
         fail(f"cannot load manifest identity commitment: {error}")
     require(
         commitment_lines
-        == [f"# {MANIFEST_ID}", f"{manifest_digest}  {MANIFEST_PATH.name}"],
-        "manifest identity commitment does not match exact manifest bytes",
+        == [
+            f"# {MANIFEST_ID}",
+            f"{EXPECTED_MANIFEST_SHA256}  {MANIFEST_PATH.name}",
+        ],
+        "manifest identity sidecar does not match the pinned v1 commitment",
     )
     return manifest_digest
 
@@ -657,18 +690,47 @@ def validate_coverage(manifest: dict, by_id: dict[str, dict]) -> None:
             expected_rule = {"duplicate": "N8", "omission": "N17", "null": "N18"}[mode]
             require(expected_rule in case["owning_rules"], f"{coordinate}/{mode}: wrong owning rule")
 
-    expected_shapes = {"SignedEvent", "EventCore", "Provenance"} | {f"Payload.{variant}" for variant in PAYLOAD_MEMBERS}
     shapes = coverage["schema_unknown_member_shapes"]
-    require(set(shapes) == expected_shapes and len(shapes) == 12, "N10 object-shape inventory mismatch")
-    require(len(set(shapes.values())) == len(shapes), "N10 object shape reuses a case")
-    for shape, case_id in shapes.items():
+    require(
+        shapes == EXPECTED_UNKNOWN_MEMBER_CASES,
+        "N10 object-shape case mapping mismatch",
+    )
+    for shape, case_id in EXPECTED_UNKNOWN_MEMBER_CASES.items():
+        require(case_id in by_id, f"{shape}: unknown N10 case ID")
         case = by_id[case_id]
-        require(case["expected"]["class"] == "Schema" and "N10" in case["owning_rules"], f"{shape}: invalid N10 mapping")
+        require(
+            case["expected"]["verdict"] == "REJECT"
+            and case["expected"]["class"] == "Schema"
+            and "N10" in case["owning_rules"],
+            f"{shape}: invalid N10 mapping",
+        )
+        require(
+            {shape, "negative", "schema", "unknown-member"}.issubset(case["tags"]),
+            f"{shape}: designated N10 case lacks object-shape tags",
+        )
 
     escaped = coverage["escaped_duplicate_cases"]
-    require(len(escaped) >= 3 and len(escaped) == len(set(escaped)), "escaped duplicate coverage is missing or ambiguous")
-    for case_id in escaped:
-        require(by_id[case_id]["expected"]["class"] == "Schema" and "N8" in by_id[case_id]["owning_rules"], f"{case_id}: invalid escaped duplicate result")
+    require(
+        isinstance(escaped, list)
+        and len(escaped) == len(EXPECTED_ESCAPED_DUPLICATE_CASES)
+        and set(escaped) == EXPECTED_ESCAPED_DUPLICATE_CASES,
+        "escaped duplicate case mapping mismatch",
+    )
+    for case_id in EXPECTED_ESCAPED_DUPLICATE_CASES:
+        require(case_id in by_id, f"{case_id}: unknown escaped duplicate case ID")
+        case = by_id[case_id]
+        require(
+            case["expected"]["verdict"] == "REJECT"
+            and case["expected"]["class"] == "Schema"
+            and "N8" in case["owning_rules"],
+            f"{case_id}: invalid escaped duplicate result",
+        )
+        require(
+            {"duplicate", "escaped-name", "negative", "schema"}.issubset(
+                case["tags"]
+            ),
+            f"{case_id}: designated escaped duplicate case lacks construction tags",
+        )
 
     numeric = coverage["numeric_boundaries"]
     require(set(numeric) == {f"U64-P{number}" for number in range(1, 6)}, "numeric boundary inventory mismatch")
