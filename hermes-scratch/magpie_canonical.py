@@ -165,10 +165,12 @@ def verify_history(lines_text, external_key_hex):
         M = SIG_DOMAIN + bytes.fromhex(h)
         res = vsig_verify(A_bytes, bytes.fromhex(sig_hex), M)
         if res["verdict"] != "ACCEPT":
-            # V_sig key-admissibility failures are ExternalKey-class rejections
-            # (they precede any signature work); everything else is Signature.
-            stage = "ExternalKey" if res["detail"] in ("A == I", "[L]A != I") else "Signature"
-            raise Rejection(stage, f"record {idx}: {res['detail']}")
+            # vsig_verify already computes the correct stage (ExternalKey for
+            # every failed external-key admissibility check — transport,
+            # decode canonicity, A != I, [L]A = I — before any signature work;
+            # Signature otherwise). Trust the stage field, never match on
+            # detail strings.
+            raise Rejection(res["stage"] or "Signature", f"record {idx}: {res['detail']}")
 
         # Genesis binding rules (checked at genesis position per FORMAT §5 order)
         if idx == 0:

@@ -3,14 +3,41 @@ Compute first, compare after — expected verdicts are asserted at the END.
 """
 import hashlib
 import json
+import os
 import sys
 
-sys.path.insert(0, r"C:/Users/herpe/magpie-hermes-a021-vsig/hermes-scratch")
+_HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _HERE)
 from magpie_canonical import encode_eventcore, content_hash, message, verify_history, Rejection
 from vsig import vsig_verify, base_point, IDENTITY, _mul, _decode, _encode, _add, L, p
 
-WT = r"C:/Users/herpe/magpie-hermes-a021-vsig"
+# Repo root = two levels above hermes-scratch/.
+WT = os.path.dirname(_HERE)
 results = []
+
+# Expected-outcome oracle. Every recorded case MUST appear here; run_vectors
+# exits nonzero if any actual outcome diverges. Stages: ExternalKey /
+# Signature / None(ACCEPT) / Framing / JsonSyntax / Schema / Sequence /
+# PreviousLink / ContentHash / Genesis / PayloadValidation.
+EXPECTED = {
+    "P0-golden":     ("ACCEPT", None),
+    "P0-deadbolt":   ("ACCEPT", None),
+    "A21-S4":        ("REJECT", "ExternalKey"),
+    "A21-S5":        ("REJECT", "ExternalKey"),
+    "A21-T2":        ("REJECT", "ExternalKey"),
+    "A21-D2":        ("ACCEPT", None),
+    "A21-D1":        ("REJECT", "ExternalKey"),
+    "A21-S1":        ("REJECT", "Signature"),
+    "A21-S2":        ("REJECT", "Signature"),
+    "A21-S3":        ("REJECT", "Signature"),
+    "A21-M1":        ("REJECT", "Signature"),
+    "A21-K1":        ("REJECT", "ExternalKey"),
+    "K-y>=p":        ("REJECT", "ExternalKey"),
+    "A21-R1":        ("REJECT", "Signature"),
+    "A21-R2":        ("REJECT", "Signature"),
+    "A21-R3":        ("REJECT", "Signature"),
+    "R-mixedtorsion": ("REJECT", "Signature"),
+}
 
 
 def record(vid, outcome, detail=""):
@@ -139,11 +166,9 @@ record("A21-S2", *run_case("S2", to_jsonl(core_ord, sig_s2), ORD_KEY))
 sig_s3 = good_sig[:64] + "00" * 32
 record("A21-S3", *run_case("S3", to_jsonl(core_ord, sig_s3), ORD_KEY))
 
-# M1: correct signature bytes under wrong message (flip hash stored)
-ev_wrong = {"core": core_ord, "hash": h_ord, "signature": good_sig}
-wrong_json = json.dumps(ev_wrong, separators=(",", ":")).replace(
-    '"hash":"' + h_ord, '"hash":"' + "00" * 32 if False else '"hash":"' + h_ord)
-# simpler: recompute a valid signature for a DIFFERENT event then store it on ours
+# M1: correct signature bytes under wrong message — a signature valid for a
+# DIFFERENT event, stored on ours. The challenge binds M, so the equation
+# must fail.
 core_other = genesis_core(10, ORD_KEY)
 _, other_sig = sign_event(core_other, 12345 % L)
 record("A21-M1", *run_case("M1", to_jsonl(core_ord, other_sig), ORD_KEY))
@@ -160,21 +185,20 @@ good_R = good_sig[:32]  # hex of R bytes... note good_sig is hex string; first 6
 R_b_hex = good_sig[:64]
 R_b = bytes.fromhex(R_b_hex)
 
-# R1: non-decompressing R (y with no sqrt): search one
+# R1: non-decompressing R (y with no square root). Search y values near the
+# good R for one where xx = (y^2-1)/(d*y^2+1) is a quadratic non-residue.
+import vsig as _v
 found = None
 for delta in range(1, 300):
-    cand = bytearray(R_b)
-    # tweak y low bits while keeping canonical-undecodable
-    y = int.from_bytes(cand, "little") & ((1 << 255) - 1)
-    yy = (y + delta) % p
-    if yy >= p:
+    cand_y = ((int.from_bytes(R_b, "little") & ((1 << 255) - 1)) + delta) % p
+    if cand_y >= p:
         continue
-    xx = ((yy * yy - 1) * pow((d_ := __import__("vsig")).d * yy * yy + 1, p - 2, p)) % p
+    xx = ((cand_y * cand_y - 1) * pow(_v.d * cand_y * cand_y + 1, p - 2, p)) % p
     x8 = pow(xx, (p + 3) // 8, p)
     if (x8 * x8 - xx) % p != 0:
         x8q = (x8 * pow(2, (p - 1) // 4, p)) % p
         if (x8q * x8q - xx) % p != 0:
-            found = yy.to_bytes(32, "little")
+            found = cand_y.to_bytes(32, "little")
             break
 if found:
     sig_r1 = found.hex() + good_sig[64:]
@@ -203,6 +227,34 @@ k_mt = int.from_bytes(hashlib.sha512(bytes.fromhex(R_mt) + bytes.fromhex(ORD_KEY
                       b"magpie-sig-v1" + bytes.fromhex(h_ord)).digest(), "little") % L
 S_mt = ((r + k_mt * (12345 % L)) % L).to_bytes(32, "little").hex()
 record("R-mixedtorsion", *run_case("Rmt", to_jsonl(core_ord, R_mt + S_mt), ORD_KEY))
+
+# ---------------------------------------------------------------- oracle pass
+# Compute-first, compare-second: every recorded outcome must match EXPECTED.
+divergences = []
+for vid, actual, detail in results:
+    exp = EXPECTED.get(vid)
+    if exp is None:
+        divergences.append((vid, "no expected outcome registered", actual))
+        continue
+    exp_verdict, exp_stage = exp
+    if exp_verdict == "ACCEPT":
+        ok = (actual == "ACCEPT")
+    else:
+        ok = (actual == f"REJECT({exp_stage})")
+    if not ok:
+        divergences.append((vid, f"{exp_verdict}" + (f"({exp_stage})" if exp_stage else ""), actual))
+
+missing = set(EXPECTED) - {r[0] for r in results}
+if missing:
+    divergences.append((sorted(missing), "expected case never ran", None))
+
+print("\n--- oracle ---")
+if divergences:
+    for vid, want, got in divergences:
+        print(f"DIVERGENCE {vid}: expected {want}, got {got}")
+    print(f"ORACLE FAILED: {len(divergences)} divergence(s)")
+    sys.exit(1)
+print(f"ORACLE PASSED: {len(results)}/{len(EXPECTED)} cases match expected outcomes")
 
 print("\n--- machine-readable ---")
 print(json.dumps([list(r) for r in results]))

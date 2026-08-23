@@ -1,10 +1,16 @@
 """RFC 8032 calibration of the from-scratch checker. MUST pass before any
 corpus vector is evaluated (magpie-development skill: ed25519 traps).
+
+Calibration scope (honest statement): RFC 8032 Test 1 (empty message) plus
+structural probes — base-point identity/encoding, [L]B = I, canonical
+identity/order-2 decoding, sign-bit and y >= p rejection rules.
+This is NOT the full set of official RFC 8032 test vectors.
 """
 import hashlib
+import os
 import sys
 
-sys.path.insert(0, __file__.rsplit("\\", 1)[0] if "\\" in __file__ else ".")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from vsig import vsig_verify, base_point, IDENTITY, _mul, _decode, _encode, L, p
 
 failures = []
