@@ -96,6 +96,7 @@ mod history_expectation;
 mod logimpl;
 mod sqlite_l0;
 mod store;
+mod vsig;
 
 pub use canonical::CANONICALIZATION_PROFILE;
 pub use error::LogError;
@@ -112,6 +113,9 @@ pub use sqlite_l0::{
     CheckpointQualifiedWriterOpenV0, L0ResourceLimitsV0, SqliteCheckpointOpenError, SqliteL0Store,
 };
 pub use store::{FileStore, LogStore, MemStore};
+pub use vsig::{
+    verify_signature_with_profile, SignatureVerificationProfile, V_SIG_PROFILE_ID, VsigRejection,
+};
 
 // Re-exported so callers don't need a direct ed25519-dalek dependency for the basics.
 pub use ed25519_dalek::{SigningKey, VerifyingKey};
