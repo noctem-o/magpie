@@ -5,6 +5,7 @@
 //! portable-history conformer; it is not itself a complete verifier.
 
 mod framing;
+mod json_syntax;
 mod lexical;
 mod preflight;
 
