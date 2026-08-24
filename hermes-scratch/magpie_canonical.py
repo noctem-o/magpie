@@ -101,11 +101,21 @@ def verify_history(lines_text, external_key_hex):
     raises Rejection with stage/detail otherwise. ExternalKey gate precedes
     input processing per the portable precedence chain.
     """
-    # --- ExternalKey gate (before any input processing)
+    # --- ExternalKey gate (COMPLETE composed gate before any input processing)
+    # Per ADR-0010 the full key-admissibility relation — transport, canonical
+    # decode, A != I, [L]A == I — must run BEFORE framing/empty-snapshot and
+    # JSON handling, so a bad key rejects as ExternalKey regardless of input.
     if not isinstance(external_key_hex, str) or len(external_key_hex) != 64 \
             or any(c not in "0123456789abcdef" for c in external_key_hex):
         raise Rejection("ExternalKey", "key must be exactly 64 lowercase ASCII hex chars")
     A_bytes = bytes.fromhex(external_key_hex)
+    from vsig import vsig_verify as _vv
+    _key_gate = _vv(A_bytes, b"\x00" * 64, b"\x00" * 32)
+    # Any ExternalKey-stage failure fires here; only a fully admissible key
+    # proceeds. (The probe signature bytes are irrelevant: the key gate
+    # precedes all signature work inside vsig_verify.)
+    if _key_gate["stage"] == "ExternalKey":
+        raise Rejection("ExternalKey", f"record 0: {_key_gate['detail']}")
 
     lines = [ln for ln in lines_text.split("\n") if ln.strip() != ""]
     if not lines:

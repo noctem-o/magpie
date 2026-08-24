@@ -1,22 +1,13 @@
-"""W3 analysis: why doesn't the S=0 fixed point converge?
+"""S=0 gate-sequence probe (Hermes) — corrected per Luna's audit.
 
-Equation: [S]B = R + [k]A with S = 0 requires R = -[k]A, where
-k = H(R_bytes || A || M) mod L. But k depends on R bytes, so we need a
-fixed point R* = -[H(R*)...mod L]A. This is a random mapping on ~2^252
-values — a fixed point exists only with probability ~L * (1/L^2)... i.e.
-essentially never. My iteration cannot converge. That's EXPECTED, not a bug.
+Executed claim ONLY: S=0 passes the canonical range gate and reaches the
+equation; S>=L is rejected earlier at the range gate.
 
-Correct W3 construction: pick R first as a genuinely random multiple of B,
-compute k from it, then set S = k*a mod L so the equation holds — but that
-makes S nonzero. For an S=0 ACCEPT witness we instead need the equation to
-hold WITH S=0, which requires the (astronomically unlikely) fixed point.
-
-=> The honest S=0 boundary claim is NOT "an S=0 signature can be accepted"
-but the weaker, still-valuable property: "S=0 passes the canonicality gate
-(range check) and fails later only at the equation if no fixed point exists."
-We demonstrate that directly at the vsig_verify level by checking the gate
-sequence: feed S=0 and confirm the rejection detail is 'equation false'
-(NOT 'S out of range'), proving S=0 was treated as in-range/canonical.
+An ACCEPTING S=0 witness requires a fixed point of F(R) = -[H(R||A||M) mod L]A.
+Under the random-oracle heuristic, a random mapping on N ~ L points has
+roughly ONE EXPECTED fixed point (mean over random mappings), so such a
+witness likely EXISTS. Finding it efficiently is a separate (open for this
+reference) problem. No nonexistence or nonconstructibility claim is made.
 """
 import hashlib
 import os
@@ -42,12 +33,14 @@ assert res["detail"] == "equation false", \
 # Contrast: S=L must fail EARLIER, at the range gate.
 res_L = vsig_verify(A_GOOD_B, R_enc + L.to_bytes(32, "little"), M)
 print("S=L, same R  :", res_L["verdict"], "|", res_L["stage"], "|", res_L["detail"])
-assert res_L["detail"] != "equation false", "S=L must not reach the equation"
+assert res_L["detail"] == "S out of range (not canonical)", \
+    f"S=L must fail at the range gate; got {res_L['detail']}"
 
 print("""
-W3 (revised, honest form): S=0 is inside the strict range 0 <= S < L and
-is treated as canonical — it reaches the equation gate ('equation false'),
-unlike S >= L which is rejected earlier ('S out of range'). An actual
-ACCEPTING S=0 signature requires a hash fixed point and is not constructible;
-this weaker demonstration is the provable claim.
+W3 boundary conclusion (strength-matched):
+  S=0 passes the strict range gate 0 <= S < L and reaches the equation.
+  An accepting S=0 signature corresponds to a fixed point of a hash-driven
+  random mapping (~1 expected fixed point under the RO heuristic); its
+  existence is likely but was NOT demonstrated here, and no efficient
+  construction is claimed.
 """)

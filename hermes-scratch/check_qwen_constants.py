@@ -19,7 +19,7 @@ key_hex = core["payload"]["verifying_key"]
 print("genesis verifying_key :", key_hex)
 
 # Qwen's A_KEY constant: ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c
-QWEN_A = "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421ea691446d22c"
+QWEN_A = "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c"
 print("matches Qwen A_KEY?   :", key_hex == QWEN_A)
 
 # Qwen's HASH constant: cbb7685efd5d679a5a6f548fe42a36d8dacd391606a0c23c767d89052f01e90f

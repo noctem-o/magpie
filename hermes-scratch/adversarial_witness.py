@@ -21,7 +21,10 @@ Expected per ADR-0010:
   W1 REJECT at ExternalKey (order-2 key fails [L]A == I);
   W2 REJECT at Signature   (same order-2 bytes as R under a valid key:
      [L]R != I fires — proving the gate is load-bearing, not vacuous);
-  W3 ACCEPT                (legitimately constructed S=0 signature).
+  W3 equation-false        (S=0 passes the strict range gate and reaches
+     the equation; an ACCEPTING S=0 witness would require a hash fixed
+     point, which likely exists by the random-mapping mean argument but
+     was not found here — see probe_s_zero.py).
 """
 import hashlib
 import os
@@ -79,11 +82,11 @@ for _ in range(10):
     R_enc = R_new
 res3 = vsig_verify(A_GOOD_B, R_enc + ZERO_S, M)
 print("W3 good key, R=-[k]A attempt, S=0        ->", res3["verdict"], "|", res3["detail"])
-# Honest claim (see probe_s_zero.py): a genuinely ACCEPTING S=0 signature
-# requires a hash fixed point R = -[H(R)...]A and is not constructible.
-# The provable S=0 property is that S=0 passes the canonicality/range gate
-# and reaches the equation gate — demonstrated in probe_s_zero.py by the
-# rejection detail being 'equation false', never 'S out of range'.
+# S=0 boundary (corrected per Luna's audit): an ACCEPTING S=0 witness needs
+# a hash fixed point R = -[H(R)...]A; the random-mapping mean argument says
+# ~1 expected fixed point likely EXISTS but was not found here. The provable,
+# executed property is that S=0 passes the strict range gate and reaches the
+# equation gate ('equation false', never 'S out of range').
 assert res3["detail"] == "equation false", \
     f"W3 FAILED: S=0 must clear the range gate; got {res3['detail']}"
 
@@ -94,9 +97,10 @@ WITNESS SUMMARY (all three must hold simultaneously):
   W2 REJECT/Signature   — order-2 bytes as R under a valid key: [L]R != I
      fires, proving prime_subgroup()/[L]R is load-bearing here.
   W3 equation-false     — S = 0 passes the strict range gate and reaches
-     the equation (never 'S out of range'); an ACCEPTING S=0 witness is
-     not constructible (needs a hash fixed point), so this weaker form is
-     the honest claim.
+     the equation (never 'S out of range'). An ACCEPTING S=0 witness needs
+     a hash fixed point, which likely exists (~1 expected fixed point by
+     the random-mapping mean argument) but was not found; no claim of
+     nonexistence is made.
 
 Any Rust implementation that (a) reduces L mod L to compute [L]P (predicate
 vacuously true -> W1/W2 accept small-order points), or (b) orders gates

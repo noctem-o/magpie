@@ -93,12 +93,53 @@ def _mul(n, pt):
 
 # ---------------------------------------------------------------- V_sig core
 
-def canonical_decode_ok(b32):
-    return _decode(b32) is not None
+# Explicit profile identity (ADR-0010 §Immutable subprofile identity law).
+# Selection is by exact string only — no alias, no "latest", no case folding,
+# no whitespace tolerance, no ambient default. Unknown identities fail closed.
+V_SIG_PROFILE_ID = "magpie-ed25519-canonical-prime-subgroup-v1"
+
+_SELECTED = [False]  # one-element list used as a mutable "selected" flag
 
 
-def vsig_verify(A_bytes, signature, M):
-    """Return dict(verdict='ACCEPT'|'REJECT', stage, detail). Pure V_sig."""
+def profile_from_identity(identity):
+    """Exact-identity selection. Returns the canonical identity string on an
+    exact match, None otherwise (fail closed)."""
+    result = V_SIG_PROFILE_ID if identity == V_SIG_PROFILE_ID else None
+    if result is not None:
+        _SELECTED[0] = True
+    return result
+
+
+def require_profile(identity=None):
+    """Return the verified profile identity, requiring explicit selection.
+
+    With an argument: exact-match selection (same as profile_from_identity).
+    Without: raises unless profile_from_identity was called at least once in
+    this process — i.e. verification cannot run without an explicit,
+    traceable selection step.
+    """
+    if identity is not None:
+        selected = profile_from_identity(identity)
+        if selected is None:
+            raise ValueError(f"unknown V_sig profile identity {identity!r}")
+        return selected
+    if not _SELECTED[0]:
+        raise RuntimeError(
+            "V_sig profile not explicitly selected: call "
+            f"profile_from_identity({V_SIG_PROFILE_ID!r}) first"
+        )
+    return V_SIG_PROFILE_ID
+
+
+def vsig_verify(A_bytes, signature, M, profile=None):
+    """Return dict(verdict='ACCEPT'|'REJECT', stage, detail). Pure V_sig.
+
+    `profile` may be omitted for direct arithmetic use (calibration, probes);
+    history wrappers should pass the value obtained from require_profile() so
+    every verdict carries its selection coordinate.
+    """
+    if profile is not None and profile != V_SIG_PROFILE_ID:
+        raise ValueError(f"unknown V_sig profile identity {profile!r}")
     if not isinstance(A_bytes, (bytes, bytearray)) or len(A_bytes) != 32:
         return {"verdict": "REJECT", "stage": "ExternalKey", "detail": "key not 32 bytes"}
     A = _decode(A_bytes)
