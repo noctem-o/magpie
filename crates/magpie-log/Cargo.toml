@@ -10,7 +10,7 @@ description = "L0 — the signed, hash-chained, append-only event log. The sole 
 
 [dependencies]
 serde.workspace = true
-serde_json.workspace = true
+serde_json = { workspace = true, features = ["raw_value"] }
 sha2.workspace = true
 ed25519-dalek.workspace = true
 curve25519-dalek.workspace = true

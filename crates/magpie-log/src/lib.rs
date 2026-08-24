@@ -87,6 +87,13 @@
 //! let mut store = MemStore::new();
 //! key.append_record(&mut store, b"caller-supplied record bytes").unwrap();
 //! ```
+//!
+//! The staged portable raw-input frontend is intentionally crate-internal
+//! until the complete-history conformer owns its continuation:
+//!
+//! ```compile_fail,E0603
+//! use magpie_log::portable_verifier::FrontendSession;
+//! ```
 
 mod canonical;
 mod error;
@@ -94,6 +101,8 @@ mod event;
 mod hashing;
 mod history_expectation;
 mod logimpl;
+#[allow(dead_code)]
+mod portable_verifier;
 mod sqlite_l0;
 mod store;
 
