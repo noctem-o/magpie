@@ -28,6 +28,28 @@ const GOLDEN_KEY: &str = "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea
 const OTHER_ADMISSIBLE_KEY: &str =
     "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d2ac";
 
+// P2-1: explicit campaign bounds. These constants are the single source of
+// truth for every input-size claim in the PR description, and the campaign
+// asserts the observed maxima against them mechanically.
+const CAMPAIGN_SEED: u64 = 0xA55E_171A;
+/// Default `cargo test` smoke size (200 inputs per strategy).
+const SMOKE_LOGICAL_INPUTS: usize = 600;
+/// Full extended campaign: 12,000 logical inputs / 24,000 conformer executions.
+const EXTENDED_LOGICAL_INPUTS: usize = 12_000;
+const STRATEGY_COUNT: usize = 3;
+/// Strategy 0 (uniform random): length is `0..UNIFORM_MAX_LEN` bytes.
+const UNIFORM_MAX_LEN: usize = 600;
+/// Strategy 1 (mutated frozen ACCEPT histories): starts from whole frozen
+/// seeds (largest is ~17 KB) and applies `1..=MAX_MUTATIONS_PER_INPUT`
+/// byte flip/delete/insert operations, so its bound is
+/// `largest_frozen_accept_seed + MAX_MUTATIONS_PER_INPUT` — asserted, not
+/// hard-coded here.
+const MAX_MUTATIONS_PER_INPUT: usize = 8;
+/// Strategy 2 (grammar-ish fragments): `0..FRAGMENT_MAX_PIECES` pieces.
+const FRAGMENT_MAX_PIECES: usize = 12;
+/// Longest piece in the fragment table (the lone-surrogate literal).
+const FRAGMENT_MAX_PIECE_LEN: usize = 20;
+
 fn repository_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
@@ -118,26 +140,41 @@ fn traced(key: &str, input: &[u8]) -> (CompleteHistoryOutcome, Vec<crate::Conten
 // Property family A — totality, containment, determinism.
 // ---------------------------------------------------------------------------
 
-#[test]
-fn assurance_a_totality_containment_and_determinism() {
+/// Shared deterministic totality/containment/determinism campaign used by BOTH
+/// the default smoke test and the explicit extended test (P2-6): one engine,
+/// one property body, no semantic fork between modes.
+fn run_totality_campaign(logical_inputs: usize) {
     let seeds = accept_seeds();
-    let mut rng = Rng::new(0xA55E_171A);
-    let mut executed = 0_usize;
+    let mutated_upper_bound = seeds
+        .iter()
+        .map(|(_, _, bytes)| bytes.len())
+        .max()
+        .expect("non-empty ACCEPT seed pool")
+        + MAX_MUTATIONS_PER_INPUT;
+    let mut rng = Rng::new(CAMPAIGN_SEED);
+    let mut max_len = [0_usize; STRATEGY_COUNT];
     let mut accepts = 0_usize;
+    let mut empty_accepts = 0_usize;
+    let mut non_empty_accepts = 0_usize;
+    let mut executed = 0_usize;
 
-    for strategy in 0..3 {
-        for _ in 0..4_000 {
+    // Strategy-indexed generation is the clearest shape here; the lint fires
+    // only because of the bookkeeping array, so it is explicitly allowed.
+    #[allow(clippy::needless_range_loop)]
+    for strategy in 0..STRATEGY_COUNT {
+        for _ in 0..logical_inputs / STRATEGY_COUNT {
             let input: Vec<u8> = match strategy {
-                // Uniform random bytes.
+                // Uniform random bytes, `0..UNIFORM_MAX_LEN`.
                 0 => {
-                    let len = rng.below(600);
+                    let len = rng.below(UNIFORM_MAX_LEN);
                     (0..len).map(|_| (rng.next_u64() & 0xFF) as u8).collect()
                 }
-                // Mutated frozen-ACCEPT material: flips, cuts, splices.
+                // Whole frozen-ACCEPT histories (up to ~17 KB) with
+                // `1..=MAX_MUTATIONS_PER_INPUT` flip/cut/insert mutations.
                 1 => {
                     let (_, _, base) = &seeds[rng.below(seeds.len())];
                     let mut bytes = base.clone();
-                    for _ in 0..(1 + rng.below(8)) {
+                    for _ in 0..(1 + rng.below(MAX_MUTATIONS_PER_INPUT)) {
                         if bytes.is_empty() {
                             break;
                         }
@@ -173,13 +210,19 @@ fn assurance_a_totality_containment_and_determinism() {
                         b"\n",
                         b" ",
                     ];
+                    debug_assert_eq!(
+                        FRAGMENT_MAX_PIECE_LEN,
+                        pieces.iter().map(|p| p.len()).max().unwrap_or(0),
+                        "fragment piece bound drifted from the table"
+                    );
                     let mut bytes = Vec::new();
-                    for _ in 0..rng.below(12) {
+                    for _ in 0..rng.below(FRAGMENT_MAX_PIECES) {
                         bytes.extend_from_slice(pieces[rng.below(pieces.len())]);
                     }
                     bytes
                 }
             };
+            max_len[strategy] = max_len[strategy].max(input.len());
 
             let first = verify_complete_history(V_SIG_PROFILE_ID, GOLDEN_KEY, &input);
             // Containment: every outcome is typed — one of the ten governed
@@ -188,6 +231,11 @@ fn assurance_a_totality_containment_and_determinism() {
             match &first {
                 Ok(CompleteHistoryOutcome::Accept(_)) => {
                     accepts += 1;
+                    if input.is_empty() {
+                        empty_accepts += 1;
+                    } else {
+                        non_empty_accepts += 1;
+                    }
                 }
                 Ok(CompleteHistoryOutcome::Reject(rejection)) => {
                     assert!(matches!(
@@ -219,11 +267,57 @@ fn assurance_a_totality_containment_and_determinism() {
         }
     }
 
-    eprintln!(
-        "assurance A: {executed} bounded inputs executed, {accepts} accepts, \
-         zero panics, every verdict typed and deterministic"
+    // Mechanically asserted per-strategy bounds (P2-1): prose about input
+    // sizes cannot drift from the generator because these hold on every run.
+    assert!(
+        max_len[0] <= UNIFORM_MAX_LEN,
+        "uniform strategy produced {} > {} bytes",
+        max_len[0],
+        UNIFORM_MAX_LEN
     );
-    assert_eq!(executed, 12_000);
+    assert!(
+        max_len[1] <= mutated_upper_bound,
+        "mutation strategy produced {} > {} bytes",
+        max_len[1],
+        mutated_upper_bound
+    );
+    assert!(
+        max_len[2] <= FRAGMENT_MAX_PIECES * FRAGMENT_MAX_PIECE_LEN,
+        "fragment strategy produced {} > {} bytes",
+        max_len[2],
+        FRAGMENT_MAX_PIECES * FRAGMENT_MAX_PIECE_LEN
+    );
+
+    // Honest accounting (P2-1): most random-input ACCEPTs are the empty
+    // history; semantic depth comes from families B-J, not this count.
+    eprintln!(
+        "assurance A[{logical_inputs} logical / {} executions]: accepts {accepts} \
+         (empty-history {empty_accepts}, non-empty {non_empty_accepts}); \
+         observed max input lengths uniform={} mutated={max_mutated} fragments={}; \
+         zero panics, every verdict typed and deterministic",
+        2 * executed,
+        max_len[0],
+        max_len[2],
+        max_mutated = max_len[1],
+    );
+}
+
+/// Bounded default smoke campaign covering ALL three generation strategies;
+/// cheap enough to run in ordinary `cargo test` (P2-6).
+#[test]
+fn assurance_a_smoke_totality_containment_and_determinism() {
+    run_totality_campaign(SMOKE_LOGICAL_INPUTS);
+}
+
+/// Full extended deterministic campaign: 12,000 logical inputs executed twice
+/// each (24,000 production-conformer runs) across all three strategies.
+///
+/// Run explicitly with:
+/// `cargo test -p magpie-log --locked --lib assurance_a_extended -- --ignored`
+#[test]
+#[ignore = "extended 12k-input campaign (~4 minutes locally); run explicitly when finalizing assurance evidence"]
+fn assurance_a_extended_totality_containment_and_determinism() {
+    run_totality_campaign(EXTENDED_LOGICAL_INPUTS);
 }
 
 // ---------------------------------------------------------------------------
@@ -602,7 +696,40 @@ fn assurance_d_first_failure_is_stable_under_added_later_defects() {
         PortableRejectionClass::Sequence
     );
 
-    eprintln!("assurance D: first-failure ladder stable across Sequence..Signature");
+    // P2-5: Signature before PayloadValidation. Source witness: frozen
+    // `payload-empty-evidenceregistered-summary`, whose record zero has a
+    // valid recomputed hash and valid signature and fails only at
+    // PayloadValidation (empty required summary). Flipping the first
+    // signature hex char keeps the transport Schema-valid (still 128
+    // lowercase hex), changes no EventCore byte and not the stored hash, and
+    // must move the failure earlier to Signature — proving Signature outranks
+    // an already-present PayloadValidation defect.
+    let (pv_key, pv_input) = frozen_case_bytes("payload-empty-evidenceregistered-summary");
+    assert_eq!(
+        reject_class_of(V_SIG_PROFILE_ID, &pv_key, &pv_input),
+        PortableRejectionClass::PayloadValidation,
+        "source witness fails at PayloadValidation alone"
+    );
+    let sig_broken = flip_first_hex_char_after(
+        std::str::from_utf8(&pv_input).expect("witness is UTF-8"),
+        "signature",
+    )
+    .expect("signature member present in witness record");
+    let sig_broken = if pv_input.ends_with(b"\n") {
+        format!("{sig_broken}\n").into_bytes()
+    } else {
+        sig_broken.into_bytes()
+    };
+    assert_eq!(
+        reject_class_of(V_SIG_PROFILE_ID, &pv_key, &sig_broken),
+        PortableRejectionClass::Signature,
+        "Schema-valid signature mutation moves the failure to Signature"
+    );
+
+    eprintln!(
+        "assurance D: adjacent precedence chain Sequence->PreviousLink->ContentHash->\
+         Signature->PayloadValidation fully evidenced; later-record isolation holds"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -659,17 +786,19 @@ fn assurance_e_prefix_isolation_and_recomputed_tip_law() {
         );
     }
 
-    // E4: every prefix accepts with exactly that many records, and the tip is
-    // exactly the k-th observed hash — the previous record's recomputed hash,
-    // never a transported value.
-    for k in [1_usize, 4, 8] {
+    // E4: literally every non-empty prefix (P2-2) accepts with exactly that
+    // many records, the observed trace is exactly that long, and the tip is
+    // the k-th committed hash — the previous record's recomputed hash, never a
+    // transported value.
+    for k in 1..=lines.len() {
         let prefix = format!("{}\n", lines[..k].join("\n")).into_bytes();
         let (outcome, hashes) = traced(&golden_key, &prefix);
         match outcome {
             CompleteHistoryOutcome::Accept(accepted) => {
-                assert_eq!(accepted.event_count(), k as u64);
-                assert_eq!(accepted.tip(), hashes[k - 1]);
-                assert_eq!(hashes.as_slice(), &full_hashes[..k]);
+                assert_eq!(accepted.event_count(), k as u64, "prefix {k}");
+                assert_eq!(hashes.len(), k, "prefix {k} trace length");
+                assert_eq!(accepted.tip(), hashes[k - 1], "prefix {k}");
+                assert_eq!(hashes.as_slice(), &full_hashes[..k], "prefix {k}");
             }
             other => panic!("prefix of length {k}: expected ACCEPT, got {other:?}"),
         }
@@ -798,10 +927,19 @@ fn frozen_case_bytes(case_id: &str) -> (String, Vec<u8>) {
 }
 
 #[test]
-fn assurance_h_payload_rules_stay_at_payloadvalidation_under_added_defects() {
-    // Each frozen PV case fails at PayloadValidation alone; adding a strictly
-    // later Genesis defect (wrong canonicalization profile) must not outrank
-    // it, and neither may collapse into an earlier stage.
+fn assurance_h_payload_rules_stay_at_payloadvalidation_before_genesis() {
+    // Each witness is a frozen single-record case whose record zero:
+    //   1. has a valid path through Framing/JsonSyntax/Schema (it reaches the
+    //      semantic stages at all),
+    //   2. carries a correctly hashed, correctly signed EventCore, and
+    //   3. violates an L0 payload rule (unknown vocabulary / bad
+    //      witness_root hex / empty required string),
+    // while ALSO containing a later Genesis position/kind defect: record zero
+    // is a non-Genesis payload, so Genesis would reject it afterwards.
+    // The governed result must be PayloadValidation — proving PayloadValidation
+    // outranks the later Genesis defect. There is no optional branch here: if
+    // any witness failed to reach PayloadValidation, or if its class were not
+    // PayloadValidation, these assertions fail loudly.
     for case_id in [
         "n20-actor-unknown",
         "n20-evidence-unknown",
@@ -810,54 +948,42 @@ fn assurance_h_payload_rules_stay_at_payloadvalidation_under_added_defects() {
         "payload-empty-evidenceregistered-summary",
     ] {
         let (key, input) = frozen_case_bytes(case_id);
+        let text = String::from_utf8(input.clone()).expect("witness is UTF-8");
+        // Non-vacuity guard: every selected witness is a non-Genesis record,
+        // i.e. it genuinely carries the later Genesis position/kind defect.
+        assert!(
+            !text.contains("\"kind\":\"Genesis\""),
+            "{case_id}: witness must be a NON-Genesis payload for the \
+             PayloadValidation-before-Genesis(position/kind) relation to hold"
+        );
         assert_eq!(
             reject_class_of(V_SIG_PROFILE_ID, &key, &input),
             PortableRejectionClass::PayloadValidation,
-            "{case_id} alone"
+            "{case_id} must reject at PayloadValidation despite its later \
+             Genesis position/kind defect"
         );
-
-        // Add a Genesis-stage defect to record 0 without touching the payload:
-        // uppercase the declared verifying key. Lexically invalid declared key
-        // is a Genesis-substage failure, so PayloadValidation must still win.
-        let text = String::from_utf8(input.clone()).expect("utf8");
-        let (head, tail) = text.split_once('\n').unwrap_or((&text, ""));
-        if let Some(broken_key_line) = {
-            let needle = "\"verifying_key\":\"";
-            head.find(needle).map(|at| {
-                let start = at + needle.len();
-                let mut out = head.to_string();
-                let end = (start + 64).min(out.len());
-                let upper = out[start..end].to_uppercase();
-                out.replace_range(start..end, &upper);
-                out
-            })
-        } {
-            let combined = if tail.is_empty() {
-                broken_key_line.into_bytes()
-            } else {
-                format!("{broken_key_line}\n{tail}").into_bytes()
-            };
-            assert_eq!(
-                reject_class_of(V_SIG_PROFILE_ID, &key, &combined),
-                PortableRejectionClass::PayloadValidation,
-                "{case_id} + Genesis-key defect"
-            );
-        }
     }
 
-    // metadata_json opacity: a syntactically invalid JSON string inside
-    // metadata_json is still merely a string. The frozen corpus carries such
-    // positive material (positive-complete-vocabulary accepts with opaque
-    // metadata), so confirm an ACCEPT history containing arbitrary-looking
-    // metadata remains ACCEPT end to end.
+    // metadata_json positive-path evidence: an ACCEPT history carrying a
+    // metadata_json member is accepted end to end. This shows ordinary
+    // metadata_json content does not disturb payload validation; it does NOT
+    // by itself discriminate opaque-text handling from recursive JSON parsing.
+    // See the PR description for the exact scope of this claim.
     let (vocab_key, vocab_input) = frozen_case_bytes("positive-complete-vocabulary");
+    let vocab_text = String::from_utf8(vocab_input.clone()).expect("utf8");
+    assert!(
+        vocab_text.contains("\"metadata_json\""),
+        "witness must actually carry a metadata_json member"
+    );
     let outcome = run(V_SIG_PROFILE_ID, &vocab_key, &vocab_input);
     assert!(
         matches!(outcome, CompleteHistoryOutcome::Accept(_)),
-        "opaque metadata_json must not fail payload validation"
+        "positive metadata_json material must remain ACCEPT"
     );
 
-    eprintln!("assurance H: payload rules stayed at PayloadValidation under later defects");
+    eprintln!(
+        "assurance H: PayloadValidation outranks later Genesis position/kind on all five witnesses"
+    );
 }
 
 #[test]
