@@ -142,24 +142,36 @@ Freeze consequences:
 
 ## Queued work (keep current; update as things land)
 
-1. Implement a typed Rust `V_sig` and explicit profile-selection path against
-   frozen `magpie-portable-verifier-corpus-v1`; retain unprofiled behavior as
-   compatibility-only.
-2. Add the matching profile-aware Python conformer.
-3. Add an independent Go conformer.
-4. Run all three conformers differentially over the exact corpus, hostile-review
-   the evidence, then reconcile A-021/A-004/RQ-006 separately.
-5. If the advertised pre-alpha still needs detachable governed output, add the
-   smallest coordinate-complete verification/replay result or receipt.
-6. Harden the applicable public assurance boundary: pinned validation inputs,
-   platform evidence, and release-environment reproducibility.
-7. Write the pre-alpha release contract, freeze a candidate, and falsify it
-   before an owner release decision.
+1. Implement the exact Rust portable raw-input frontend against the frozen
+   input-language contract. Preserve sequential first-failure semantics and use
+   merged profiled `V_sig` as the downstream signature primitive.
+2. Complete the Rust portable-history conformer over that frontend.
+3. Run a bounded, non-normative Rust fuzz/metamorphic assurance tranche before
+   using Rust as cross-language comparison evidence.
+4. Build an independent Python complete conformer from the governing documents
+   and frozen corpus, not by translating the Rust implementation.
+5. Build an independent Go complete conformer from the same governing sources.
+6. Run Rust, Python, and Go differentially over the exact frozen 432-case corpus,
+   then hostile-review disagreements and evidence.
+7. Reconcile A-021/A-004/RQ-006 separately only after qualifying implementation
+   and differential evidence exists.
+8. At C3, if the advertised pre-alpha still needs detachable governed output,
+   add the smallest coordinate-complete verification/replay result or receipt.
+9. At C4, harden the applicable public assurance boundary: pinned validation
+   inputs, platform evidence, and release-environment reproducibility.
+10. At C5, write the pre-alpha release contract, freeze a candidate, and
+    falsify it before an owner release decision.
 
 Keep general ingestion/CAS, `EpistemicGate`, governed ordinary agent writing,
 contradiction/currentness runtime, ADR-0007 authority runtime, librarian,
 effectful MCP, production KMS, and ambient/Vesper agent work deferred unless a
 separate owner decision moves one into the release boundary.
+
+Landed: typed, explicit, fail-closed Rust `V_sig` profile selection and the exact
+ADR-0010 relation as the namespaced `ProfiledSignatureVerifier` primitive; the
+legacy unprofiled verifier remains unchanged (PR #135, 2026-08-24). This is a
+cryptographic primitive landing, not complete portable conformance or finding
+closure.
 
 Landed: SQLite + FTS5 episodic projection (`magpie-episodic`, PR #5, 2026-07-02).
 Landed: Deadbolt seam ratified as anchored hierarchy — ADR-0001, `SegmentAnchored`
