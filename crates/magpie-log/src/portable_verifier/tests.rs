@@ -225,6 +225,12 @@ fn huge_valid_json_integer_is_schema_not_jsonsyntax() {
 }
 
 #[test]
+fn huge_top_level_json_integer_is_schema_not_operational() {
+    let huge = "9".repeat(10_000);
+    expect_frontend_rejection(huge.as_bytes(), FrontendRejectionClass::Schema, 1, 0);
+}
+
+#[test]
 fn leading_zero_is_jsonsyntax() {
     expect_frontend_rejection(
         b"{\"core\":{\"seq\":01}}",

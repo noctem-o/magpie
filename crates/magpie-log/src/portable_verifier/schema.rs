@@ -430,6 +430,19 @@ fn collect_object<'de>(
     source: &'de str,
     context: &DecodeContext,
 ) -> Result<Vec<Member<'de>>, SchemaDecodeError> {
+    // Pass 1 already established one complete JSON value. Decide the governed
+    // object shape directly from that raw spelling before serde_json attempts
+    // to normalize a non-object number into a host numeric type. In
+    // particular, arbitrarily large valid JSON numbers remain Schema rather
+    // than becoming a parser range error.
+    if source
+        .bytes()
+        .find(|byte| !matches!(byte, b' ' | b'\t' | b'\n' | b'\r'))
+        != Some(b'{')
+    {
+        return reject(context);
+    }
+
     let mut deserializer = serde_json::Deserializer::from_str(source);
     let members = ObjectSeed { context }
         .deserialize(&mut deserializer)
