@@ -1,6 +1,7 @@
 use crate::signature_profile::ProfiledSignatureVerifier;
 use crate::EventCore;
 
+use super::conformer::SemanticSuccess;
 use super::framing::{FrameCursor, FrameStep};
 use super::json_syntax;
 use super::preflight::{FrontendStartError, PreparedFrontend};
@@ -119,20 +120,27 @@ impl<'input> PendingRecord<'input> {
         &self.verifier
     }
 
-    /// Consume the pending record and report the later semantic stages' result.
-    ///
-    /// Only `Ok(())` returns the continuation. This frontend does not implement
-    /// or simulate those stages; the conspicuously named test driver is the
-    /// only caller in this tranche.
-    pub(crate) fn complete_semantics<E>(
+    /// Consume the pending record after the complete conformer proves every
+    /// current-record semantic stage.
+    pub(super) fn release_after_semantic_success(
         self: Box<Self>,
-        semantic_result: Result<(), E>,
-    ) -> Result<FrontendSession<'input>, E> {
-        semantic_result?;
-        Ok(FrontendSession {
+        _success: SemanticSuccess,
+    ) -> FrontendSession<'input> {
+        FrontendSession {
             verifier: self.verifier,
             cursor: self.continuation,
-        })
+        }
+    }
+
+    /// Release isolated frontend tests without creating a production bypass.
+    #[cfg(test)]
+    pub(super) fn assume_semantics_succeeded_for_frontend_test(
+        self: Box<Self>,
+    ) -> FrontendSession<'input> {
+        FrontendSession {
+            verifier: self.verifier,
+            cursor: self.continuation,
+        }
     }
 }
 
