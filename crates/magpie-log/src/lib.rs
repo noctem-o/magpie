@@ -114,7 +114,7 @@ pub use sqlite_l0::{
 };
 pub use store::{FileStore, LogStore, MemStore};
 pub use vsig::{
-    verify_signature_with_profile, SignatureVerificationProfile, V_SIG_PROFILE_ID, VsigRejection,
+    verify_signature_with_profile, SignatureVerificationProfile, VsigRejection, V_SIG_PROFILE_ID,
 };
 
 // Re-exported so callers don't need a direct ed25519-dalek dependency for the basics.
