@@ -592,7 +592,7 @@ mod tests {
     }
 
     #[test]
-    fn duplicate_names_compare_after_escape_decoding() {
+    fn escaped_equivalent_duplicate_member_is_schema() {
         let duplicate = format!(
             r#"{{"core":null,"c\u006fre":null,"hash":"{ZERO_HASH}","signature":"{ZERO_SIGNATURE}"}}"#
         );

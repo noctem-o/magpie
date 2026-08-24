@@ -91,6 +91,38 @@ fn profile_and_complete_external_key_gate_precede_history() {
 }
 
 #[test]
+fn invalid_key_beats_malformed_history() {
+    match FrontendSession::new(V_SIG_PROFILE_ID, "not-a-key", b"{malformed") {
+        Err(FrontendStartError::Rejected(rejection)) => {
+            assert_eq!(rejection.class(), FrontendRejectionClass::ExternalKey);
+            assert_eq!(rejection.line(), None);
+            assert_eq!(rejection.record_index(), None);
+        }
+        _ => panic!("invalid external key must win before malformed history"),
+    }
+}
+
+#[test]
+fn invalid_key_beats_empty_history() {
+    match FrontendSession::new(V_SIG_PROFILE_ID, "not-a-key", b"") {
+        Err(FrontendStartError::Rejected(rejection)) => {
+            assert_eq!(rejection.class(), FrontendRejectionClass::ExternalKey);
+            assert_eq!(rejection.line(), None);
+            assert_eq!(rejection.record_index(), None);
+        }
+        _ => panic!("invalid external key must win before empty-snapshot handling"),
+    }
+}
+
+#[test]
+fn unsupported_profile_is_operational_not_a_portable_rejection() {
+    assert!(matches!(
+        FrontendSession::new("latest", GOLDEN_KEY, b"{malformed"),
+        Err(FrontendStartError::UnsupportedProfile(_))
+    ));
+}
+
+#[test]
 fn exact_framing_assigns_frozen_coordinates() {
     assert!(matches!(cursor_for(b"").next(), FrameStep::End));
     expect_framing(b"\n", 1, None);
@@ -117,6 +149,26 @@ fn exact_framing_assigns_frozen_coordinates() {
     assert_eq!(second.line(), 2);
     assert_eq!(second.record_index(), 1);
     assert!(matches!(second.into_continuation().next(), FrameStep::End));
+}
+
+#[test]
+fn lone_cr_is_framing() {
+    expect_framing(b"{}\r", 1, Some(0));
+}
+
+#[test]
+fn crlf_only_is_zero_length_record_framing() {
+    expect_framing(b"\r\n", 1, None);
+}
+
+#[test]
+fn bom_at_candidate_start_is_framing() {
+    expect_framing(b"\xef\xbb\xbf{}", 1, Some(0));
+}
+
+#[test]
+fn invalid_utf8_is_framing_without_replacement() {
+    expect_framing(b"\xff", 1, Some(0));
 }
 
 #[test]
@@ -163,6 +215,33 @@ fn complete_syntax_and_schema_are_separate_ordered_phases() {
 }
 
 #[test]
+fn huge_valid_json_integer_is_schema_not_jsonsyntax() {
+    let huge = note_record("ok").replacen(
+        "\"seq\":0",
+        "\"seq\":99999999999999999999999999999999999999999999999999999",
+        1,
+    );
+    expect_frontend_rejection(huge.as_bytes(), FrontendRejectionClass::Schema, 1, 0);
+}
+
+#[test]
+fn leading_zero_is_jsonsyntax() {
+    expect_frontend_rejection(
+        b"{\"core\":{\"seq\":01}}",
+        FrontendRejectionClass::JsonSyntax,
+        1,
+        0,
+    );
+}
+
+#[test]
+fn uppercase_hex_is_schema() {
+    let uppercase_hash = format!("A{}", "0".repeat(63));
+    let uppercase = note_record("ok").replacen(ZERO_HASH, &uppercase_hash, 1);
+    expect_frontend_rejection(uppercase.as_bytes(), FrontendRejectionClass::Schema, 1, 0);
+}
+
+#[test]
 fn bom_utf8_and_ufeff_obey_magpie_owned_stage_boundaries() {
     expect_framing(b"\xef\xbb\xbf{}", 1, Some(0));
     expect_framing(b"\xff", 1, Some(0));
@@ -186,7 +265,51 @@ fn bom_utf8_and_ufeff_obey_magpie_owned_stage_boundaries() {
 }
 
 #[test]
-fn pending_record_exclusively_owns_the_continuation() {
+fn ufeff_after_space_is_jsonsyntax() {
+    expect_frontend_rejection(b" \xef\xbb\xbf{}", FrontendRejectionClass::JsonSyntax, 1, 0);
+}
+
+#[test]
+fn ufeff_inside_string_is_not_bom() {
+    for record in [note_record("\u{feff}"), note_record(r#"\uFEFF"#)] {
+        assert!(matches!(
+            frontend(record.as_bytes()).next().unwrap(),
+            FrontendStep::Pending(_)
+        ));
+    }
+}
+
+#[test]
+fn later_payload_and_genesis_rules_do_not_move_into_schema() {
+    let late_payload = format!(
+        r#"{{"core":{{"seq":0,"timestamp_nanos":0,"prev_hash":"{ZERO_HASH}","provenance":{{"agent":"","source":""}},"payload":{{"kind":"ClaimAssertedV2","claim_id":"","statement":"","scope_ref":"","actor_class":"unknown","content_hash":"UPPERCASE","metadata_json":"not json"}}}},"hash":"{ZERO_HASH}","signature":"{ZERO_SIGNATURE}"}}"#
+    );
+    assert!(matches!(
+        frontend(late_payload.as_bytes()).next().unwrap(),
+        FrontendStep::Pending(_)
+    ));
+
+    let late_genesis = format!(
+        r#"{{"core":{{"seq":0,"timestamp_nanos":0,"prev_hash":"{ZERO_HASH}","provenance":{{"agent":"a","source":"s"}},"payload":{{"kind":"Genesis","canonicalization_profile":"wrong","verifying_key":"NOT HEX"}}}},"hash":"{ZERO_HASH}","signature":"{ZERO_SIGNATURE}"}}"#
+    );
+    assert!(matches!(
+        frontend(late_genesis.as_bytes()).next().unwrap(),
+        FrontendStep::Pending(_)
+    ));
+}
+
+#[test]
+fn full_width_sequence_reaches_the_later_sequence_stage() {
+    let upper_sequence = note_record("ok").replacen("\"seq\":0", "\"seq\":18446744073709551615", 1);
+    let pending = match frontend(upper_sequence.as_bytes()).next().unwrap() {
+        FrontendStep::Pending(pending) => pending,
+        _ => panic!("u64::MAX sequence must pass frontend Schema"),
+    };
+    assert_eq!(pending.record().core().seq, u64::MAX);
+}
+
+#[test]
+fn pending_record_owns_continuation_and_next_record_is_unavailable_while_pending() {
     let first_record = note_record("first");
     let second_record = note_record("second");
     let input = format!("{first_record}\n{second_record}");

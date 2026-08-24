@@ -19,7 +19,7 @@ pub(crate) struct FrontendSession<'input> {
 pub(crate) enum FrontendStep<'input> {
     End,
     Rejected(FrontendRejection),
-    Pending(PendingRecord<'input>),
+    Pending(Box<PendingRecord<'input>>),
 }
 
 /// Operational failure after the syntax pass that cannot be explained by the
@@ -96,7 +96,7 @@ impl<'input> FrontendSession<'input> {
         };
 
         let continuation = candidate.into_continuation();
-        Ok(FrontendStep::Pending(PendingRecord {
+        Ok(FrontendStep::Pending(Box::new(PendingRecord {
             record: FrontendRecord {
                 line,
                 record_index,
@@ -106,7 +106,7 @@ impl<'input> FrontendSession<'input> {
             },
             verifier,
             continuation,
-        }))
+        })))
     }
 }
 
@@ -125,7 +125,7 @@ impl<'input> PendingRecord<'input> {
     /// or simulate those stages; the conspicuously named test driver is the
     /// only caller in this tranche.
     pub(crate) fn complete_semantics<E>(
-        self,
+        self: Box<Self>,
         semantic_result: Result<(), E>,
     ) -> Result<FrontendSession<'input>, E> {
         semantic_result?;

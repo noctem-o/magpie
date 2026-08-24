@@ -69,4 +69,6 @@ impl FrontendRejection {
 }
 
 #[cfg(test)]
+mod corpus_tests;
+#[cfg(test)]
 mod tests;
