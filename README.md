@@ -20,7 +20,7 @@ A search hit is not evidence. Verified bytes are not automatically well-sourced.
 
 Magpie is deliberately fussy about those distinctions.
 
-It is an experimental Rust workspace, not a finished memory product. Current `main` implements standing policies v0 through v4. The latest formal source release is still v0.1.0. Development has moved beyond it, but there is no v0.2.0 release yet.
+It is an experimental Rust workspace, not a finished memory product. Current `main` implements standing policies v0 through v4 and now includes a crate-internal complete Rust portable-history conformer. The latest formal source release is still v0.1.0. Development has moved beyond it, but there is no v0.2.0 release yet.
 
 ## Why Magpie exists
 
@@ -68,6 +68,7 @@ It includes:
 - an append-only hash-chained log with Ed25519 signatures
 - an independent unprofiled Python chain verifier retained for compatibility
 - an owner-approved, frozen 432-case exact-byte portable-verifier corpus
+- a crate-internal Rust complete portable-history conformer that drives all 432 frozen cases through one production path
 - a supported local SQLite L0 store with bounded creation and verified reopen
 - stale-writer detection and atomic successor append
 - complete history verification before deterministic replay
@@ -84,10 +85,7 @@ The scope is still intentionally small.
 
 There is no general ingestion system, no autonomous research agent, no ordinary governed claim writer, and no magic "latest truth" resolver.
 
-The frozen portable corpus is normative oracle material, not a conformer. No
-Rust, Python, or Go implementation yet realizes the selected ADR-0010
-signature profile over that complete corpus, so current `main` makes no
-portable cross-language verification claim.
+The frozen portable corpus is normative oracle material, not a verifier by itself. Current `main` now has one complete Rust conformer for the selected ADR-0010 profile and the full portable-history language, with 432/432 same-language corpus agreement. Independent complete Python and Go conformers have not landed yet, and neither has cross-language differential execution. So this is strong Rust evidence, not a portable cross-language verification claim.
 
 ## Quick start
 
@@ -359,7 +357,7 @@ That missing piece is intentional. Recording something and admitting it into an 
 
 The historical record.
 
-It contains the frozen event encoding, hash chain, Ed25519 signatures, readers and writers, persistent SQLite L0 storage, compatibility stores, golden vectors, complete verification, checkpoint expectations, and deterministic replay.
+It contains the frozen event encoding, hash chain, Ed25519 signatures, readers and writers, persistent SQLite L0 storage, compatibility stores, golden vectors, complete verification, checkpoint expectations, deterministic replay, and the crate-internal complete Rust portable-history conformer.
 
 ### `magpie-claims`
 
@@ -431,8 +429,8 @@ Implemented today:
 - complete verification before replay
 - bounded local SQLite L0 persistence
 - explicit verified-prefix and checkpoint expectation semantics
-- an owner-approved, exact-byte portable-verifier corpus frozen under
-  `magpie-portable-verifier-corpus-v1`
+- an owner-approved, exact-byte portable-verifier corpus frozen under `magpie-portable-verifier-corpus-v1`
+- a crate-internal complete Rust conformer for the selected ADR-0010 profile and frozen portable-history language, green across all 432 cases
 - rebuildable search and claim projections
 - exact supplied content for closure-dependent resolution
 - provenance verification and origin admission
@@ -445,10 +443,9 @@ Implemented today:
 Important work that is **not** implemented yet includes:
 
 - secure retained checkpoints and stronger rollback resistance
-- profile-aware Rust, Python, and Go portable conformers plus differential
-  execution over the frozen corpus
-- coordinate-complete detached verification/replay results for any advertised
-  governed detachable-result boundary
+- bounded Rust fuzz/metamorphic assurance for the portable verifier
+- independent complete Python and Go portable conformers and cross-language differential execution over the frozen corpus
+- coordinate-complete detached verification/replay results for any advertised governed detachable-result boundary
 - authority-bound origin-group admission under ADR 0007
 - an ordinary governed claim and evidence writer
 - `EpistemicGate`
@@ -474,6 +471,13 @@ If you want the exact rules rather than this overview, start with the documents 
 - [Portable base](docs/portable-base.md) describes the dependency-minimal core and optional connections.
 - [Supported L0 persistence and checkpoint-aware open](docs/design/l0-persistence-and-checkpoint-open-v0.md) defines the SQLite L0 and history expectation contract.
 - [Deadbolt anchor contract](docs/seams/deadbolt-anchor-contract.md) defines the foreign execution-evidence connection.
+
+### Portable verification
+
+- [Portable verifier input-language contract](docs/design/portable-verifier-input-language-contract.md) defines the exact governed input and first-failure language.
+- [Rust frontend contract v0](docs/design/portable-verifier-rust-frontend-contract-v0.md) defines the raw-input boundary through Schema.
+- [Rust history conformer contract v0](docs/design/portable-verifier-rust-history-conformer-contract-v0.md) defines the six remaining semantic stages and complete count/tip result.
+- [Portable verifier corpus v1](docs/design/portable-verifier-corpus-v1.md) defines the frozen 432-case exact-byte oracle.
 
 ### Agent and query boundaries
 
@@ -514,8 +518,8 @@ Their status matters. Exploratory documents are not runtime behavior merely beca
 - [ADR 0007](docs/adr/0007-authority-bound-origin-corroboration.md) defines authority-bound origin-group assignment.
 - [ADR 0008](docs/adr/0008-complete-producing-coordinates.md) requires complete immutable producing inputs for governed derived results.
 - [ADR 0009](docs/adr/0009-verified-supplied-history-and-explicit-checkpoint-expectations.md) separates supplied-history verification from caller expectations.
-- [ADR 0010](docs/adr/0010-ed25519-verification-profile-and-external-trust-root-admissibility.md) is the Accepted, owner-ratified explicit Ed25519 signature-verification subprofile decision; implementation and cross-language conformance remain separate gates.
-- [Portable verifier corpus v1](docs/design/portable-verifier-corpus-v1.md) is the owner-approved, merged, exact-byte oracle frozen as `magpie-portable-verifier-corpus-v1`; it is not a conformer, cross-language evidence, or finding closure.
+- [ADR 0010](docs/adr/0010-ed25519-verification-profile-and-external-trust-root-admissibility.md) is the Accepted, owner-ratified explicit Ed25519 signature-verification subprofile decision. The Rust implementation has landed; independent-language conformance and finding reconciliation remain separate gates.
+- [Portable verifier corpus v1](docs/design/portable-verifier-corpus-v1.md) is the owner-approved, merged, exact-byte oracle frozen as `magpie-portable-verifier-corpus-v1`. Current Rust executes all 432 cases, but the corpus does not by itself establish cross-language conformance or close any audit finding.
 
 For standing details:
 
@@ -537,10 +541,11 @@ cargo fmt --all --check
 cargo test --workspace --locked
 cargo test --doc --locked
 cargo clippy --workspace --all-targets --locked -- -D warnings
+python tools/check_verifier_corpus_manifest.py
 python tools/check_release_metadata.py
 ```
 
-The workspace also contains focused hostile and integration tests for provenance, origin admission, v3 and v4 standing, raw-status quarantine, same-replay binding, failure ordering, non-amplification, and canonical audit vectors.
+The workspace also contains focused hostile and integration tests for the complete portable verifier, provenance, origin admission, v3 and v4 standing, raw-status quarantine, same-replay binding, failure ordering, non-amplification, and canonical audit vectors.
 
 Repository changes should stay small, typed, replayable, and explicit about what grants authority.
 
