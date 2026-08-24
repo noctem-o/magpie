@@ -32,12 +32,12 @@ print("matches Qwen HASH?    :", h0 == QWEN_HASH)
 
 # Also verify the golden rec0 signature against MY checker with these bytes:
 sys.path.insert(0, HERE)
-from vsig import vsig_verify
+from vsig import vsig_verify, V_SIG_PROFILE_ID
 
 sig_hex = first["signature"]
 res = vsig_verify(
     bytes.fromhex(key_hex),
     bytes.fromhex(sig_hex),
     b"magpie-sig-v1" + bytes.fromhex(h0),
-)
+    profile=V_SIG_PROFILE_ID)
 print("golden rec0 under my checker:", res["verdict"], "|", res["detail"])

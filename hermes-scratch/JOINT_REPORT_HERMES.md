@@ -1,6 +1,14 @@
 # Hermes — Rust↔Python differential matrix + joint report sections
 
-PR #133 (Python) head at time of writing: `1f1fde7482bd93704bd933f6c185e50049e38401`
+Provenance (do not erase history):
+- pre-Luna-remediation baseline: `1f1fde7482bd93704bd933f6c185e50049e38401`
+  (head at the time this report was first written)
+- post-Luna-audit remediation head: `f8ac622e5a236261f3b98348725f02639c419310`
+  (contains the F1/F2/F3/F5/F7/F8/F10 fixes named below)
+- current head: see git — this follow-up (F8-v2 explicit profile closure +
+  provenance cleanup) supersedes f8ac622; the "post-audit fixes" section
+  below names f8ac622 as the head containing them.
+
 PR #134 (Rust) head under review: `0289dcc8741fa5866c56ffdebf8b09a3e677bc8cb`
 main baseline: `2751ac41748d6aba05c503c721dad84a2c89f916`
 Frozen corpus: **432 cases (19 ACCEPT, 413 REJECT)** per the manifest checker.
@@ -71,7 +79,9 @@ the directly executed subset.
 
 **"No mismatch in the directly executed relation subset."** Rows marked 🧮
 (code-read on one side) and ⬜ (altered-message, broken on the Rust side)
-are evidence gaps, not verified agreements.
+are evidence gaps, not verified agreements. This artifact is **NOT a full
+portable verifier conformer**: only the V_sig relation-relevant subset is
+executed through this checker.
 
 ## Post-audit fixes applied to #133 (Luna F1–F10)
 

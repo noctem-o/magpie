@@ -94,13 +94,26 @@ class Rejection(Exception):
         super().__init__(f"{stage}: {detail}")
 
 
-def verify_history(lines_text, external_key_hex):
+def verify_history(lines_text, external_key_hex, *, profile_identity):
     """Verify a JSONL history per FORMAT chain rules + ADR-0010 V_sig.
 
+    `profile_identity` is REQUIRED (keyword-only): the V_sig subprofile must
+    be explicitly selected on every normative verification path — exact match
+    against V_SIG_PROFILE_ID, no ambient state, no default. Unknown identities
+    fail closed before any processing.
+
     Returns dict with verdict, event_count, tip, ordered hashes on ACCEPT;
-    raises Rejection with stage/detail otherwise. ExternalKey gate precedes
-    input processing per the portable precedence chain.
+    raises Rejection with stage/detail otherwise. The complete composed
+    ExternalKey gate (transport, canonical decode, A != I, [L]A == I) runs
+    BEFORE framing/empty-snapshot and JSON handling per ADR-0010 precedence.
     """
+    # --- Profile selection (explicit, fail-closed) --------------------------
+    from vsig import profile_from_identity, external_key_admissible, vsig_verify
+    profile = profile_from_identity(profile_identity)
+    if profile is None:
+        raise Rejection("ExternalKey",
+                        f"unknown or missing V_sig profile identity {profile_identity!r}")
+
     # --- ExternalKey gate (COMPLETE composed gate before any input processing)
     # Per ADR-0010 the full key-admissibility relation — transport, canonical
     # decode, A != I, [L]A == I — must run BEFORE framing/empty-snapshot and
@@ -109,13 +122,9 @@ def verify_history(lines_text, external_key_hex):
             or any(c not in "0123456789abcdef" for c in external_key_hex):
         raise Rejection("ExternalKey", "key must be exactly 64 lowercase ASCII hex chars")
     A_bytes = bytes.fromhex(external_key_hex)
-    from vsig import vsig_verify as _vv
-    _key_gate = _vv(A_bytes, b"\x00" * 64, b"\x00" * 32)
-    # Any ExternalKey-stage failure fires here; only a fully admissible key
-    # proceeds. (The probe signature bytes are irrelevant: the key gate
-    # precedes all signature work inside vsig_verify.)
-    if _key_gate["stage"] == "ExternalKey":
-        raise Rejection("ExternalKey", f"record 0: {_key_gate['detail']}")
+    admissible, detail = external_key_admissible(A_bytes)
+    if not admissible:
+        raise Rejection("ExternalKey", f"record 0: {detail}")
 
     lines = [ln for ln in lines_text.split("\n") if ln.strip() != ""]
     if not lines:
@@ -171,9 +180,9 @@ def verify_history(lines_text, external_key_hex):
             raise Rejection("ContentHash",
                             f"record {idx}: stored hash {h} != recomputed {recomputed}")
 
-        # Signature via V_sig
+        # Signature via V_sig (selected profile passed explicitly)
         M = SIG_DOMAIN + bytes.fromhex(h)
-        res = vsig_verify(A_bytes, bytes.fromhex(sig_hex), M)
+        res = vsig_verify(A_bytes, bytes.fromhex(sig_hex), M, profile=profile)
         if res["verdict"] != "ACCEPT":
             # vsig_verify already computes the correct stage (ExternalKey for
             # every failed external-key admissibility check — transport,

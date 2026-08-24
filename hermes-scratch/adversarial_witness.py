@@ -31,7 +31,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from vsig import vsig_verify, base_point, IDENTITY, _mul, _decode, _encode, _add, L, p
+from vsig import vsig_verify, base_point, IDENTITY, _mul, _decode, _encode, _add, L, p, V_SIG_PROFILE_ID
 
 B = base_point()
 ZERO_S = (0).to_bytes(32, "little")
@@ -55,7 +55,7 @@ R1_ENC = _encode(R1)
 lhs = IDENTITY                          # [0]B
 rhs = _add(_decode(R1_ENC), _mul(1, A2))
 print("W1 equation would hold:", lhs == rhs)
-res = vsig_verify(A2_ENC, R1_ENC + ZERO_S, M)
+res = vsig_verify(A2_ENC, R1_ENC + ZERO_S, M, profile=V_SIG_PROFILE_ID)
 print("W1 order-2 key, self-cancelling sig, S=0 ->", res["stage"], "|", res["detail"])
 assert res["verdict"] == "REJECT" and res["stage"] == "ExternalKey", \
     f"W1 FAILED: expected ExternalKey rejection, got {res}"
@@ -63,7 +63,7 @@ assert res["verdict"] == "REJECT" and res["stage"] == "ExternalKey", \
 # ---- W2: valid key, same order-2 bytes as R, S=0 --------------------------
 A_good_pt = _mul(12345 % L, B)
 A_GOOD_B = _encode(A_good_pt)   # bytes
-res2 = vsig_verify(A_GOOD_B, A2_ENC + ZERO_S, M)
+res2 = vsig_verify(A_GOOD_B, A2_ENC + ZERO_S, M, profile=V_SIG_PROFILE_ID)
 print("W2 good key, order-2 R, S=0              ->", res2["stage"], "|", res2["detail"])
 assert res2["verdict"] == "REJECT" and res2["stage"] == "Signature", \
     f"W2 FAILED: expected Signature rejection via [L]R, got {res2}"
@@ -80,7 +80,7 @@ for _ in range(10):
     if R_new == R_enc:
         break
     R_enc = R_new
-res3 = vsig_verify(A_GOOD_B, R_enc + ZERO_S, M)
+res3 = vsig_verify(A_GOOD_B, R_enc + ZERO_S, M, profile=V_SIG_PROFILE_ID)
 print("W3 good key, R=-[k]A attempt, S=0        ->", res3["verdict"], "|", res3["detail"])
 # S=0 boundary (corrected per Luna's audit): an ACCEPTING S=0 witness needs
 # a hash fixed point R = -[H(R)...]A; the random-mapping mean argument says

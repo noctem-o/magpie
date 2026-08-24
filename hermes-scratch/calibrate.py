@@ -11,7 +11,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from vsig import vsig_verify, base_point, IDENTITY, _mul, _decode, _encode, L, p
+from vsig import vsig_verify, base_point, IDENTITY, _mul, _decode, _encode, L, p, V_SIG_PROFILE_ID
 
 failures = []
 
@@ -58,7 +58,7 @@ check("[L]A_test1 == I", _mul(L, _decode(A_b)) == IDENTITY)
 
 # V_sig accepts this ordinary signature (A prime-subgroup non-identity,
 # R prime-subgroup, S canonical).
-res = vsig_verify(A_b, R_b + S_b, b"")
+res = vsig_verify(A_b, R_b + S_b, b"", profile=V_SIG_PROFILE_ID)
 check("vsig ACCEPT on RFC 8032 Test 1 signature", res["verdict"] == "ACCEPT")
 
 # --- Trap 4: identity normalization — decode(01||00*31) == (0,1); order-2 point distinct

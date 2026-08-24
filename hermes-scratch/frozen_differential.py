@@ -18,7 +18,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from vsig import vsig_verify
+from vsig import vsig_verify, V_SIG_PROFILE_ID
 
 WT = os.path.dirname(HERE)
 MANIFEST = os.path.join(WT, "fixtures", "verifier-language-v1", "manifest.json")
@@ -65,7 +65,7 @@ def run_case(entry):
         return ("NO-RECORDS", None)
     for i, rec in enumerate(recs):
         M = b"magpie-sig-v1" + bytes.fromhex(rec["hash"])
-        res = vsig_verify(A, bytes.fromhex(rec["signature"]), M)
+        res = vsig_verify(A, bytes.fromhex(rec["signature"]), M, profile=V_SIG_PROFILE_ID)
         if res["verdict"] == "REJECT":
             return ("REJECT", res["stage"])
     return ("ACCEPT", None)

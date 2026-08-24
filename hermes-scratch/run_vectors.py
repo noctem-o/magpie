@@ -10,6 +10,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _HERE)
 from magpie_canonical import encode_eventcore, content_hash, message, verify_history, Rejection
 from vsig import vsig_verify, base_point, IDENTITY, _mul, _decode, _encode, _add, L, p
+from vsig import V_SIG_PROFILE_ID
 
 # Repo root = two levels above hermes-scratch/.
 WT = os.path.dirname(_HERE)
@@ -48,7 +49,7 @@ def record(vid, outcome, detail=""):
 def run_case(vid, jsonl_text, key_hex):
     """Full-pipeline run; returns ('ACCEPT', summary) or ('REJECT(stage)', detail)."""
     try:
-        r = verify_history(jsonl_text, key_hex)
+        r = verify_history(jsonl_text, key_hex, profile_identity=V_SIG_PROFILE_ID)
         return ("ACCEPT", f"count={r['event_count']} tip={r['tip'][:16]}…")
     except Rejection as e:
         return (f"REJECT({e.stage})", e.detail)

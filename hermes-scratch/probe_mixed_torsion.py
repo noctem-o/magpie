@@ -24,7 +24,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from vsig import vsig_verify, base_point, IDENTITY, _mul, _decode, _encode, _add, L, p
+from vsig import vsig_verify, base_point, IDENTITY, _mul, _decode, _encode, _add, L, p, V_SIG_PROFILE_ID
 
 B = base_point()
 
@@ -62,11 +62,11 @@ A_GOOD_B = _encode(A_pt)
 M = b"magpie-sig-v1" + bytes(32)
 r_rand = 0xC0FFEE % L
 R_enc = _encode(_mul(r_rand, B))
-res = vsig_verify(A_GOOD_B, R_enc + (0).to_bytes(32, "little"), M)
+res = vsig_verify(A_GOOD_B, R_enc + (0).to_bytes(32, "little"), M, profile=V_SIG_PROFILE_ID)
 print("\nS=0, random R:", res["verdict"], "|", res["stage"], "|", res["detail"])
 assert res["detail"] == "equation false", "S=0 must clear the range gate"
 
-res_L = vsig_verify(A_GOOD_B, R_enc + L.to_bytes(32, "little"), M)
+res_L = vsig_verify(A_GOOD_B, R_enc + L.to_bytes(32, "little"), M, profile=V_SIG_PROFILE_ID)
 print("S=L, same R  :", res_L["verdict"], "|", res_L["stage"], "|", res_L["detail"])
 assert res_L["detail"] == "S out of range (not canonical)"
 

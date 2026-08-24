@@ -12,6 +12,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from magpie_canonical import verify_history, Rejection
+from vsig import V_SIG_PROFILE_ID
 
 I_KEY = "01" + "00" * 31
 Y_P_KEY = "ed" + "ff" * 30 + "7f"
@@ -33,7 +34,7 @@ probes = [
 failures = []
 for name, key, text, expected in probes:
     try:
-        verify_history(text, key)
+        verify_history(text, key, profile_identity=V_SIG_PROFILE_ID)
         got = "ACCEPT"
     except Rejection as e:
         got = e.stage
@@ -41,6 +42,25 @@ for name, key, text, expected in probes:
     print(f"{'PASS' if ok else 'FAIL'}  {name:24s} -> {got} (expected {expected})")
     if not ok:
         failures.append(name)
+
+# F8-v2 regression guard: profile-less call must still raise TypeError
+try:
+    verify_history("", VALID_KEY)
+    print("FAIL  profile-less verify_history did NOT raise")
+    failures.append("f8-regression")
+except TypeError:
+    print("PASS  profile-less verify_history raises (F8-v2 intact)")
+
+# unknown identity fails closed before processing
+try:
+    verify_history("", VALID_KEY, profile_identity="latest")
+    print("FAIL  'latest' identity accepted")
+    failures.append("latest-accepted")
+except Rejection as e:
+    ok = e.stage == "ExternalKey"
+    print(f"{'PASS' if ok else 'FAIL'}  'latest' identity fails closed -> {e.stage}")
+    if not ok:
+        failures.append("latest-stage")
 
 if failures:
     print(f"\nF1 VERIFICATION FAILED: {failures}")

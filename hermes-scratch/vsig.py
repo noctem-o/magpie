@@ -95,51 +95,45 @@ def _mul(n, pt):
 
 # Explicit profile identity (ADR-0010 §Immutable subprofile identity law).
 # Selection is by exact string only — no alias, no "latest", no case folding,
-# no whitespace tolerance, no ambient default. Unknown identities fail closed.
+# no whitespace tolerance, no ambient default, no process-latched state.
+# Unknown identities fail closed.
 V_SIG_PROFILE_ID = "magpie-ed25519-canonical-prime-subgroup-v1"
-
-_SELECTED = [False]  # one-element list used as a mutable "selected" flag
 
 
 def profile_from_identity(identity):
     """Exact-identity selection. Returns the canonical identity string on an
-    exact match, None otherwise (fail closed)."""
-    result = V_SIG_PROFILE_ID if identity == V_SIG_PROFILE_ID else None
-    if result is not None:
-        _SELECTED[0] = True
-    return result
+    exact match, None otherwise (fail closed). Pure: no ambient state."""
+    return V_SIG_PROFILE_ID if identity == V_SIG_PROFILE_ID else None
 
 
-def require_profile(identity=None):
-    """Return the verified profile identity, requiring explicit selection.
+def external_key_admissible(A_bytes):
+    """Pure composed external-key admissibility gate (ADR-0010 steps 1-4).
 
-    With an argument: exact-match selection (same as profile_from_identity).
-    Without: raises unless profile_from_identity was called at least once in
-    this process — i.e. verification cannot run without an explicit,
-    traceable selection step.
+    Returns (True, None) when A_bytes is a fully admissible external key:
+    exactly 32 bytes, canonical compressed-Edwards decode, A != I, [L]A == I.
+    Returns (False, detail) at the first failing sub-gate. No signature or
+    message bytes involved; used by history wrappers so key validation does
+    not depend on dummy signature bytes.
     """
-    if identity is not None:
-        selected = profile_from_identity(identity)
-        if selected is None:
-            raise ValueError(f"unknown V_sig profile identity {identity!r}")
-        return selected
-    if not _SELECTED[0]:
-        raise RuntimeError(
-            "V_sig profile not explicitly selected: call "
-            f"profile_from_identity({V_SIG_PROFILE_ID!r}) first"
-        )
-    return V_SIG_PROFILE_ID
+    if not isinstance(A_bytes, (bytes, bytearray)) or len(A_bytes) != 32:
+        return False, "key not 32 bytes"
+    A = _decode(A_bytes)
+    if A is None:
+        return False, "non-canonical / undecodable key"
+    if A == IDENTITY:
+        return False, "A == I"
+    if _mul(L, A) != IDENTITY:
+        return False, "[L]A != I"
+    return True, None
 
 
-def vsig_verify(A_bytes, signature, M, profile=None):
-    """Return dict(verdict='ACCEPT'|'REJECT', stage, detail). Pure V_sig.
-
-    `profile` may be omitted for direct arithmetic use (calibration, probes);
-    history wrappers should pass the value obtained from require_profile() so
-    every verdict carries its selection coordinate.
-    """
-    if profile is not None and profile != V_SIG_PROFILE_ID:
-        raise ValueError(f"unknown V_sig profile identity {profile!r}")
+def vsig_verify(A_bytes, signature, M, *, profile):
+    """Normative V_sig relation. `profile` is REQUIRED (keyword-only) and must
+    be exactly V_SIG_PROFILE_ID — typically the value obtained from an earlier
+    profile_from_identity() selection. Unknown profiles raise; omission raises;
+    there is no default, no ambient selection, and no fallback."""
+    if profile != V_SIG_PROFILE_ID:
+        raise ValueError(f"unknown or missing V_sig profile identity {profile!r}")
     if not isinstance(A_bytes, (bytes, bytearray)) or len(A_bytes) != 32:
         return {"verdict": "REJECT", "stage": "ExternalKey", "detail": "key not 32 bytes"}
     A = _decode(A_bytes)
