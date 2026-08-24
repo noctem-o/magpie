@@ -3,11 +3,13 @@ pub(super) fn decode_lower_hex<const LENGTH: usize>(text: &str) -> Option<[u8; L
         return None;
     }
 
+    let encoded = text.as_bytes();
     let mut decoded = [0_u8; LENGTH];
-    for (index, pair) in text.as_bytes().chunks_exact(2).enumerate() {
-        let high = lower_hex_nibble(pair[0])?;
-        let low = lower_hex_nibble(pair[1])?;
-        decoded[index] = (high << 4) | low;
+    for (index, decoded_byte) in decoded.iter_mut().enumerate() {
+        let encoded_index = index * 2;
+        let high = lower_hex_nibble(encoded[encoded_index])?;
+        let low = lower_hex_nibble(encoded[encoded_index + 1])?;
+        *decoded_byte = (high << 4) | low;
     }
     Some(decoded)
 }
