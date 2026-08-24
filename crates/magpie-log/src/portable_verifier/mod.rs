@@ -8,6 +8,7 @@ mod framing;
 mod json_syntax;
 mod lexical;
 mod preflight;
+mod schema;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum FrontendRejectionClass {

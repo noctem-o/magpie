@@ -9,6 +9,14 @@ impl ContentHash {
     /// The genesis predecessor: the `prev_hash` of the first event.
     pub const ZERO: ContentHash = ContentHash([0u8; 32]);
 
+    /// Construct a hash-shaped value from already lexically validated bytes.
+    ///
+    /// This is crate-private so raw transport cannot bypass the owning
+    /// frontend/parser boundary.
+    pub(crate) const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
     pub fn of(bytes: &[u8]) -> Self {
         let mut h = Sha256::new();
         h.update(bytes);

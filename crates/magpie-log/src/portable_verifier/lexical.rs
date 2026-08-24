@@ -12,6 +12,18 @@ pub(super) fn decode_lower_hex<const LENGTH: usize>(text: &str) -> Option<[u8; L
     Some(decoded)
 }
 
+pub(super) fn decode_u64_token(token: &str) -> Option<u64> {
+    let bytes = token.as_bytes();
+    let lexical_form_is_valid = match bytes {
+        [b'0'] => true,
+        [b'1'..=b'9', rest @ ..] => rest.iter().all(u8::is_ascii_digit),
+        _ => false,
+    };
+    lexical_form_is_valid
+        .then(|| token.parse::<u64>().ok())
+        .flatten()
+}
+
 fn lower_hex_nibble(byte: u8) -> Option<u8> {
     match byte {
         b'0'..=b'9' => Some(byte - b'0'),
