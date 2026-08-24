@@ -88,8 +88,7 @@
 //! key.append_record(&mut store, b"caller-supplied record bytes").unwrap();
 //! ```
 //!
-//! The staged portable raw-input frontend is intentionally crate-internal
-//! until the complete-history conformer owns its continuation:
+//! The complete portable-history conformer is intentionally crate-internal:
 //!
 //! ```compile_fail,E0603
 //! use magpie_log::portable_verifier::FrontendSession;
@@ -101,7 +100,11 @@ mod event;
 mod hashing;
 mod history_expectation;
 mod logimpl;
-#[allow(dead_code)]
+// The authoritative portable conformer remains crate-internal until a later
+// release-surface decision gives it a non-test caller. Keep the suppression
+// limited to non-test reachability analysis; test builds must account for the
+// whole production path.
+#[cfg_attr(not(test), allow(dead_code))]
 mod portable_verifier;
 mod sqlite_l0;
 mod store;

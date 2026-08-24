@@ -333,11 +333,10 @@ fn pending_record_owns_continuation_and_next_record_is_unavailable_while_pending
         &super::lexical::decode_lower_hex::<32>(GOLDEN_KEY).unwrap()
     );
 
-    // No `next` operation exists on PendingRecord. The only consuming route
-    // reports current-record semantic success and returns the sole session.
-    let ready = pending
-        .complete_semantics::<()>(Ok(()))
-        .expect("test-only semantic-success report must return the cursor");
+    // No `next` operation exists on PendingRecord. This conspicuous bypass is
+    // compiled only for isolated frontend tests; production release requires
+    // the conformer's non-forgeable semantic-success capability.
+    let ready = pending.assume_semantics_succeeded_for_frontend_test();
     let second = match ready.next().unwrap() {
         FrontendStep::Pending(pending) => pending,
         _ => panic!("second record must remain unavailable until release"),
@@ -362,7 +361,7 @@ fn malformed_later_record_cannot_preempt_current_semantics() {
         FrontendStep::Pending(pending) => pending,
         _ => unreachable!(),
     };
-    let ready = pending.complete_semantics::<()>(Ok(())).unwrap();
+    let ready = pending.assume_semantics_succeeded_for_frontend_test();
     match ready.next().unwrap() {
         FrontendStep::Rejected(rejection) => {
             assert_eq!(rejection.class(), FrontendRejectionClass::JsonSyntax);

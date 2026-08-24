@@ -1,9 +1,10 @@
-//! Crate-internal raw-input frontend for the frozen portable-verifier language.
+//! Crate-internal complete conformer for the frozen portable-verifier language.
 //!
 //! This module deliberately remains separate from the compatibility-only
-//! `LogReader` path. It is the staged input boundary for the later complete
-//! portable-history conformer; it is not itself a complete verifier.
+//! `LogReader` path. Its frontend owns exact input recognition through Schema;
+//! its conformer owns the six remaining history stages and complete outcome.
 
+mod conformer;
 mod framing;
 mod frontend;
 mod json_syntax;

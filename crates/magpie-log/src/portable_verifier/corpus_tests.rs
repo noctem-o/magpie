@@ -1,12 +1,15 @@
-use std::convert::Infallible;
 use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 use crate::signature_profile::V_SIG_PROFILE_ID;
-use crate::{EventCore, Payload, Provenance, SignedEvent, Status};
+use crate::{ContentHash, EventCore, Payload, Provenance, SignedEvent, Status};
 
+use super::conformer::{
+    verify_complete_history, verify_complete_history_with_trace, CompleteHistoryOutcome,
+    PortableRejection, PortableRejectionClass,
+};
 use super::frontend::{FrontendSession, FrontendStep, PendingRecord};
 use super::preflight::FrontendStartError;
 use super::{FrontendRejection, FrontendRejectionClass};
@@ -25,6 +28,119 @@ fn optional_usize(value: &Value) -> Option<usize> {
     value.as_u64().map(|coordinate| {
         usize::try_from(coordinate).expect("frozen corpus coordinate must fit usize")
     })
+}
+
+fn expected_complete_class(name: &str) -> PortableRejectionClass {
+    match name {
+        "ExternalKey" => PortableRejectionClass::ExternalKey,
+        "Framing" => PortableRejectionClass::Framing,
+        "JsonSyntax" => PortableRejectionClass::JsonSyntax,
+        "Schema" => PortableRejectionClass::Schema,
+        "Sequence" => PortableRejectionClass::Sequence,
+        "PreviousLink" => PortableRejectionClass::PreviousLink,
+        "ContentHash" => PortableRejectionClass::ContentHash,
+        "Signature" => PortableRejectionClass::Signature,
+        "PayloadValidation" => PortableRejectionClass::PayloadValidation,
+        "Genesis" => PortableRejectionClass::Genesis,
+        _ => panic!("unknown portable rejection class {name:?}"),
+    }
+}
+
+fn assert_complete_rejection(case_id: &str, rejection: PortableRejection, expected: &Value) {
+    assert_eq!(
+        rejection.class(),
+        expected_complete_class(required_str(expected, "class")),
+        "{case_id}: class"
+    );
+    assert_eq!(
+        rejection.line(),
+        optional_usize(&expected["line"]),
+        "{case_id}: line"
+    );
+    assert_eq!(
+        rejection.record_index(),
+        optional_usize(&expected["record_index"]),
+        "{case_id}: record_index"
+    );
+}
+
+fn read_case_input(root: &Path, case: &Value) -> Vec<u8> {
+    let case_id = required_str(case, "id");
+    let input = std::fs::read(root.join(required_str(case, "input_path")))
+        .unwrap_or_else(|error| panic!("{case_id}: input read failed: {error}"));
+    assert_eq!(
+        hex::encode(Sha256::digest(&input)),
+        required_str(case, "input_sha256"),
+        "{case_id}: exact input bytes drifted"
+    );
+    input
+}
+
+fn assert_complete_case(root: &Path, case: &Value) -> Option<PortableRejectionClass> {
+    let case_id = required_str(case, "id");
+    let expected = &case["expected"];
+    let input = read_case_input(root, case);
+    let (outcome, observed_hashes) = verify_complete_history_with_trace(
+        V_SIG_PROFILE_ID,
+        required_str(case, "external_verifying_key_hex"),
+        &input,
+    )
+    .unwrap_or_else(|error| panic!("{case_id}: operational failure: {error:?}"));
+
+    match (required_str(expected, "verdict"), outcome) {
+        ("ACCEPT", CompleteHistoryOutcome::Accept(accepted)) => {
+            assert_eq!(
+                accepted.event_count(),
+                expected["event_count"].as_u64().unwrap(),
+                "{case_id}: event_count"
+            );
+            assert_eq!(
+                accepted.tip().to_hex(),
+                required_str(expected, "tip"),
+                "{case_id}: tip"
+            );
+            let observed_hashes: Vec<String> =
+                observed_hashes.iter().map(ContentHash::to_hex).collect();
+            let expected_hashes: Vec<&str> = expected["ordered_recomputed_hashes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|hash| hash.as_str().unwrap())
+                .collect();
+            assert_eq!(
+                observed_hashes, expected_hashes,
+                "{case_id}: ordered recomputed hashes"
+            );
+            None
+        }
+        ("REJECT", CompleteHistoryOutcome::Reject(rejection)) => {
+            assert_complete_rejection(case_id, rejection, expected);
+            Some(rejection.class())
+        }
+        (expected_verdict, actual) => {
+            panic!("{case_id}: expected {expected_verdict}, got {actual:?}")
+        }
+    }
+}
+
+fn manifest_case<'manifest>(manifest: &'manifest Value, case_id: &str) -> &'manifest Value {
+    manifest["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|case| required_str(case, "id") == case_id)
+        .unwrap_or_else(|| panic!("missing frozen case {case_id:?}"))
+}
+
+fn assert_named_cases(case_ids: &[&str]) {
+    let root = repository_root();
+    let manifest: Value = serde_json::from_slice(
+        &std::fs::read(root.join("fixtures/verifier-language-v1/manifest.json")).unwrap(),
+    )
+    .unwrap();
+    for case_id in case_ids {
+        let _ = assert_complete_case(&root, manifest_case(&manifest, case_id));
+    }
 }
 
 fn expected_frontend_class(name: &str) -> FrontendRejectionClass {
@@ -58,9 +174,7 @@ fn assert_rejection(case_id: &str, rejection: FrontendRejection, expected: &Valu
 fn assume_current_semantics_succeed_for_frontend_test(
     pending: Box<PendingRecord<'_>>,
 ) -> FrontendSession<'_> {
-    pending
-        .complete_semantics::<Infallible>(Ok(()))
-        .expect("the conspicuous frontend-only test driver cannot fail")
+    pending.assume_semantics_succeeded_for_frontend_test()
 }
 
 fn drive_frontend_final_case(case_id: &str, case: &Value, input: &[u8]) {
@@ -230,6 +344,199 @@ fn frozen_frontend_corpus_accounting_is_exact() {
     assert_eq!(external_key + framing + json_syntax + schema, 324);
     assert_eq!((eventual_accept, later_reject), (19, 89));
     assert_eq!(eventual_accept + later_reject, 108);
+}
+
+#[test]
+fn frozen_complete_conformer_corpus_matches_all_432_cases() {
+    const MANIFEST_SHA256: &str =
+        "7d758d3f2dac1161fe15dd064b130ccbfcdaf0437ea8ab8d7772492194801a81";
+
+    let root = repository_root();
+    let manifest_bytes =
+        std::fs::read(root.join("fixtures/verifier-language-v1/manifest.json")).unwrap();
+    assert_eq!(
+        hex::encode(Sha256::digest(&manifest_bytes)),
+        MANIFEST_SHA256
+    );
+    let manifest: Value = serde_json::from_slice(&manifest_bytes).unwrap();
+    assert_eq!(
+        manifest["producing_context"]["signature_profile_identity"],
+        V_SIG_PROFILE_ID
+    );
+
+    let cases = manifest["cases"].as_array().unwrap();
+    let mut inventory = [0_usize; 11];
+    for case in cases {
+        // Every case takes the same production path. The manifest expectation
+        // is consulted only after the conformer returns its complete outcome.
+        let actual_class = assert_complete_case(&root, case);
+        let inventory_index = match actual_class {
+            None => 0,
+            Some(PortableRejectionClass::ExternalKey) => 1,
+            Some(PortableRejectionClass::Framing) => 2,
+            Some(PortableRejectionClass::JsonSyntax) => 3,
+            Some(PortableRejectionClass::Schema) => 4,
+            Some(PortableRejectionClass::Sequence) => 5,
+            Some(PortableRejectionClass::PreviousLink) => 6,
+            Some(PortableRejectionClass::ContentHash) => 7,
+            Some(PortableRejectionClass::Signature) => 8,
+            Some(PortableRejectionClass::PayloadValidation) => 9,
+            Some(PortableRejectionClass::Genesis) => 10,
+        };
+        inventory[inventory_index] += 1;
+    }
+
+    assert_eq!(cases.len(), 432);
+    assert_eq!(inventory, [19, 21, 13, 18, 272, 4, 5, 3, 16, 46, 15]);
+    eprintln!(
+        "complete conformer inventory: ACCEPT={} ExternalKey={} Framing={} JsonSyntax={} Schema={} Sequence={} PreviousLink={} ContentHash={} Signature={} PayloadValidation={} Genesis={}",
+        inventory[0],
+        inventory[1],
+        inventory[2],
+        inventory[3],
+        inventory[4],
+        inventory[5],
+        inventory[6],
+        inventory[7],
+        inventory[8],
+        inventory[9],
+        inventory[10],
+    );
+}
+
+#[test]
+fn sequence_witnesses_cover_first_skip_duplicate_regression_and_high_u64() {
+    let root = repository_root();
+    let manifest: Value = serde_json::from_slice(
+        &std::fs::read(root.join("fixtures/verifier-language-v1/manifest.json")).unwrap(),
+    )
+    .unwrap();
+    let positive = manifest_case(&manifest, "p2-deadbolt-anchor-v1");
+    let input = String::from_utf8(read_case_input(&root, positive)).unwrap();
+    let external_key = required_str(positive, "external_verifying_key_hex");
+
+    assert!(matches!(
+        verify_complete_history(V_SIG_PROFILE_ID, external_key, input.as_bytes()).unwrap(),
+        CompleteHistoryOutcome::Accept(_)
+    ));
+
+    for (name, mutated) in [
+        ("skip", input.replacen("\"seq\":1", "\"seq\":2", 1)),
+        (
+            "duplicate/regression",
+            input.replacen("\"seq\":1", "\"seq\":0", 1),
+        ),
+    ] {
+        match verify_complete_history(V_SIG_PROFILE_ID, external_key, mutated.as_bytes()).unwrap() {
+            CompleteHistoryOutcome::Reject(rejection) => {
+                assert_eq!(
+                    rejection.class(),
+                    PortableRejectionClass::Sequence,
+                    "{name}"
+                );
+                assert_eq!(rejection.line(), Some(2), "{name}");
+                assert_eq!(rejection.record_index(), Some(1), "{name}");
+            }
+            actual => panic!("{name}: expected Sequence, got {actual:?}"),
+        }
+    }
+
+    assert_named_cases(&[
+        "n21-wrong-sequence",
+        "u64-p4-sequence-9223372036854775808",
+        "u64-p5-sequence-18446744073709551615",
+    ]);
+}
+
+#[test]
+fn previous_link_uses_only_the_last_completely_accepted_recomputed_tip() {
+    assert_named_cases(&[
+        "n22-wrong-genesis-previous-link",
+        "n22-wrong-later-previous-link",
+        "n28-later-link-before-signature",
+        "n29-valid-prefix-bad-link-later",
+    ]);
+}
+
+#[test]
+fn content_hash_and_signature_use_canonical_core_and_the_bound_profile() {
+    assert_named_cases(&[
+        "p7-member-order-permutation",
+        "n23-wrong-stored-hash",
+        "n28-content-hash-before-payload",
+        "a21-altered-message",
+        "a21-altered-signature",
+        "a21-d2-identity-r-equation-true",
+        "n28-signature-before-payload",
+        "n28-signature-before-genesis",
+    ]);
+}
+
+#[test]
+fn payload_and_genesis_rules_remain_at_their_frozen_late_stages() {
+    assert_named_cases(&[
+        "payload-empty-claimassertedv2-claim-id",
+        "n20-actor-unknown",
+        "n20-evidence-unknown",
+        "n20-edge-unknown",
+        "n3-witness-root-nonhex",
+        "n3-claim-content-hash-empty",
+        "n28-payload-before-genesis",
+        "n25-non-genesis-at-zero",
+        "n25-genesis-after-zero",
+        "n26-wrong-genesis-profile",
+        "n3-genesis-key-nonhex",
+        "n1-genesis-key-uppercase",
+        "n27-genesis-key-mismatch",
+        "positive-complete-vocabulary",
+    ]);
+}
+
+#[test]
+fn current_semantic_failure_beats_malformed_next_record() {
+    let root = repository_root();
+    let manifest: Value = serde_json::from_slice(
+        &std::fs::read(root.join("fixtures/verifier-language-v1/manifest.json")).unwrap(),
+    )
+    .unwrap();
+    let case = manifest_case(&manifest, "n21-wrong-sequence");
+    let mut input = read_case_input(&root, case);
+    while input.last() == Some(&b'\n') {
+        input.pop();
+    }
+    input.extend_from_slice(b"\n{\n");
+
+    match verify_complete_history(
+        V_SIG_PROFILE_ID,
+        required_str(case, "external_verifying_key_hex"),
+        &input,
+    )
+    .unwrap()
+    {
+        CompleteHistoryOutcome::Reject(rejection) => {
+            assert_eq!(rejection.class(), PortableRejectionClass::Sequence);
+            assert_eq!(rejection.line(), Some(1));
+            assert_eq!(rejection.record_index(), Some(0));
+        }
+        actual => panic!("current Sequence failure was preempted: {actual:?}"),
+    }
+}
+
+#[test]
+fn exact_empty_history_accepts_zero_count_and_zero_tip_after_preflight() {
+    let outcome = verify_complete_history(
+        V_SIG_PROFILE_ID,
+        "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+        b"",
+    )
+    .unwrap();
+    match outcome {
+        CompleteHistoryOutcome::Accept(accepted) => {
+            assert_eq!(accepted.event_count(), 0);
+            assert_eq!(accepted.tip(), ContentHash::ZERO);
+        }
+        actual => panic!("empty history must ACCEPT after valid preflight: {actual:?}"),
+    }
 }
 
 // This compile-only coupling is intentionally exhaustive and uses no `..` or
