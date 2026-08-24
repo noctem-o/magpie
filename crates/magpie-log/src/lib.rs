@@ -97,6 +97,8 @@ mod logimpl;
 mod sqlite_l0;
 mod store;
 
+pub mod signature_profile;
+
 pub use canonical::CANONICALIZATION_PROFILE;
 pub use error::LogError;
 pub use event::{EventCore, Payload, Provenance, Sig, SignedEvent, Status};
