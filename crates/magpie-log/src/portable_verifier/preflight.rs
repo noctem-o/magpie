@@ -8,7 +8,7 @@ use super::lexical::decode_lower_hex;
 use super::FrontendRejection;
 
 #[derive(Debug)]
-pub(super) enum FrontendStartError {
+pub(crate) enum FrontendStartError {
     UnsupportedProfile(UnsupportedSignatureVerificationProfile),
     Rejected(FrontendRejection),
 }

@@ -5,6 +5,7 @@
 //! portable-history conformer; it is not itself a complete verifier.
 
 mod framing;
+mod frontend;
 mod json_syntax;
 mod lexical;
 mod preflight;
@@ -39,6 +40,18 @@ impl FrontendRejection {
             class: FrontendRejectionClass::Framing,
             line: Some(line),
             record_index,
+        }
+    }
+
+    fn current_record(class: FrontendRejectionClass, line: usize, record_index: usize) -> Self {
+        debug_assert!(matches!(
+            class,
+            FrontendRejectionClass::JsonSyntax | FrontendRejectionClass::Schema
+        ));
+        Self {
+            class,
+            line: Some(line),
+            record_index: Some(record_index),
         }
     }
 

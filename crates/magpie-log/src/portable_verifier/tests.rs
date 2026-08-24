@@ -1,10 +1,17 @@
 use crate::signature_profile::V_SIG_PROFILE_ID;
+use crate::Payload;
 
 use super::framing::FrameStep;
+use super::frontend::{FrontendSession, FrontendStep};
 use super::preflight::{FrontendStartError, PreparedFrontend};
 use super::FrontendRejectionClass;
 
 const GOLDEN_KEY: &str = "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c";
+const ZERO_HASH: &str = "0000000000000000000000000000000000000000000000000000000000000000";
+const ZERO_SIGNATURE: &str = concat!(
+    "0000000000000000000000000000000000000000000000000000000000000000",
+    "0000000000000000000000000000000000000000000000000000000000000000",
+);
 
 fn cursor_for(input: &[u8]) -> super::framing::FrameCursor<'_> {
     PreparedFrontend::new(V_SIG_PROFILE_ID, GOLDEN_KEY, input)
@@ -22,6 +29,34 @@ fn expect_framing(input: &[u8], expected_line: usize, expected_record_index: Opt
         }
         FrameStep::End => panic!("framing failure unexpectedly reached end"),
         FrameStep::Candidate(_) => panic!("framing failure unexpectedly produced a candidate"),
+    }
+}
+
+fn note_record(text: &str) -> String {
+    format!(
+        r#"{{"core":{{"seq":0,"timestamp_nanos":0,"prev_hash":"{ZERO_HASH}","provenance":{{"agent":"agent","source":"source"}},"payload":{{"kind":"Note","text":"{text}"}}}},"hash":"{ZERO_HASH}","signature":"{ZERO_SIGNATURE}"}}"#
+    )
+}
+
+fn frontend(input: &[u8]) -> FrontendSession<'_> {
+    FrontendSession::new(V_SIG_PROFILE_ID, GOLDEN_KEY, input)
+        .expect("golden-key frontend preflight must pass")
+}
+
+fn expect_frontend_rejection(
+    input: &[u8],
+    expected_class: FrontendRejectionClass,
+    expected_line: usize,
+    expected_record_index: usize,
+) {
+    match frontend(input).next().expect("frontend must execute") {
+        FrontendStep::Rejected(rejection) => {
+            assert_eq!(rejection.class(), expected_class);
+            assert_eq!(rejection.line(), Some(expected_line));
+            assert_eq!(rejection.record_index(), Some(expected_record_index));
+        }
+        FrontendStep::End => panic!("rejection unexpectedly reached end"),
+        FrontendStep::Pending(_) => panic!("rejection unexpectedly yielded a pending record"),
     }
 }
 
@@ -97,5 +132,121 @@ fn extra_final_terminator_is_a_zero_length_record() {
             assert_eq!(rejection.record_index(), None);
         }
         _ => panic!("extra final terminator must reject"),
+    }
+}
+
+#[test]
+fn complete_syntax_and_schema_are_separate_ordered_phases() {
+    expect_frontend_rejection(
+        b"{\"core\":{\"seq\":01}}",
+        FrontendRejectionClass::JsonSyntax,
+        1,
+        0,
+    );
+    expect_frontend_rejection(
+        b"{\"core\":null,\"c\\u006fre\":null,\"hash\":null,\"signature\":null}",
+        FrontendRejectionClass::Schema,
+        1,
+        0,
+    );
+
+    let huge = note_record("ok").replacen(
+        "\"seq\":0",
+        "\"seq\":99999999999999999999999999999999999999999999999999999",
+        1,
+    );
+    expect_frontend_rejection(huge.as_bytes(), FrontendRejectionClass::Schema, 1, 0);
+
+    let uppercase_hash = format!("A{}", "0".repeat(63));
+    let uppercase = note_record("ok").replacen(ZERO_HASH, &uppercase_hash, 1);
+    expect_frontend_rejection(uppercase.as_bytes(), FrontendRejectionClass::Schema, 1, 0);
+}
+
+#[test]
+fn bom_utf8_and_ufeff_obey_magpie_owned_stage_boundaries() {
+    expect_framing(b"\xef\xbb\xbf{}", 1, Some(0));
+    expect_framing(b"\xff", 1, Some(0));
+    expect_frontend_rejection(b" \xef\xbb\xbf{}", FrontendRejectionClass::JsonSyntax, 1, 0);
+
+    let literal = note_record("\u{feff}");
+    let pending = match frontend(literal.as_bytes()).next().unwrap() {
+        FrontendStep::Pending(pending) => pending,
+        _ => panic!("U+FEFF inside a string must reach the pending record"),
+    };
+    assert!(matches!(
+        pending.record().core().payload,
+        Payload::Note { .. }
+    ));
+
+    let escaped = note_record(r#"\uFEFF"#);
+    assert!(matches!(
+        frontend(escaped.as_bytes()).next().unwrap(),
+        FrontendStep::Pending(_)
+    ));
+}
+
+#[test]
+fn pending_record_exclusively_owns_the_continuation() {
+    let first_record = note_record("first");
+    let second_record = note_record("second");
+    let input = format!("{first_record}\n{second_record}");
+
+    let pending = match frontend(input.as_bytes()).next().unwrap() {
+        FrontendStep::Pending(pending) => pending,
+        _ => panic!("first record must become pending"),
+    };
+    assert_eq!(pending.record().line(), 1);
+    assert_eq!(pending.record().record_index(), 0);
+    assert_eq!(pending.record().stored_hash(), &[0_u8; 32]);
+    assert_eq!(pending.record().signature(), &[0_u8; 64]);
+    assert_eq!(
+        pending.signature_verifier().external_key_bytes(),
+        &super::lexical::decode_lower_hex::<32>(GOLDEN_KEY).unwrap()
+    );
+
+    // No `next` operation exists on PendingRecord. The only consuming route
+    // reports current-record semantic success and returns the sole session.
+    let ready = pending
+        .complete_semantics::<()>(Ok(()))
+        .expect("test-only semantic-success report must return the cursor");
+    let second = match ready.next().unwrap() {
+        FrontendStep::Pending(pending) => pending,
+        _ => panic!("second record must remain unavailable until release"),
+    };
+    assert_eq!(second.record().line(), 2);
+    assert_eq!(second.record().record_index(), 1);
+}
+
+#[test]
+fn malformed_later_record_cannot_preempt_current_semantics() {
+    let first_record = note_record("destined for a semantic failure");
+    let input = format!("{first_record}\n{{");
+
+    let pending = match frontend(input.as_bytes()).next().unwrap() {
+        FrontendStep::Pending(pending) => pending,
+        _ => panic!("current record must return before later JSON is inspected"),
+    };
+    assert_eq!(pending.record().record_index(), 0);
+    drop(pending);
+
+    let pending = match frontend(input.as_bytes()).next().unwrap() {
+        FrontendStep::Pending(pending) => pending,
+        _ => unreachable!(),
+    };
+    let ready = pending.complete_semantics::<()>(Ok(())).unwrap();
+    match ready.next().unwrap() {
+        FrontendStep::Rejected(rejection) => {
+            assert_eq!(rejection.class(), FrontendRejectionClass::JsonSyntax);
+            assert_eq!(rejection.line(), Some(2));
+            assert_eq!(rejection.record_index(), Some(1));
+        }
+        _ => panic!("later malformed record must reject only after release"),
+    }
+}
+
+#[test]
+fn serde_diagnostic_text_never_controls_frontend_classification() {
+    for malformed in [b"{".as_slice(), b"[1,".as_slice(), b"{} garbage".as_slice()] {
+        expect_frontend_rejection(malformed, FrontendRejectionClass::JsonSyntax, 1, 0);
     }
 }
