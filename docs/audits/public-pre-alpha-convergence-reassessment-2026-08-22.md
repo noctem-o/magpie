@@ -23,7 +23,8 @@ comes from the explicit owner statement, not from merge or CI success alone.
 | --- | --- |
 | Repository | `noctem-o/magpie` |
 | Reassessment date | 2026-08-22 |
-| Pinned `main` | `169a94e16dd0f6f53620302c09e4b2f041b61cb9` |
+| Original 2026-08-22 pinned `main` | `169a94e16dd0f6f53620302c09e4b2f041b61cb9` |
+| Current reconciled `main` (2026-08-24) | `a0910cc1c4cb7cc76204b26d5eaaeee6581570b9` |
 | Last formal source release | `v0.1.0` |
 | Corpus identity | `magpie-portable-verifier-corpus-v1` |
 | Frozen manifest SHA-256 | `7d758d3f2dac1161fe15dd064b130ccbfcdaf0437ea8ab8d7772492194801a81` |
@@ -42,6 +43,13 @@ The relevant convergence sequence is:
 | #129 | `f3fc220faca402c15ba207b27caa8ce79cb032c7` | supported SQLite L0 runtime and hostile tests |
 | #130 | `afc4ff7cf5dfe33f672723da3e4a9a9880752a67` | proposed exact additive Ed25519 verification subprofile |
 | #131 | `169a94e16dd0f6f53620302c09e4b2f041b61cb9` | ADR-0010 ratification and exact portable corpus merge |
+| #132 | `2751ac41748d6aba05c503c721dad84a2c89f916` | living post-#131 convergence and audit reconciliation |
+| #135 | `a0910cc1c4cb7cc76204b26d5eaaeee6581570b9` | merged typed Rust `V_sig` primitive and explicit fail-closed profile selection |
+
+The reassessment date and the evidence attributed to its original
+`169a94e16dd0f6f53620302c09e4b2f041b61cb9` baseline remain historical facts.
+The 2026-08-24 row records the current living baseline after #132 and #135; it
+does not backdate either merge or rewrite the 2026-08-22 owner decision.
 
 Current implementation and tests outrank PR descriptions. Accepted FORMAT and
 ADRs follow; frozen narrow contracts and the exact corpus come next; historical
@@ -97,10 +105,11 @@ ADR-0007 fixes future authority-bound corroboration doctrine, and current
 claimant-label behavior is explicitly quarantined as compatibility semantics.
 
 **Remaining.** Existing runtime outputs do not all realize ADR-0008. The
-portable corpus intentionally does not mint a complete `G_history`; profile
-selection and complete result context still require implementation design at
-the C2/C3 boundary. This is not evidence that another constitutional owner
-choice is currently needed before the first conformer tranche.
+portable corpus intentionally does not mint a complete `G_history`; the raw
+portable frontend, complete-history conformer, and complete result context
+remain distinct implementation work at the C2/C3 boundary. This is not
+evidence that another constitutional owner choice is currently needed before
+the frontend tranche.
 
 **Excluded.** Authority-bound corroboration runtime, generic admission,
 currentness, withdrawal identity/delegation, librarian/MCP authority, and
@@ -143,22 +152,28 @@ first-failure, coordinate, and result semantics. Accepted ADR-0010 fixes
 `V_sig = "magpie-ed25519-canonical-prime-subgroup-v1"`. PR #131 adds the exact
 432-case oracle, clean-checkout integrity checker, hostile coverage inventories,
 independent manifest digest, repeated adversarial review, and the subsequent
-owner approval recorded here.
+owner approval recorded here. PR #135 adds the authoritative namespaced Rust
+`ProfiledSignatureVerifier`: profile selection is typed, explicit, and
+fail-closed; external-key admissibility is bound at construction; and the exact
+uncofactored ADR-0010 relation is implemented without changing the legacy
+unprofiled verifier.
 
-**Remaining.** Current Rust and Python verification paths still use their
-legacy unprofiled library relations. No typed Rust profile selection, matching
-Python profile path, independent Go conformer, or three-way differential run
-exists. The corpus is expected output, not executable conformance evidence.
+**Remaining.** The merged cryptographic primitive is not a portable conformer.
+Rust still lacks the exact raw-input frontend and complete portable-history
+conformer. Python still lacks a complete profile-aware conformer, no independent
+Go conformer exists, and no three-way differential run exists. The corpus is
+expected output, not executable conformance evidence.
 
 **Excluded.** No implementation may silently tighten legacy v1, infer a
 profile by default, fall back, negotiate `latest`, substitute a library's
 ordinary/strict API for Magpie doctrine, or turn structural key admissibility
 into key trust.
 
-**Next gate.** Implement typed Rust `V_sig` plus explicit, fail-closed profile
-selection against the frozen corpus without altering the legacy unprofiled
-path. Matching Python and independent Go conformers follow, then differential
-execution and hostile review.
+**Next gate.** Implement the exact Rust portable raw-input frontend against the
+frozen input-language contract. It must preserve record-by-record first-failure
+ordering and use the merged `ProfiledSignatureVerifier` only as the downstream
+signature primitive. Complete Rust history semantics, independent Python and Go
+conformers, differential execution, and hostile review remain later gates.
 
 ## C3 — producing coordinates and derived outputs
 
@@ -188,7 +203,10 @@ receipt; do not redesign every legacy output in this tranche.
 byte and coverage inventories, a clean-checkout CI integrity check, multiple
 adversarial corpus-review rounds, typed checkpoint tests, and extensive SQLite
 resource, schema, tamper, stale/concurrent-writer, transaction, crash-recovery,
-and unknown-commit tests.
+and unknown-commit tests. PR #135 also adds focused hostile cryptographic-
+boundary evidence for canonical encodings, subgroup membership, identity
+asymmetry, scalar boundaries, challenge binding, and the exact uncofactored
+equation.
 
 **Remaining.** There are no independent portable conformers or differential CI
 runs. GitHub Actions, Rust `stable`, `ubuntu-latest`, and the Python crypto
@@ -200,9 +218,12 @@ A-018 remain open.
 not verifier correctness, and local SQLite evidence is not a network or
 distributed-storage guarantee.
 
-**Next gate.** First obtain C2 differential evidence; then pin the applicable
-toolchain/action/Python inputs and collect only the additional platform and
-release-environment evidence required by the selected boundary.
+**Next gate.** Complete the bounded Rust frontend and history conformer, then a
+separate non-normative Rust fuzz/metamorphic tranche before treating Rust as
+cross-language comparison evidence. After independent Python and Go conformers
+and full differential evidence exist, pin the applicable toolchain/action/
+Python inputs and collect only the additional platform and release-environment
+evidence required by the selected boundary.
 
 ## C5 — release falsification
 
@@ -229,11 +250,13 @@ explicit owner release decision.
 The evidence supports this order:
 
 ```text
-typed Rust V_sig + explicit profile selection
--> matching Python profile-aware conformer
--> independent Go conformer
--> three-way differential execution over magpie-portable-verifier-corpus-v1
--> hostile conformance review
+exact Rust portable raw-input frontend using merged profiled V_sig downstream
+-> complete Rust portable-history conformer
+-> bounded non-normative Rust fuzz/metamorphic assurance
+-> independent Python complete conformer from governing documents and corpus
+-> independent Go complete conformer from governing documents and corpus
+-> Rust/Python/Go differential execution over the exact frozen 432 cases
+-> hostile review of disagreements and evidence
 -> separate A-021 / A-004 / RQ-006 ledger reconciliation
 -> minimal coordinate-complete detached result/receipt, only if the advertised
    boundary requires one
@@ -254,7 +277,11 @@ narrow boundary while compatibility debt remains.
 - The corpus lifecycle is now owner-approved, merged, frozen, and
   non-repointable. The manifest's embedded freeze-time candidate string remains
   byte-identical.
-- A-021 remains implementation/conformance debt.
+- PR #135 merged the authoritative Rust `V_sig` primitive and explicit
+  fail-closed profile selection. It did not add raw portable parsing, complete
+  history conformance, cross-language evidence, or finding closure.
+- A-021 remains Confirmed implementation/conformance debt, now narrowed to the
+  absent complete portable pipeline and qualifying cross-language evidence.
 - A-004 and RQ-006 remain interoperability debt until independently executed
   conformers agree.
 - RQ-013 gains substantial corpus and SQLite evidence but retains wider
@@ -264,6 +291,6 @@ narrow boundary while compatibility debt remains.
 - ADR-0007 remains Accepted doctrine with no authority-bound successor runtime;
   that capability remains excluded from this smallest boundary.
 
-The narrowest next executable tranche is therefore typed Rust `V_sig` and
-explicit fail-closed profile selection against frozen
-`magpie-portable-verifier-corpus-v1`.
+The narrowest next executable tranche is therefore the exact Rust portable
+raw-input frontend against the frozen input-language contract, with merged
+profiled `V_sig` retained as a downstream primitive rather than reimplemented.
