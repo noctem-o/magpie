@@ -142,17 +142,17 @@ Freeze consequences:
 
 ## Queued work (keep current; update as things land)
 
-1. Implement the exact Rust portable raw-input frontend against the frozen
-   input-language contract. Preserve sequential first-failure semantics and use
-   merged profiled `V_sig` as the downstream signature primitive.
-2. Complete the Rust portable-history conformer over that frontend.
-3. Run a bounded, non-normative Rust fuzz/metamorphic assurance tranche before
+1. Implement the complete Rust portable-history conformer over the merged
+   frontend, applying `Sequence -> PreviousLink -> ContentHash -> Signature ->
+   PayloadValidation -> Genesis` to one pending record at a time.
+2. Run a bounded, non-normative Rust fuzz/metamorphic assurance tranche before
    using Rust as cross-language comparison evidence.
-4. Build an independent Python complete conformer from the governing documents
+3. Build an independent Python complete conformer from the governing documents
    and frozen corpus, not by translating the Rust implementation.
-5. Build an independent Go complete conformer from the same governing sources.
-6. Run Rust, Python, and Go differentially over the exact frozen 432-case corpus,
+4. Build an independent Go complete conformer from the same governing sources.
+5. Run Rust, Python, and Go differentially over the exact frozen 432-case corpus,
    then hostile-review disagreements and evidence.
+6. Hostile-review the differential disagreements and the complete evidence.
 7. Reconcile A-021/A-004/RQ-006 separately only after qualifying implementation
    and differential evidence exists.
 8. At C3, if the advertised pre-alpha still needs detachable governed output,
@@ -166,6 +166,13 @@ Keep general ingestion/CAS, `EpistemicGate`, governed ordinary agent writing,
 contradiction/currentness runtime, ADR-0007 authority runtime, librarian,
 effectful MCP, production KMS, and ambient/Vesper agent work deferred unless a
 separate owner decision moves one into the release boundary.
+
+Landed: the authoritative crate-internal Rust portable raw-input frontend through
+`Schema`, including exact profile/external-key preflight, exact-byte framing and
+UTF-8, the locked `serde_json` syntax seam, duplicate-preserving closed decoding,
+and a private pending-record/exclusive-continuation boundary (PR #137,
+2026-08-24). It proves 324 frontend-tranche-final outcomes and 108 later-stage
+non-preemption cases, not complete history conformance or finding closure.
 
 Landed: typed, explicit, fail-closed Rust `V_sig` profile selection and the exact
 ADR-0010 relation as the namespaced `ProfiledSignatureVerifier` primitive; the
