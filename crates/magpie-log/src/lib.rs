@@ -94,6 +94,8 @@ mod event;
 mod hashing;
 mod history_expectation;
 mod logimpl;
+#[allow(dead_code)]
+mod portable_verifier;
 mod sqlite_l0;
 mod store;
 
