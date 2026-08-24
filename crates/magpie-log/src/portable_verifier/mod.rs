@@ -70,6 +70,8 @@ impl FrontendRejection {
 }
 
 #[cfg(test)]
+mod assurance;
+#[cfg(test)]
 mod corpus_tests;
 #[cfg(test)]
 mod tests;
