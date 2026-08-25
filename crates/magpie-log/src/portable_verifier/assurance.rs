@@ -47,7 +47,7 @@ const UNIFORM_MAX_LEN: usize = 600;
 const MAX_MUTATIONS_PER_INPUT: usize = 8;
 /// Strategy 2 (grammar-ish fragments): `0..FRAGMENT_MAX_PIECES` pieces.
 const FRAGMENT_MAX_PIECES: usize = 12;
-/// Longest piece in the fragment table (the lone-surrogate literal).
+/// Longest piece in the fragment table (the large integer token).
 const FRAGMENT_MAX_PIECE_LEN: usize = 20;
 
 fn repository_root() -> PathBuf {
@@ -700,30 +700,66 @@ fn assurance_d_first_failure_is_stable_under_added_later_defects() {
     // `payload-empty-evidenceregistered-summary`, whose record zero has a
     // valid recomputed hash and valid signature and fails only at
     // PayloadValidation (empty required summary). Flipping the first
-    // signature hex char keeps the transport Schema-valid (still 128
-    // lowercase hex), changes no EventCore byte and not the stored hash, and
-    // must move the failure earlier to Signature — proving Signature outranks
-    // an already-present PayloadValidation defect.
+    // signature hex char must be the ONLY change: the helper operates on the
+    // complete fixture text (including its terminal LF) and preserves it, so
+    // the transformation below is proven to be exactly one differing byte,
+    // located inside the transported signature value, with identical length
+    // and trailing-LF shape. EventCore bytes and the stored hash are
+    // untouched, and the mutated transport is still Schema-valid 128
+    // lowercase hex — so any change of governed result can only come from
+    // Signature outranking the already-present PayloadValidation defect.
     let (pv_key, pv_input) = frozen_case_bytes("payload-empty-evidenceregistered-summary");
     assert_eq!(
         reject_class_of(V_SIG_PROFILE_ID, &pv_key, &pv_input),
         PortableRejectionClass::PayloadValidation,
         "source witness fails at PayloadValidation alone"
     );
+    let source_bytes = pv_input.clone();
     let sig_broken = flip_first_hex_char_after(
         std::str::from_utf8(&pv_input).expect("witness is UTF-8"),
         "signature",
     )
-    .expect("signature member present in witness record");
-    let sig_broken = if pv_input.ends_with(b"\n") {
-        format!("{sig_broken}\n").into_bytes()
-    } else {
-        sig_broken.into_bytes()
-    };
+    .expect("signature member present in witness record")
+    .into_bytes();
+    // Mechanically prove the transformation is signature-only:
+    assert_eq!(
+        sig_broken.len(),
+        source_bytes.len(),
+        "signature mutation must not change input length"
+    );
+    let diffs: Vec<usize> = sig_broken
+        .iter()
+        .zip(source_bytes.iter())
+        .enumerate()
+        .filter_map(|(at, (new, old))| (new != old).then_some(at))
+        .collect();
+    assert_eq!(diffs.len(), 1, "exactly one byte may differ: {diffs:?}");
+    let needle = "\"signature\":\"";
+    let sig_start = std::str::from_utf8(&source_bytes)
+        .expect("utf8")
+        .find(needle)
+        .expect("signature member")
+        + needle.len();
+    let diff_at = diffs[0];
+    assert!(
+        diff_at >= sig_start && diff_at < sig_start + 128,
+        "differing byte {diff_at} must lie inside the transported signature \
+         value [{sig_start}, {})",
+        sig_start + 128
+    );
+    assert_eq!(diff_at, sig_start, "the first intended signature nibble");
+    for shape in [&source_bytes, &sig_broken] {
+        assert!(
+            shape.ends_with(b"\n")
+                && !shape.ends_with(b"\n\n")
+                && !shape.windows(2).any(|pair| pair == b"\n\n"),
+            "trailing-LF shape must be exactly one terminal LF"
+        );
+    }
     assert_eq!(
         reject_class_of(V_SIG_PROFILE_ID, &pv_key, &sig_broken),
         PortableRejectionClass::Signature,
-        "Schema-valid signature mutation moves the failure to Signature"
+        "one-byte Schema-valid signature mutation moves the failure to Signature"
     );
 
     eprintln!(
