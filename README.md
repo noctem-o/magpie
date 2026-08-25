@@ -443,7 +443,6 @@ Implemented today:
 Important work that is **not** implemented yet includes:
 
 - secure retained checkpoints and stronger rollback resistance
-- bounded Rust fuzz/metamorphic assurance for the portable verifier
 - independent complete Python and Go portable conformers and cross-language differential execution over the frozen corpus
 - coordinate-complete detached verification/replay results for any advertised governed detachable-result boundary
 - authority-bound origin-group admission under ADR 0007
