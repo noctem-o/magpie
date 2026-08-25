@@ -8,19 +8,25 @@
 
 **A local-first, replayable memory kernel for AI systems.**
 
-Magpie keeps a signed history of what was recorded and derives everything else from that history.
-
-It tracks claims, evidence, provenance, search state, and policy conclusions without quietly treating any of them as the same thing.
+Magpie keeps a signed history of what was recorded and derives everything else from that history. It tracks claims, evidence, provenance, search state, and policy conclusions without quietly treating any of them as the same thing.
 
 > **Conserve the log. Derive the rest.**
-
-That rule is the project.
 
 A search hit is not evidence. Verified bytes are not automatically well-sourced. Two matching reports are not automatically independent. A serialized audit result does not gain authority because somebody loaded it again.
 
 Magpie is deliberately fussy about those distinctions.
 
-It is an experimental Rust workspace, not a finished memory product. Current `main` implements standing policies v0 through v4 and now includes a crate-internal complete Rust portable-history conformer. The latest formal source release is still v0.1.0. Development has moved beyond it, but there is no v0.2.0 release yet.
+| Historical record | Portable verification | Governed standing | Authority boundary |
+| --- | --- | --- | --- |
+| Signed, append-only hash chain | Rust complete conformer | Policies v0 through v4 | No ambient authority |
+| SQLite L0 + deterministic replay | Frozen 432-case corpus | Caller selects the policy | Trust in the verifying key stays external |
+| Explicit checkpoint expectations | Bounded Rust fuzz/metamorphic assurance | No automatic `latest` | Optional Deadbolt protocol seam |
+| Corrections remain historical events | Python/Go complete conformers pending | Audit traces are explanatory | Derived state cannot rewrite history |
+
+> [!IMPORTANT]
+> A successful check grants only the claim defined by that check. It does not silently establish provenance, trust, freshness, global completeness, key ownership, or permission to act.
+
+Magpie is an experimental Rust workspace, not a finished memory product. Current `main` implements standing policies v0 through v4 and includes a crate-internal complete Rust portable-history conformer. The latest formal source release is still v0.1.0. Development has moved beyond it, but there is no v0.2.0 release yet.
 
 ## Why Magpie exists
 
@@ -69,6 +75,7 @@ It includes:
 - an independent unprofiled Python chain verifier retained for compatibility
 - an owner-approved, frozen 432-case exact-byte portable-verifier corpus
 - a crate-internal Rust complete portable-history conformer that drives all 432 frozen cases through one production path
+- non-normative bounded Rust fuzz/metamorphic assurance over that production conformer path
 - a supported local SQLite L0 store with bounded creation and verified reopen
 - stale-writer detection and atomic successor append
 - complete history verification before deterministic replay
@@ -85,7 +92,7 @@ The scope is still intentionally small.
 
 There is no general ingestion system, no autonomous research agent, no ordinary governed claim writer, and no magic "latest truth" resolver.
 
-The frozen portable corpus is normative oracle material, not a verifier by itself. Current `main` now has one complete Rust conformer for the selected ADR-0010 profile and the full portable-history language, with 432/432 same-language corpus agreement. Independent complete Python and Go conformers have not landed yet, and neither has cross-language differential execution. So this is strong Rust evidence, not a portable cross-language verification claim.
+The frozen portable corpus is normative oracle material, not a verifier by itself. Current `main` has one complete Rust conformer for the selected ADR-0010 profile and the full portable-history language, with 432/432 same-language corpus agreement plus bounded non-normative fuzz/metamorphic assurance. Independent complete Python and Go conformers have not landed yet, and neither has cross-language differential execution. So this is strong Rust evidence, not a portable cross-language verification claim or a proof of verifier correctness.
 
 ## Quick start
 
@@ -117,23 +124,18 @@ That verifier checks canonical encoding, sequence numbers, previous-hash links, 
 
 ## How Magpie works
 
-```text
-signed append-only history
-        |
-        v
-complete verification
-        |
-        v
-deterministic replay
-        |
-        +-- episodic search
-        +-- claims, evidence, and edges
-        +-- foreign-bundle anchors
-        +-- provenance and origin checks
-        `-- explicit standing policies
-                    |
-                    v
-             governed standing
+```mermaid
+flowchart TD
+    H["Signed append-only history"] --> V["Complete verification"]
+    V --> R["Deterministic replay"]
+
+    R --> E["Episodic search"]
+    R --> C["Claims, evidence, and edges"]
+    R --> F["Foreign-bundle anchors"]
+    R --> P["Provenance and origin checks"]
+    R --> S["Explicit standing policy"]
+
+    S --> G["Governed standing"]
 ```
 
 Magpie first reads one exact record snapshot.
@@ -155,13 +157,13 @@ The rough progression is:
 
 Each step has a smaller claim than the next.
 
-Verification is not provenance.
+**Verification is not provenance.**
 
-Provenance is not proof of independent origin.
+**Provenance is not proof of independent origin.**
 
-Independent origin is not statistical independence.
+**Independent origin is not statistical independence.**
 
-Eligibility is not standing.
+**Eligibility is not standing.**
 
 ## Standing
 
@@ -353,27 +355,11 @@ That missing piece is intentional. Recording something and admitting it into an 
 
 ## Workspace
 
-### `magpie-log`
-
-The historical record.
-
-It contains the frozen event encoding, hash chain, Ed25519 signatures, readers and writers, persistent SQLite L0 storage, compatibility stores, golden vectors, complete verification, checkpoint expectations, deterministic replay, and the crate-internal complete Rust portable-history conformer.
-
-### `magpie-claims`
-
-The claim and policy machinery.
-
-It contains typed claims, evidence, justification edges, immutable supplied content, provenance checks, origin admission, contribution audits, standing policies v0 through v4, and one-way deterministic audit output.
-
-### `magpie-episodic`
-
-A rebuildable SQLite projection with FTS5 search.
-
-It provides deterministic log-order search over replayed events.
-
-It is useful for finding things.
-
-It is not another source of historical authority, and it has no path for writing search results back into the log.
+| Crate | Responsibility | Boundary |
+| --- | --- | --- |
+| [`magpie-log`](crates/magpie-log) | Frozen event encoding, hash chain, Ed25519 signatures, readers/writers, SQLite L0, compatibility stores, golden vectors, complete verification, checkpoint expectations, deterministic replay, and the complete Rust portable-history conformer. | Owns the historical record. |
+| [`magpie-claims`](crates/magpie-claims) | Typed claims, evidence, justification edges, immutable supplied content, provenance checks, origin admission, contribution audits, standing policies v0 through v4, and one-way deterministic audit output. | Derives epistemic conclusions; it does not rewrite history. |
+| [`magpie-episodic`](crates/magpie-episodic) | Rebuildable SQLite projection with FTS5 and deterministic log-order search over replayed events. | Useful for finding things; not historical authority and has no search-result write-back path. |
 
 ## Deadbolt integration
 
@@ -423,7 +409,7 @@ They are not Magpie itself.
 
 ## Current boundary
 
-Implemented today:
+### Implemented today
 
 - signed append-only historical authority
 - complete verification before replay
@@ -431,6 +417,7 @@ Implemented today:
 - explicit verified-prefix and checkpoint expectation semantics
 - an owner-approved, exact-byte portable-verifier corpus frozen under `magpie-portable-verifier-corpus-v1`
 - a crate-internal complete Rust conformer for the selected ADR-0010 profile and frozen portable-history language, green across all 432 cases
+- non-normative bounded Rust fuzz/metamorphic assurance over the production conformer path
 - rebuildable search and claim projections
 - exact supplied content for closure-dependent resolution
 - provenance verification and origin admission
@@ -440,7 +427,7 @@ Implemented today:
 - deterministic one-way audit explanations
 - optional Deadbolt bundle anchoring
 
-Important work that is **not** implemented yet includes:
+### Explicitly not implemented
 
 - secure retained checkpoints and stronger rollback resistance
 - independent complete Python and Go portable conformers and cross-language differential execution over the frozen corpus
@@ -542,6 +529,12 @@ cargo test --doc --locked
 cargo clippy --workspace --all-targets --locked -- -D warnings
 python tools/check_verifier_corpus_manifest.py
 python tools/check_release_metadata.py
+```
+
+The default Rust test graph includes the bounded portable-verifier smoke assurance. The larger deterministic campaign is intentionally opt-in:
+
+```sh
+cargo test -p magpie-log --locked --lib assurance_a_extended -- --ignored
 ```
 
 The workspace also contains focused hostile and integration tests for the complete portable verifier, provenance, origin admission, v3 and v4 standing, raw-status quarantine, same-replay binding, failure ordering, non-amplification, and canonical audit vectors.
