@@ -7,67 +7,117 @@ exact `fixtures/verifier-language-v1/manifest.json` cases. It does not call or
 generate code from the Rust or Python verifiers and does not use another
 implementation as an oracle.
 
-## Dependency rationale
+## Authorized vendored dependency
 
-The Go standard library does not expose the Edwards25519 point arithmetic
-needed to implement ADR-0010's canonical point, full prime-subgroup, and
-uncofactored equation gates. The module therefore pins the focused
-`filippo.io/edwards25519` dependency at **v1.2.0**. The adapter does not treat
-the package's defaults as Magpie semantics: `Point.SetBytes` is documented to
-accept non-canonical encodings, so the conformer independently checks
-`y < p`, RFC 8032 square-root/sign rules, and byte-identical `Point.Bytes()`.
-It checks `[L]P = I` with unreduced integer point multiplication, uses
-`Scalar.SetCanonicalBytes` for `S`, and `Scalar.SetUniformBytes` for the
-SHA-512 challenge reduction.
+The owner authorizes exactly `filippo.io/edwards25519 v1.2.0` for this module,
+and only for the existing low-level Edwards25519 point/scalar arithmetic. The
+source is committed under `vendor/filippo.io/edwards25519`, Go's generated
+module inventory is `vendor/modules.txt`, and the upstream BSD-style license is
+retained at `vendor/filippo.io/edwards25519/LICENSE`. Builds and tests use
+`-mod=vendor` so a clean checkout does not need to retrieve the module.
 
-## CLI
+The Go standard library does not expose the point arithmetic needed to
+implement ADR-0010's canonical point, full prime-subgroup, and uncofactored
+equation gates. The adapter does not treat the dependency's defaults as Magpie
+semantics: `Point.SetBytes` accepts encodings beyond Magpie's selected language,
+so the conformer independently checks `y < p`, the RFC 8032 square-root/sign
+rules, and byte-identical `Point.Bytes()`. It checks `[L]P = I` with unreduced
+integer point multiplication, uses `Scalar.SetCanonicalBytes` for `S`, and
+`Scalar.SetUniformBytes` for the SHA-512 challenge reduction.
 
-The isolated Go SDK requested for this worktree is:
+Pinning and vendoring establish a reviewable source identity and offline source
+availability; they do not prove the dependency or the conformer correct.
 
-```text
-.scratch/toolchains/go1.27.0/go/bin/go.exe
-```
+## Build the governed executable
 
-The single-history command takes exactly the profile identity, lowercase
-external-key text, and history path:
+Use Go 1.27.0. Build the vendored source once, then invoke the compiled
+executable directly. Do not use `go run` as the governed interface because the
+Go driver does not transparently preserve the program's exit status.
 
-```powershell
-& .scratch/toolchains/go1.27.0/go/bin/go.exe -C tools/go-verify-chain run . magpie-ed25519-canonical-prime-subgroup-v1 <64-lowercase-key-hex> <history-path>
-```
-
-It emits one deterministic JSON result with the manifest result fields:
-`verdict`, `class`, `line`, `record_index`, `event_count`, `tip`, and
-`ordered_recomputed_hashes`. Exit status is 0 for `ACCEPT`, 1 for a governed
-`REJECT`, and 2 for usage, profile, I/O, dependency, or internal failure.
-
-The manifest export mode validates the frozen manifest identity/digest,
-validates every case input SHA-256, runs each case in manifest order, and
-emits the actual result without consulting any expected-result field:
+PowerShell, from the repository root:
 
 ```powershell
-& .scratch/toolchains/go1.27.0/go/bin/go.exe -C tools/go-verify-chain run . --manifest ../../fixtures/verifier-language-v1/manifest.json
+go version
+go -C tools/go-verify-chain build -mod=vendor -o go-verify-chain.exe .
+& .\tools\go-verify-chain\go-verify-chain.exe magpie-ed25519-canonical-prime-subgroup-v1 <64-lowercase-key-hex> <history-path>
+$LASTEXITCODE
 ```
 
-Each export line is `{"id":...,"result":{...}}`. Export exits 0 after all
-cases complete; operational failures exit 2. The separate check mode compares
-the independently computed result fields with the frozen expected fields and
-returns 0 on complete agreement, 1 on mismatch, and 2 on operational failure:
+POSIX shell, from the repository root:
+
+```sh
+go version
+go -C tools/go-verify-chain build -mod=vendor -o go-verify-chain .
+./tools/go-verify-chain/go-verify-chain magpie-ed25519-canonical-prime-subgroup-v1 <64-lowercase-key-hex> <history-path>
+status=$?
+```
+
+The single-history command emits one deterministic JSON result with the
+manifest result fields: `verdict`, `class`, `line`, `record_index`,
+`event_count`, `tip`, and `ordered_recomputed_hashes`.
+
+Its direct executable status is:
+
+- 0: `ACCEPT`;
+- 1: governed `REJECT`; and
+- 2: usage, profile, I/O, dependency, or internal operational failure.
+
+`binary_exit_test.go` builds the vendored executable and invokes it as a child
+process to pin all three statuses.
+
+## Manifest modes
+
+Run these direct executable commands from the repository root. Export validates
+the frozen manifest identity/digest and every input SHA-256, then emits each
+actual result in manifest order without consulting expected-result fields:
 
 ```powershell
-& .scratch/toolchains/go1.27.0/go/bin/go.exe -C tools/go-verify-chain run . --check-manifest ../../fixtures/verifier-language-v1/manifest.json
+& .\tools\go-verify-chain\go-verify-chain.exe --manifest fixtures/verifier-language-v1/manifest.json
 ```
 
-This Go command pins the complete manifest bytes and each governed input, but
-it is a semantic-conformer check rather than the repository's full corpus
-source/coverage audit. Run `python tools/check_verifier_corpus_manifest.py`
-from the repository root as its companion; CI runs both checks.
+Each line is `{"id":...,"result":{...}}`. Export exits 0 after all cases
+complete; an operational failure exits 2. Governed case rejections are emitted
+results, not export-process failures.
 
-Focused tests include the complete 432-case check:
+Check mode compares independently computed results with the frozen expected
+fields:
 
 ```powershell
-& .scratch/toolchains/go1.27.0/go/bin/go.exe -C tools/go-verify-chain test ./...
+& .\tools\go-verify-chain\go-verify-chain.exe --check-manifest fixtures/verifier-language-v1/manifest.json
+$LASTEXITCODE
 ```
 
-An `ACCEPT` proves only the exact supplied bytes under the selected profile
-and external key. It does not establish trust, identity, authority,
-freshness, completeness, durability, or permission to act.
+Check mode returns 0 on complete agreement, 1 on a governed-field mismatch, and
+2 on an operational failure. The command pins the complete manifest bytes and
+each governed input, but remains a semantic-conformer check rather than the
+repository's full source/coverage audit. Run
+`python tools/check_verifier_corpus_manifest.py` as its companion.
+
+## Offline development checks
+
+The following PowerShell commands explicitly disable module retrieval and force
+the committed vendor tree:
+
+```powershell
+$env:GOENV = "off"
+$env:GOFLAGS = ""
+$env:GONOPROXY = ""
+$env:GONOSUMDB = ""
+$env:GOPRIVATE = ""
+$env:GOPROXY = "off"
+$env:GOSUMDB = "off"
+$env:GOTOOLCHAIN = "local"
+$env:GOVCS = "*:off"
+$env:GOWORK = "off"
+go -C tools/go-verify-chain test -mod=vendor -count=1 ./...
+go -C tools/go-verify-chain vet -mod=vendor ./...
+go -C tools/go-verify-chain build -mod=vendor -o go-verify-chain.exe .
+```
+
+Only an intentional dependency refresh should run `go mod vendor`. A refresh
+must retain the exact approved module/version, its upstream license, and a
+drift-free second vendoring pass.
+
+An `ACCEPT` proves only the exact supplied bytes under the selected profile and
+external key. It does not establish trust, identity, authority, freshness,
+completeness, durability, or permission to act.

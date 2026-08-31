@@ -2,10 +2,11 @@
 """Run the frozen portable-verifier corpus through three real conformers.
 
 The Python checker owns the frozen manifest commitment and complete input-byte
-preflight.  This runner then obtains independent actual results from
-``tools.portable_verifier``, the standalone Go batch command, and the
-crate-internal Rust conformer test exporter.  No expected result is supplied
-to any conformer while it is producing an actual result.
+preflight. This runner then obtains independent actual results from the Python
+conformer loaded in an isolated child process from the selected repository
+root, a directly built standalone Go binary from that root, and the
+crate-internal Rust conformer test exporter from that root. No expected result
+is supplied to any conformer while it is producing an actual result.
 
 An ``ACCEPT`` here means only that the exact caller-supplied finite history
 passed the selected conformers.  This tool does not establish trust,
@@ -15,6 +16,7 @@ authority, currentness, completeness, durability, or permission to act.
 from __future__ import annotations
 
 import argparse
+import base64
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 import json
@@ -31,11 +33,11 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from tools import check_portable_verifier_python as python_checker  # noqa: E402
-from tools import portable_verifier  # noqa: E402
 
 
 MANIFEST_RELATIVE_PATH = Path("fixtures") / "verifier-language-v1" / "manifest.json"
 GO_MODULE_RELATIVE_PATH = Path("tools") / "go-verify-chain"
+PYTHON_CONFORMER_RELATIVE_PATH = Path("tools") / "portable_verifier.py"
 RUST_OUTPUT_ENVIRONMENT = "MAGPIE_PORTABLE_DIFFERENTIAL_OUTPUT"
 RUST_TEST_NAME = "export_complete_conformer_results_when_requested"
 SOURCE_NAMES = ("rust", "python", "go")
@@ -46,6 +48,37 @@ REJECTION_CLASSES = python_checker.REJECTION_CLASSES
 EXPECTED_CASE_COUNT = python_checker.EXPECTED_CASE_COUNT
 MANIFEST_ID = python_checker.MANIFEST_ID
 MAX_U64 = (1 << 64) - 1
+
+
+_PYTHON_CONFORMER_RUNNER = r"""
+import base64
+import importlib.util
+import json
+from pathlib import Path
+import sys
+
+module_path = Path(sys.argv[1]).resolve()
+if not module_path.is_file():
+    raise RuntimeError(f"selected Python conformer is not a file: {module_path}")
+module_name = "_magpie_selected_portable_verifier"
+spec = importlib.util.spec_from_file_location(module_name, module_path)
+if spec is None or spec.loader is None:
+    raise RuntimeError(f"cannot load selected Python conformer: {module_path}")
+module = importlib.util.module_from_spec(spec)
+sys.modules[module_name] = module
+spec.loader.exec_module(module)
+
+request = json.load(sys.stdin)
+observed = []
+for case in request["cases"]:
+    outcome = module.verify_complete_history(
+        request["profile"],
+        case["external_key"],
+        base64.b64decode(case["input_base64"], validate=True),
+    )
+    observed.append({"id": case["id"], "result": outcome.as_dict()})
+json.dump(observed, sys.stdout, ensure_ascii=True, separators=(",", ":"))
+"""
 
 
 class DifferentialHarnessError(RuntimeError):
@@ -281,27 +314,63 @@ def _inventory(cases: Sequence[ObservedCase], source: str) -> dict[str, int]:
     return inventory
 
 
-def _run_python_actuals(
-    cases: Sequence[python_checker.VerifiedCase], profile: str
+def _parse_python_output(
+    stdout: bytes,
+    expected_count: int,
 ) -> tuple[ObservedCase, ...]:
-    observed: list[ObservedCase] = []
-    for case in cases:
-        try:
-            outcome = portable_verifier.verify_complete_history(
-                profile,
-                case.external_key,
-                case.input_bytes,
-            )
-            result = outcome.as_dict()
-        except Exception as error:  # operational failures are not verdicts
-            _fail(f"Python case {case.case_id}: verifier operational failure: {error}")
-        observed.append(
-            ObservedCase(
-                case_id=case.case_id,
-                result=_validate_result(result, f"Python case {case.case_id}"),
-            )
+    value = _decode_json(stdout, "Python conformer output")
+    if type(value) is not list:
+        _fail("Python conformer output is not an array")
+    if len(value) != expected_count:
+        _fail(
+            "Python conformer output has the wrong result count: "
+            f"expected {expected_count}, got {len(value)}"
         )
-    return tuple(observed)
+    return tuple(
+        _validate_observed_case(item, f"Python conformer result {position}")
+        for position, item in enumerate(value, start=1)
+    )
+
+
+def _run_python_actuals(
+    root: Path,
+    cases: Sequence[python_checker.VerifiedCase],
+    profile: str,
+) -> tuple[ObservedCase, ...]:
+    """Run the selected root's Python conformer in a fresh isolated process."""
+
+    request = {
+        "profile": profile,
+        "cases": [
+            {
+                "id": case.case_id,
+                "external_key": case.external_key,
+                "input_base64": base64.b64encode(case.input_bytes).decode("ascii"),
+            }
+            for case in cases
+        ],
+    }
+    environment = os.environ.copy()
+    environment.pop("PYTHONHOME", None)
+    environment.pop("PYTHONPATH", None)
+    stdout = _run_process(
+        [
+            sys.executable,
+            "-I",
+            "-c",
+            _PYTHON_CONFORMER_RUNNER,
+            str((root / PYTHON_CONFORMER_RELATIVE_PATH).resolve()),
+        ],
+        cwd=root,
+        label="selected-root Python portable verifier",
+        environment=environment,
+        input_bytes=json.dumps(
+            request,
+            ensure_ascii=True,
+            separators=(",", ":"),
+        ).encode("utf-8"),
+    )
+    return _parse_python_output(stdout, len(cases))
 
 
 def _resolve_executable(executable: str | os.PathLike[str], root: Path) -> str:
@@ -327,12 +396,14 @@ def _run_process(
     cwd: Path,
     label: str,
     environment: Mapping[str, str] | None = None,
+    input_bytes: bytes | None = None,
 ) -> bytes:
     try:
         completed = subprocess.run(
             list(command),
             cwd=str(cwd),
             env=None if environment is None else dict(environment),
+            input=input_bytes,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             check=False,
@@ -348,21 +419,53 @@ def _run_process(
     return bytes(completed.stdout or b"")
 
 
-def _run_go_actuals(root: Path, manifest_path: Path, go_executable: str) -> tuple[ObservedCase, ...]:
-    """Run the independent Go batch command from its nested module cwd."""
-
-    command = [
-        _resolve_executable(go_executable, root),
-        "run",
-        ".",
-        "--manifest",
-        str(manifest_path),
-    ]
-    stdout = _run_process(
-        command,
-        cwd=root / GO_MODULE_RELATIVE_PATH,
-        label="Go portable verifier batch",
+def _offline_go_environment() -> dict[str, str]:
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "GOENV": "off",
+            "GOFLAGS": "",
+            "GONOPROXY": "",
+            "GONOSUMDB": "",
+            "GOPRIVATE": "",
+            "GOPROXY": "off",
+            "GOSUMDB": "off",
+            "GOTOOLCHAIN": "local",
+            "GOVCS": "*:off",
+            "GOWORK": "off",
+        }
     )
+    return environment
+
+
+def _run_go_actuals(root: Path, manifest_path: Path, go_executable: str) -> tuple[ObservedCase, ...]:
+    """Build from the selected root's vendor tree, then run the binary."""
+
+    go_module = root / GO_MODULE_RELATIVE_PATH
+    go_command = _resolve_executable(go_executable, root)
+    environment = _offline_go_environment()
+    executable_suffix = ".exe" if os.name == "nt" else ""
+    with tempfile.TemporaryDirectory(prefix="magpie-portable-go-") as directory:
+        binary_path = Path(directory) / f"go-verify-chain{executable_suffix}"
+        _run_process(
+            [
+                go_command,
+                "build",
+                "-mod=vendor",
+                "-o",
+                str(binary_path),
+                ".",
+            ],
+            cwd=go_module,
+            label="Go portable verifier vendored build",
+            environment=environment,
+        )
+        stdout = _run_process(
+            [str(binary_path), "--manifest", str(manifest_path)],
+            cwd=root,
+            label="Go portable verifier batch",
+            environment=environment,
+        )
     return _parse_go_output(stdout)
 
 
@@ -513,9 +616,10 @@ def run_differential(
     profile = _profile_identity(manifest)
     manifest_path = _manifest_path(repository_root)
 
-    # Keep acquisition order explicit: Python is called directly, Go is run
-    # in its isolated module, and Rust is the production conformer exporter.
-    python_cases = _run_python_actuals(cases, profile)
+    # Keep acquisition order explicit: Python is loaded by absolute path in an
+    # isolated child, Go is built from the selected root's vendor tree and run
+    # directly, and Rust is the selected root's production conformer exporter.
+    python_cases = _run_python_actuals(repository_root, cases, profile)
     go_cases = _run_go_actuals(
         repository_root,
         manifest_path,

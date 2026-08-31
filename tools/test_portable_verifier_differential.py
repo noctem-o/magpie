@@ -5,8 +5,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 from unittest import mock
 
@@ -30,7 +32,19 @@ class DifferentialHarnessTests(unittest.TestCase):
         # Build transport fixtures from actual Python conformer results.  The
         # harness under test still obtains Python results itself; these bytes
         # only stand in for the external Go and Rust processes in unit tests.
-        cls.python_cases = harness._run_python_actuals(cls.cases, cls.profile)
+        cls.python_cases = harness._run_python_actuals(
+            harness.ROOT,
+            cls.cases,
+            cls.profile,
+        )
+        cls.python_stdout = json.dumps(
+            [
+                {"id": case.case_id, "result": dict(case.result)}
+                for case in cls.python_cases
+            ],
+            ensure_ascii=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
         cls.go_stdout = b"".join(
             (
                 json.dumps(
@@ -57,6 +71,7 @@ class DifferentialHarnessTests(unittest.TestCase):
 
     def _fake_processes(self, *, mutate_go: str | None = None):
         calls: list[tuple[list[str], str, dict[str, str] | None]] = []
+        go_binary: Path | None = None
 
         go_stdout = self.go_stdout
         if mutate_go is not None:
@@ -73,15 +88,26 @@ class DifferentialHarnessTests(unittest.TestCase):
             *,
             cwd: str,
             env: dict[str, str] | None,
+            input: bytes | None,
             stdout: object,
             stderr: object,
             check: bool,
         ) -> subprocess.CompletedProcess[bytes]:
+            nonlocal go_binary
             del stdout, stderr, check
             calls.append((command, cwd, env))
-            if command[1:3] == ["run", "."]:
+            if command[1:3] == ["-I", "-c"]:
+                self.assertIsNotNone(input)
+                return subprocess.CompletedProcess(command, 0, self.python_stdout, b"")
+            if command[1:4] == ["build", "-mod=vendor", "-o"]:
+                self.assertIsNone(input)
+                go_binary = Path(command[4])
+                return subprocess.CompletedProcess(command, 0, b"", b"")
+            if go_binary is not None and Path(command[0]) == go_binary:
+                self.assertIsNone(input)
                 return subprocess.CompletedProcess(command, 0, go_stdout, b"")
             if command[1:4] == ["test", "-p", "magpie-log"]:
+                self.assertIsNone(input)
                 assert env is not None
                 output_path = Path(env[harness.RUST_OUTPUT_ENVIRONMENT])
                 output_path.write_bytes(self.rust_stdout)
@@ -101,12 +127,23 @@ class DifferentialHarnessTests(unittest.TestCase):
         self.assertTrue(report.passed, report.mismatches)
         self.assertEqual(report.case_count, 432)
         self.assertEqual([source.name for source in report.sources], ["rust", "python", "go"])
-        self.assertEqual(len(calls), 2)
-        self.assertEqual(calls[0][0][1:], ["run", ".", "--manifest", str(harness.ROOT / harness.MANIFEST_RELATIVE_PATH)])
-        self.assertEqual(Path(calls[0][1]), harness.ROOT / harness.GO_MODULE_RELATIVE_PATH)
-        self.assertEqual(calls[1][0][1:], ["test", "-p", "magpie-log", harness.RUST_TEST_NAME, "--locked"])
-        self.assertIsNotNone(calls[1][2])
-        self.assertNotIn(harness.RUST_OUTPUT_ENVIRONMENT, (calls[0][2] or {}))
+        self.assertEqual(len(calls), 4)
+        self.assertEqual(calls[0][0][1:3], ["-I", "-c"])
+        self.assertEqual(
+            Path(calls[0][0][-1]),
+            harness.ROOT / harness.PYTHON_CONFORMER_RELATIVE_PATH,
+        )
+        self.assertEqual(Path(calls[0][1]), harness.ROOT)
+        self.assertEqual(calls[1][0][1:4], ["build", "-mod=vendor", "-o"])
+        self.assertEqual(calls[1][0][-1], ".")
+        self.assertEqual(Path(calls[1][1]), harness.ROOT / harness.GO_MODULE_RELATIVE_PATH)
+        self.assertEqual(calls[1][2]["GOPROXY"], "off")
+        self.assertEqual(calls[1][2]["GOWORK"], "off")
+        self.assertEqual(calls[2][0][1:], ["--manifest", str(harness.ROOT / harness.MANIFEST_RELATIVE_PATH)])
+        self.assertEqual(Path(calls[2][1]), harness.ROOT)
+        self.assertEqual(calls[3][0][1:], ["test", "-p", "magpie-log", harness.RUST_TEST_NAME, "--locked"])
+        self.assertIsNotNone(calls[3][2])
+        self.assertNotIn(harness.RUST_OUTPUT_ENVIRONMENT, (calls[2][2] or {}))
         self.assertEqual(
             report.sources[0].inventory,
             {key: value for key, value in zip(harness.INVENTORY_KEYS, (19, 21, 13, 18, 272, 4, 5, 3, 16, 46, 15))},
@@ -129,7 +166,7 @@ class DifferentialHarnessTests(unittest.TestCase):
             report, stable = harness.run_repeated(repetitions=2)
         self.assertTrue(stable)
         self.assertTrue(report.passed, report.mismatches)
-        self.assertEqual(len(calls), 4)
+        self.assertEqual(len(calls), 8)
 
     def test_go_field_mismatch_is_reported(self) -> None:
         fake_run, _ = self._fake_processes(mutate_go="line")
@@ -155,6 +192,104 @@ class DifferentialHarnessTests(unittest.TestCase):
                     "event_count is not an unsigned 64-bit integer",
                 ):
                     harness._validate_result(result, "malformed producer")
+
+    def test_selected_root_supplies_python_conformer_source(self) -> None:
+        selected_result = {
+            "verdict": "REJECT",
+            "class": "Genesis",
+            "line": 987,
+            "record_index": 654,
+            "event_count": None,
+            "tip": None,
+            "ordered_recomputed_hashes": [],
+        }
+        real_subprocess_run = subprocess.run
+        with tempfile.TemporaryDirectory(prefix="magpie-selected-root-") as directory:
+            selected_root = Path(directory)
+            shutil.copytree(
+                harness.ROOT / "fixtures" / "verifier-language-v1",
+                selected_root / "fixtures" / "verifier-language-v1",
+            )
+            for frozen_case in self.cases:
+                source_path = harness.ROOT / frozen_case.input_path
+                selected_path = selected_root / frozen_case.input_path
+                selected_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source_path, selected_path)
+            tools_directory = selected_root / "tools"
+            tools_directory.mkdir()
+            (tools_directory / "portable_verifier.py").write_text(
+                "class Outcome:\n"
+                "    def as_dict(self):\n"
+                f"        return {selected_result!r}\n"
+                "\n"
+                "def verify_complete_history(profile, external_key, history):\n"
+                f"    if profile != {self.profile!r}:\n"
+                "        raise RuntimeError('wrong profile')\n"
+                "    if not isinstance(external_key, str):\n"
+                "        raise RuntimeError('wrong key type')\n"
+                "    if not isinstance(history, bytes):\n"
+                "        raise RuntimeError('wrong history type')\n"
+                "    return Outcome()\n",
+                encoding="utf-8",
+            )
+            go_binary: Path | None = None
+            calls: list[tuple[list[str], Path]] = []
+
+            def selected_root_processes(
+                command: list[str],
+                *,
+                cwd: str,
+                env: dict[str, str] | None,
+                input: bytes | None,
+                stdout: object,
+                stderr: object,
+                check: bool,
+            ) -> subprocess.CompletedProcess[bytes]:
+                nonlocal go_binary
+                calls.append((command, Path(cwd)))
+                if command[1:3] == ["-I", "-c"]:
+                    return real_subprocess_run(
+                        command,
+                        cwd=cwd,
+                        env=env,
+                        input=input,
+                        stdout=stdout,
+                        stderr=stderr,
+                        check=check,
+                    )
+                if command[1:4] == ["build", "-mod=vendor", "-o"]:
+                    go_binary = Path(command[4])
+                    return subprocess.CompletedProcess(command, 0, b"", b"")
+                if go_binary is not None and Path(command[0]) == go_binary:
+                    return subprocess.CompletedProcess(command, 0, self.go_stdout, b"")
+                if command[1:4] == ["test", "-p", "magpie-log"]:
+                    assert env is not None
+                    Path(env[harness.RUST_OUTPUT_ENVIRONMENT]).write_bytes(
+                        self.rust_stdout
+                    )
+                    return subprocess.CompletedProcess(command, 0, b"", b"")
+                raise AssertionError(f"unexpected command: {command!r}")
+
+            with mock.patch.object(
+                harness.subprocess,
+                "run",
+                side_effect=selected_root_processes,
+            ):
+                report = harness.run_differential(root=selected_root)
+
+        python_source = next(
+            source for source in report.sources if source.name == "python"
+        )
+        rust_source = next(source for source in report.sources if source.name == "rust")
+        self.assertEqual(python_source.cases[0].result, selected_result)
+        self.assertNotEqual(rust_source.cases[0].result, selected_result)
+        self.assertEqual(calls[0][1], selected_root)
+        self.assertEqual(
+            calls[1][1],
+            selected_root / harness.GO_MODULE_RELATIVE_PATH,
+        )
+        self.assertEqual(calls[2][1], selected_root)
+        self.assertEqual(calls[3][1], selected_root)
 
     def test_operational_process_failure_is_not_a_semantic_mismatch(self) -> None:
         def failed_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[bytes]:
