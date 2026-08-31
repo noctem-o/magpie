@@ -208,8 +208,25 @@ that site, so its fresh child process could not import `nacl`. The workflow now
 provisions Python 3.12 with `actions/setup-python` before installing the pinned
 dependencies; this makes them part of that interpreter's ordinary site rather
 than weakening selected-root isolation. No conformer or governed-result
-semantics changed. A successful post-remediation exact-head run is not claimed
-until it actually completes.
+semantics changed.
+
+[GitHub Actions run 33371166101](https://github.com/noctem-o/magpie/actions/runs/33371166101)
+then passed on exact remediation head
+`d3abba4f0375bced9d4f27cb75886254352b5599` in the hosted Linux `verify` job
+`99422402896`. The observed job completed Rust formatting, Clippy, workspace
+tests, `magpie-log` doctests, the governed-standing tour, release metadata,
+package verification, the corpus-manifest check, 17 Python tests, the complete
+Python 432-case check, Go formatting, vendored Go test and vet, the direct
+`0` / `1` / `2` executable regression, vendored binary build, direct 432-case
+Go manifest execution, repeat-two Rust/Python/Go differential execution, and
+the frozen golden-chain check. The differential reported `repeat: 2 (stable)`
+and complete governed-field agreement with frozen expected results.
+
+The Go 1.27.0 Linux/AMD64 job disabled module retrieval and used the configured
+empty temporary module cache after checkout and toolchain setup. This is
+fresh-host evidence that the vendored conformer steps did not require module
+dependency retrieval under those constraints; it is not a claim that the
+entire GitHub runner was network-isolated.
 
 ## Claim fence
 
