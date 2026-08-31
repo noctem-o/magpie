@@ -174,8 +174,9 @@ status/precedence boundary and A-024. A-010 and A-022 retain
 constitutional future-gate significance: each prohibits premature
 implementation, but neither presently describes an implemented runtime that
 contradicts a completed deferred mechanism. High or P0 boundaries also remain
-in A-003, A-009, and A-015, with RQ-003
-retaining its authority-looking compatibility leak. A-005/RQ-005 and
+in A-003, A-009, and A-015, with A-004/RQ-006 remaining high/P0 and A-021
+remaining high; RQ-003 retains its authority-looking compatibility leak.
+A-005/RQ-005 and
 A-006/RQ-004 remain objectively Closed by their merged runtime and test
 evidence. A-001/RQ-001 is now also objectively Closed by the merged contract,
 runtime/API change, negative capability proofs, and preservation evidence
@@ -764,13 +765,16 @@ dispositions.
 This is non-authorizing planning guidance only. It is not a roadmap
 ratification, an implementation ticket, or permission to start work.
 
-1. C3 — if the advertised pre-alpha still needs detachable governed output,
+1. Portable conformance — complete the required Rust production/file/public
+   path and `tools/verify_chain.py` conformance under the existing contract,
+   rerun the full differential, and separately reconcile A-004/RQ-006/A-021;
+2. C3 — if the advertised pre-alpha still needs detachable governed output,
    add the smallest coordinate-complete verification/replay result or receipt;
-2. C4 — harden the applicable public assurance boundary with pinned validation
+3. C4 — harden the applicable public assurance boundary with pinned validation
    inputs, platform evidence, and release-environment reproducibility;
-3. C5 — write the public pre-alpha release contract, freeze a candidate, and
+4. C5 — write the public pre-alpha release contract, freeze a candidate, and
    falsify it before an owner release decision; and
-4. deferred authority-bound corroboration, admission, currentness, withdrawal,
+5. deferred authority-bound corroboration, admission, currentness, withdrawal,
    identity, and authority-bearing query capabilities unless a separate owner
    decision moves one into the advertised boundary.
 
