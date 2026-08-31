@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import unittest
 
 
@@ -110,6 +111,41 @@ class VerifyChainRequiredPathTests(unittest.TestCase):
         identity_r = self.result("a21-d2-identity-r-equation-true")
         self.assertEqual(identity_r["verdict"], "ACCEPT")
         self.assertEqual(identity_r["event_count"], 1)
+
+    def test_host_recursion_limit_is_operational_not_governed_json_syntax(self) -> None:
+        deeply_nested = b"[" * 1_500 + b"0" + b"]" * 1_500
+
+        with self.assertRaises(RecursionError):
+            verify_chain.verify_complete_history(
+                self.profile,
+                self.golden_key,
+                deeply_nested,
+            )
+
+        with tempfile.TemporaryDirectory(prefix="magpie-python-recursion-") as directory:
+            input_path = Path(directory) / "deeply-nested.jsonl"
+            input_path.write_bytes(deeply_nested)
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "tools" / "verify_chain.py"),
+                    str(input_path),
+                    self.golden_key,
+                ],
+                cwd=ROOT,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+        self.assertEqual(completed.returncode, 2)
+        self.assertEqual(completed.stdout, b"")
+        self.assertIn(b"operational failure", completed.stderr)
+        self.assertNotIn(b"Traceback", completed.stderr)
+
+    def test_accepted_event_count_exhaustion_is_operational(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "governed u64 domain"):
+            verify_chain._accepted_next_count((1 << 64) - 1)
 
     def test_direct_process_exit_statuses_and_machine_result(self) -> None:
         script = ROOT / "tools" / "verify_chain.py"

@@ -32,6 +32,7 @@ CORE_PROFILE = "magpie-core-v1"
 SIGNATURE_DOMAIN = b"magpie-sig-v1"
 ZERO_HASH = b"\x00" * 32
 MAX_U64_TEXT = "18446744073709551615"
+MAX_U64 = (1 << 64) - 1
 
 STATUS_CODES = {
     "Open": 0,
@@ -445,7 +446,7 @@ def _parse_record(text: str) -> tuple[_Event | None, str | None]:
             parse_float=_number_hook,
             parse_constant=_constant_hook,
         )
-    except (json.JSONDecodeError, _JsonConstantError, RecursionError):
+    except (json.JSONDecodeError, _JsonConstantError):
         return None, "JsonSyntax"
     try:
         return _decode_event(value), None
@@ -584,6 +585,12 @@ def _genesis_is_valid(payload: _Payload, count: int, external_key: bytes) -> boo
     return payload.kind != "Genesis"
 
 
+def _accepted_next_count(count: int) -> int:
+    if count == MAX_U64:
+        raise RuntimeError("accepted event count exceeded the governed u64 domain")
+    return count + 1
+
+
 def _verify_prepared(prepared: _PreparedKey, history: bytes) -> Outcome:
     if not history:
         return _accept(0, ())
@@ -638,7 +645,7 @@ def _verify_prepared(prepared: _PreparedKey, history: bytes) -> Outcome:
         if not _genesis_is_valid(event.payload, count, prepared.encoded):
             return _reject("Genesis", line, coordinate)
 
-        count += 1
+        count = _accepted_next_count(count)
         tip = recomputed
         accepted_hashes.append(recomputed)
         record_index += 1
