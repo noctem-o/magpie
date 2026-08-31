@@ -142,8 +142,10 @@ Freeze consequences:
 
 ## Queued work (keep current; update as things land)
 
-1. Owner-review and merge the independent Python/Go conformers and exact
-   Rust/Python/Go differential evidence now present in this candidate checkout.
+1. Complete owner review and merge of the stacked Python conformer, Go
+   conformer, and final CI/evidence tranches. The implementations and the
+   review-remediated three-way differential are present in this candidate;
+   final-stack review and every merge remain owner decisions.
 2. Reconcile A-021/A-004/RQ-006 in a separate administrative change only after
    the qualifying implementation and hostile-reviewed evidence are merged.
 3. At C3, if the advertised pre-alpha still needs detachable governed output,
@@ -159,10 +161,14 @@ effectful MCP, production KMS, and ambient/Vesper agent work deferred unless a
 separate owner decision moves one into the release boundary.
 
 Candidate in this checkout: a readable Python complete conformer separate from
-the compatibility verifier, a standalone Go complete conformer, and one strict
-three-way differential runner/CI path over all seven governed fields for the
-exact frozen 432 cases. This is unmerged candidate evidence and does not itself
-change any audit disposition.
+the compatibility verifier; a standalone Go complete conformer whose exactly
+authorized `filippo.io/edwards25519 v1.2.0` low-level primitive dependency is
+vendored and whose governed interface is a built executable; and one strict,
+selected-root-coherent three-way differential runner/CI path. It compares
+`verdict`, `class`, `line`, `record_index`, `event_count`, `tip`, and
+`ordered_recomputed_hashes` for the exact frozen 432 cases, with Python run in
+an isolated child process from that same selected root. This is unmerged
+candidate evidence and does not itself change any audit disposition.
 
 Landed: the complete crate-internal Rust portable-history conformer applies the
 six ordered post-schema stages through one production path and produces the

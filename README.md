@@ -76,7 +76,7 @@ It includes:
 - an owner-approved, frozen 432-case exact-byte portable-verifier corpus
 - a crate-internal Rust complete portable-history conformer that drives all 432 frozen cases through one production path
 - a separate readable Python complete conformer for the selected portable profile and language
-- a standalone Go complete conformer with no Rust or Python verifier dependency
+- a standalone Go complete conformer with no Rust or Python verifier dependency; its exactly approved `filippo.io/edwards25519 v1.2.0` primitive dependency is vendored for offline builds
 - a three-way differential runner that compares every governed result field for all 432 frozen cases
 - non-normative bounded Rust fuzz/metamorphic assurance over that production conformer path
 - a supported local SQLite L0 store with bounded creation and verified reopen
@@ -95,7 +95,7 @@ The scope is still intentionally small.
 
 There is no general ingestion system, no autonomous research agent, no ordinary governed claim writer, and no magic "latest truth" resolver.
 
-The frozen portable corpus is normative oracle material, not a verifier by itself. This checkout has complete Rust, readable Python, and standalone Go conformers for the selected ADR-0010 profile and frozen portable-history language. The tracked differential runner verifies the frozen manifest and all case bytes before requiring exact agreement on verdict, first-failure class and coordinates, count, tip, and ordered recomputed hashes for all 432 cases. That is bounded cross-language conformance evidence for this exact profile and corpus, not a proof of verifier correctness, universal input equivalence, key trust, currentness, or release-environment portability.
+The frozen portable corpus is normative oracle material, not a verifier by itself. This checkout has complete Rust, readable Python, and standalone Go conformers for the selected ADR-0010 profile and frozen portable-history language. The tracked differential runner verifies the frozen manifest and all case bytes before requiring exact agreement on all seven governed fields — `verdict`, `class`, `line`, `record_index`, `event_count`, `tip`, and `ordered_recomputed_hashes` — for all 432 cases. That is bounded cross-language conformance evidence for this exact profile and corpus, not a proof of verifier correctness, universal input equivalence, key trust, currentness, or release-environment portability.
 
 ## Quick start
 
@@ -536,10 +536,17 @@ python tools/check_verifier_corpus_manifest.py
 python tools/check_release_metadata.py
 python -m unittest tools.test_portable_verifier tools.test_portable_verifier_differential -v
 python tools/check_portable_verifier_python.py
-go -C tools/go-verify-chain test -count=1 ./...
-go -C tools/go-verify-chain run . --check-manifest ../../fixtures/verifier-language-v1/manifest.json
+go -C tools/go-verify-chain test -mod=vendor -count=1 ./...
+go -C tools/go-verify-chain vet -mod=vendor ./...
+go -C tools/go-verify-chain build -mod=vendor -o go-verify-chain .
+./tools/go-verify-chain/go-verify-chain --check-manifest fixtures/verifier-language-v1/manifest.json
 python tools/check_portable_verifier_differential.py --repeat 2
 ```
+
+Those Go commands are the POSIX-shell form. The conformer's
+[README](tools/go-verify-chain/README.md) gives the equivalent PowerShell build
+and direct-executable commands and defines the governed `0` / `1` / `2` exit
+status contract. `go run` is not that governed interface.
 
 The default Rust test graph includes the bounded portable-verifier smoke assurance. The larger deterministic campaign is intentionally opt-in:
 

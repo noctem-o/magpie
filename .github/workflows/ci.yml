@@ -24,7 +24,25 @@ jobs:
         with:
           go-version: '1.27.0'
           check-latest: false
-          cache-dependency-path: tools/go-verify-chain/go.sum
+          cache: false
+
+      - name: Constrain Go module access after toolchain setup
+        shell: bash
+        run: |
+          {
+            echo 'GOENV=off'
+            echo 'GOFLAGS='
+            echo 'GONOPROXY='
+            echo 'GONOSUMDB='
+            echo 'GOPRIVATE='
+            echo 'GOPROXY=off'
+            echo 'GOSUMDB=off'
+            echo 'GOTOOLCHAIN=local'
+            echo 'GOVCS=*:off'
+            echo 'GOWORK=off'
+            echo "GOMODCACHE=$RUNNER_TEMP/magpie-empty-mod-cache"
+            echo "GOCACHE=$RUNNER_TEMP/magpie-go-build-cache"
+          } >> "$GITHUB_ENV"
 
       - name: Cache Cargo build artifacts
         uses: actions/cache@v4
@@ -44,7 +62,10 @@ jobs:
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
       - name: Run tests
-        run: cargo test --workspace --locked
+        run: cargo test --workspace --locked --no-fail-fast
+
+      - name: Run magpie-log doctests
+        run: cargo test --doc -p magpie-log --locked
 
       - name: Run governed-standing tour
         run: cargo run --locked --example tour -p magpie-claims
@@ -63,7 +84,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install cryptography==50.0.0 -r tools/requirements-portable-verifier.txt
 
-      - name: Test independent Python portable conformer and differential harness
+      - name: Unit-test Python conformer and differential harness
         run: >
           python -m unittest
           tools.test_portable_verifier
@@ -73,15 +94,34 @@ jobs:
       - name: Verify Python portable conformer against frozen corpus
         run: python tools/check_portable_verifier_python.py
 
-      - name: Test independent Go portable conformer
+      - name: Check independent Go portable conformer formatting
+        shell: bash
         run: |
-          go -C tools/go-verify-chain test -count=1 ./...
-          go -C tools/go-verify-chain vet ./...
+          unformatted="$(gofmt -l tools/go-verify-chain/*.go)"
+          if [[ -n "$unformatted" ]]; then
+            printf '%s\n' "$unformatted"
+            exit 1
+          fi
 
-      - name: Verify Go portable conformer against frozen corpus
+      - name: Test independent Go portable conformer from vendored source
+        run: go -C tools/go-verify-chain test -mod=vendor -count=1 ./...
+
+      - name: Vet independent Go portable conformer from vendored source
+        run: go -C tools/go-verify-chain vet -mod=vendor ./...
+
+      - name: Verify direct Go executable exit-code contract
         run: >
-          go -C tools/go-verify-chain run . --check-manifest
-          ../../fixtures/verifier-language-v1/manifest.json
+          go -C tools/go-verify-chain test -mod=vendor
+          -run '^TestBuiltBinaryPreservesExitCodeContract$' -count=1 -v
+
+      - name: Build governed Go executable from vendored source
+        run: |
+          mkdir -p "$RUNNER_TEMP/magpie-go-conformer"
+          go -C tools/go-verify-chain build -mod=vendor -o "$RUNNER_TEMP/magpie-go-conformer/go-verify-chain" .
+
+      - name: Verify frozen 432-case corpus through the Go executable
+        run: |
+          "$RUNNER_TEMP/magpie-go-conformer/go-verify-chain" --check-manifest "$GITHUB_WORKSPACE/fixtures/verifier-language-v1/manifest.json"
 
       - name: Differentially verify Rust, Python, and Go portable conformers
         run: python tools/check_portable_verifier_differential.py --repeat 2
