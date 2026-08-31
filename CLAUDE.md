@@ -124,7 +124,7 @@ Freeze consequences:
 - `crates/magpie-episodic` — second projection: `EpisodicView`, SQLite + FTS5 full-text search over events
 - `crates/magpie-log` — also owns the contract-selected supported SQLite L0 persistence backend; L0 and projection databases remain separate
 - `docs/FORMAT.md` — normative spec; a from-scratch reimplementation must reproduce the golden vectors from this page alone
-- `tools/verify_chain.py` — independent Python verifier, written from FORMAT.md alone; CI runs it against the golden fixture with a pinned trust root
+- `tools/verify_chain.py` — compatibility-only Python verifier, written from FORMAT.md alone; `tools/portable_verifier.py` is the separate complete portable conformer used for the frozen conformance evidence
 
 ## Commands
 
@@ -142,33 +142,33 @@ Freeze consequences:
 
 ## Queued work (keep current; update as things land)
 
-1. Complete owner review and merge of the stacked Python conformer, Go
-   conformer, and final CI/evidence tranches. The implementations and the
-   review-remediated three-way differential are present in this candidate;
-   final-stack review and every merge remain owner decisions.
-2. Reconcile A-021/A-004/RQ-006 in a separate administrative change only after
-   the qualifying implementation and hostile-reviewed evidence are merged.
-3. At C3, if the advertised pre-alpha still needs detachable governed output,
+1. C3 — only if the advertised pre-alpha requires detachable governed output,
    add the smallest coordinate-complete verification/replay result or receipt.
-4. At C4, harden the applicable public assurance boundary: pinned validation
+2. C4 — harden the applicable public assurance boundary: pinned validation
    inputs, platform evidence, and release-environment reproducibility.
-5. At C5, write the pre-alpha release contract, freeze a candidate, and
-    falsify it before an owner release decision.
+3. C5 — write the public pre-alpha release contract, freeze a candidate, and
+   falsify it before an owner release decision.
 
 Keep general ingestion/CAS, `EpistemicGate`, governed ordinary agent writing,
 contradiction/currentness runtime, ADR-0007 authority runtime, librarian,
 effectful MCP, production KMS, and ambient/Vesper agent work deferred unless a
 separate owner decision moves one into the release boundary.
 
-Candidate in this checkout: a readable Python complete conformer separate from
+Landed on current `main`: a readable Python complete conformer separate from
 the compatibility verifier; a standalone Go complete conformer whose exactly
 authorized `filippo.io/edwards25519 v1.2.0` low-level primitive dependency is
 vendored and whose governed interface is a built executable; and one strict,
 selected-root-coherent three-way differential runner/CI path. It compares
 `verdict`, `class`, `line`, `record_index`, `event_count`, `tip`, and
 `ordered_recomputed_hashes` for the exact frozen 432 cases, with Python run in
-an isolated child process from that same selected root. This is unmerged
-candidate evidence and does not itself change any audit disposition.
+an isolated child process from that same selected root. The final local and
+hosted evidence is bounded conformance evidence, not trust, authority,
+universal verifier equivalence, release readiness, or a release decision.
+
+Administrative reconciliation: A-004, RQ-006, and A-021 are Closed on the
+current bounded evidence; RQ-013 remains Partially remediated; and RQ-015
+remains Confirmed under its controlled reproducibility disposition. Historical
+audit records and the dated pre-alpha candidate assessment remain untouched.
 
 Landed: the complete crate-internal Rust portable-history conformer applies the
 six ordered post-schema stages through one production path and produces the
