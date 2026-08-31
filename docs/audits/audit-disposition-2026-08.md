@@ -19,24 +19,25 @@ commit:
 
 | Field | Recorded value |
 | --- | --- |
-| Repository | `noctem-o/magpie`, isolated checkout `C:\Users\herpe\.codex\worktrees\magpie-post-137-rust-history-conformer-contract` |
+| Repository | `noctem-o/magpie`, isolated checkout `C:\Users\herpe\.codex\worktrees\magpie-post-prealpha-audit-reconciliation` |
 | Disposition date | 2026-08-22 |
-| Reconciliation date | 2026-08-24; the original disposition date and its evidence remain historical |
-| Branch and worktree mode | `docs/post-137-rust-history-conformer-contract`; fresh isolated worktree `C:\Users\herpe\.codex\worktrees\magpie-post-137-rust-history-conformer-contract`; clean before editing |
+| Reconciliation date | 2026-08-24; 2026-08-31; 2026-08-31 review follow-up; each earlier date and its evidence remain historical |
+| Branch and worktree mode | `docs/post-prealpha-audit-reconciliation`; fresh isolated worktree `C:\Users\herpe\.codex\worktrees\magpie-post-prealpha-audit-reconciliation`; clean before editing |
 | Original 2026-08-22 `main` | `169a94e16dd0f6f53620302c09e4b2f041b61cb9` |
-| Current `main` | `7e7cb5a930b1db4f2ebc1c5ad0296641cd74db6d` |
-| Local `origin/main` | `7e7cb5a930b1db4f2ebc1c5ad0296641cd74db6d` |
+| Current `main` | `4b82ff885409f0a3f010d2a908691870c14eb05c` |
+| Local `origin/main` | `4b82ff885409f0a3f010d2a908691870c14eb05c` |
 | Live `origin/main` check | `git ls-remote origin refs/heads/main` returned the same SHA |
-| Audit commit | `3b46fdb81857d77b827271777b86745bca5f7b12` |
-| Local HEAD / `origin/main` merge base | `7e7cb5a930b1db4f2ebc1c5ad0296641cd74db6d` before this reconciliation branch's first edit |
-| Audit commit / current-main merge base | `3b46fdb81857d77b827271777b86745bca5f7b12` |
-| Expected post-PR-137 SHA | Equal to the verified current `main`; difference from `7e7cb5a930b1db4f2ebc1c5ad0296641cd74db6d` is none |
-| Relevant merged changes | PRs #108-#131 retain the evidence previously recorded here. PR #132, merge `2751ac41748d6aba05c503c721dad84a2c89f916`, reconciled the living post-#131 queue, reassessment, and this ledger without changing controlled dispositions. PR #135, implementation head `397bb17db81aef7cfef98cc3ca3d33189f65e82a`, merge `a0910cc1c4cb7cc76204b26d5eaaeee6581570b9`, added the authoritative typed Rust `V_sig` primitive and explicit fail-closed profile selection. PR #136, merge `e2a3f9dca6f23b148062a0f7c69cbd17893f1318`, froze the Rust frontend contract. PR #137, reviewed implementation head `edb25ca4a85a64ad9a328b75be8a4490b3a88d4e`, merge `7e7cb5a930b1db4f2ebc1c5ad0296641cd74db6d`, added the authoritative crate-internal Rust portable raw-input frontend through `Schema`. |
+| Prior audit commit | `3b46fdb81857d77b827271777b86745bca5f7b12` |
+| Current reconciliation base | `4b82ff885409f0a3f010d2a908691870c14eb05c` before this reconciliation branch's first edit |
+| Local HEAD / `origin/main` merge base | `4b82ff885409f0a3f010d2a908691870c14eb05c` before this reconciliation branch's first edit |
+| Prior audit commit / current-main merge base | `3b46fdb81857d77b827271777b86745bca5f7b12` |
+| Expected post-PR-144 SHA | Equal to the verified current `main`; the only later commit is owner commit `4b82ff885409f0a3f010d2a908691870c14eb05c`, which changes only the root license-file set |
+| Relevant merged changes | PRs #108-#131 retain the evidence previously recorded here. PR #132, merge `2751ac41748d6aba05c503c721dad84a2c89f916`, reconciled the living post-#131 queue, reassessment, and this ledger without changing controlled dispositions. PR #135, implementation head `397bb17db81aef7cfef98cc3ca3d33189f65e82a`, merge `a0910cc1c4cb7cc76204b26d5eaaeee6581570b9`, added the authoritative typed Rust `V_sig` primitive and explicit fail-closed profile selection. PR #136, merge `e2a3f9dca6f23b148062a0f7c69cbd17893f1318`, froze the Rust frontend contract. PR #137, reviewed implementation head `edb25ca4a85a64ad9a328b75be8a4490b3a88d4e`, merge `7e7cb5a930b1db4f2ebc1c5ad0296641cd74db6d`, added the authoritative crate-internal Rust portable raw-input frontend through `Schema`. PR #139, reviewed implementation head `88bf76bacb261e797f8b1f2878ed47228329f884`, merge `684661353a18528e62b2bfa3c3f4746a4201879e`, added the complete crate-internal Rust portable-history conformer. PR #140, merge `d7ee7101c83e5a3c0b1b23447deef291f4e303c5`, added bounded non-normative Rust fuzz/metamorphic assurance. PR #141, merge `8ae50f2b093ce33de4dee3cb9421e3f5ee5eb0f4`, refreshed the README. PR #142, implementation head `96d51aaad145ea666a8951bedb45274656c8e6cc`, merge `caa946728d7cf8f859766fd67e4225919cb0678f`, added the independent complete Python conformer. PR #143, remediated implementation head `77b6b237b6333927fab99fc223347d42a2760ead`, merge `b7970ef4994bff6dc82761829277bf894ec4bd62`, added the independent Go conformer and strict three-way differential. PR #144, reviewed implementation head `c26aaa047f8b022aab60f92ed5d207f52c32d8db`, merge `d65cba1ab4eb9e3d8b8d9c9f0848bb3c643f7506`, recorded final CI, public documentation, and candidate evidence. Owner commit `4b82ff885409f0a3f010d2a908691870c14eb05c` followed that merge and changes only the root license-file set. |
 | Evidence-preservation change | PR #104, merge `7889150b100795409bfe0d6f676c5780cc7b2830`; documentation-only audit preservation |
 | Open reference PRs | Draft PR #133 at `53f1f9a0820a6973830a04b6d888bbdfc2c04dfc` and draft PR #134 at `8a060fc6f40e24c85bca717ddee5bea0121e96f9` remain non-normative reference evidence; this reconciliation branch had no matching open PR |
 | Open issues | Not used as disposition evidence in this reconciliation |
 | Preflight changed paths | None in the isolated worktree; unrelated untracked state in the ordinary `C:\magpie` checkout was left untouched |
-| Runtime change since audit | PRs #111, #112, #115, #118, #127, and #129 retain the runtime evidence previously recorded here. PRs #132 and #136 changed only documentation. PR #135 added `magpie_log::signature_profile::ProfiledSignatureVerifier`, which implements the exact ADR-0010 relation behind typed explicit profile selection while leaving the legacy unprofiled verifier unchanged. PR #137 added the crate-internal staged frontend through `Schema`, with 324 frontend-tranche-final outcomes and 108 later-stage non-preemption cases. It did not add the six-stage history conformer, Python/Go conformers, or differential evidence. |
+| Runtime change since audit | PRs #111, #112, #115, #118, #127, and #129 retain the runtime evidence previously recorded here. PRs #132 and #136 changed only documentation. PR #135 added `magpie_log::signature_profile::ProfiledSignatureVerifier`, which implements the exact ADR-0010 relation behind typed explicit profile selection while leaving the legacy unprofiled verifier unchanged. PR #137 added the crate-internal staged frontend through `Schema`, with 324 frontend-tranche-final outcomes and 108 later-stage non-preemption cases. PR #139 completed that crate-internal conformer through all six post-schema history stages and exercised all 432 frozen cases. PR #140 added bounded non-normative Rust fuzz/metamorphic assurance. PR #142 added the independent complete Python conformer. PR #143 added the standalone vendored Go conformer, direct executable-status coverage, and selected-root-coherent differential. PR #144 added hosted Linux CI and final public evidence. The current owner license-only commit changes no runtime or verifier behavior. |
 
 The runtime audit was performed on local `main` at the audit commit while the
 then-current remote was nine documentation-only commits ahead. PR #103 later
@@ -62,8 +63,8 @@ portable corpus without changing either legacy verifier. PR #132 reconciled the
 living post-#131 state. PR #135 then implemented the exact profiled Rust
 cryptographic primitive while preserving the legacy verifier. PR #136 froze
 the next frontend architecture, and PR #137 implemented it through `Schema`.
-The dispositions below distinguish the now-merged primitive and frontend from
-complete history conformance, cross-language evidence, trust, and finding
+The dispositions below distinguish the now-merged complete history and
+cross-language evidence from trust, authority, broader assurance, and release
 closure.
 
 The complete post-audit ancestry was inspected. The earlier sequence through
@@ -71,11 +72,13 @@ The complete post-audit ancestry was inspected. The earlier sequence through
 `f6a4759` (#119), `0bc8f5c` (#120), `fbd02a9` (#121), `e5a0fc5` (#122),
 `9fd7239` (#123), `f55a532` (#124), `88975aa` (#125), `9b88dbe` (#126),
 `2c38ffe` (#127), `6afa603` (#128), `f3fc220` (#129), `afc4ff7` (#130),
-`169a94e` (#131), `2751ac4` (#132), `a0910cc` (#135), `e2a3f9d` (#136), and
-`7e7cb5a` (#137); every merge is an ancestor of current `origin/main`. The
-reviewed #135 implementation head `397bb17` and reviewed #137 implementation
-head `edb25ca` are ancestors of their respective merges and current
-`origin/main`.
+`169a94e` (#131), `2751ac4` (#132), `a0910cc` (#135), `e2a3f9d` (#136),
+`7e7cb5a` (#137), `6846613` (#139), `d7ee710` (#140), `8ae50f2` (#141),
+`caa9467` (#142), `b7970ef` (#143), and `d65cba1` (#144); every merge is an
+ancestor of current `origin/main`, followed only by owner commit `4b82ff8`.
+The reviewed #135 and #137 implementation heads remain ancestors of their
+merges, as do the reviewed #139 head `88bf76b`, #142 head `96d51aa`, #143
+remediated head `77b6b237`, and #144 head `c26aaa0`.
 
 PR #103 changed `README.md`, ADR-0002 through ADR-0006, and two design notes.
 It made ADR-0002 through ADR-0006 Accepted doctrine effective 2026-08-02,
@@ -100,8 +103,12 @@ and #130/#131 add Accepted doctrine and frozen conformance-oracle evidence. PR
 #132 changes living documentation only. PR #135 implements the selected Rust
 signature relation as a downstream primitive. PR #136 is documentation-only;
 PR #137 implements portable input-language equivalence through `Schema` and
-preserves later-stage non-preemption, but it does not implement a complete
-history conformer.
+preserves later-stage non-preemption. PR #139 then completes the Rust
+history-conformer path; PR #140 adds bounded Rust assurance; PR #141 refreshes
+the README; PR #142 adds the independent Python conformer; PR #143 adds the
+independent Go conformer and differential runner; PR #144 records the final
+hosted CI/public evidence; and the current owner commit changes only the root
+license-file set.
 
 ## 3. Evidence hierarchy
 
@@ -167,8 +174,9 @@ status/precedence boundary and A-024. A-010 and A-022 retain
 constitutional future-gate significance: each prohibits premature
 implementation, but neither presently describes an implemented runtime that
 contradicts a completed deferred mechanism. High or P0 boundaries also remain
-in A-003, A-004, A-009, A-015, A-021, and RQ-006, with RQ-003
-retaining its authority-looking compatibility leak. A-005/RQ-005 and
+in A-003, A-009, and A-015, with A-004/RQ-006 remaining high/P0 and A-021
+remaining high; RQ-003 retains its authority-looking compatibility leak.
+A-005/RQ-005 and
 A-006/RQ-004 remain objectively Closed by their merged runtime and test
 evidence. A-001/RQ-001 is now also objectively Closed by the merged contract,
 runtime/API change, negative capability proofs, and preservation evidence
@@ -183,11 +191,20 @@ FileStore-specific RQ-008 remains Confirmed. A-011 is Partially remediated by
 the exact corpus/fixture/source-commitment CI gate while its dependency and
 environment controls remain open under Confirmed RQ-015. RQ-013 is Partially
 remediated by the exact corpus, SQLite hostile tests, #135's focused hostile
-cryptographic-boundary tests, and #137's exact frontend/precedence tests, while
-A-018's stale compile-fail boundary and wider differential/platform assurance
-remain open. A-021 remains Confirmed: the exact Rust primitive and frontend
-narrow, but do not close, the absent complete portable-conformance and
-cross-language-evidence defect.
+cryptographic-boundary tests, #137's exact frontend/precedence tests, and the
+merged Rust/Python/Go differential evidence, while A-018's stale compile-fail
+boundary and wider platform/release assurance remain open. The merged
+conformer artifacts and differential materially improve the evidence, but live
+inspection against the governing portable-input contract finds that the Rust
+conformer remains crate-internal and test-invoked rather than the required
+production/file/public path, `FileStore` still elides blank records, and the
+complete Python implementation is `tools/portable_verifier.py` rather than the
+contract-required `tools/verify_chain.py`. A-004 and RQ-006 therefore remain
+Confirmed. A-021 also remains Confirmed because its closure chain makes
+complete contract-qualified portable conformance a prerequisite; its selected
+profile implementation and hostile vectors are landed, but that prerequisite
+is not complete. These findings remain bounded administrative statuses and do
+not expand the trust-root, authority, or release boundary.
 
 The primary **Future implementation gate** disposition applies only to A-016
 and A-022. A-010 additionally carries a future currentness-implementation
@@ -207,7 +224,7 @@ in the row.
 | A-001 / RQ-001 | Public raw backend append is sealed behind `LogWriter`. | Closed | runtime/API remediation; intentional pre-1.0 custom-writer source break | Public `LogStore` contains only `read_records`; crate-private `WriterStore` owns `append_record`, is not re-exported, and is implemented by `FileStore` and `MemStore` (`crates/magpie-log/src/store.rs:12-20,36-60,87-98`; `crates/magpie-log/src/lib.rs:91-105`). Public typed construction and append exist only for `LogWriter<FileStore>` and `LogWriter<MemStore>` (`crates/magpie-log/src/logimpl.rs:311-464`); `LogReader` retains a private backend and exposes no persistence escape (`:466-585`). Seven compile-fail cases deny built-in/generic raw append, reader append/extraction, custom writer construction, and bare-key persistence (`crates/magpie-log/src/lib.rs:16-89`). Runtime tests preserve genesis, recovery, failure-state ordering, and golden bytes (`crates/magpie-log/tests/chain.rs:126-151,559-606,790-819`; `crates/magpie-log/src/logimpl.rs:747-825`; `crates/magpie-log/tests/golden.rs:219-318`). | PR #114, merge `142793a47c0f5a7e26ec29fc100d2d6cde9ddb3a`, established the reviewed Option B contract. PR #115, merge `66198af8dc06b086e77036fafd5e18adcdd967b2`, implemented it without a FORMAT or golden-byte change. | Closed; reopen only if a public non-`LogWriter` persistence path is introduced. |
 | A-002 / RQ-014 | Current-status and precedence drift remains outside the portions reconciled by PRs #103, #109, and #110. | Partially remediated | constitutional remainder; further narrowed; documentation-only remainder | The standing-v3 and origin-admission headers now identify their landed runtime accurately (`docs/design/standing-policy-v3-external-report-corroboration-v0.md:3-11`; `docs/design/origin-admission-audit-v0.md:3-12`). Current stale handoffs remain: the attestation and subject-binding notes still call landed runtime a `current candidate patch` (`docs/design/inline-predicate-attestation-binding-v0.md:3-10,980-1009`; `docs/design/claim-inline-subject-binding-v0.md:593`), Tickets 0061/0063 retain uncommitted-candidate language, and the wider bootstrap/visual-ledger/status-registry ambiguity recorded by A-002 is unchanged. | PR #103 (`21067dc`) corrected the ADR stack and several living status claims. PR #109 (`b79a96a`) reconciled current origin-verification/admission handoffs; PR #110 (`a1a5920`) reconciled standing-v3 runtime/status wording. Neither changed the remaining status corpus. | status/precedence registry and narrow living-status handoffs |
 | A-003 | Detached v0-v2 standing outputs still omit complete verified-prefix coordinates. | Confirmed | high; compatibility-only | `StandingResolution`, `StandingResolutionV1`, and `StandingResolutionV2` remain public coordinate-poor shapes in `crates/magpie-claims/src/standing.rs:76-97`, `standing_v1.rs:124`, and `standing_v2.rs:135`; newer v3/v4 paths carry private prefix/closure identities. Accepted ADR-0008 now states the complete-producing-context law but does not retrofit these public types. | No runtime/API change. | provenance-response / compatibility API |
-| A-004 / RQ-006 | The portable language and oracle are fixed, but no complete portable conformer or cross-language agreement evidence exists. | Confirmed | high; P0; interoperability | PR #120 fixes the transport/result contract and frozen `magpie-portable-verifier-corpus-v1` supplies 432 exact cases. PR #135 adds the exact profiled Rust signature primitive. PR #137 adds the crate-internal production frontend through `Schema` (`crates/magpie-log/src/portable_verifier/frontend.rs:37-159`) and proves 324 frontend-final outcomes plus 108 later-stage non-preemption cases (`crates/magpie-log/src/portable_verifier/corpus_tests.rs:167-230`). The six-stage Rust history consumer remains absent. Python still calls the host `Ed25519PublicKey.verify` (`tools/verify_chain.py:188-191`); no Go implementation or differential execution exists. | PR #137 materially corrects the Rust raw-input language and first-failure boundary. It does not establish complete Rust history conformance, Python/Go conformance, or cross-language agreement. | complete Rust history conformer, independent Python and Go conformers, then differential corpus evidence |
+| A-004 / RQ-006 | The portable language and oracle are fixed, and independent conformer artifacts are landed, but the contract-required production/reference paths remain incomplete. | Confirmed | high; P0; interoperability; bounded differential evidence; implementation gate | Current `main` contains the crate-internal Rust conformer applying `Sequence`, `PreviousLink`, `ContentHash`, `Signature`, `PayloadValidation`, and `Genesis` over all 432 frozen cases; readable independent Python `tools/portable_verifier.py`; standalone Go `tools/go-verify-chain/` with only its vendored `filippo.io/edwards25519 v1.2.0`; and a selected-root differential comparing `verdict`, `class`, `line`, `record_index`, `event_count`, `tip`, and `ordered_recomputed_hashes`, stable under `--repeat 2`. However, the governing contract requires the Rust production/file/public verification path and `tools/verify_chain.py` itself to conform (`docs/design/portable-verifier-input-language-contract.md:1191-1202,1285-1299,1538-1539`). `crates/magpie-log/src/lib.rs:91-108` keeps the complete conformer crate-internal until a non-test caller exists, `FileStore` still elides blank records (`crates/magpie-log/src/store.rs:41-51`), and `tools/verify_chain.py` remains compatibility-only. The differential is therefore bounded evidence for the landed independent tools, not closure of the audited production/reference-path finding. | PR #139 completed the crate-internal Rust conformer, PR #142 added the independent Python conformer, PR #143 added the independent Go conformer and differential, and PR #144 recorded the final hosted CI/evidence. | Complete the required Rust production/file/public path and `tools/verify_chain.py` conformance under the existing contract, then rerun the full differential and separately reconcile |
 | A-005 / RQ-005 | v2/v3 status combination now fails closed when the shared status vocabulary evolves. | Closed | behavior-preserving runtime remediation | `Status` has five current variants (`crates/magpie-log/src/event.rs:25-31`). `combine_v2_standing` and `combine_standing` explicitly select every one (`crates/magpie-claims/src/standing_v2.rs:300-314`; `standing_v3.rs:885-899`), so a future variant makes both matches non-exhaustive. Complete 12-case truth tables preserve every current result (`standing_v2.rs:803-830`; `standing_v3.rs:2268-2295`). | PR #111, merge `dc07034d4af7d2b41130ba04a6a9d4c5af000995`, removed both status wildcards and added permanent complete truth-table tests without changing current policy identity or semantics. | Closed; re-evaluate explicitly if `Status` evolves. |
 | A-006 / RQ-004 | Episodic output now preserves `ClaimAssertedV2` as statusless. | Closed | intentional derived-projection correction; schema-versioned | `ClaimAssertedV2` maps to `claim_status: None`, while legacy `ClaimAsserted` and `ClaimStatusChanged` preserve exact signed status fields (`crates/magpie-episodic/src/lib.rs:271-366`). `SCHEMA_VERSION` is 3 (`:19`), and tests prove NULL canonical rows, exact legacy status retention, schema-v2 stale-row discard, caller-owned verified replay, fresh/rebuilt byte equality, and v3 reopen preservation (`crates/magpie-episodic/tests/episodic.rs:442-559`). | PR #112, merge `91ebb5d6a4f5ba99ad377c77eb96dc70bc829245`, changed derived episodic state and canonical bytes for tag 6, bumped schema/projection version 2 to 3, and added migration/replay regressions. | Closed; neighboring A-007/A-008/A-012 remain separate. |
 | A-007 / RQ-009 | Projection reuse and fallible episodic operations still lack a typed lifecycle/error boundary. | Confirmed | current availability defect; contained to derived state | `Projection::apply` remains infallible (`crates/magpie-log/src/logimpl.rs:623-624`); episodic transaction, insert, commit, and signed-range paths still use `expect`/panic (`crates/magpie-episodic/src/lib.rs:220-258,400-408`). | PR #118 changed projection input provenance only; projection fallibility and episodic failure semantics remain unchanged. | storage/resource contract |
@@ -216,18 +233,18 @@ in the row.
 | A-009 | Verified replay provenance is structurally enforced, but public Deadbolt occurrence eligibility remains caller-selected. | Partially remediated | raw-event bypass closed; caller-controlled policy-input remainder; contained public mechanics seam | The closed portion is structural: raw `SignedEvent` cannot satisfy `Projection::apply`, and only replay-created `VerifiedReplayEvent` crosses that boundary (`crates/magpie-log/src/logimpl.rs:63-135,533-571,587-624`). The open portion is independent: public `resolve_deadbolt_occurrence_context` still accepts `EvidenceKind` and `ClaimDomain`, checks the eligible values, but does not prove their provenance; its trusted-use documentation requires caller co-derivation (`crates/magpie-claims/src/deadbolt_context.rs:181-206`). The private composite standing projection derives standing and anchors from one verified replay (`crates/magpie-claims/src/replay_snapshot.rs:68-108`), so no governed-standing bypass is claimed. | PR #117 contracted the verified-replay portion. PR #118 structurally removed that raw projection bypass; the independent eligibility seam was unchanged. | Co-derive Deadbolt occurrence eligibility from the same typed claim/evidence metadata, or explicitly constrain the public helper to mechanics-only/untrusted use; do not infer authority from caller selection. |
 | RQ-002 | Raw `SignedEvent` and verified replay projection inputs are structurally distinct. | Closed | runtime/API remediation; intentional pre-1.0 source break | `SignedEvent` remains a public Clone/serde raw record (`crates/magpie-log/src/event.rs:330-336`) returned by writer append and raw inspection (`crates/magpie-log/src/logimpl.rs:411-445,482-511`). Public `VerifiedReplayEvent` has a private field, one private constructor, and only the public `event()` observer (`logimpl.rs:63-135`; re-export `crates/magpie-log/src/lib.rs:98-105`). `Projection::apply` accepts only `&VerifiedReplayEvent<'_>` (`logimpl.rs:587-624`), and no `events` alias exists. The sole constructor call follows complete retained-snapshot verification (`:533-571`). Compile-fail proofs cover private construction, conversion, deserialization, lifetime retention, raw/inspection/writer-returned apply, and summary/`verify_chain` blessing (`:75-119,138-181,490-528,591-622`); late signature/hash/link tests apply nothing (`crates/magpie-log/tests/chain.rs:354-452`). | PR #117, merge `99512b5eddd39ecc98e31e59173252da717f2fa2`, froze the documentation-only contract. PR #118, merge `c70c0fb28157212f0f73cef88bae116658c787f7`, implemented the runtime/API/test remediation and owner-merged the reviewed head `99e5b9f783ad78cce6fd4af419f6de6e8719fb25`. | Closed; reopen only if raw/caller-selected events can again enter the public projection boundary without complete replay verification. |
 | A-010 | Accepted currentness doctrine now exists, but resolver substrate, representation, eligibility, and algorithm identity remain future. | Partially remediated | constitutional; narrowed; future implementation gate | ADR-0006 defines coordinate-bound derived currentness and separates it from standing (`docs/adr/0006-claim-currency-and-currentness-semantics.md:3,111-137,356-385`); no currentness resolver implementation exists, and existing `StandingCurrentness` compatibility fields must not be reinterpreted. | PR #103 (`21067dc`) materially resolved the doctrine/status conflict and explicitly deferred runtime, encoding, eligibility, and identity details. | owner doctrine decision |
-| A-011 | CI now protects the exact corpus, governing commitments, and frozen fixtures, while broader semantic dependency/release review remains incomplete. | Partially remediated | material exact-oracle gate; supply-chain/release remainder | CI runs `tools/check_verifier_corpus_manifest.py` (`.github/workflows/ci.yml:45-49`). The checker binds the exact manifest digest, 432 case files, governing-source set, coverage inventories, and frozen golden/Deadbolt hashes (`tools/check_verifier_corpus_manifest.py:19-25,513-593,874-904`). It is not a conformer or differential verifier. | PR #131 added the exact corpus-integrity gate without changing runtime. Toolchain/action/Python inputs and a complete release-assurance programme remain open. | differential conformer CI plus reviewed dependency/release-input policy |
-| RQ-015 | CI toolchain, actions, runner image, and Python crypto dependency remain unpinned. | Confirmed | reproducibility/supply-chain debt | `.github/workflows/ci.yml` still uses `ubuntu-latest`, Rust `stable`, `actions/checkout@v4`, `actions/cache@v4`, and unversioned `pip ... cryptography` (`:8-31,54-55`). `Cargo.lock` does not pin those external validation inputs. | The corpus checker adds a semantic integrity step but does not freeze its execution environment. | pinned, reviewed CI/release inputs |
+| A-011 | CI now protects the exact corpus and exercises the bounded three-way differential, while broader supply-chain/release review remains incomplete. | Partially remediated | material exact-oracle/differential gate; supply-chain/release remainder | CI runs the exact corpus-integrity checker and the selected-root Rust/Python/Go differential (`.github/workflows/ci.yml:78-82,131-132`). The differential executes all 432 cases twice and compares the seven governed fields; it remains bounded evidence, not universal equivalence or release assurance. | PR #131 added the corpus-integrity gate. PRs #139, #142, and #143 landed the conformers/differential, and PR #144 recorded hosted Linux execution. Toolchain/action/Python inputs and a complete release-assurance programme remain open. | reviewed dependency/release-input policy and broader release assurance |
+| RQ-015 | CI toolchain, actions, runner image, and native validation environment remain partly moving. | Confirmed | reproducibility/supply-chain debt | CI now explicitly provisions Python 3.12 and `cryptography==50.0.0` plus the pinned `PyNaCl==1.6.2`, `cffi==2.0.0`, and `pycparser==3.0`; selects Go 1.27.0, vendors its conformer dependency, and disables module retrieval after toolchain setup (`.github/workflows/ci.yml:22-50,87-90`; `tools/requirements-portable-verifier.txt:4-6`). The selected-root differential runs in CI. Moving inputs remain `ubuntu-latest`, Rust `stable`, action major-version tags, artifact/environment identity gaps, and precise native/libsodium backend reproducibility. | PRs #142-#144 materially improve explicit validation inputs and hosted execution, but do not pin the remaining environment or establish release reproducibility. | pinned, reviewed CI/release inputs and broader environment evidence |
 | A-012 / RQ-010 | A public episodic path can still drop same-named tables on schema mismatch without an ownership marker. | Confirmed | conditional; contained to derived storage | `EpisodicView::at_path` and its `user_version` mismatch branch remain at `crates/magpie-episodic/src/lib.rs:103-127`. | No storage-safety change. | storage/resource contract |
 | A-013 | ADR-0001 still names a `seam-slice.patch` that is not present as a current repository artifact. | Confirmed | documentation-only remainder | `docs/adr/0001-deadbolt-seam.md:116` names the patch; `Test-Path seam-slice.patch` is false. Landed tag-5 sources and fixtures are present, but the reference is not traceable to a file. | No traceability correction. | ADR traceability / documentation maintenance |
 | A-014 | Segment-anchor validation checks the witness-root lexical form but not all remaining identity-field bounds at the Magpie seam. | Confirmed | conditional; contained seam gap | `Payload::validate` and `deadbolt_context` remain at `crates/magpie-log/src/event.rs:118-133` and `crates/magpie-claims/src/deadbolt_context.rs:249-279`; later exact metadata matching contains malformed markers. | No format or seam-runtime change. | Deadbolt–Magpie seam contract |
 | A-015 / A-017 / RQ-003 | Public legacy/raw standing and mutable compatibility projections can still look like governed living status. | Confirmed | compatibility-only; narrowed by doctrine clarification; high | Public `standing` and `legacy_raw_standing` remain in `crates/magpie-claims/src/standing.rs:76-108,273-349,688`; the quarantine test still demonstrates raw `Settled` beside governed `Conjectured` (`crates/magpie-claims/src/standing.rs:1840-1875`). | PR #103 clarified that standing is not currentness and that legacy status is compatibility-only in accepted ADR text, but changed no public fields or construction paths. | compatibility API |
 | A-016 | Withdrawal target doctrine is more exact, but identity/delegation and withdrawal runtime remain unimplemented. | Future implementation gate | narrowed; identity/delegation gate | ADR-0005 now requires exactly one prior attributed assertion act and immutable/replayable targeting (`docs/adr/0005-claim-withdrawal-acts.md:38-91`), while attribution is still asserted data and delegation is deferred; no withdrawal event/runtime exists. | PR #103 (`21067dc`) narrowed the target law and accepted ADR-0005 without adding representation or runtime. | identity/withdrawal doctrine |
 | A-018 | Several compile-fail examples still fail at stale API arity rather than the intended forbidden authority surface. | Confirmed | exact-boundary test gap | The audited examples remain in `crates/magpie-claims/src/origin_binding_verifier.rs:40-69`, `origin_admission_audit.rs:92-207`, and `support_contribution_audit.rs:86-192`; subsequent merged tranches through #135 did not repair them. | SQLite, corpus, and #135 signature-boundary tests do not address this separate compile-fail finding. | replace stale examples with direct forbidden construction/deserialization/substitution attempts |
-| RQ-013 | Exact corpus, SQLite hostile families, focused `V_sig` tests, and the Rust frontend suite materially improve assurance, but independent differential, wider platform, and remaining exact-boundary evidence is absent. | Partially remediated | material corpus/resource/crash/concurrency/cryptographic/frontend-boundary evidence; wider assurance remainder | The frozen 432-case corpus covers malformed transport/schema/crypto boundaries and CI checks its exact bytes/inventories. `sqlite_l0.rs` and `tests/sqlite_l0.rs` add resource, physical-state, tamper, crash-recovery, stale/concurrent-writer, busy, transaction, and unknown-commit evidence. PR #135 tests canonical encodings, subgroup and identity rules, scalar boundaries, challenge binding, and torsion witnesses. PR #137 adds production-path exact framing/UTF-8, duplicate, integer, hex, parser-diagnostic, continuation-ownership, and 324/108 accounting tests. No complete Rust conformer, Rust/Python/Go differential execution, broader platform matrix, or correction of A-018's stale compile-fail examples exists. | PR #129 supplies supported-L0 hostile evidence; PR #131 supplies the exact portable oracle and integrity gate; PR #135 adds bounded cryptographic-boundary evidence; PR #137 adds bounded raw-input and non-preemption evidence. None is complete conformer or release evidence. | complete Rust conformer, independent differential conformers, targeted exact-boundary repair, and boundary-specific platform/release evidence |
+| RQ-013 | Exact corpus, SQLite hostile families, focused `V_sig` tests, the Rust frontend suite, and the landed independent differential materially improve assurance, but broader platform and exact-boundary evidence remains absent. | Partially remediated | material corpus/resource/crash/concurrency/cryptographic/frontend-boundary/differential evidence; wider assurance remainder | The frozen 432-case corpus covers malformed transport/schema/crypto boundaries and CI checks its exact bytes/inventories. The complete Rust, independent Python, and independent Go conformers agree over all 432 cases in a repeat-two differential across `verdict`, `class`, `line`, `record_index`, `event_count`, `tip`, and `ordered_recomputed_hashes`. Direct Go process-status tests, selected-root Python isolation, vendored/offline Go execution, hosted Linux CI, bounded Rust fuzz/metamorphic assurance, SQLite hostile families, and the focused profile/frontend tests add material evidence. A-018 exact-boundary compile-fail gaps, broader platform coverage, and broader release/environment reproducibility remain. | PRs #139, #140, and #142-#144 add the conformers, assurance, and hosted differential while preserving the earlier corpus/SQLite/profile/frontend evidence. | targeted exact-boundary repair and boundary-specific platform/release evidence |
 | A-019 / RQ-011 | Current public legacy resolution, episodic row, and search-result APIs remain detachable and coordinate-poor. | Confirmed | contained current provenance/API gap; compatibility-only; future authority-bearing integration gate | `StandingResolution` lacks prefix/closure identity (`crates/magpie-claims/src/standing.rs:76-97`); public `EpisodicEvent` rows omit complete record identity, verified-prefix, projection, and query coordinates, and `search` returns bare sequence numbers (`crates/magpie-episodic/src/lib.rs:39-52,160-182`). Accepted ADR-0008 governs future detached results but does not retrofit these shapes. No librarian or MCP runtime exists on current `main`. | No query/API change. | provenance-response contract or explicit pre-alpha boundary exclusion |
 | A-020 | Ignored pending delegation tickets can still describe obsolete bases and no wrapper preflight proves current status/allowlist. | Confirmed | mixed-scope: local-only stale-ticket evidence; repository-level wrapper gap; confirmed in the recorded `C:\magpie` checkout | `.agent-runs/pending/0003-migrate-to-v1-format-freeze-layout.md` and `.agent-runs/pending/0006-episodic-schema-version-guard.md` are ignored local files and are absent from a fresh clone of GitHub `main`. Tracked repository code `scripts/codex-delegate.ps1` accepts a caller-supplied existing ticket path without validating ticket root, current status, expected base, or an allowed change surface. | No local ticket-content or tracked wrapper change; ignored ticket files are not repository authority and were not edited. | local delegation/worktree workflow |
-| A-021 | The strict portable Ed25519 subprofile and raw-input boundary now have authoritative Rust implementations, but complete portable conformance and qualifying cross-language evidence remain absent. | Confirmed | conditional; high; trust-root/profile; narrowed implementation/conformance debt | Accepted ADR-0010 selects `magpie-ed25519-canonical-prime-subgroup-v1`. PR #135 adds the namespaced `ProfiledSignatureVerifier`: profile selection is explicit and fail-closed, construction validates and binds exact external-key bytes, and verification implements the exact uncofactored relation. PR #137 invokes that constructor before history access and carries the bound verifier in each pending record while leaving the legacy verifier compatibility-only. The owner-approved 432-case corpus remains bound to manifest SHA-256 `7d758d3f2dac1161fe15dd064b130ccbfcdaf0437ea8ab8d7772492194801a81`; the trust root remains externally supplied. | The constitutional choice, oracle lifecycle, Rust primitive, raw-input frontend, and their focused hostile tests are complete. The six-stage Rust history conformer, independent Python and Go conformers, and differential evidence remain absent. | complete Rust history conformer, independent Python and Go conformers, then hostile differential review |
+| A-021 | The strict portable Ed25519 subprofile and raw-input boundary are implemented, but the contract-qualified complete portable-conformance prerequisite remains incomplete. | Confirmed | conditional; high; trust-root/profile; implementation/conformance gate | Accepted ADR-0010 selects `magpie-ed25519-canonical-prime-subgroup-v1`. Typed Rust profile selection is explicit and fail-closed; verification enforces the exact uncofactored relation with explicit canonicality, subgroup, scalar, and identity semantics. Frozen hostile vectors exercise the selected boundary. The complete Rust, independent Python, and independent Go conformer artifacts and selected-root repeat-two differential are landed, but the governing contract still requires the real Rust production/file/public path and `tools/verify_chain.py`; those requirements are not met by a crate-internal/test-invoked conformer and separate `tools/portable_verifier.py`. The trust root remains externally supplied. | PR #139 completed the crate-internal Rust conformer, PR #142 added Python, PR #143 added Go and the differential, and PR #144 recorded the final hosted evidence. | Complete the contract-qualified Rust/Python paths and repeat the frozen differential before reconciling A-021 |
 | A-022 | Admission rejection representation, historical recording, provenance, and retry semantics remain unanswered before a write gate. | Future implementation gate | constitutional; future admission gate | `docs/design/admission-design-readiness-checklist.md:159-165` and the admission question/record contracts retain unanswered rejection and retry choices; no generic admission or `EpistemicGate` runtime exists. | No admission or event-format change. | future admission ADR |
 | A-023 | Direct artifact/origin matched traces still omit producing verified-prefix and closure identities. | Confirmed | contained; compatibility/API remainder | Direct trace/receipt surfaces remain in `crates/magpie-claims/src/artifact_provenance_verifier.rs:144-209,219-299,368-387` and `crates/magpie-claims/src/origin_binding_verifier.rs:239-259,360-389,541-548`; stronger v3/v4/audit paths carry more coordinates. Accepted ADR-0008 confirms the deficit but does not change these types. | No provenance-response API change. | provenance-response contract or explicit non-detachable boundary |
 | A-024 | Claimant-controlled authority labels can still manufacture corroboration separation. | Confirmed | constitutional; high; compatibility semantics explicitly quarantined; accepted successor doctrine unimplemented | The v0 runtime still matches the compiled `human-review` / `authority:origin-review-v0` labels, copies claimant `origin_group` values into trusted fold/admission output (`crates/magpie-claims/src/origin_admission_audit.rs:234-236,559-603,612-700`), and standing v3 counts distinct exact groups at threshold two (`crates/magpie-claims/src/standing_v3.rs:434-435,787-817`). The current contracts now accurately call this claimant-label compatibility admission/corroboration and deny any authenticated independence property (`docs/design/origin-admission-audit-v0.md:5-12,145-152,508-513`; `standing-policy-v3-external-report-corroboration-v0.md:68-81`). ADR-0007 is Accepted but explicitly says acceptance does not implement or remediate A-024 (`docs/adr/0007-authority-bound-origin-corroboration.md:1427-1434,1533-1537`). | PR #108 (`71d096f`) accepted successor doctrine; #109 (`b79a96a`) reconciled current v0 compatibility semantics; #110 (`a1a5920`) quarantined downstream v3 meaning. No authority-bound runtime, hostile tests, or additive successor types landed. | ADR-0007 implementation contract and additive authority-bound successor runtime |
@@ -243,14 +260,14 @@ finding ID; family labels do not create additional findings.
 | A-001 | Public backend append bypasses declared sole writer | F01 | Closed | Public raw backend append is removed; `LogWriter` is the sole supported Magpie append capability. |
 | A-002 | ADR, contract, and living-status precedence is not closed | F02 | Partially remediated | ADR, origin-admission, and v3 status were corrected; attestation/candidate and wider stale-status surfaces remain. |
 | A-003 | Detached v0-v2 standing output lacks verified-prefix coordinates | F03 | Confirmed | Accepted ADR-0008 governs future results; legacy resolution shapes remain coordinate-poor. |
-| A-004 | Rust and Python accept different record languages | F04 | Confirmed | The exact Rust `V_sig` primitive and raw frontend through `Schema` exist, but no complete Rust/Python/Go conformers prove whole-pipeline equivalence. |
+| A-004 | Rust and Python accept different record languages | F04 | Confirmed | Complete Rust, independent Python, and independent Go conformer artifacts agree in the selected-root repeat-two differential across all seven governed fields for all 432 frozen cases, with zero unexplained divergences. The governing contract still requires the real Rust production/file/public path and `tools/verify_chain.py`; the current crate-internal/test-invoked Rust path and separate `tools/portable_verifier.py` do not satisfy that prerequisite. |
 | A-005 | v2/v3 wildcard status matches can promote future variants | F05 | Closed | Both policy seams explicitly enumerate every current status; a future variant is a compile error. |
 | A-006 | Episodic projection synthesizes `Conjectured` for statusless tag 6 | F06 | Closed | Tag 6 now projects NULL status and stale schema-v2 derived rows are rebuilt under schema v3. |
 | A-007 | Replay freshness and projection failure semantics are caller conventions | F07 | Confirmed | Reuse and infallible projection paths remain. |
 | A-008 | File durability, snapshot semantics, concurrency, and L0 resources are incomplete | F08 | Partially remediated | Supported SQLite L0 now has stable snapshots, atomic successor semantics, and finite limits; compatibility/general scope remains. |
 | A-009 | Public unverified projection APIs can look trusted | F09 | Partially remediated | PR #118 closes the raw-event projection bypass, but the public Deadbolt occurrence resolver still accepts caller-selected eligibility kind/domain rather than co-deriving their provenance. |
 | A-010 | Currentness has doctrine/substrate divergence | F10 | Partially remediated | Accepted doctrine exists; resolver substrate remains future. |
-| A-011 | Dependency and review gates do not protect governed semantics fully | F11 | Partially remediated | CI now binds the exact corpus, sources, and frozen fixtures; differential and broader dependency/release gates remain. |
+| A-011 | Dependency and review gates do not protect governed semantics fully | F11 | Partially remediated | CI now binds the exact corpus, sources, and frozen fixtures and runs the bounded selected-root Rust/Python/Go differential; broader dependency, platform, and release-environment gates remain. |
 | A-012 | Arbitrary SQLite path can trigger destructive derived migration | F12 | Confirmed | Public schema mismatch branch can drop tables. |
 | A-013 | Anchor seam references an absent `seam-slice.patch` | F13 | Confirmed | Current ADR reference remains untraceable. |
 | A-014 | Anchor payload does not validate all identity fields | F14 | Confirmed | Root is checked; remaining fields rely on later seam matching. |
@@ -260,7 +277,7 @@ finding ID; family labels do not create additional findings.
 | A-018 | Compile-fail tests do not always fail for the forbidden surface | F17 | Confirmed | Several examples still fail first on stale arity; later hostile test families do not repair them. |
 | A-019 | Derived responses omit record/query provenance coordinates | F18 | Confirmed | Public detachable resolution/episodic/search outputs lack complete coordinates; future authority-bearing use is also gated. |
 | A-020 | Pending delegation queue has obsolete state assumptions | F19 | Confirmed | Ignored stale tickets are local-only; the tracked delegation wrapper still lacks ticket-root, status, base, and scope preflight. |
-| A-021 | Ratified strict Ed25519 profile lacks complete portable-conformance evidence | F20 | Confirmed | The exact profiled Rust primitive and frontend binding have landed; the six-stage Rust history consumer and independent cross-language evidence remain absent. |
+| A-021 | Ratified strict Ed25519 profile lacks complete portable-conformance evidence | F20 | Confirmed | ADR-0010's exact selected profile, typed fail-closed Rust boundary, explicit relation/canonicality/subgroup/scalar/identity semantics, hostile vectors, independent Rust/Python/Go conformer artifacts, and repeat-two seven-field differential are all landed. The contract-qualified Rust production/file/public path and `tools/verify_chain.py` prerequisite remain incomplete, so the A-021 closure chain is not complete. The external verifying key remains caller-supplied; the claim fence below does not establish trust in that key or key ownership, identity, delegation, authority, permission, freshness, latest-head or canonical-branch selection, anti-rollback, non-equivocation, global completeness, production durability, cryptographic proof, or universal verifier equivalence. |
 | A-022 | Admission rejection and retry semantics are not governed | F21 | Future implementation gate | Generic admission/EpistemicGate remains prohibited pending answers. |
 | A-023 | Direct matched traces omit prefix and closure identities | F22 | Confirmed | Direct trace surfaces remain less coordinate-complete than newer audits. |
 | A-024 | Claimant-controlled authority labels manufacture corroboration separation | F23 | Confirmed | Current compatibility semantics are quarantined and Accepted successor doctrine exists, but no independent authority-binding runtime is present. |
@@ -269,16 +286,16 @@ finding ID; family labels do not create additional findings.
 | RQ-003 | Legacy raw standing remains public and authority-looking | F15 | Confirmed | Raw field remains public and serializable. |
 | RQ-004 | Episodic projection invents `Conjectured` | F06 | Closed | Statusless typed assertions now project NULL with schema-v2-to-v3 rebuild coverage. |
 | RQ-005 | v2/v3 wildcard matches can promote future variants | F05 | Closed | Exhaustive policy matches force explicit review for every future status variant. |
-| RQ-006 | Rust and Python accept different record languages | F04 | Confirmed | The bounded Rust primitive and frontend do not prove whole-pipeline parity; independent complete conformers still have not executed the frozen cases. |
+| RQ-006 | Rust and Python accept different record languages | F04 | Confirmed | The complete Rust and independent Python conformer artifacts, independent Go conformer, and selected-root repeat-two differential agree on the frozen 432 cases across all seven governed fields with zero unexplained divergences. The governing contract still requires the Rust production/file/public path and `tools/verify_chain.py` itself; the result is bounded evidence, not closure of that path requirement or release readiness. |
 | RQ-007 | Base log verification has no file/record resource bound | F08 | Partially remediated | Supported SQLite verification is bounded before record-at-a-time processing; compatibility whole-vector readers remain. |
 | RQ-008 | FileStore lacks durability/atomicity/locking/snapshot contract | F08 | Confirmed | FileStore's two-write append is unchanged and now explicitly compatibility-only. |
 | RQ-009 | Infallible projection permits SQLite/range panics | F07 | Confirmed | `expect` and range panic paths remain. |
 | RQ-010 | Episodic schema reset can drop tables arbitrarily | F12 | Confirmed | Public schema mismatch reset remains conditional hazard. |
 | RQ-011 | Detached legacy resolutions/search results lack coordinates | F18 | Confirmed | Current public detachable outputs are coordinate-poor; future query/response use remains gated. |
 | RQ-012 | Versioned policy/parser duplication creates drift pressure | F24 | Confirmed | Review-cost debt remains without an inventory gate. |
-| RQ-013 | Test suite lacks cross-language/resource/crash/exact-boundary assurance | F17 | Partially remediated | Exact corpus, SQLite hostile families, focused `V_sig`, and Rust frontend/precedence tests add material evidence; executable differential, platform, and remaining exact-boundary gaps survive. |
+| RQ-013 | Test suite lacks cross-language/resource/crash/exact-boundary assurance | F17 | Partially remediated | Complete Rust, independent Python and Go conformers, repeat-two 432-case differential over all seven governed fields, direct Go process-status tests, selected-root Python isolation, vendored/offline Go execution, hosted Linux CI, bounded Rust fuzz/metamorphic assurance, and earlier SQLite/hostile corpus families add material evidence; A-018 exact-boundary compile-fail gaps, broader platform coverage, and broader release/environment reproducibility remain. |
 | RQ-014 | Design-document runtime status drifted from landed code | F02 | Partially remediated | PRs #103, #109, and #110 corrected more of the corpus; attestation/candidate and wider stale handoffs remain. |
-| RQ-015 | CI toolchain/actions/Python crypto dependency are not pinned | F11 | Confirmed | Corpus integrity now runs in CI, but the runner, toolchain, actions, and Python crypto input still move. |
+| RQ-015 | CI toolchain/actions/Python crypto dependency are not pinned | F11 | Confirmed | Python 3.12 and the Python dependency versions, Go 1.27.0, vendored Go execution, and selected-root differential are now explicit; the runner, Rust toolchain, actions, artifact/environment identity, and native/libsodium backend still move. |
 
 ## 8. Materially changed findings
 
@@ -330,16 +347,21 @@ implementation and tests, not on ticket or PR prose alone.
   governed semantic fixtures completely, while toolchain, action, runner, and
   Python crypto inputs were moving.
 - Material change: PR #131 added a clean-checkout CI step running
-  `tools/check_verifier_corpus_manifest.py`. It checks the externally bound
-  manifest digest, all 432 case hashes and inventories, the exact governing
-  source commitments, and the frozen golden/Deadbolt fixture hashes.
-- Surviving scope: the checker is not a conformer and no differential
-  verification runs. CI still uses `ubuntu-latest`, Rust `stable`, action major
-  tags, and an unversioned Python `cryptography` installation. There is no
-  complete release-environment reproduction policy.
-- Disposition basis: **A-011 is Partially remediated** because one material
-  semantic fixture/source gate is now enforced. **RQ-015 remains Confirmed**
-  because none of its exact moving-input claims has been corrected.
+  `tools/check_verifier_corpus_manifest.py`. PRs #139, #142, and #143 then
+  landed the complete Rust, independent Python, and independent Go conformers
+  plus the selected-root differential, and PR #144 recorded hosted Linux
+  execution. The differential compares the seven governed fields for all 432
+  cases twice.
+- Surviving scope: this is bounded conformance evidence, not universal
+  equivalence or release assurance. CI still uses `ubuntu-latest`, Rust
+  `stable`, and action major tags; artifact/environment identity and precise
+  native/libsodium reproducibility remain open, as does a complete
+  release-environment reproduction policy.
+- Disposition basis: **A-011 is Partially remediated** because the exact
+  semantic fixture/source gate and bounded differential gate are now enforced.
+  **RQ-015 remains Confirmed** because runner, Rust toolchain, action,
+  artifact/environment identity, and native/libsodium reproducibility inputs
+  remain materially moving.
 
 ### A-018 / RQ-013 — hostile corpus and SQLite assurance
 
@@ -357,42 +379,71 @@ implementation and tests, not on ticket or PR prose alone.
   production frontend tests for framing/UTF-8, decoded duplicates, raw numeric
   and hex lexical law, parser-diagnostic independence, later-record
   non-preemption, and exclusive continuation ownership.
-- Surviving scope: no Rust/Python/Go differential execution exists; broader
-  platform and release-environment evidence remains absent; compatibility
-  readers retain resource gaps; and the named A-018 compile-fail examples were
-  not repaired.
+- Surviving scope: the repeat-two Rust/Python/Go differential is now landed,
+  with direct Go process-status testing, selected-root Python isolation,
+  vendored/offline Go execution, hosted Linux CI, and bounded Rust
+  fuzz/metamorphic assurance. Broader platform and release-environment
+  evidence remains absent; compatibility readers retain resource gaps; and the
+  named A-018 compile-fail examples were not repaired.
 - Disposition basis: **RQ-013 is Partially remediated** because multiple
   originally absent assurance families now have objective artifacts and tests.
   **A-018 remains Confirmed** because its specific stale-boundary examples are
   unchanged.
 
-### A-004 / RQ-006 / A-021 — fixed law, primitive, and frontend; absent complete conformers
+### A-004 / RQ-006 / A-021 — landed evidence and remaining path gate
 
 - Material constitutional/oracle evidence: PR #120 fixes the portable JSONL
-  language and result law; Accepted ADR-0010 fixes the exact additive `V_sig`;
-  and owner-approved `magpie-portable-verifier-corpus-v1` fixes 432 exact
-  inputs/results under one non-repointable manifest digest.
-- Material runtime evidence: PR #135 adds the authoritative namespaced Rust
-  primitive. Its typed constructor explicitly and fail-closed selects the exact
-  profile, validates and binds the original external-key bytes once, and its
-  verifier implements the exact uncofactored ADR-0010 relation. The legacy path
-  remains unchanged. PR #137 adds the authoritative crate-internal Rust
-  raw-input frontend through `Schema`: exact key/profile preflight, exact-byte
-  framing/UTF-8, characterized JSON syntax, duplicate-preserving closed lexical
-  decoding, and pending-record continuation ownership. It proves all 324
-  frontend-final outcomes and accounts for 108 later cases without preemption.
-- Surviving implementation evidence: no complete Rust portable-history
-  conformer applies `Sequence` through `Genesis` or returns the frozen complete
-  result. Python still delegates to its host Ed25519 verifier, no Go conformer
-  exists, and no three-way differential result has been produced.
-- Trust boundary: structural key admissibility remains distinct from external
-  key trust; a corpus ACCEPT result would not establish identity, authority,
-  freshness, canonical history, completeness, or permission to act.
-- Disposition basis: **A-004, RQ-006, and A-021 remain Confirmed**. Their
-  constitutional and oracle dependencies, bounded Rust signature primitive,
-  and Rust frontend are complete, but the audited whole-pipeline portability,
-  interoperability, and complete-conformance defects remain materially
-  present.
+  language and result law; Accepted ADR-0010 selects the exact additive
+  `V_sig` profile; and owner-approved `magpie-portable-verifier-corpus-v1`
+  fixes 432 exact inputs/results under manifest SHA-256
+  `7d758d3f2dac1161fe15dd064b130ccbfcdaf0437ea8ab8d7772492194801a81`.
+- Landed conformance evidence on current `main`: the crate-internal Rust
+  conformer applies the ordered post-schema stages `Sequence` ->
+  `PreviousLink` -> `ContentHash` -> `Signature` -> `PayloadValidation` ->
+  `Genesis` and exercises all 432 frozen cases. The readable independent
+  Python conformer at `tools/portable_verifier.py` remains separate from the
+  compatibility-only `tools/verify_chain.py`. The standalone Go conformer
+  under `tools/go-verify-chain/` shares no Rust or Python verifier
+  implementation and uses only its specifically authorized, pinned, vendored
+  `filippo.io/edwards25519 v1.2.0` low-level dependency.
+- Differential evidence on current `main`: `tools/check_portable_verifier_differential.py`
+  selects one repository root, keeps Python child execution isolated with `-I`,
+  and obtains independent Rust, Python, and Go results. It compares exactly
+  `verdict`, `class`, `line`, `record_index`, `event_count`, `tip`, and
+  `ordered_recomputed_hashes`. The final `--repeat 2` execution produced two
+  semantically identical repetitions over 432 cases with zero unexplained
+  divergences. This is bounded evidence for the selected independent tools;
+  it is not proof of universal equivalence, proof that every implementation is
+  correct, proof of cryptographic correctness, a majority-vote oracle, or
+  release readiness.
+- Contract re-evaluation: the governing portable-input contract still requires
+  Rust to exercise its real production/file verification path and Python to
+  exercise `tools/verify_chain.py` rather than a substitute parser
+  (`docs/design/portable-verifier-input-language-contract.md:1191-1202,1285-1299,1538-1539`).
+  `crates/magpie-log/src/lib.rs:91-108` explicitly keeps the complete
+  conformer crate-internal until a non-test caller exists, `FileStore` still
+  elides blank records (`crates/magpie-log/src/store.rs:41-51`), and
+  `tools/verify_chain.py` remains compatibility-only. The landed artifacts and
+  differential therefore materially improve assurance but do not satisfy the
+  contract's required path obligations.
+- A-021 profile evidence: ADR-0010 selects the exact profile identity
+  `magpie-ed25519-canonical-prime-subgroup-v1`; typed Rust profile selection is
+  explicit and fail-closed; the selected uncofactored relation is exact; and
+  canonicality, subgroup, scalar, and identity-point semantics are explicit.
+  Frozen hostile vectors/corpus exercise that selected boundary. The
+  contract-qualified complete-conformance prerequisite is nevertheless still
+  open, so the A-021 closure chain is incomplete.
+- A-021 claim fence retained: **Closure does not establish trust in the
+  caller-supplied external verifying key.** It also does not establish key
+  ownership, real-world identity, delegation, authority, permission,
+  freshness, latest-head selection, canonical branch selection, anti-rollback,
+  non-equivocation, global completeness, production durability, cryptographic
+  proof, or universal verifier equivalence. The trust root remains externally
+  supplied.
+- Disposition basis: **A-004, RQ-006, and A-021 remain Confirmed**. The
+  landed independent conformer artifacts and bounded differential are recorded
+  as material evidence, but closure requires the specified Rust and Python
+  paths to conform under the existing contract and a subsequent reconciliation.
 
 ### A-001 / RQ-001 — sole public L0 write capability
 
@@ -660,7 +711,20 @@ implementation and tests, not on ticket or PR prose alone.
 ## 9. Confirmed constitutional and P0 boundaries
 
 These are the highest-priority surviving boundaries. This section records why
-they remain open and the owning layer; it does not design a fix.
+they remain open and the owning layer; it does not design a fix. The landed
+independent conformer artifacts and differential are recorded as material
+evidence in section 8, but the contract-qualified A-004/RQ-006 path gate and
+the dependent A-021 conformance prerequisite remain open.
+
+- **Portable production/reference-path conformance — A-004, RQ-006, and
+  A-021.** The complete Rust corpus conformer remains crate-internal and
+  test-invoked, `FileStore` still drops blank records, and the complete Python
+  implementation is `tools/portable_verifier.py` while the governing contract
+  requires `tools/verify_chain.py`. The 432-case Rust/Python/Go differential is
+  bounded evidence for those selected tools, not closure of the required
+  production/reference paths. The owning layer is the existing portable-input
+  implementation contract and its later implementation tranche; no fix is
+  designed here.
 
 - **Caller-controlled Deadbolt occurrence eligibility — A-009 remainder.**
   Verified replay provenance is now structurally enforced, and raw
@@ -680,23 +744,6 @@ they remain open and the owning layer; it does not design a fix.
   explicitly quarantined, but the required additive authority-bound successor
   is unimplemented. The next correction locus is its separately reviewed
   implementation contract and runtime, not another doctrine decision.
-
-- **Portable conformer divergence — A-004/RQ-006.** The input language,
-  first-failure model, exact 432-case oracle, and downstream Rust `V_sig`
-  primitive are fixed. PR #137 now supplies the raw portable frontend through
-  `Schema`, but Rust still lacks the complete six-stage history conformer;
-  Python has no complete profile-aware conformer; no independent Go conformer
-  exists; and no differential corpus execution proves agreement. The next
-  boundary is implementation, not another grammar decision.
-
-- **Complete Ed25519 profile-conformance gap — A-021.** The external trust root
-  remains caller-supplied. Accepted ADR-0010 selects the exact additive
-  signature subprofile, the exact corpus is hostile-reviewed and frozen, and
-  PR #135 now supplies the authoritative profiled Rust primitive. The legacy
-  unprofiled verifier remains compatibility-only. PR #137 binds that primitive
-  at frontend preflight but stops before per-record `Signature`. Complete Rust
-  portable realization, independent Python/Go realization, and differential
-  review are still absent.
 
 ## 10. Future implementation gates
 
@@ -718,28 +765,28 @@ dispositions.
 This is non-authorizing planning guidance only. It is not a roadmap
 ratification, an implementation ticket, or permission to start work.
 
-1. complete Rust portable-history conformer over the merged frontend, using
-   merged profiled `V_sig` only at the frozen `Signature` stage;
-2. bounded non-normative Rust fuzz/metamorphic assurance before using Rust as
-   cross-language comparison evidence;
-3. independent Python and Go complete conformers from the governing sources;
-4. differential corpus execution, hostile review, and separate
-   A-021/A-004/RQ-006 reconciliation;
-5. one minimal coordinate-complete detached result/receipt only if the selected
-   public boundary requires it;
-6. boundary-specific public assurance and reproducibility hardening; and
-7. deferred authority-bound corroboration, admission, currentness, withdrawal,
+1. Portable conformance — complete the required Rust production/file/public
+   path and `tools/verify_chain.py` conformance under the existing contract,
+   rerun the full differential, and separately reconcile A-004/RQ-006/A-021;
+2. C3 — if the advertised pre-alpha still needs detachable governed output,
+   add the smallest coordinate-complete verification/replay result or receipt;
+3. C4 — harden the applicable public assurance boundary with pinned validation
+   inputs, platform evidence, and release-environment reproducibility;
+4. C5 — write the public pre-alpha release contract, freeze a candidate, and
+   falsify it before an owner release decision; and
+5. deferred authority-bound corroboration, admission, currentness, withdrawal,
    identity, and authority-bearing query capabilities unless a separate owner
    decision moves one into the advertised boundary.
 
 The [current convergence reassessment](public-pre-alpha-convergence-reassessment-2026-08-22.md)
 owns current release-path planning. This ledger order records dependency
 pressure only. The portable grammar, cryptographic law, corpus, bounded Rust
-signature primitive, and raw frontend are no longer pending decisions; the
-complete conformers and differential evidence are. The
-already-decided ADR-0007 successor remains unimplemented but is excluded from
-the smallest pre-alpha. This order does not choose mechanisms or owners and
-authorizes no work.
+signature primitive, raw frontend, complete conformer artifacts, and bounded
+differential evidence are landed, but the contract-qualified Rust/Python path
+gate remains open in section 8. C3, C4, and C5 remain planning boundaries, not
+implemented work or release authorization. The already-decided ADR-0007
+successor remains unimplemented but is excluded from the smallest pre-alpha.
+This order does not choose mechanisms or owners and authorizes no work.
 
 ## 12. Coverage and validation
 
@@ -897,6 +944,28 @@ Rust/Python/Go runtime paths had no diff. Runtime tests were not rerun solely
 for this documentation contract. The exact-head successful CI and merged source
 evidence for #137 were inspected without representing its frontend-only
 324/108 evidence as a complete 432-case Rust conformer or finding closure.
+
+The 2026-08-31 post-#144 reconciliation additionally executed the current
+main preflight and ancestry checks, the exact corpus-manifest checker, the
+complete Python conformer checker, the Python conformer/differential unit
+tests, the Rust 432-case complete-conformer corpus test, the vendored Go
+conformer tests and vet, the direct Go executable exit-status test, the
+selected-root Rust/Python/Go differential with `--repeat 2`, and the
+PowerShell 39-ID coverage/disposition check above. The corpus checker passed
+432 cases (19 ACCEPT, 413 REJECT) at the frozen manifest SHA. Python reported
+the same 432-case inventory; the Go tests, vet, and exit-status contract
+passed; and the differential reported two semantically identical repetitions
+with zero unexplained divergences across the seven governed fields. A direct
+Cargo invocation was host-blocked by the default MSVC environment's missing
+`msvcrt.lib`; the same Rust corpus test passed through the repository's VS
+2022 `vcvars64` wrapper. No implementation path was changed by this
+documentation reconciliation. The review follow-up re-evaluated the landed
+artifacts against the frozen implementation proof obligations and confirmed
+that the real Rust production/file/public path and `tools/verify_chain.py`
+requirements remain unmet. The current ledger therefore remains exactly 22
+Confirmed, 8 Partially remediated, 2 Future implementation gate, and 7 Closed
+findings, for 39 total; the 432-case differential is retained as bounded
+evidence and does not close those path obligations.
 
 Each recorded reconciliation used `git diff --check`, a changed-path allowlist
 audit, post-edit SHA256 hashes for every protected evidence file, and this

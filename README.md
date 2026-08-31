@@ -4,7 +4,7 @@
 ![Status: experimental](https://img.shields.io/badge/status-experimental-2f6f4e?style=flat-square)
 ![Release contract: v0.1.0](https://img.shields.io/badge/release_contract-v0.1.0-315a7d?style=flat-square)
 ![Rust](https://img.shields.io/badge/Rust-stable-5b4636?style=flat-square)
-![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-5b4636?style=flat-square)
+![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-5b4636?style=flat-square)
 
 **A local-first, replayable memory kernel for AI systems.**
 

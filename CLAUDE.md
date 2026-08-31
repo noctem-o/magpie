@@ -124,7 +124,7 @@ Freeze consequences:
 - `crates/magpie-episodic` — second projection: `EpisodicView`, SQLite + FTS5 full-text search over events
 - `crates/magpie-log` — also owns the contract-selected supported SQLite L0 persistence backend; L0 and projection databases remain separate
 - `docs/FORMAT.md` — normative spec; a from-scratch reimplementation must reproduce the golden vectors from this page alone
-- `tools/verify_chain.py` — independent Python verifier, written from FORMAT.md alone; CI runs it against the golden fixture with a pinned trust root
+- `tools/verify_chain.py` — compatibility-only Python verifier, written from FORMAT.md alone; `tools/portable_verifier.py` is the separate complete portable conformer used for the frozen conformance evidence
 
 ## Commands
 
@@ -142,42 +142,55 @@ Freeze consequences:
 
 ## Queued work (keep current; update as things land)
 
-1. Complete owner review and merge of the stacked Python conformer, Go
-   conformer, and final CI/evidence tranches. The implementations and the
-   review-remediated three-way differential are present in this candidate;
-   final-stack review and every merge remain owner decisions.
-2. Reconcile A-021/A-004/RQ-006 in a separate administrative change only after
-   the qualifying implementation and hostile-reviewed evidence are merged.
-3. At C3, if the advertised pre-alpha still needs detachable governed output,
+1. Portable conformance correction — complete the required Rust
+   production/file/public verification path and make `tools/verify_chain.py`
+   conform under the existing portable-input contract, then rerun the full
+   frozen differential and reconcile the findings.
+2. C3 — only if the advertised pre-alpha requires detachable governed output,
    add the smallest coordinate-complete verification/replay result or receipt.
-4. At C4, harden the applicable public assurance boundary: pinned validation
+3. C4 — harden the applicable public assurance boundary: pinned validation
    inputs, platform evidence, and release-environment reproducibility.
-5. At C5, write the pre-alpha release contract, freeze a candidate, and
-    falsify it before an owner release decision.
+4. C5 — write the public pre-alpha release contract, freeze a candidate, and
+   falsify it before an owner release decision.
 
 Keep general ingestion/CAS, `EpistemicGate`, governed ordinary agent writing,
 contradiction/currentness runtime, ADR-0007 authority runtime, librarian,
 effectful MCP, production KMS, and ambient/Vesper agent work deferred unless a
 separate owner decision moves one into the release boundary.
 
-Candidate in this checkout: a readable Python complete conformer separate from
+Landed on current `main`: a readable Python complete conformer separate from
 the compatibility verifier; a standalone Go complete conformer whose exactly
 authorized `filippo.io/edwards25519 v1.2.0` low-level primitive dependency is
 vendored and whose governed interface is a built executable; and one strict,
 selected-root-coherent three-way differential runner/CI path. It compares
 `verdict`, `class`, `line`, `record_index`, `event_count`, `tip`, and
 `ordered_recomputed_hashes` for the exact frozen 432 cases, with Python run in
-an isolated child process from that same selected root. This is unmerged
-candidate evidence and does not itself change any audit disposition.
+an isolated child process from that same selected root. These are landed
+conformance artifacts and bounded evidence, but they do not satisfy the
+contract-specific Rust production/file/public path and `tools/verify_chain.py`
+requirements by themselves. The evidence is not trust, authority, universal
+verifier equivalence, release readiness, or a release decision.
+
+Administrative reconciliation: A-004 and RQ-006 remain Confirmed because the
+governing portable-input contract's Rust and Python path obligations are not
+yet met. A-021 remains Confirmed because those complete-conformance
+prerequisites are part of its closure chain. RQ-013 remains Partially
+remediated; and RQ-015 remains Confirmed under its controlled reproducibility
+disposition. Historical audit records and the dated pre-alpha candidate
+assessment remain untouched.
 
 Landed: the complete crate-internal Rust portable-history conformer applies the
-six ordered post-schema stages through one production path and produces the
-complete count/tip/hash trace used by all 432 frozen cases (PR #139, 2026-08-24).
-It remains a caller-supplied finite-history check, not trust, authority,
-currentness, or global-completeness evidence.
+six ordered post-schema stages through one crate-internal implementation path
+and produces the complete count/tip/hash trace used by all 432 frozen cases
+(PR #139, 2026-08-24).
+It remains a test-invoked crate-internal path rather than the contract-required
+Rust production/file/public verification path. `FileStore` still elides blank
+records, and this remains a caller-supplied finite-history check, not trust,
+authority, currentness, or global-completeness evidence.
 
 Landed: bounded non-normative Rust fuzz/metamorphic assurance over the complete
-production conformer, including focused hostile repairs (PR #140, 2026-08-25).
+crate-internal conformer, including focused hostile repairs (PR #140,
+2026-08-25).
 It is assurance evidence, not a normative oracle or proof of correctness.
 
 Landed: the authoritative crate-internal Rust portable raw-input frontend through

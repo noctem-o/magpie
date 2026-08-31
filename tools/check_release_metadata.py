@@ -19,7 +19,6 @@ REQUIRED_COMMON = {
     "Cargo.toml",
     "Cargo.toml.orig",
     "LICENSE-APACHE",
-    "LICENSE-MIT",
     "README.md",
     "src/lib.rs",
 }
@@ -47,6 +46,7 @@ REQUIRED_PACKAGE_FILES = {
     "magpie-episodic": {"tests/episodic.rs"},
 }
 PROHIBITED_PREFIXES = (".git/", ".github/", ".agent-runs/", "target/", "tickets/")
+PROHIBITED_LICENSE_FILES = frozenset({"LICENSE-MIT"})
 
 
 def fail(message: str) -> None:
@@ -82,7 +82,7 @@ def check_metadata() -> None:
             "version": EXPECTED_VERSION,
             "publish": [],
             "repository": EXPECTED_REPOSITORY,
-            "license": "MIT OR Apache-2.0",
+            "license": "Apache-2.0",
             "edition": "2021",
         }
         for field, value in expected.items():
@@ -106,7 +106,15 @@ def check_metadata() -> None:
 
 
 def check_licenses() -> None:
-    for license_name in ("LICENSE-APACHE", "LICENSE-MIT"):
+    root_prohibited = sorted(
+        name for name in PROHIBITED_LICENSE_FILES if (ROOT / name).exists()
+    )
+    if root_prohibited:
+        fail(
+            "prohibited first-party license files at workspace root: "
+            + ", ".join(root_prohibited)
+        )
+    for license_name in ("LICENSE-APACHE",):
         root_bytes = (ROOT / license_name).read_bytes()
         for package in PACKAGES:
             local = ROOT / "crates" / package / license_name
@@ -127,6 +135,7 @@ def check_inventories() -> None:
             for path in files
             if path.endswith(".crate")
             or path.startswith(PROHIBITED_PREFIXES)
+            or Path(path).name in PROHIBITED_LICENSE_FILES
             or Path(path).name.startswith(".env")
         )
         if prohibited:
