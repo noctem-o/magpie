@@ -46,6 +46,21 @@ fn expected_complete_class(name: &str) -> PortableRejectionClass {
     }
 }
 
+fn complete_class_name(class: PortableRejectionClass) -> &'static str {
+    match class {
+        PortableRejectionClass::ExternalKey => "ExternalKey",
+        PortableRejectionClass::Framing => "Framing",
+        PortableRejectionClass::JsonSyntax => "JsonSyntax",
+        PortableRejectionClass::Schema => "Schema",
+        PortableRejectionClass::Sequence => "Sequence",
+        PortableRejectionClass::PreviousLink => "PreviousLink",
+        PortableRejectionClass::ContentHash => "ContentHash",
+        PortableRejectionClass::Signature => "Signature",
+        PortableRejectionClass::PayloadValidation => "PayloadValidation",
+        PortableRejectionClass::Genesis => "Genesis",
+    }
+}
+
 fn assert_complete_rejection(case_id: &str, rejection: PortableRejection, expected: &Value) {
     assert_eq!(
         rejection.class(),
@@ -402,6 +417,81 @@ fn frozen_complete_conformer_corpus_matches_all_432_cases() {
         inventory[9],
         inventory[10],
     );
+}
+
+/// Export actual production-conformer results for the external differential
+/// harness without adding a public portable-verifier API to `magpie-log`.
+///
+/// Ordinary test runs do no I/O. The harness supplies an explicit output path
+/// through `MAGPIE_PORTABLE_DIFFERENTIAL_OUTPUT` and invokes only this exact
+/// test. The export reads paths and external keys from the frozen manifest but
+/// never uses its expected result fields to construct an observed result.
+#[test]
+fn export_complete_conformer_results_when_requested() {
+    const MANIFEST_SHA256: &str =
+        "7d758d3f2dac1161fe15dd064b130ccbfcdaf0437ea8ab8d7772492194801a81";
+
+    let Some(output_path) = std::env::var_os("MAGPIE_PORTABLE_DIFFERENTIAL_OUTPUT") else {
+        return;
+    };
+    let root = repository_root();
+    let manifest_bytes =
+        std::fs::read(root.join("fixtures/verifier-language-v1/manifest.json")).unwrap();
+    assert_eq!(
+        hex::encode(Sha256::digest(&manifest_bytes)),
+        MANIFEST_SHA256
+    );
+    let manifest: Value = serde_json::from_slice(&manifest_bytes).unwrap();
+    assert_eq!(
+        manifest["producing_context"]["signature_profile_identity"],
+        V_SIG_PROFILE_ID
+    );
+
+    let mut results = Vec::new();
+    for case in manifest["cases"].as_array().unwrap() {
+        let case_id = required_str(case, "id");
+        let input = read_case_input(&root, case);
+        let (outcome, hashes) = verify_complete_history_with_trace(
+            V_SIG_PROFILE_ID,
+            required_str(case, "external_verifying_key_hex"),
+            &input,
+        )
+        .unwrap_or_else(|error| panic!("{case_id}: operational failure: {error:?}"));
+
+        let observed = match outcome {
+            CompleteHistoryOutcome::Accept(accepted) => serde_json::json!({
+                "verdict": "ACCEPT",
+                "class": Value::Null,
+                "line": Value::Null,
+                "record_index": Value::Null,
+                "event_count": accepted.event_count(),
+                "tip": accepted.tip().to_hex(),
+                "ordered_recomputed_hashes": hashes
+                    .iter()
+                    .map(ContentHash::to_hex)
+                    .collect::<Vec<_>>(),
+            }),
+            CompleteHistoryOutcome::Reject(rejection) => serde_json::json!({
+                "verdict": "REJECT",
+                "class": complete_class_name(rejection.class()),
+                "line": rejection.line(),
+                "record_index": rejection.record_index(),
+                "event_count": Value::Null,
+                "tip": Value::Null,
+                "ordered_recomputed_hashes": Vec::<String>::new(),
+            }),
+        };
+        results.push(serde_json::json!({"id": case_id, "result": observed}));
+    }
+
+    let export = serde_json::json!({
+        "manifest_identity": manifest["manifest_identity"],
+        "manifest_sha256": MANIFEST_SHA256,
+        "results": results,
+    });
+    let mut encoded = serde_json::to_vec_pretty(&export).unwrap();
+    encoded.push(b'\n');
+    std::fs::write(output_path, encoded).unwrap();
 }
 
 #[test]
