@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/noctem-o/magpie/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/noctem-o/magpie/actions/workflows/ci.yml)
 ![Status: experimental](https://img.shields.io/badge/status-experimental-2f6f4e?style=flat-square)
-![Release: v0.1.0](https://img.shields.io/badge/release-v0.1.0-315a7d?style=flat-square)
+![Release contract: v0.1.0](https://img.shields.io/badge/release_contract-v0.1.0-315a7d?style=flat-square)
 ![Rust](https://img.shields.io/badge/Rust-stable-5b4636?style=flat-square)
 ![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-5b4636?style=flat-square)
 
@@ -18,15 +18,15 @@ Magpie is deliberately fussy about those distinctions.
 
 | Historical record | Portable verification | Governed standing | Authority boundary |
 | --- | --- | --- | --- |
-| Signed, append-only hash chain | Rust complete conformer | Policies v0 through v4 | No ambient authority |
+| Signed, append-only hash chain | Rust, Python, and Go complete conformers | Policies v0 through v4 | No ambient authority |
 | SQLite L0 + deterministic replay | Frozen 432-case corpus | Caller selects the policy | Trust in the verifying key stays external |
-| Explicit checkpoint expectations | Bounded Rust fuzz/metamorphic assurance | No automatic `latest` | Optional Deadbolt protocol seam |
-| Corrections remain historical events | Python/Go complete conformers pending | Audit traces are explanatory | Derived state cannot rewrite history |
+| Explicit checkpoint expectations | Three-way differential + bounded Rust assurance | No automatic `latest` | Optional Deadbolt protocol seam |
+| Corrections remain historical events | Exact supplied finite histories only | Audit traces are explanatory | Derived state cannot rewrite history |
 
 > [!IMPORTANT]
 > A successful check grants only the claim defined by that check. It does not silently establish provenance, trust, freshness, global completeness, key ownership, or permission to act.
 
-Magpie is an experimental Rust workspace, not a finished memory product. Current `main` implements standing policies v0 through v4 and includes a crate-internal complete Rust portable-history conformer. The latest formal source release is still v0.1.0. Development has moved beyond it, but there is no v0.2.0 release yet.
+Magpie is an experimental Rust workspace, not a finished memory product. This checkout implements standing policies v0 through v4 and complete portable-history conformers in Rust, Python, and Go, with an exact three-way differential runner. The latest GitHub source release is [v0.2.0](https://github.com/noctem-o/magpie/releases/tag/v0.2.0), while the latest tracked release contract and workspace package version remain v0.1.0. Development has moved beyond both boundaries.
 
 ## Why Magpie exists
 
@@ -66,7 +66,7 @@ They can explain what Magpie concluded. They cannot rewrite the history that pro
 
 ## What works today
 
-Current `main` has a real experimental kernel behind the design.
+This checkout has a real experimental kernel behind the design.
 
 It includes:
 
@@ -75,6 +75,9 @@ It includes:
 - an independent unprofiled Python chain verifier retained for compatibility
 - an owner-approved, frozen 432-case exact-byte portable-verifier corpus
 - a crate-internal Rust complete portable-history conformer that drives all 432 frozen cases through one production path
+- a separate readable Python complete conformer for the selected portable profile and language
+- a standalone Go complete conformer with no Rust or Python verifier dependency; its exactly approved `filippo.io/edwards25519 v1.2.0` primitive dependency is vendored for offline builds
+- a three-way differential runner that compares every governed result field for all 432 frozen cases
 - non-normative bounded Rust fuzz/metamorphic assurance over that production conformer path
 - a supported local SQLite L0 store with bounded creation and verified reopen
 - stale-writer detection and atomic successor append
@@ -92,7 +95,7 @@ The scope is still intentionally small.
 
 There is no general ingestion system, no autonomous research agent, no ordinary governed claim writer, and no magic "latest truth" resolver.
 
-The frozen portable corpus is normative oracle material, not a verifier by itself. Current `main` has one complete Rust conformer for the selected ADR-0010 profile and the full portable-history language, with 432/432 same-language corpus agreement plus bounded non-normative fuzz/metamorphic assurance. Independent complete Python and Go conformers have not landed yet, and neither has cross-language differential execution. So this is strong Rust evidence, not a portable cross-language verification claim or a proof of verifier correctness.
+The frozen portable corpus is normative oracle material, not a verifier by itself. This checkout has complete Rust, readable Python, and standalone Go conformers for the selected ADR-0010 profile and frozen portable-history language. The tracked differential runner verifies the frozen manifest and all case bytes before requiring exact agreement on all seven governed fields — `verdict`, `class`, `line`, `record_index`, `event_count`, `tip`, and `ordered_recomputed_hashes` — for all 432 cases. That is bounded cross-language conformance evidence for this exact profile and corpus, not a proof of verifier correctness, universal input equivalence, key trust, currentness, or release-environment portability.
 
 ## Quick start
 
@@ -417,6 +420,8 @@ They are not Magpie itself.
 - explicit verified-prefix and checkpoint expectation semantics
 - an owner-approved, exact-byte portable-verifier corpus frozen under `magpie-portable-verifier-corpus-v1`
 - a crate-internal complete Rust conformer for the selected ADR-0010 profile and frozen portable-history language, green across all 432 cases
+- independent complete Python and Go conformers for that same profile and language
+- exact Rust/Python/Go differential execution over every governed field in the frozen corpus
 - non-normative bounded Rust fuzz/metamorphic assurance over the production conformer path
 - rebuildable search and claim projections
 - exact supplied content for closure-dependent resolution
@@ -430,7 +435,7 @@ They are not Magpie itself.
 ### Explicitly not implemented
 
 - secure retained checkpoints and stronger rollback resistance
-- independent complete Python and Go portable conformers and cross-language differential execution over the frozen corpus
+- broader platform and release-environment qualification beyond the frozen three-way differential corpus
 - coordinate-complete detached verification/replay results for any advertised governed detachable-result boundary
 - authority-bound origin-group admission under ADR 0007
 - an ordinary governed claim and evidence writer
@@ -504,8 +509,8 @@ Their status matters. Exploratory documents are not runtime behavior merely beca
 - [ADR 0007](docs/adr/0007-authority-bound-origin-corroboration.md) defines authority-bound origin-group assignment.
 - [ADR 0008](docs/adr/0008-complete-producing-coordinates.md) requires complete immutable producing inputs for governed derived results.
 - [ADR 0009](docs/adr/0009-verified-supplied-history-and-explicit-checkpoint-expectations.md) separates supplied-history verification from caller expectations.
-- [ADR 0010](docs/adr/0010-ed25519-verification-profile-and-external-trust-root-admissibility.md) is the Accepted, owner-ratified explicit Ed25519 signature-verification subprofile decision. The Rust implementation has landed; independent-language conformance and finding reconciliation remain separate gates.
-- [Portable verifier corpus v1](docs/design/portable-verifier-corpus-v1.md) is the owner-approved, merged, exact-byte oracle frozen as `magpie-portable-verifier-corpus-v1`. Current Rust executes all 432 cases, but the corpus does not by itself establish cross-language conformance or close any audit finding.
+- [ADR 0010](docs/adr/0010-ed25519-verification-profile-and-external-trust-root-admissibility.md) is the Accepted, owner-ratified explicit Ed25519 signature-verification subprofile decision. Rust, Python, and Go implement the selected relation; administrative finding reconciliation remains a separate owner-reviewed gate.
+- [Portable verifier corpus v1](docs/design/portable-verifier-corpus-v1.md) is the owner-approved, merged, exact-byte oracle frozen as `magpie-portable-verifier-corpus-v1`. Rust, Python, and Go execute all 432 cases through independent conformers, but finite agreement does not by itself prove verifier correctness or close an audit finding.
 
 For standing details:
 
@@ -514,7 +519,7 @@ For standing details:
 - [Policy v3](docs/design/standing-policy-v3-external-report-corroboration-v0.md)
 - [Policy v4](docs/design/standing-policy-v4-claim-inline-direct-refutation-v0.md)
 
-The [v0.1.0 release contract](docs/releases/v0.1.0-contract.md) records the latest formal release boundary.
+The [v0.1.0 release contract](docs/releases/v0.1.0-contract.md) records the latest tracked formal release contract. The later [v0.2.0 GitHub source release](https://github.com/noctem-o/magpie/releases/tag/v0.2.0) has no equivalent tracked release-contract document in this repository.
 
 The [`tickets/`](tickets/) directory contains the implementation and review history.
 
@@ -529,7 +534,19 @@ cargo test --doc --locked
 cargo clippy --workspace --all-targets --locked -- -D warnings
 python tools/check_verifier_corpus_manifest.py
 python tools/check_release_metadata.py
+python -m unittest tools.test_portable_verifier tools.test_portable_verifier_differential -v
+python tools/check_portable_verifier_python.py
+go -C tools/go-verify-chain test -mod=vendor -count=1 ./...
+go -C tools/go-verify-chain vet -mod=vendor ./...
+go -C tools/go-verify-chain build -mod=vendor -o go-verify-chain .
+./tools/go-verify-chain/go-verify-chain --check-manifest fixtures/verifier-language-v1/manifest.json
+python tools/check_portable_verifier_differential.py --repeat 2
 ```
+
+Those Go commands are the POSIX-shell form. The conformer's
+[README](tools/go-verify-chain/README.md) gives the equivalent PowerShell build
+and direct-executable commands and defines the governed `0` / `1` / `2` exit
+status contract. `go run` is not that governed interface.
 
 The default Rust test graph includes the bounded portable-verifier smoke assurance. The larger deterministic campaign is intentionally opt-in:
 
@@ -545,10 +562,8 @@ See [AGENTS.md](AGENTS.md) for the working rules.
 
 ## Release status
 
-v0.1.0 remains the latest formal owner-created source release.
+v0.2.0 is the latest owner-created GitHub source release and its tag points to commit `c5aaf6e`. The tracked release contract and workspace package metadata remain v0.1.0; those are different boundaries and this README does not collapse them.
 
-Current `main` has moved beyond that milestone and is developing toward a possible v0.2-shaped state.
-
-There is no v0.2.0 tag yet.
+Current `main` has moved beyond the v0.2.0 source release.
 
 This README does not claim registry publication or package availability.
