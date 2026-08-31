@@ -142,30 +142,37 @@ Freeze consequences:
 
 ## Queued work (keep current; update as things land)
 
-1. Implement the complete Rust portable-history conformer over the merged
-   frontend, applying `Sequence -> PreviousLink -> ContentHash -> Signature ->
-   PayloadValidation -> Genesis` to one pending record at a time.
-2. Run a bounded, non-normative Rust fuzz/metamorphic assurance tranche before
-   using Rust as cross-language comparison evidence.
-3. Build an independent Python complete conformer from the governing documents
-   and frozen corpus, not by translating the Rust implementation.
-4. Build an independent Go complete conformer from the same governing sources.
-5. Run Rust, Python, and Go differentially over the exact frozen 432-case corpus,
-   then hostile-review disagreements and evidence.
-6. Hostile-review the differential disagreements and the complete evidence.
-7. Reconcile A-021/A-004/RQ-006 separately only after qualifying implementation
-   and differential evidence exists.
-8. At C3, if the advertised pre-alpha still needs detachable governed output,
+1. Owner-review and merge the independent Python/Go conformers and exact
+   Rust/Python/Go differential evidence now present in this candidate checkout.
+2. Reconcile A-021/A-004/RQ-006 in a separate administrative change only after
+   the qualifying implementation and hostile-reviewed evidence are merged.
+3. At C3, if the advertised pre-alpha still needs detachable governed output,
    add the smallest coordinate-complete verification/replay result or receipt.
-9. At C4, harden the applicable public assurance boundary: pinned validation
+4. At C4, harden the applicable public assurance boundary: pinned validation
    inputs, platform evidence, and release-environment reproducibility.
-10. At C5, write the pre-alpha release contract, freeze a candidate, and
+5. At C5, write the pre-alpha release contract, freeze a candidate, and
     falsify it before an owner release decision.
 
 Keep general ingestion/CAS, `EpistemicGate`, governed ordinary agent writing,
 contradiction/currentness runtime, ADR-0007 authority runtime, librarian,
 effectful MCP, production KMS, and ambient/Vesper agent work deferred unless a
 separate owner decision moves one into the release boundary.
+
+Candidate in this checkout: a readable Python complete conformer separate from
+the compatibility verifier, a standalone Go complete conformer, and one strict
+three-way differential runner/CI path over all seven governed fields for the
+exact frozen 432 cases. This is unmerged candidate evidence and does not itself
+change any audit disposition.
+
+Landed: the complete crate-internal Rust portable-history conformer applies the
+six ordered post-schema stages through one production path and produces the
+complete count/tip/hash trace used by all 432 frozen cases (PR #139, 2026-08-24).
+It remains a caller-supplied finite-history check, not trust, authority,
+currentness, or global-completeness evidence.
+
+Landed: bounded non-normative Rust fuzz/metamorphic assurance over the complete
+production conformer, including focused hostile repairs (PR #140, 2026-08-25).
+It is assurance evidence, not a normative oracle or proof of correctness.
 
 Landed: the authoritative crate-internal Rust portable raw-input frontend through
 `Schema`, including exact profile/external-key preflight, exact-byte framing and
