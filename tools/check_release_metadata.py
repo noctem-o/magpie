@@ -19,7 +19,6 @@ REQUIRED_COMMON = {
     "Cargo.toml",
     "Cargo.toml.orig",
     "LICENSE-APACHE",
-    "LICENSE-MIT",
     "README.md",
     "src/lib.rs",
 }
@@ -82,7 +81,7 @@ def check_metadata() -> None:
             "version": EXPECTED_VERSION,
             "publish": [],
             "repository": EXPECTED_REPOSITORY,
-            "license": "MIT OR Apache-2.0",
+            "license": "Apache-2.0",
             "edition": "2021",
         }
         for field, value in expected.items():
@@ -106,7 +105,7 @@ def check_metadata() -> None:
 
 
 def check_licenses() -> None:
-    for license_name in ("LICENSE-APACHE", "LICENSE-MIT"):
+    for license_name in ("LICENSE-APACHE",):
         root_bytes = (ROOT / license_name).read_bytes()
         for package in PACKAGES:
             local = ROOT / "crates" / package / license_name
