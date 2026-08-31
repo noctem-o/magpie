@@ -217,7 +217,7 @@ class DifferentialHarnessTests(unittest.TestCase):
                 shutil.copy2(source_path, selected_path)
             tools_directory = selected_root / "tools"
             tools_directory.mkdir()
-            (tools_directory / "portable_verifier.py").write_text(
+            (tools_directory / "verify_chain.py").write_text(
                 "class Outcome:\n"
                 "    def as_dict(self):\n"
                 f"        return {selected_result!r}\n"

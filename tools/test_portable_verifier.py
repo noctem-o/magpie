@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Focused tests for the frozen Python portable-verifier conformance harness."""
+"""Focused tests for the required Python reference-verifier path."""
 
 from __future__ import annotations
 
@@ -15,7 +15,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from tools import check_portable_verifier_python as harness  # noqa: E402
-from tools import portable_verifier  # noqa: E402
+from tools import portable_verifier as prior_conformer  # noqa: E402
+from tools import verify_chain  # noqa: E402
 
 
 class PortableVerifierHarnessTests(unittest.TestCase):
@@ -28,7 +29,7 @@ class PortableVerifierHarnessTests(unittest.TestCase):
 
     def verify_case(self, case_id: str) -> dict[str, object]:
         case = self.by_id[case_id]
-        return portable_verifier.verify_complete_history(
+        return verify_chain.verify_complete_history(
             self.profile, case.external_key, case.input_bytes
         ).as_dict()
 
@@ -52,6 +53,16 @@ class PortableVerifierHarnessTests(unittest.TestCase):
                 for comparison in report.comparisons
             )
         )
+
+    def test_prior_independent_conformer_artifact_remains_fixed(self) -> None:
+        for case in self.cases:
+            with self.subTest(case_id=case.case_id):
+                actual = prior_conformer.verify_complete_history(
+                    self.profile,
+                    case.external_key,
+                    case.input_bytes,
+                ).as_dict()
+                self.assertEqual(actual, case.expected)
 
     def test_external_key_gate_precedes_empty_snapshot_acceptance(self) -> None:
         result = self.verify_case("n3-key-empty")
@@ -105,7 +116,7 @@ class PortableVerifierHarnessTests(unittest.TestCase):
         case = self.by_id["p1-golden-v1"]
         hostile = case.input_bytes.replace(b'"seq":0', b'"seq":' + (b"1" * 5000), 1)
 
-        result = portable_verifier.verify_complete_history(
+        result = verify_chain.verify_complete_history(
             self.profile, case.external_key, hostile
         ).as_dict()
 

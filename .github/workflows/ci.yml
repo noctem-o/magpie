@@ -93,6 +93,7 @@ jobs:
         run: >
           python -m unittest
           tools.test_portable_verifier
+          tools.test_verify_chain
           tools.test_portable_verifier_differential
           -v
 

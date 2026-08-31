@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the independent Python portable-verifier conformer over the frozen corpus.
+"""Run ``tools/verify_chain.py`` over the frozen portable-verifier corpus.
 
 The manifest and case files are exact-byte inputs.  This runner therefore
 performs a complete byte-hash preflight before invoking the verifier, and then
@@ -346,20 +346,21 @@ def run_corpus(root: Path = ROOT) -> CorpusReport:
         "manifest signature profile identity is not text",
     )
 
-    # The import is deliberately the independent Python conformer.  It is
+    # The import is deliberately the contract-required readable reference
+    # conformer. It is
     # kept inside the run so loading/hash failures cannot be mistaken for a
     # semantic verifier result.
     try:
-        from tools import portable_verifier
+        from tools import verify_chain
     except ImportError as error:
-        _fail(f"cannot import tools.portable_verifier: {error}")
+        _fail(f"cannot import tools.verify_chain: {error}")
 
     comparisons: list[CaseComparison] = []
     mismatches: list[str] = []
     inventory = {key: 0 for key in INVENTORY_KEYS}
     for case in cases:
         try:
-            outcome = portable_verifier.verify_complete_history(
+            outcome = verify_chain.verify_complete_history(
                 profile_identity,
                 case.external_key,
                 case.input_bytes,

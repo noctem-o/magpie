@@ -72,10 +72,10 @@ It includes:
 
 - a frozen signed event format with canonical encoding and golden vectors
 - an append-only hash-chained log with Ed25519 signatures
-- an independent unprofiled Python chain verifier retained for compatibility
+- a readable independent `tools/verify_chain.py` reference conformer for the selected portable language and profile
 - an owner-approved, frozen 432-case exact-byte portable-verifier corpus
-- a crate-internal Rust complete portable-history conformer that drives all 432 frozen cases through one production path
-- a separate readable Python complete conformer for the selected portable profile and language
+- a crate-internal exact-byte `FileStore` adapter that drives all 432 frozen cases through the authoritative Rust portable-history conformer
+- the earlier independent Python complete conformer retained as comparison evidence
 - a standalone Go complete conformer with no Rust or Python verifier dependency; its exactly approved `filippo.io/edwards25519 v1.2.0` primitive dependency is vendored for offline builds
 - a three-way differential runner that compares every governed result field for all 432 frozen cases
 - non-normative bounded Rust fuzz/metamorphic assurance over that production conformer path
@@ -534,7 +534,7 @@ cargo test --doc --locked
 cargo clippy --workspace --all-targets --locked -- -D warnings
 python tools/check_verifier_corpus_manifest.py
 python tools/check_release_metadata.py
-python -m unittest tools.test_portable_verifier tools.test_portable_verifier_differential -v
+python -m unittest tools.test_portable_verifier tools.test_verify_chain tools.test_portable_verifier_differential -v
 python tools/check_portable_verifier_python.py
 go -C tools/go-verify-chain test -mod=vendor -count=1 ./...
 go -C tools/go-verify-chain vet -mod=vendor ./...
