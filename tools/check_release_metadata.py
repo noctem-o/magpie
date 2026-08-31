@@ -46,6 +46,7 @@ REQUIRED_PACKAGE_FILES = {
     "magpie-episodic": {"tests/episodic.rs"},
 }
 PROHIBITED_PREFIXES = (".git/", ".github/", ".agent-runs/", "target/", "tickets/")
+PROHIBITED_LICENSE_FILES = frozenset({"LICENSE-MIT"})
 
 
 def fail(message: str) -> None:
@@ -105,6 +106,14 @@ def check_metadata() -> None:
 
 
 def check_licenses() -> None:
+    root_prohibited = sorted(
+        name for name in PROHIBITED_LICENSE_FILES if (ROOT / name).exists()
+    )
+    if root_prohibited:
+        fail(
+            "prohibited first-party license files at workspace root: "
+            + ", ".join(root_prohibited)
+        )
     for license_name in ("LICENSE-APACHE",):
         root_bytes = (ROOT / license_name).read_bytes()
         for package in PACKAGES:
@@ -126,6 +135,7 @@ def check_inventories() -> None:
             for path in files
             if path.endswith(".crate")
             or path.startswith(PROHIBITED_PREFIXES)
+            or Path(path).name in PROHIBITED_LICENSE_FILES
             or Path(path).name.startswith(".env")
         )
         if prohibited:
