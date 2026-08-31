@@ -2,6 +2,8 @@ CLAUDE.local.md
 .agent-runs/
 .agent-worktrees/
 target/
+__pycache__/
+*.py[cod]
 magpie-scaffold-rebuilt
 magpie-scaffold-rebuilt.tar
 magpie-v1-format-freeze

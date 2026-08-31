@@ -1,0 +1,6 @@
+# PyNaCl exposes the low-level libsodium point/scalar operations required to
+# implement ADR-0010's exact uncofactored relation. High-level Ed25519 APIs do
+# not expose the identity-R and subgroup semantics selected by that ADR.
+PyNaCl==1.6.2
+cffi==2.0.0
+pycparser==3.0
