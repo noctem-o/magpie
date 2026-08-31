@@ -20,6 +20,10 @@ Magpie is a local-first research memory system for agentic R&D. Its core directi
 - Do not merge.
 - Do not touch secrets, credentials, `.env*`, or unrelated files.
 - Do not add network dependencies unless the ticket explicitly allows it.
+- Owner-approved dependency exception: `tools/go-verify-chain` may use exactly
+  `filippo.io/edwards25519 v1.2.0`, vendored in that module for offline builds,
+  solely for its existing low-level Edwards25519 point/scalar arithmetic. This
+  authorizes no other dependency, version, location, or use.
 - Prefer boring, typed, testable code.
 - Prefer small diffs.
 - If the ticket is under-specified, stop and explain what is missing.
