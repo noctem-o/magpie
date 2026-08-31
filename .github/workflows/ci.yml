@@ -74,7 +74,9 @@ jobs:
         run: python tools/check_portable_verifier_python.py
 
       - name: Test independent Go portable conformer
-        run: go -C tools/go-verify-chain test -count=1 ./...
+        run: |
+          go -C tools/go-verify-chain test -count=1 ./...
+          go -C tools/go-verify-chain vet ./...
 
       - name: Verify Go portable conformer against frozen corpus
         run: >
