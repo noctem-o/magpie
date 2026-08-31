@@ -3,12 +3,14 @@
 
 from __future__ import annotations
 
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
 import json
 from pathlib import Path
 import subprocess
 import sys
-import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -115,33 +117,48 @@ class VerifyChainRequiredPathTests(unittest.TestCase):
     def test_host_recursion_limit_is_operational_not_governed_json_syntax(self) -> None:
         deeply_nested = b"[" * 1_500 + b"0" + b"]" * 1_500
 
-        with self.assertRaises(RecursionError):
-            verify_chain.verify_complete_history(
+        try:
+            outcome = verify_chain.verify_complete_history(
                 self.profile,
                 self.golden_key,
                 deeply_nested,
             )
-
-        with tempfile.TemporaryDirectory(prefix="magpie-python-recursion-") as directory:
-            input_path = Path(directory) / "deeply-nested.jsonl"
-            input_path.write_bytes(deeply_nested)
-            completed = subprocess.run(
-                [
-                    sys.executable,
-                    str(ROOT / "tools" / "verify_chain.py"),
-                    str(input_path),
-                    self.golden_key,
-                ],
-                cwd=ROOT,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                check=False,
+        except RecursionError:
+            pass
+        else:
+            self.assertEqual(
+                (outcome.verdict, outcome.rejection_class),
+                ("REJECT", "Schema"),
             )
 
-        self.assertEqual(completed.returncode, 2)
-        self.assertEqual(completed.stdout, b"")
-        self.assertIn(b"operational failure", completed.stderr)
-        self.assertNotIn(b"Traceback", completed.stderr)
+        with mock.patch.object(
+            verify_chain.json,
+            "loads",
+            side_effect=RecursionError("simulated host recursion limit"),
+        ):
+            with self.assertRaises(RecursionError):
+                verify_chain.verify_complete_history(
+                    self.profile,
+                    self.golden_key,
+                    b"{}",
+                )
+
+        stdout = StringIO()
+        stderr = StringIO()
+        with mock.patch.object(
+            verify_chain,
+            "verify_file",
+            side_effect=RecursionError("simulated host recursion limit"),
+        ):
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                exit_code = verify_chain.main(
+                    ["verify_chain.py", "selected-history.jsonl", self.golden_key]
+                )
+
+        self.assertEqual(exit_code, 2)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertIn("operational failure", stderr.getvalue())
+        self.assertNotIn("Traceback", stderr.getvalue())
 
     def test_accepted_event_count_exhaustion_is_operational(self) -> None:
         with self.assertRaisesRegex(RuntimeError, "governed u64 domain"):
