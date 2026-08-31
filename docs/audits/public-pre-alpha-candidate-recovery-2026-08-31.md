@@ -193,6 +193,24 @@ pass. Its original local result remains dated evidence in the earlier original
 local executed-evidence table; it is not ordinary CI and is not represented as
 fresh execution.
 
+### GitHub-hosted final-stack chronology
+
+GitHub Actions run `33370703307` tested exact head
+`d0042652031775ec03096b2e9789458ee61f758a` on the hosted Linux runner. It is a
+recorded **failure**, not green evidence. Rust formatting, Clippy, workspace
+tests, `magpie-log` doctests, the governed-standing tour, release metadata,
+package verification, and the corpus-manifest check passed before the Python
+unit/differential-harness step failed.
+
+The runner's system Python made `pip` install PyNaCl into the user site. The
+selected-root conformer intentionally runs under `python -I`, which excludes
+that site, so its fresh child process could not import `nacl`. The workflow now
+provisions Python 3.12 with `actions/setup-python` before installing the pinned
+dependencies; this makes them part of that interpreter's ordinary site rather
+than weakening selected-root isolation. No conformer or governed-result
+semantics changed. A successful post-remediation exact-head run is not claimed
+until it actually completes.
+
 ## Claim fence
 
 The candidate supports this narrow statement:
