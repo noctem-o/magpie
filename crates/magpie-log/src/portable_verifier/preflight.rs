@@ -13,16 +13,19 @@ pub(crate) enum FrontendStartError {
     Rejected(FrontendRejection),
 }
 
+pub(super) struct PreparedVerifier {
+    verifier: ProfiledSignatureVerifier,
+}
+
 pub(super) struct PreparedFrontend<'input> {
     verifier: ProfiledSignatureVerifier,
     cursor: FrameCursor<'input>,
 }
 
-impl<'input> PreparedFrontend<'input> {
+impl PreparedVerifier {
     pub(super) fn new(
         profile_identity: &str,
         external_key_text: &str,
-        history: &'input [u8],
     ) -> Result<Self, FrontendStartError> {
         let profile = SignatureVerificationProfile::from_identity(profile_identity)
             .map_err(FrontendStartError::UnsupportedProfile)?;
@@ -31,13 +34,25 @@ impl<'input> PreparedFrontend<'input> {
         let verifier = ProfiledSignatureVerifier::new(profile, external_key_bytes)
             .map_err(|_| FrontendStartError::Rejected(FrontendRejection::external_key()))?;
 
-        // Creating the cursor is intentionally last. No history byte is read
-        // until profile selection, transport decoding, and structural key
-        // admissibility have all succeeded.
-        Ok(Self {
-            verifier,
+        Ok(Self { verifier })
+    }
+
+    pub(super) fn bind_history(self, history: &[u8]) -> PreparedFrontend<'_> {
+        PreparedFrontend {
+            verifier: self.verifier,
             cursor: FrameCursor::new(history),
-        })
+        }
+    }
+}
+
+impl<'input> PreparedFrontend<'input> {
+    pub(super) fn new(
+        profile_identity: &str,
+        external_key_text: &str,
+        history: &'input [u8],
+    ) -> Result<Self, FrontendStartError> {
+        PreparedVerifier::new(profile_identity, external_key_text)
+            .map(|prepared| prepared.bind_history(history))
     }
 
     pub(super) fn into_parts(self) -> (ProfiledSignatureVerifier, FrameCursor<'input>) {

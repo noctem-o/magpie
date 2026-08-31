@@ -36,6 +36,19 @@ impl FileStore {
             path: path.as_ref().to_path_buf(),
         }
     }
+
+    /// Read one exact finite file image for the crate-internal portable path.
+    ///
+    /// Unlike [`LogStore::read_records`], this retains every byte so framing,
+    /// blank records, and terminators remain visible to the portable frontend.
+    /// A missing compatibility file continues to denote the empty history.
+    pub(crate) fn read_portable_input_bytes(&self) -> Result<Vec<u8>, LogError> {
+        match std::fs::read(&self.path) {
+            Ok(data) => Ok(data),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
+            Err(error) => Err(error.into()),
+        }
+    }
 }
 
 impl LogStore for FileStore {

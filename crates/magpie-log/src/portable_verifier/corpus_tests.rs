@@ -4,12 +4,12 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 use crate::signature_profile::V_SIG_PROFILE_ID;
-use crate::{ContentHash, EventCore, Payload, Provenance, SignedEvent, Status};
+use crate::{ContentHash, EventCore, FileStore, Payload, Provenance, SignedEvent, Status};
 
 use super::conformer::{
-    verify_complete_history, verify_complete_history_with_trace, CompleteHistoryOutcome,
-    PortableRejection, PortableRejectionClass,
+    verify_complete_history, CompleteHistoryOutcome, PortableRejection, PortableRejectionClass,
 };
+use super::file::{verify_complete_file, verify_complete_file_with_trace, FileVerificationError};
 use super::frontend::{FrontendSession, FrontendStep, PendingRecord};
 use super::preflight::FrontendStartError;
 use super::{FrontendRejection, FrontendRejectionClass};
@@ -94,11 +94,12 @@ fn read_case_input(root: &Path, case: &Value) -> Vec<u8> {
 fn assert_complete_case(root: &Path, case: &Value) -> Option<PortableRejectionClass> {
     let case_id = required_str(case, "id");
     let expected = &case["expected"];
-    let input = read_case_input(root, case);
-    let (outcome, observed_hashes) = verify_complete_history_with_trace(
+    let _input_hash_preflight = read_case_input(root, case);
+    let store = FileStore::new(root.join(required_str(case, "input_path")));
+    let (outcome, observed_hashes) = verify_complete_file_with_trace(
+        &store,
         V_SIG_PROFILE_ID,
         required_str(case, "external_verifying_key_hex"),
-        &input,
     )
     .unwrap_or_else(|error| panic!("{case_id}: operational failure: {error:?}"));
 
@@ -450,11 +451,12 @@ fn export_complete_conformer_results_when_requested() {
     let mut results = Vec::new();
     for case in manifest["cases"].as_array().unwrap() {
         let case_id = required_str(case, "id");
-        let input = read_case_input(&root, case);
-        let (outcome, hashes) = verify_complete_history_with_trace(
+        let _input_hash_preflight = read_case_input(&root, case);
+        let store = FileStore::new(root.join(required_str(case, "input_path")));
+        let (outcome, hashes) = verify_complete_file_with_trace(
+            &store,
             V_SIG_PROFILE_ID,
             required_str(case, "external_verifying_key_hex"),
-            &input,
         )
         .unwrap_or_else(|error| panic!("{case_id}: operational failure: {error:?}"));
 
@@ -492,6 +494,46 @@ fn export_complete_conformer_results_when_requested() {
     let mut encoded = serde_json::to_vec_pretty(&export).unwrap();
     encoded.push(b'\n');
     std::fs::write(output_path, encoded).unwrap();
+}
+
+#[test]
+fn file_adapter_preserves_framing_schema_and_raw_token_distinctions() {
+    assert_named_cases(&[
+        "n7-lf-only-empty-record",
+        "n30-extra-final-terminator",
+        "n30-terminal-lone-cr",
+        "n8-duplicate-signedevent-core",
+        "n10-unknown-signedevent",
+        "n16-seq-negative-zero",
+    ]);
+}
+
+#[test]
+fn file_adapter_finishes_external_key_gate_before_file_acquisition() {
+    let unreadable_as_history = FileStore::new(repository_root());
+    let outcome = verify_complete_file(
+        &unreadable_as_history,
+        V_SIG_PROFILE_ID,
+        "0100000000000000000000000000000000000000000000000000000000000000",
+    )
+    .unwrap();
+    match outcome {
+        CompleteHistoryOutcome::Reject(rejection) => {
+            assert_eq!(rejection.class(), PortableRejectionClass::ExternalKey);
+            assert_eq!(rejection.line(), None);
+            assert_eq!(rejection.record_index(), None);
+        }
+        actual => panic!("inadmissible key must reject before file acquisition: {actual:?}"),
+    }
+
+    assert!(matches!(
+        verify_complete_file(
+            &unreadable_as_history,
+            V_SIG_PROFILE_ID,
+            "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+        ),
+        Err(FileVerificationError::Read(_))
+    ));
 }
 
 #[test]

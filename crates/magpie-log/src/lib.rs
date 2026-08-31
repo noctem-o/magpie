@@ -100,10 +100,10 @@ mod event;
 mod hashing;
 mod history_expectation;
 mod logimpl;
-// The authoritative portable conformer remains crate-internal until a later
-// release-surface decision gives it a non-test caller. Keep the suppression
+// The authoritative portable conformer and exact-byte FileStore adapter remain
+// crate-internal pending a later release-surface decision. Keep the suppression
 // limited to non-test reachability analysis; test builds must account for the
-// whole production path.
+// complete file path.
 #[cfg_attr(not(test), allow(dead_code))]
 mod portable_verifier;
 mod sqlite_l0;
