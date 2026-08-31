@@ -75,6 +75,7 @@ does not refer to static or inferred test evidence.
 | `cargo test --doc -p magpie-log --locked` | Passed all 37 compile-fail/doc tests. |
 | `cargo clippy --workspace --all-targets --locked -- -D warnings` | Passed. |
 | opt-in `assurance_a_extended_totality_containment_and_determinism` | Passed its 12,000-input non-normative campaign in 239.73 seconds. |
+| `python tools/check_release_metadata.py` after local candidate commits | Passed; package inventories were consistent for `magpie-log` (36 files), `magpie-claims` (48), and `magpie-episodic` (9). |
 
 The default/uninitialised MSVC environment was not silently treated as valid:
 earlier Cargo attempts failed with missing MSVC C runtime/header evidence
@@ -154,9 +155,9 @@ race testing was blocked because the isolated toolchain had CGO disabled.
 
 ### C5 — release falsification
 
-This file is candidate evidence, not a pre-alpha release contract. There is no
-frozen candidate commit until the local review commits exist, no green remote
-CI result for those commits, no owner merge, and no owner release decision.
+This file is candidate evidence, not a pre-alpha release contract. A local
+candidate commit chain now exists, but there is no green remote CI result for
+those commits, no owner merge, and no owner release decision.
 The latest GitHub source release is v0.2.0, while the tracked release contract
 and workspace package version remain v0.1.0; those boundaries must not be
 collapsed.
