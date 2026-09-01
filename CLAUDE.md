@@ -124,7 +124,7 @@ Freeze consequences:
 - `crates/magpie-episodic` — second projection: `EpisodicView`, SQLite + FTS5 full-text search over events
 - `crates/magpie-log` — also owns the contract-selected supported SQLite L0 persistence backend; L0 and projection databases remain separate
 - `docs/FORMAT.md` — normative spec; a from-scratch reimplementation must reproduce the golden vectors from this page alone
-- `tools/verify_chain.py` — compatibility-only Python verifier, written from FORMAT.md alone; `tools/portable_verifier.py` is the separate complete portable conformer used for the frozen conformance evidence
+- `tools/verify_chain.py` — readable independent/reference conformer for the selected portable language and profile; `tools/portable_verifier.py` remains the earlier independent complete conformer artifact
 
 ## Commands
 

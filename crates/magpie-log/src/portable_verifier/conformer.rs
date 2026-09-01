@@ -3,7 +3,7 @@ use crate::{ContentHash, Payload, CANONICALIZATION_PROFILE};
 
 use super::frontend::{FrontendOperationalError, FrontendSession, FrontendStep, PendingRecord};
 use super::lexical::decode_lower_hex;
-use super::preflight::FrontendStartError;
+use super::preflight::{FrontendStartError, PreparedVerifier};
 use super::{FrontendRejection, FrontendRejectionClass};
 
 /// The ten governed portable-verifier rejection classes.
@@ -154,6 +154,12 @@ struct CompleteHistoryConformer<'input> {
     state: HistoryState,
 }
 
+/// A complete portable verifier whose profile and external key have passed
+/// before any history bytes are acquired or framed.
+pub(super) struct PreparedCompleteHistory {
+    frontend: PreparedVerifier,
+}
+
 trait AcceptedHashObserver {
     fn observe(&mut self, hash: ContentHash);
 }
@@ -164,10 +170,8 @@ impl AcceptedHashObserver for IgnoreAcceptedHashes {
     fn observe(&mut self, _hash: ContentHash) {}
 }
 
-#[cfg(test)]
 struct CollectAcceptedHashes<'trace>(&'trace mut Vec<ContentHash>);
 
-#[cfg(test)]
 impl AcceptedHashObserver for CollectAcceptedHashes<'_> {
     fn observe(&mut self, hash: ContentHash) {
         self.0.push(hash);
@@ -283,6 +287,30 @@ impl<'input> CompleteHistoryConformer<'input> {
     }
 }
 
+impl PreparedCompleteHistory {
+    fn bind(self, history: &[u8]) -> CompleteHistoryConformer<'_> {
+        CompleteHistoryConformer::new(FrontendSession::from_prepared(self.frontend, history))
+    }
+
+    pub(super) fn verify(
+        self,
+        history: &[u8],
+    ) -> Result<CompleteHistoryOutcome, CompleteHistoryError> {
+        self.bind(history).run(&mut IgnoreAcceptedHashes)
+    }
+
+    pub(super) fn verify_with_trace(
+        self,
+        history: &[u8],
+    ) -> Result<(CompleteHistoryOutcome, Vec<ContentHash>), CompleteHistoryError> {
+        let mut hashes = Vec::new();
+        let outcome = self
+            .bind(history)
+            .run(&mut CollectAcceptedHashes(&mut hashes))?;
+        Ok((outcome, hashes))
+    }
+}
+
 fn genesis_is_valid(pending: &PendingRecord<'_>, event_count: u64) -> bool {
     match (event_count, &pending.record().core().payload) {
         (
@@ -305,13 +333,14 @@ fn genesis_is_valid(pending: &PendingRecord<'_>, event_count: u64) -> bool {
     }
 }
 
-fn start_conformer<'input>(
+/// Select the profile and apply the complete external-key gate without
+/// acquiring, binding, or inspecting a history input.
+pub(super) fn prepare_complete_history(
     profile_identity: &str,
     external_key_text: &str,
-    history: &'input [u8],
-) -> Result<Result<CompleteHistoryConformer<'input>, PortableRejection>, CompleteHistoryError> {
-    match FrontendSession::new(profile_identity, external_key_text, history) {
-        Ok(session) => Ok(Ok(CompleteHistoryConformer::new(session))),
+) -> Result<Result<PreparedCompleteHistory, PortableRejection>, CompleteHistoryError> {
+    match PreparedVerifier::new(profile_identity, external_key_text) {
+        Ok(frontend) => Ok(Ok(PreparedCompleteHistory { frontend })),
         Err(FrontendStartError::Rejected(rejection)) => Ok(Err(rejection.into())),
         Err(FrontendStartError::UnsupportedProfile(error)) => {
             Err(CompleteHistoryError::UnsupportedProfile(error))
@@ -325,8 +354,8 @@ pub(crate) fn verify_complete_history(
     external_key_text: &str,
     history: &[u8],
 ) -> Result<CompleteHistoryOutcome, CompleteHistoryError> {
-    match start_conformer(profile_identity, external_key_text, history)? {
-        Ok(conformer) => conformer.run(&mut IgnoreAcceptedHashes),
+    match prepare_complete_history(profile_identity, external_key_text)? {
+        Ok(prepared) => prepared.verify(history),
         Err(rejection) => Ok(CompleteHistoryOutcome::Reject(rejection)),
     }
 }
@@ -337,12 +366,8 @@ pub(super) fn verify_complete_history_with_trace(
     external_key_text: &str,
     history: &[u8],
 ) -> Result<(CompleteHistoryOutcome, Vec<ContentHash>), CompleteHistoryError> {
-    match start_conformer(profile_identity, external_key_text, history)? {
-        Ok(conformer) => {
-            let mut hashes = Vec::new();
-            let outcome = conformer.run(&mut CollectAcceptedHashes(&mut hashes))?;
-            Ok((outcome, hashes))
-        }
+    match prepare_complete_history(profile_identity, external_key_text)? {
+        Ok(prepared) => prepared.verify_with_trace(history),
         Err(rejection) => Ok((CompleteHistoryOutcome::Reject(rejection), Vec::new())),
     }
 }

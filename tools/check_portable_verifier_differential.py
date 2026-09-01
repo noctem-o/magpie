@@ -2,11 +2,12 @@
 """Run the frozen portable-verifier corpus through three real conformers.
 
 The Python checker owns the frozen manifest commitment and complete input-byte
-preflight. This runner then obtains independent actual results from the Python
-conformer loaded in an isolated child process from the selected repository
-root, a directly built standalone Go binary from that root, and the
-crate-internal Rust conformer test exporter from that root. No expected result
-is supplied to any conformer while it is producing an actual result.
+preflight. This runner then obtains independent actual results from
+``tools/verify_chain.py`` loaded in an isolated child process from the selected
+repository root, a directly built standalone Go binary from that root, and the
+public exact-byte Rust ``FileStore`` path with crate-internal test observation
+from that root. No expected result is supplied to any conformer while it is
+producing an actual result.
 
 An ``ACCEPT`` here means only that the exact caller-supplied finite history
 passed the selected conformers.  This tool does not establish trust,
@@ -37,7 +38,7 @@ from tools import check_portable_verifier_python as python_checker  # noqa: E402
 
 MANIFEST_RELATIVE_PATH = Path("fixtures") / "verifier-language-v1" / "manifest.json"
 GO_MODULE_RELATIVE_PATH = Path("tools") / "go-verify-chain"
-PYTHON_CONFORMER_RELATIVE_PATH = Path("tools") / "portable_verifier.py"
+PYTHON_CONFORMER_RELATIVE_PATH = Path("tools") / "verify_chain.py"
 RUST_OUTPUT_ENVIRONMENT = "MAGPIE_PORTABLE_DIFFERENTIAL_OUTPUT"
 RUST_TEST_NAME = "export_complete_conformer_results_when_requested"
 SOURCE_NAMES = ("rust", "python", "go")
@@ -60,7 +61,7 @@ import sys
 module_path = Path(sys.argv[1]).resolve()
 if not module_path.is_file():
     raise RuntimeError(f"selected Python conformer is not a file: {module_path}")
-module_name = "_magpie_selected_portable_verifier"
+module_name = "_magpie_selected_verify_chain"
 spec = importlib.util.spec_from_file_location(module_name, module_path)
 if spec is None or spec.loader is None:
     raise RuntimeError(f"cannot load selected Python conformer: {module_path}")
@@ -474,7 +475,7 @@ def _run_rust_actuals(
     manifest_digest: str,
     cargo_executable: str,
 ) -> tuple[ObservedCase, ...]:
-    """Run the test-only Rust exporter and parse its JSON envelope."""
+    """Run the exact-byte Rust file-adapter exporter and parse its envelope."""
 
     with tempfile.TemporaryDirectory(prefix="magpie-portable-differential-") as directory:
         output_path = Path(directory) / "rust-results.json"

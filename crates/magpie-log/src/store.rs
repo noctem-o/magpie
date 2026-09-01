@@ -36,6 +36,16 @@ impl FileStore {
             path: path.as_ref().to_path_buf(),
         }
     }
+
+    /// Read one exact finite file image for the portable verification path.
+    ///
+    /// Unlike [`LogStore::read_records`], this retains every byte so framing,
+    /// blank records, and terminators remain visible to the portable frontend.
+    /// A missing path is an operational error. Only an existing zero-byte file
+    /// denotes the portable empty snapshot.
+    pub(crate) fn read_portable_input_bytes(&self) -> std::io::Result<Vec<u8>> {
+        std::fs::read(&self.path)
+    }
 }
 
 impl LogStore for FileStore {

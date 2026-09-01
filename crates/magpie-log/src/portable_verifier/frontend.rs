@@ -4,7 +4,7 @@ use crate::EventCore;
 use super::conformer::SemanticSuccess;
 use super::framing::{FrameCursor, FrameStep};
 use super::json_syntax;
-use super::preflight::{FrontendStartError, PreparedFrontend};
+use super::preflight::{FrontendStartError, PreparedFrontend, PreparedVerifier};
 use super::schema::{self, SchemaDecodeError};
 use super::{FrontendRejection, FrontendRejectionClass};
 
@@ -62,6 +62,11 @@ impl<'input> FrontendSession<'input> {
         let prepared = PreparedFrontend::new(profile_identity, external_key_text, history)?;
         let (verifier, cursor) = prepared.into_parts();
         Ok(Self { verifier, cursor })
+    }
+
+    pub(super) fn from_prepared(prepared: PreparedVerifier, history: &'input [u8]) -> Self {
+        let (verifier, cursor) = prepared.bind_history(history).into_parts();
+        Self { verifier, cursor }
     }
 
     pub(crate) fn next(self) -> Result<FrontendStep<'input>, FrontendOperationalError> {

@@ -1,10 +1,12 @@
 //! Crate-internal complete conformer for the frozen portable-verifier language.
 //!
-//! This module deliberately remains separate from the compatibility-only
-//! `LogReader` path. Its frontend owns exact input recognition through Schema;
-//! its conformer owns the six remaining history stages and complete outcome.
+//! The exact-byte [`crate::FileStore`] adapter is the narrow production/file
+//! surface for this language. It remains separate from compatibility-only
+//! `LogReader`; the frontend owns exact input recognition through Schema and
+//! the conformer owns the six remaining stages and complete outcome.
 
 mod conformer;
+mod file;
 mod framing;
 mod frontend;
 mod json_syntax;
