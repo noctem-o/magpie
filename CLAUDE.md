@@ -142,15 +142,12 @@ Freeze consequences:
 
 ## Queued work (keep current; update as things land)
 
-1. Portable conformance correction — complete the required Rust
-   production/file/public verification path and make `tools/verify_chain.py`
-   conform under the existing portable-input contract, then rerun the full
-   frozen differential and reconcile the findings.
-2. C3 — only if the advertised pre-alpha requires detachable governed output,
-   add the smallest coordinate-complete verification/replay result or receipt.
-3. C4 — harden the applicable public assurance boundary: pinned validation
+1. C3 decision — only if the advertised pre-alpha requires detachable governed
+   output, add the smallest coordinate-complete verification/replay result or
+   receipt; otherwise preserve the explicit exclusion.
+2. C4 — harden the applicable public assurance boundary: pinned validation
    inputs, platform evidence, and release-environment reproducibility.
-4. C5 — write the public pre-alpha release contract, freeze a candidate, and
+3. C5 — write the public pre-alpha release contract, freeze a candidate, and
    falsify it before an owner release decision.
 
 Keep general ingestion/CAS, `EpistemicGate`, governed ordinary agent writing,
@@ -158,35 +155,44 @@ contradiction/currentness runtime, ADR-0007 authority runtime, librarian,
 effectful MCP, production KMS, and ambient/Vesper agent work deferred unless a
 separate owner decision moves one into the release boundary.
 
-Landed on current `main`: a readable Python complete conformer separate from
-the compatibility verifier; a standalone Go complete conformer whose exactly
-authorized `filippo.io/edwards25519 v1.2.0` low-level primitive dependency is
-vendored and whose governed interface is a built executable; and one strict,
-selected-root-coherent three-way differential runner/CI path. It compares
-`verdict`, `class`, `line`, `record_index`, `event_count`, `tip`, and
-`ordered_recomputed_hashes` for the exact frozen 432 cases, with Python run in
-an isolated child process from that same selected root. These are landed
-conformance artifacts and bounded evidence, but they do not satisfy the
-contract-specific Rust production/file/public path and `tools/verify_chain.py`
-requirements by themselves. The evidence is not trust, authority, universal
+Landed on current `main`: PR #146's non-test public
+`FileStore::verify_portable_history` acquires exact file bytes once after the
+complete selected-profile/external-key gate and invokes the authoritative
+portable semantics without legacy `LogStore::read_records` splitting. Blank
+physical records and newline distinctions are preserved, missing files remain
+operational I/O failures, existing zero-byte files are the governed empty
+snapshot, and the complete result is computed internally from the same call;
+no public typed receipt/result was added. The independent Python reference is
+`tools/verify_chain.py` itself; it remains separate from the comparison-only
+`tools/portable_verifier.py`. The standalone Go conformer still uses only its
+authorized vendored `filippo.io/edwards25519 v1.2.0` dependency, and the
+selected-root differential compares `verdict`, `class`, `line`,
+`record_index`, `event_count`, `tip`, and `ordered_recomputed_hashes` for the
+exact frozen 432 cases with isolated Python execution and repeat-two stability.
+This is bounded selected-profile evidence, not trust, authority, universal
 verifier equivalence, release readiness, or a release decision.
 
-Administrative reconciliation: A-004 and RQ-006 remain Confirmed because the
-governing portable-input contract's Rust and Python path obligations are not
-yet met. A-021 remains Confirmed because those complete-conformance
-prerequisites are part of its closure chain. RQ-013 remains Partially
-remediated; and RQ-015 remains Confirmed under its controlled reproducibility
-disposition. Historical audit records and the dated pre-alpha candidate
-assessment remain untouched.
+Administrative reconciliation after owner-merged PR #146: A-004, RQ-006, and
+A-021 are Closed narrowly for the fixed portable language/profile after the
+contract-qualified Rust/Python/Go evidence, hostile review, hosted CI, owner
+merge, and separate ledger reconciliation. RQ-013 remains Partially
+remediated with A-018 exact-boundary, broader platform/resource/crash, and
+release/environment assurance scope open. RQ-015 remains Confirmed under its
+controlled reproducibility disposition; A-011 remains Partially remediated.
+Closure does not establish trust in the caller-supplied external key, key
+ownership, identity, delegation, authority, permission, freshness, latest head,
+canonical branch, anti-rollback, non-equivocation, global completeness,
+production durability, truth, cryptographic proof, or release approval.
+Historical audit records and the dated pre-alpha candidate assessment remain
+untouched.
 
 Landed: the complete crate-internal Rust portable-history conformer applies the
 six ordered post-schema stages through one crate-internal implementation path
 and produces the complete count/tip/hash trace used by all 432 frozen cases
-(PR #139, 2026-08-24).
-It remains a test-invoked crate-internal path rather than the contract-required
-Rust production/file/public verification path. `FileStore` still elides blank
-records, and this remains a caller-supplied finite-history check, not trust,
-authority, currentness, or global-completeness evidence.
+(PR #139, 2026-08-24). PR #146 now reaches that authoritative semantics from
+the real public file path; the crate-internal result boundary remains intact.
+This remains a caller-supplied finite-history check, not trust, authority,
+currentness, or global-completeness evidence.
 
 Landed: bounded non-normative Rust fuzz/metamorphic assurance over the complete
 crate-internal conformer, including focused hostile repairs (PR #140,
