@@ -5,8 +5,9 @@ The Python checker owns the frozen manifest commitment and complete input-byte
 preflight. This runner then obtains independent actual results from
 ``tools/verify_chain.py`` loaded in an isolated child process from the selected
 repository root, a directly built standalone Go binary from that root, and the
-crate-internal exact-byte Rust file adapter exporter from that root. No expected
-result is supplied to any conformer while it is producing an actual result.
+public exact-byte Rust ``FileStore`` path with crate-internal test observation
+from that root. No expected result is supplied to any conformer while it is
+producing an actual result.
 
 An ``ACCEPT`` here means only that the exact caller-supplied finite history
 passed the selected conformers.  This tool does not establish trust,

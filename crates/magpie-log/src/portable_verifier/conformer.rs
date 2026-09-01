@@ -170,10 +170,8 @@ impl AcceptedHashObserver for IgnoreAcceptedHashes {
     fn observe(&mut self, _hash: ContentHash) {}
 }
 
-#[cfg(test)]
 struct CollectAcceptedHashes<'trace>(&'trace mut Vec<ContentHash>);
 
-#[cfg(test)]
 impl AcceptedHashObserver for CollectAcceptedHashes<'_> {
     fn observe(&mut self, hash: ContentHash) {
         self.0.push(hash);
@@ -301,7 +299,6 @@ impl PreparedCompleteHistory {
         self.bind(history).run(&mut IgnoreAcceptedHashes)
     }
 
-    #[cfg(test)]
     pub(super) fn verify_with_trace(
         self,
         history: &[u8],

@@ -74,7 +74,7 @@ It includes:
 - an append-only hash-chained log with Ed25519 signatures
 - a readable independent `tools/verify_chain.py` reference conformer for the selected portable language and profile
 - an owner-approved, frozen 432-case exact-byte portable-verifier corpus
-- a crate-internal exact-byte `FileStore` adapter that drives all 432 frozen cases through the authoritative Rust portable-history conformer
+- a narrow public `FileStore` verification entry that preserves exact input bytes and drives the authoritative Rust portable-history conformer
 - the earlier independent Python complete conformer retained as comparison evidence
 - a standalone Go complete conformer with no Rust or Python verifier dependency; its exactly approved `filippo.io/edwards25519 v1.2.0` primitive dependency is vendored for offline builds
 - a three-way differential runner that compares every governed result field for all 432 frozen cases
@@ -419,7 +419,7 @@ They are not Magpie itself.
 - bounded local SQLite L0 persistence
 - explicit verified-prefix and checkpoint expectation semantics
 - an owner-approved, exact-byte portable-verifier corpus frozen under `magpie-portable-verifier-corpus-v1`
-- a crate-internal complete Rust conformer for the selected ADR-0010 profile and frozen portable-history language, green across all 432 cases
+- a crate-internal complete Rust conformer reached through the public exact-byte `FileStore` verification path for the selected ADR-0010 profile and frozen portable-history language, green across all 432 cases
 - independent complete Python and Go conformers for that same profile and language
 - exact Rust/Python/Go differential execution over every governed field in the frozen corpus
 - non-normative bounded Rust fuzz/metamorphic assurance over the production conformer path

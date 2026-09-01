@@ -100,10 +100,11 @@ mod event;
 mod hashing;
 mod history_expectation;
 mod logimpl;
-// The authoritative portable conformer and exact-byte FileStore adapter remain
-// crate-internal pending a later release-surface decision. Keep the suppression
-// limited to non-test reachability analysis; test builds must account for the
-// complete file path.
+// The authoritative portable conformer and its governed detail types remain
+// crate-internal. A narrow public FileStore method maps that exact-byte path to
+// a boolean verdict without exposing a portable result type or second grammar.
+// Keep the suppression limited to non-test reachability analysis; test builds
+// must account for the complete detailed file path.
 #[cfg_attr(not(test), allow(dead_code))]
 mod portable_verifier;
 mod sqlite_l0;

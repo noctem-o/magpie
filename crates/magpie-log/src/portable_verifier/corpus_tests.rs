@@ -9,7 +9,9 @@ use crate::{ContentHash, EventCore, FileStore, Payload, Provenance, SignedEvent,
 use super::conformer::{
     verify_complete_history, CompleteHistoryOutcome, PortableRejection, PortableRejectionClass,
 };
-use super::file::{verify_complete_file, verify_complete_file_with_trace, FileVerificationError};
+use super::file::{
+    take_public_file_trace, verify_complete_file, FileVerificationError, FileVerificationTrace,
+};
 use super::frontend::{FrontendSession, FrontendStep, PendingRecord};
 use super::preflight::FrontendStartError;
 use super::{FrontendRejection, FrontendRejectionClass};
@@ -91,17 +93,74 @@ fn read_case_input(root: &Path, case: &Value) -> Vec<u8> {
     input
 }
 
+fn assert_same_file_image(
+    case_id: &str,
+    manifest_image: &[u8],
+    outcome: &CompleteHistoryOutcome,
+    acquired_image: Option<&[u8]>,
+) {
+    match (outcome, acquired_image) {
+        (CompleteHistoryOutcome::Reject(rejection), None)
+            if rejection.class() == PortableRejectionClass::ExternalKey => {}
+        (CompleteHistoryOutcome::Reject(rejection), Some(_))
+            if rejection.class() == PortableRejectionClass::ExternalKey =>
+        {
+            panic!("{case_id}: external-key rejection acquired the history")
+        }
+        (_, Some(acquired_image)) => assert_eq!(
+            acquired_image, manifest_image,
+            "{case_id}: verified file image differed from manifest-committed bytes"
+        ),
+        (_, None) => panic!("{case_id}: non-key outcome did not acquire the history"),
+    }
+}
+
+fn verify_public_path_with_trace(
+    case_id: &str,
+    store: &FileStore,
+    external_key_text: &str,
+) -> FileVerificationTrace {
+    let accepted = store
+        .verify_portable_history(external_key_text)
+        .unwrap_or_else(|error| panic!("{case_id}: public path operational failure: {error}"));
+    let trace = take_public_file_trace()
+        .unwrap_or_else(|| panic!("{case_id}: public path produced no test observation"));
+    assert_eq!(
+        accepted,
+        matches!(trace.outcome, CompleteHistoryOutcome::Accept(_)),
+        "{case_id}: public file path verdict differed from governed outcome"
+    );
+    trace
+}
+
 fn assert_complete_case(root: &Path, case: &Value) -> Option<PortableRejectionClass> {
     let case_id = required_str(case, "id");
     let expected = &case["expected"];
-    let _input_hash_preflight = read_case_input(root, case);
+    // This is harness-only oracle preflight. The public verifier call does not
+    // receive these bytes and completes its key gate before acquiring its own
+    // FileStore image.
+    let input_hash_preflight = read_case_input(root, case);
     let store = FileStore::new(root.join(required_str(case, "input_path")));
-    let (outcome, observed_hashes) = verify_complete_file_with_trace(
+    let FileVerificationTrace {
+        outcome,
+        hashes: observed_hashes,
+        acquired_image,
+    } = verify_public_path_with_trace(
+        case_id,
         &store,
-        V_SIG_PROFILE_ID,
         required_str(case, "external_verifying_key_hex"),
-    )
-    .unwrap_or_else(|error| panic!("{case_id}: operational failure: {error:?}"));
+    );
+    assert_same_file_image(
+        case_id,
+        &input_hash_preflight,
+        &outcome,
+        acquired_image.as_deref(),
+    );
+    assert_eq!(
+        read_case_input(root, case),
+        input_hash_preflight,
+        "{case_id}: case bytes changed while exercising the public file path"
+    );
 
     match (required_str(expected, "verdict"), outcome) {
         ("ACCEPT", CompleteHistoryOutcome::Accept(accepted)) => {
@@ -421,7 +480,7 @@ fn frozen_complete_conformer_corpus_matches_all_432_cases() {
 }
 
 /// Export actual production-conformer results for the external differential
-/// harness without adding a public portable-verifier API to `magpie-log`.
+/// harness without adding a public portable-result type to `magpie-log`.
 ///
 /// Ordinary test runs do no I/O. The harness supplies an explicit output path
 /// through `MAGPIE_PORTABLE_DIFFERENTIAL_OUTPUT` and invokes only this exact
@@ -451,14 +510,30 @@ fn export_complete_conformer_results_when_requested() {
     let mut results = Vec::new();
     for case in manifest["cases"].as_array().unwrap() {
         let case_id = required_str(case, "id");
-        let _input_hash_preflight = read_case_input(&root, case);
+        // Harness-only oracle preflight; the public file path retains its own
+        // key-before-acquisition ordering.
+        let input_hash_preflight = read_case_input(&root, case);
         let store = FileStore::new(root.join(required_str(case, "input_path")));
-        let (outcome, hashes) = verify_complete_file_with_trace(
+        let FileVerificationTrace {
+            outcome,
+            hashes,
+            acquired_image,
+        } = verify_public_path_with_trace(
+            case_id,
             &store,
-            V_SIG_PROFILE_ID,
             required_str(case, "external_verifying_key_hex"),
-        )
-        .unwrap_or_else(|error| panic!("{case_id}: operational failure: {error:?}"));
+        );
+        assert_same_file_image(
+            case_id,
+            &input_hash_preflight,
+            &outcome,
+            acquired_image.as_deref(),
+        );
+        assert_eq!(
+            read_case_input(&root, case),
+            input_hash_preflight,
+            "{case_id}: case bytes changed while exercising the public file path"
+        );
 
         let observed = match outcome {
             CompleteHistoryOutcome::Accept(accepted) => serde_json::json!({
@@ -511,13 +586,12 @@ fn file_adapter_preserves_framing_schema_and_raw_token_distinctions() {
 #[test]
 fn file_adapter_finishes_external_key_gate_before_file_acquisition() {
     let unreadable_as_history = FileStore::new(repository_root());
-    let outcome = verify_complete_file(
+    let trace = verify_complete_file(
         &unreadable_as_history,
-        V_SIG_PROFILE_ID,
         "0100000000000000000000000000000000000000000000000000000000000000",
     )
     .unwrap();
-    match outcome {
+    match trace.outcome {
         CompleteHistoryOutcome::Reject(rejection) => {
             assert_eq!(rejection.class(), PortableRejectionClass::ExternalKey);
             assert_eq!(rejection.line(), None);
@@ -529,7 +603,6 @@ fn file_adapter_finishes_external_key_gate_before_file_acquisition() {
     assert!(matches!(
         verify_complete_file(
             &unreadable_as_history,
-            V_SIG_PROFILE_ID,
             "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
         ),
         Err(FileVerificationError::Read(_))
