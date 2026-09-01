@@ -103,11 +103,13 @@ The smallest claim worth testing is:
 > reproduce governed results only within explicitly identified producing
 > inputs.
 
-This is not yet a release claim. In particular, current evidence does not
-establish that all portable conformers agree. Success also does not establish
-key ownership or trust, checkpoint freshness, latest state, a canonical branch,
-global completeness, absence of an unseen suffix or fork, non-equivocation,
-truth, authority, currentness, standing as truth, or permission to act.
+This is not yet a release claim. The current #146 evidence establishes bounded
+agreement only for the exact frozen corpus/profile among the qualified
+Rust/Python/Go paths; it does not establish agreement outside that corpus or
+universal verifier equivalence. Success also does not establish key ownership
+or trust, checkpoint freshness, latest state, a canonical branch, global
+completeness, absence of an unseen suffix or fork, non-equivocation, truth,
+authority, currentness, standing as truth, or permission to act.
 
 ## C0 — constitutional convergence
 

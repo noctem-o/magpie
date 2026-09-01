@@ -466,9 +466,11 @@ disposition is recorded in the post-#146 subsection immediately below.
   `FileStore::verify_portable_history`. Its complete selected-profile/external-
   key gate runs before file acquisition/framing; an existing file is acquired
   as exact bytes once, so blank physical records and newline distinctions reach
-  the authoritative portable parser unchanged. A missing file remains an
-  operational I/O error, while an existing zero-byte file is the governed empty
-  snapshot. The method does not use legacy `LogStore::read_records` splitting,
+  the authoritative portable parser unchanged. After successful key preflight,
+  a missing file remains an operational I/O error; an inadmissible key yields a
+  governed rejection before acquisition, while an existing zero-byte file is
+  the governed empty snapshot. The method does not use legacy
+  `LogStore::read_records` splitting,
   and the complete governed result is computed internally from the same call;
   ordered hashes and acquired-image binding remain test/conformance
   observations rather than a new public detachable result.

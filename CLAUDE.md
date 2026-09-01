@@ -159,9 +159,11 @@ Landed on current `main`: PR #146's non-test public
 `FileStore::verify_portable_history` acquires exact file bytes once after the
 complete selected-profile/external-key gate and invokes the authoritative
 portable semantics without legacy `LogStore::read_records` splitting. Blank
-physical records and newline distinctions are preserved, missing files remain
-operational I/O failures, existing zero-byte files are the governed empty
-snapshot, and the complete result is computed internally from the same call;
+physical records and newline distinctions are preserved. After successful key
+preflight, missing files remain operational I/O failures; an inadmissible key
+returns governed rejection before acquisition, and an existing zero-byte file
+is the governed empty snapshot. The complete result is computed internally
+from the same call;
 no public typed receipt/result was added. The independent Python reference is
 `tools/verify_chain.py` itself; it remains separate from the comparison-only
 `tools/portable_verifier.py`. The standalone Go conformer still uses only its
