@@ -25,6 +25,30 @@ FROZEN_CORPUS_MANIFEST_SHA256 = (
     "7d758d3f2dac1161fe15dd064b130ccbfcdaf0437ea8ab8d7772492194801a81"
 )
 TREE_IDENTITY_PROFILE = "magpie-validation-tree-sha256-v1"
+GITHUB_ACTIONS_REQUIRED_COORDINATES = (
+    "GITHUB_EVENT_NAME",
+    "GITHUB_JOB",
+    "GITHUB_REF",
+    "GITHUB_RUN_ATTEMPT",
+    "GITHUB_RUN_ID",
+    "GITHUB_SHA",
+    "GITHUB_WORKFLOW",
+    "GITHUB_WORKFLOW_REF",
+    "ImageOS",
+    "ImageVersion",
+    "MAGPIE_CANDIDATE_SHA",
+    "MAGPIE_RUNNER_LABEL",
+    "MAGPIE_WORKFLOW_SHA",
+    "RUNNER_ARCH",
+    "RUNNER_ENVIRONMENT",
+    "RUNNER_NAME",
+    "RUNNER_OS",
+)
+PULL_REQUEST_REQUIRED_COORDINATES = ("GITHUB_BASE_REF", "GITHUB_HEAD_REF")
+
+
+class ValidationEnvironmentError(RuntimeError):
+    """The hosted assurance environment cannot produce a complete record."""
 
 
 def _sha256_bytes(value: bytes) -> str:
@@ -107,11 +131,41 @@ def _input_identity(relative_path: str) -> dict[str, str]:
     return {"path": relative_path, "sha256": _sha256_file(path)}
 
 
+def _validate_github_actions_environment(environment: Mapping[str, str]) -> str | None:
+    if environment.get("GITHUB_ACTIONS") != "true":
+        return None
+
+    event_name = environment.get("GITHUB_EVENT_NAME")
+    required = list(GITHUB_ACTIONS_REQUIRED_COORDINATES)
+    if event_name is not None and event_name.strip() == "pull_request":
+        required.extend(PULL_REQUEST_REQUIRED_COORDINATES)
+
+    missing = sorted(
+        name
+        for name in required
+        if name not in environment or not environment[name].strip()
+    )
+    if missing:
+        raise ValidationEnvironmentError(
+            "missing required GitHub Actions validation provenance coordinates: "
+            + ", ".join(missing)
+        )
+
+    event_name = environment["GITHUB_EVENT_NAME"].strip()
+    if event_name not in {"pull_request", "push"}:
+        raise ValidationEnvironmentError(
+            "unsupported GitHub Actions event for validation provenance: "
+            + event_name
+        )
+    return event_name
+
+
 def collect_environment(
     environ: Mapping[str, str] | None = None,
     command_output: Callable[[Sequence[str]], str] = _command_output,
 ) -> dict[str, object]:
     environment = os.environ if environ is None else environ
+    _validate_github_actions_environment(environment)
     manifest = _input_identity("fixtures/verifier-language-v1/manifest.json")
     if manifest["sha256"] != FROZEN_CORPUS_MANIFEST_SHA256:
         raise RuntimeError(
@@ -199,7 +253,11 @@ def canonical_record(record: Mapping[str, object]) -> bytes:
 
 
 def main() -> int:
-    serialized = canonical_record(collect_environment())
+    try:
+        serialized = canonical_record(collect_environment())
+    except ValidationEnvironmentError as error:
+        print(f"validation environment error: {error}", file=sys.stderr)
+        return 2
     print("validation-environment-json=" + serialized.decode("ascii"))
     print("validation-environment-sha256=" + _sha256_bytes(serialized))
     return 0
