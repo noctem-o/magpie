@@ -2,35 +2,40 @@
 //!
 //! Origin-binding receipts cannot be constructed with struct literals:
 //!
-//! ```compile_fail
+//! ```compile_fail,E0451
 //! use magpie_claims::OriginBindingReceiptV0;
-//! let _receipt = OriginBindingReceiptV0 { verifier_profile: String::new() };
+//! fn replace_private_profile(receipt: OriginBindingReceiptV0) {
+//!     let _ = OriginBindingReceiptV0 {
+//!         verifier_profile: String::new(),
+//!         ..receipt
+//!     };
+//! }
 //! ```
 //!
 //! Origin-binding receipts cannot be deserialized:
 //!
-//! ```compile_fail
+//! ```compile_fail,E0277
 //! use magpie_claims::OriginBindingReceiptV0;
 //! let _: OriginBindingReceiptV0 = serde_json::from_str("{}").unwrap();
 //! ```
 //!
 //! Contribution identities cannot be deserialized:
 //!
-//! ```compile_fail
+//! ```compile_fail,E0277
 //! use magpie_claims::ContributionIdentityV0;
 //! let _: ContributionIdentityV0 = serde_json::from_str("{}").unwrap();
 //! ```
 //!
 //! Comparison namespaces cannot be deserialized:
 //!
-//! ```compile_fail
+//! ```compile_fail,E0277
 //! use magpie_claims::OriginComparisonNamespaceV0;
 //! let _: OriginComparisonNamespaceV0 = serde_json::from_str("{}").unwrap();
 //! ```
 //!
 //! A standalone `StandingView` has no origin-binding resolver:
 //!
-//! ```compile_fail
+//! ```compile_fail,E0599
 //! use magpie_claims::{
 //!     ArtifactProvenanceAnchorSelectorV0, ResolutionContentClosureV0, StandingView,
 //! };
@@ -40,33 +45,34 @@
 //! let _ = view.resolve_origin_binding_context_v0(&selector, &closure);
 //! ```
 //!
-//! No free public resolver accepts a caller-created anchor index:
+//! A caller-created anchor index cannot substitute for the replay-derived selector:
 //!
-//! ```compile_fail
+//! ```compile_fail,E0308
 //! use magpie_claims::{
-//!     resolve_origin_binding_context_v0, ArtifactProvenanceAnchorSelectorV0,
-//!     DeadboltAnchorIndex, ResolutionContentClosureV0,
+//!     DeadboltAnchorIndex, ResolutionContentClosureV0, StandingReplaySnapshot,
 //! };
-//! let anchors = DeadboltAnchorIndex::new();
-//! let selector = ArtifactProvenanceAnchorSelectorV0::new("", "", "", "", "");
-//! let closure = ResolutionContentClosureV0::construct(&[], &[]).unwrap();
-//! let _ = resolve_origin_binding_context_v0(&anchors, &selector, &closure);
+//! fn substitute(
+//!     snapshot: &StandingReplaySnapshot,
+//!     anchors: &DeadboltAnchorIndex,
+//!     closure: &ResolutionContentClosureV0,
+//! ) {
+//!     let _ = snapshot.resolve_origin_binding_context_v0(anchors, closure);
+//! }
 //! ```
 //!
-//! Serialized or cloned receipt material is not accepted as resolver authority:
+//! Cloned receipt material is not accepted as resolver authority:
 //!
-//! ```compile_fail
+//! ```compile_fail,E0308
 //! use magpie_claims::{
 //!     ArtifactProvenanceAnchorSelectorV0, OriginBindingReceiptV0,
-//!     ResolutionContentClosureV0, StandingReplaySnapshot,
+//!     StandingReplaySnapshot,
 //! };
 //! fn substitute(
 //!     snapshot: &StandingReplaySnapshot,
 //!     selector: &ArtifactProvenanceAnchorSelectorV0,
-//!     closure: &ResolutionContentClosureV0,
 //!     receipt: OriginBindingReceiptV0,
 //! ) {
-//!     let _ = snapshot.resolve_origin_binding_context_v0(selector, closure, receipt);
+//!     let _ = snapshot.resolve_origin_binding_context_v0(selector, &receipt);
 //! }
 //! ```
 
