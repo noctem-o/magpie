@@ -52,8 +52,8 @@ class ValidationEnvironmentTests(unittest.TestCase):
             ("go", "env", "GOARCH"): "amd64",
             ("go", "env", "GOOS"): "linux",
             ("go", "version"): "go version go1.27.0 linux/amd64",
-            ("cargo", "--version"): "cargo 1.98.0",
-            ("rustc", "-Vv"): "rustc 1.98.0",
+            ("cargo", "--version"): "cargo 1.98.1",
+            ("rustc", "-Vv"): "rustc 1.98.1",
         }
         if command_tuple[-3:] == ("-m", "pip", "--version"):
             return "pip test"
