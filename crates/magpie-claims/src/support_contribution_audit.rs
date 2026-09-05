@@ -24,154 +24,157 @@
 //!
 //! Support contributions cannot be constructed with struct literals:
 //!
-//! ```compile_fail
+//! ```compile_fail,E0451
 //! use magpie_claims::SupportContributionV0;
-//! let _contribution = SupportContributionV0 {};
+//! fn replace_private_policy(contribution: SupportContributionV0) {
+//!     let _ = SupportContributionV0 {
+//!         policy_id: String::new(),
+//!         ..contribution
+//!     };
+//! }
 //! ```
 //!
 //! Support audits cannot be constructed with struct literals:
 //!
-//! ```compile_fail
+//! ```compile_fail,E0451
 //! use magpie_claims::SupportContributionAuditV0;
-//! let _audit = SupportContributionAuditV0 {};
+//! fn replace_private_policy(audit: SupportContributionAuditV0) {
+//!     let _ = SupportContributionAuditV0 {
+//!         policy_id: String::new(),
+//!         ..audit
+//!     };
+//! }
 //! ```
 //!
 //! Completion values cannot be deserialized:
 //!
-//! ```compile_fail
+//! ```compile_fail,E0277
 //! use magpie_claims::SupportContributionAuditCompletionV0;
 //! let _: SupportContributionAuditCompletionV0 = serde_json::from_str("{}").unwrap();
 //! ```
 //!
 //! Composition failures cannot be deserialized:
 //!
-//! ```compile_fail
+//! ```compile_fail,E0277
 //! use magpie_claims::SupportContributionCompositionFailureV0;
 //! let _: SupportContributionCompositionFailureV0 = serde_json::from_str("{}").unwrap();
 //! ```
 //!
 //! Invariant reasons cannot be deserialized:
 //!
-//! ```compile_fail
+//! ```compile_fail,E0277
 //! use magpie_claims::SupportContributionInvariantReasonV0;
 //! let _: SupportContributionInvariantReasonV0 = serde_json::from_str("{}").unwrap();
 //! ```
 //!
 //! Support contributions cannot be deserialized:
 //!
-//! ```compile_fail
+//! ```compile_fail,E0277
 //! use magpie_claims::SupportContributionV0;
 //! let _: SupportContributionV0 = serde_json::from_str("{}").unwrap();
 //! ```
 //!
 //! Support audits cannot be deserialized:
 //!
-//! ```compile_fail
+//! ```compile_fail,E0277
 //! use magpie_claims::SupportContributionAuditV0;
 //! let _: SupportContributionAuditV0 = serde_json::from_str("{}").unwrap();
 //! ```
 //!
 //! No resolver accepts a caller-created admitted audit:
 //!
-//! ```compile_fail
+//! ```compile_fail,E0308
 //! use magpie_claims::{
 //!     AdmittedContributionAuditV0, OriginAdmissionReplayContextV0,
-//!     ResolutionContentClosureV0,
 //! };
 //! fn resolve(
 //!     context: &OriginAdmissionReplayContextV0,
-//!     closure: &ResolutionContentClosureV0,
 //!     audit: AdmittedContributionAuditV0,
 //! ) {
-//!     let _ = context.resolve_support_contribution_audit_v0(closure, audit);
+//!     let _ = context.resolve_support_contribution_audit_v0(&audit);
 //! }
 //! ```
 //!
 //! No resolver accepts a caller-created admitted-contribution list:
 //!
-//! ```compile_fail
+//! ```compile_fail,E0308
 //! use magpie_claims::{
 //!     AdmittedContributionV0, OriginAdmissionReplayContextV0,
-//!     ResolutionContentClosureV0,
 //! };
 //! fn resolve(
 //!     context: &OriginAdmissionReplayContextV0,
-//!     closure: &ResolutionContentClosureV0,
 //!     admitted: Vec<AdmittedContributionV0>,
 //! ) {
-//!     let _ = context.resolve_support_contribution_audit_v0(closure, admitted);
+//!     let _ = context.resolve_support_contribution_audit_v0(&admitted);
 //! }
 //! ```
 //!
 //! No resolver accepts a caller-selected claim ID:
 //!
-//! ```compile_fail
-//! use magpie_claims::{
-//!     OriginAdmissionReplayContextV0, ResolutionContentClosureV0,
-//! };
+//! ```compile_fail,E0308
+//! use magpie_claims::OriginAdmissionReplayContextV0;
 //! fn resolve(
 //!     context: &OriginAdmissionReplayContextV0,
-//!     closure: &ResolutionContentClosureV0,
 //!     claim_id: &str,
 //! ) {
-//!     let _ = context.resolve_support_contribution_audit_v0(closure, claim_id);
+//!     let _ = context.resolve_support_contribution_audit_v0(claim_id);
 //! }
 //! ```
 //!
 //! No resolver accepts a caller-selected origin group:
 //!
-//! ```compile_fail
-//! use magpie_claims::{
-//!     OriginAdmissionReplayContextV0, ResolutionContentClosureV0,
-//! };
+//! ```compile_fail,E0308
+//! use magpie_claims::OriginAdmissionReplayContextV0;
 //! fn resolve(
 //!     context: &OriginAdmissionReplayContextV0,
-//!     closure: &ResolutionContentClosureV0,
 //!     origin_group: &str,
 //! ) {
-//!     let _ = context.resolve_support_contribution_audit_v0(closure, origin_group);
+//!     let _ = context.resolve_support_contribution_audit_v0(origin_group);
 //! }
 //! ```
 //!
 //! No resolver accepts a caller-selected policy ID:
 //!
-//! ```compile_fail
-//! use magpie_claims::{
-//!     OriginAdmissionReplayContextV0, ResolutionContentClosureV0,
-//! };
+//! ```compile_fail,E0308
+//! use magpie_claims::OriginAdmissionReplayContextV0;
 //! fn resolve(
 //!     context: &OriginAdmissionReplayContextV0,
-//!     closure: &ResolutionContentClosureV0,
 //!     policy_id: &str,
 //! ) {
-//!     let _ = context.resolve_support_contribution_audit_v0(closure, policy_id);
+//!     let _ = context.resolve_support_contribution_audit_v0(policy_id);
 //! }
 //! ```
 //!
-//! Serialized or cloned audit output cannot substitute for replay authority:
+//! Serialized audit bytes cannot substitute for replay authority:
 //!
-//! ```compile_fail
+//! ```compile_fail,E0308
 //! use magpie_claims::{
-//!     OriginAdmissionReplayContextV0, ResolutionContentClosureV0,
-//!     SupportContributionAuditV0,
+//!     OriginAdmissionReplayContextV0, SupportContributionAuditV0,
 //! };
 //! fn resolve(
 //!     context: &OriginAdmissionReplayContextV0,
-//!     closure: &ResolutionContentClosureV0,
 //!     audit: SupportContributionAuditV0,
 //! ) {
 //!     let bytes = audit.canonical_bytes();
-//!     let _ = context.resolve_support_contribution_audit_v0(
-//!         closure,
-//!         audit.clone(),
-//!         bytes,
-//!     );
+//!     let _ = context.resolve_support_contribution_audit_v0(&bytes);
+//! }
+//! ```
+//!
+//! Cloned audit output cannot substitute for replay authority:
+//!
+//! ```compile_fail,E0308
+//! use magpie_claims::{OriginAdmissionReplayContextV0, SupportContributionAuditV0};
+//! fn resolve(
+//!     context: &OriginAdmissionReplayContextV0,
+//!     audit: SupportContributionAuditV0,
+//! ) {
+//!     let _ = context.resolve_support_contribution_audit_v0(&audit.clone());
 //! }
 //! ```
 //!
 //! A standalone standing view has no support-contribution resolver:
 //!
-//! ```compile_fail
+//! ```compile_fail,E0599
 //! use magpie_claims::{ResolutionContentClosureV0, StandingView};
 //! fn resolve(view: &StandingView, closure: &ResolutionContentClosureV0) {
 //!     let _ = view.resolve_support_contribution_audit_v0(closure);
@@ -181,7 +184,7 @@
 //! A standalone standing replay snapshot has no complete support-contribution
 //! resolver:
 //!
-//! ```compile_fail
+//! ```compile_fail,E0599
 //! use magpie_claims::{
 //!     ResolutionContentClosureV0, StandingReplaySnapshot,
 //! };
