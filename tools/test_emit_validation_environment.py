@@ -9,6 +9,7 @@ import io
 import json
 import os
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -54,12 +55,13 @@ class ValidationEnvironmentTests(unittest.TestCase):
             ("go", "version"): "go version go1.27.0 linux/amd64",
             ("cargo", "--version"): "cargo 1.98.1",
             ("rustc", "-Vv"): "rustc 1.98.1",
+            (sys.executable, "--version"): "Python 3.12.14",
+            (sys.executable, "-m", "pip", "--version"): "pip test",
         }
-        if command_tuple[-3:] == ("-m", "pip", "--version"):
-            return "pip test"
-        if command_tuple[-1:] == ("--version",):
-            return "Python 3.12.14"
-        return outputs[command_tuple]
+        try:
+            return outputs[command_tuple]
+        except KeyError as exc:
+            raise AssertionError(f"unexpected mocked command: {command_tuple!r}") from exc
 
     def test_canonical_record_has_stable_key_order_and_digest(self) -> None:
         first = provenance.canonical_record({"z": 1, "a": {"y": 2, "b": 3}})
@@ -101,12 +103,44 @@ class ValidationEnvironmentTests(unittest.TestCase):
         self.assertEqual(source["github_base_ref"], "main")
         self.assertEqual(record["runner"]["selected_label"], "ubuntu-24.04")
         self.assertEqual(
+            record["toolchains"]["rust"]["cargo_version"],
+            "cargo 1.98.1",
+        )
+        self.assertEqual(
+            record["toolchains"]["rust"]["rustc_verbose_version"],
+            "rustc 1.98.1",
+        )
+        self.assertEqual(
+            record["toolchains"]["python"]["version_output"],
+            "Python 3.12.14",
+        )
+        self.assertNotEqual(
+            record["toolchains"]["rust"]["cargo_version"],
+            record["toolchains"]["python"]["version_output"],
+        )
+        self.assertEqual(
             record["governed_inputs"]["frozen_portable_corpus_manifest"][
                 "sha256"
             ],
             provenance.FROZEN_CORPUS_MANIFEST_SHA256,
         )
         json.loads(provenance.canonical_record(record))
+
+    def test_command_output_dispatch_is_exact(self) -> None:
+        self.assertEqual(
+            self._command_output([sys.executable, "--version"]),
+            "Python 3.12.14",
+        )
+        self.assertEqual(
+            self._command_output([sys.executable, "-m", "pip", "--version"]),
+            "pip test",
+        )
+        self.assertEqual(
+            self._command_output(["cargo", "--version"]),
+            "cargo 1.98.1",
+        )
+        with self.assertRaisesRegex(AssertionError, "unexpected mocked command"):
+            self._command_output(["unknown-tool", "--version"])
 
     def test_missing_required_github_coordinate_fails_without_record_output(self) -> None:
         environment = self._github_environment("pull_request")
