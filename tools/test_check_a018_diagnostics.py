@@ -240,18 +240,70 @@ class ExtractionTests(unittest.TestCase):
                 self.assertEqual(len(witnesses), 1)
                 self.assertEqual(witnesses[0].snippet, "let _ = 1;\n")
 
+    def test_long_backtick_fences_are_extracted_at_each_valid_indentation(self) -> None:
+        for indentation in range(4):
+            for delimiter_length in (3, 4, 5, 8):
+                with self.subTest(
+                    indentation=indentation, delimiter_length=delimiter_length
+                ):
+                    raw_indent = " " * (indentation + 1)
+                    fence = "`" * delimiter_length
+                    source = (
+                        f"//!{raw_indent}{fence}compile_fail,E0308\n"
+                        f"//!{raw_indent}let _ = 1;\n"
+                        f"//!{raw_indent}{fence}\n"
+                    )
+                    witnesses = checker.extract_witnesses("synthetic.rs", source)
+                    self.assertEqual(len(witnesses), 1)
+                    self.assertEqual(witnesses[0].snippet, "let _ = 1;\n")
+
+    def test_longer_closing_fence_is_compatible(self) -> None:
+        source = (
+            "//! ````compile_fail,E0308\n"
+            "//! ```\n"
+            "//! let _ = 1;\n"
+            "//! `````\n"
+        )
+        witnesses = checker.extract_witnesses("synthetic.rs", source)
+        self.assertEqual(len(witnesses), 1)
+        self.assertEqual(witnesses[0].snippet, "```\nlet _ = 1;\n")
+
+    def test_shorter_fences_do_not_close_longer_opening(self) -> None:
+        source = (
+            "//! `````compile_fail,E0308\n"
+            "//! ```\n"
+            "//! ````\n"
+            "//! let _ = 1;\n"
+            "//! ``````\n"
+        )
+        witnesses = checker.extract_witnesses("synthetic.rs", source)
+        self.assertEqual(len(witnesses), 1)
+        self.assertEqual(witnesses[0].snippet, "```\n````\nlet _ = 1;\n")
+
     def test_four_space_fence_is_not_a_rustdoc_fence(self) -> None:
-        source = "//!     ```compile_fail,E0308\n//!     let _ = 1;\n//!     ```\n"
-        self.assertEqual(checker.extract_witnesses("synthetic.rs", source), [])
+        for delimiter_length in (3, 4, 8):
+            with self.subTest(delimiter_length=delimiter_length):
+                fence = "`" * delimiter_length
+                source = (
+                    f"//!     {fence}compile_fail,E0308\n"
+                    f"//!     let _ = 1;\n"
+                    f"//!     {fence}\n"
+                )
+                self.assertEqual(checker.extract_witnesses("synthetic.rs", source), [])
 
     def test_indented_opening_and_closing_fences_are_extracted(self) -> None:
-        source = "//!   ```compile_fail,E0308\n//!   let _ = 1;\n//!  ```\n"
+        source = "//!   ````compile_fail,E0308\n//!   let _ = 1;\n//! `````\n"
         witnesses = checker.extract_witnesses("synthetic.rs", source)
         self.assertEqual(len(witnesses), 1)
         self.assertEqual(witnesses[0].diagnostic, "E0308")
 
     def test_indented_unclassified_compile_fail_fence_is_rejected(self) -> None:
         source = "//!   ```compile_fail\n//!   let _ = 1;\n//!   ```\n"
+        with self.assertRaisesRegex(checker.A018CheckError, "must name"):
+            checker.extract_witnesses("synthetic.rs", source)
+
+    def test_indented_unclassified_long_fence_is_rejected(self) -> None:
+        source = "//!   ````compile_fail\n//!   let _ = 1;\n//!   ````\n"
         with self.assertRaisesRegex(checker.A018CheckError, "must name"):
             checker.extract_witnesses("synthetic.rs", source)
 
@@ -269,6 +321,30 @@ class ExtractionTests(unittest.TestCase):
         ]
         with self.assertRaisesRegex(checker.A018CheckError, "unexpected"):
             checker.compare_source_inventory(extracted, source_inventory)
+
+    def test_new_long_fence_causes_inventory_drift(self) -> None:
+        source_name = checker.GOVERNED_SOURCES[0]
+        source_text = (checker.ROOT / source_name).read_text(encoding="utf-8")
+        source_text += (
+            "\n//! ````compile_fail,E0308\n"
+            "//! let _ = 1;\n"
+            "//! ````\n"
+        )
+        extracted = checker.extract_witnesses(source_name, source_text)
+        source_inventory = [
+            witness for witness in self._inventory() if witness.source == source_name
+        ]
+        with self.assertRaisesRegex(checker.A018CheckError, "unexpected"):
+            checker.compare_source_inventory(extracted, source_inventory)
+
+    def test_missing_compatible_long_fence_is_rejected(self) -> None:
+        source = (
+            "//! ````compile_fail,E0308\n"
+            "//! let _ = 1;\n"
+            "//! ```\n"
+        )
+        with self.assertRaisesRegex(checker.A018CheckError, "no closing fence"):
+            checker.extract_witnesses("synthetic.rs", source)
 
     def test_missing_governed_fence_causes_inventory_drift(self) -> None:
         source_name = checker.GOVERNED_SOURCES[0]

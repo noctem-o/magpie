@@ -48,10 +48,13 @@ EXPECTED_OCCURRENCE_COUNTS = {
 }
 
 COMPILE_FAIL_FENCE = re.compile(
-    r"^(?P<indent> {0,3})```compile_fail,(?P<code>E\d{4})\s*$"
+    r"^(?P<indent> {0,3})(?P<delimiter>`{3,})compile_fail,"
+    r"(?P<code>E\d{4})[ \t]*$"
 )
-ANY_COMPILE_FAIL_FENCE = re.compile(r"^ {0,3}```compile_fail(?:,.*)?\s*$")
-CLOSE_FENCE = re.compile(r"^ {0,3}```\s*$")
+ANY_COMPILE_FAIL_FENCE = re.compile(
+    r"^(?P<indent> {0,3})(?P<delimiter>`{3,})compile_fail(?:,.*)?[ \t]*$"
+)
+CLOSE_FENCE = re.compile(r"^(?P<indent> {0,3})(?P<delimiter>`{3,})[ \t]*$")
 RUST_ERROR_CODE = re.compile(r"^E\d{4}$")
 SNIPPET_WRAPPER_PREFIX_LINES = 1
 
@@ -72,6 +75,17 @@ class ExtractedWitness:
     @property
     def key(self) -> tuple[str, int]:
         return self.source, self.ordinal
+
+
+@dataclass(frozen=True)
+class FenceOpening:
+    indent: int
+    delimiter: str
+    diagnostic: str
+
+    @property
+    def delimiter_length(self) -> int:
+        return len(self.delimiter)
 
 
 @dataclass(frozen=True)
@@ -129,6 +143,33 @@ def _remove_markdown_indent(text: str, indent: int) -> str:
     return text[min(indent, leading_spaces) :]
 
 
+def _parse_opening_fence(
+    text: str, source: str, line_number: int
+) -> FenceOpening | None:
+    any_match = ANY_COMPILE_FAIL_FENCE.fullmatch(text)
+    if any_match is None:
+        return None
+    match = COMPILE_FAIL_FENCE.fullmatch(text)
+    if match is None:
+        raise A018CheckError(
+            f"{source}:{line_number}: compile_fail fence must name a Rust error code"
+        )
+    return FenceOpening(
+        indent=len(match.group("indent")),
+        delimiter=match.group("delimiter"),
+        diagnostic=match.group("code"),
+    )
+
+
+def _is_closing_fence(text: str, opening: FenceOpening) -> bool:
+    match = CLOSE_FENCE.fullmatch(text)
+    return (
+        match is not None
+        and match.group("delimiter")[0] == opening.delimiter[0]
+        and len(match.group("delimiter")) >= opening.delimiter_length
+    )
+
+
 def extract_witnesses(source: str, text: str) -> list[ExtractedWitness]:
     """Extract every explicitly coded compile-fail fence from one source file."""
 
@@ -138,23 +179,18 @@ def extract_witnesses(source: str, text: str) -> list[ExtractedWitness]:
     while index < len(lines):
         line = lines[index]
         doc_line = _doc_text(line, source, index + 1) if line.startswith("//!") else line
-        if ANY_COMPILE_FAIL_FENCE.fullmatch(doc_line):
-            match = COMPILE_FAIL_FENCE.fullmatch(doc_line)
-            if match is None:
-                raise A018CheckError(
-                    f"{source}:{index + 1}: compile_fail fence must name a Rust error code"
-                )
-            markdown_indent = len(match.group("indent"))
+        opening = _parse_opening_fence(doc_line, source, index + 1)
+        if opening is not None:
             closing = index + 1
             body: list[str] = []
             while closing < len(lines):
                 closing_doc_line = _doc_text(
                     lines[closing], source, closing + 1
                 )
-                if CLOSE_FENCE.fullmatch(closing_doc_line):
+                if _is_closing_fence(closing_doc_line, opening):
                     break
                 body.append(
-                    _remove_markdown_indent(closing_doc_line, markdown_indent)
+                    _remove_markdown_indent(closing_doc_line, opening.indent)
                 )
                 closing += 1
             if closing == len(lines):
@@ -166,7 +202,7 @@ def extract_witnesses(source: str, text: str) -> list[ExtractedWitness]:
                 ExtractedWitness(
                     source=source,
                     ordinal=len(witnesses) + 1,
-                    diagnostic=match.group("code"),
+                    diagnostic=opening.diagnostic,
                     source_line=index + 1,
                     snippet=snippet,
                     snippet_sha256=snippet_sha256(snippet),
