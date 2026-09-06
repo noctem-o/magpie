@@ -257,6 +257,50 @@ class ExtractionTests(unittest.TestCase):
                     self.assertEqual(len(witnesses), 1)
                     self.assertEqual(witnesses[0].snippet, "let _ = 1;\n")
 
+    def test_rustdoc_info_whitespace_is_extracted_at_each_valid_indentation(
+        self,
+    ) -> None:
+        separators = ("", " ", "    ", "\t", "\t\t", " \t ", "\v", "\f")
+        for indentation in range(4):
+            for delimiter_length in (3, 4, 5, 8):
+                for separator in separators:
+                    with self.subTest(
+                        indentation=indentation,
+                        delimiter_length=delimiter_length,
+                        separator=repr(separator),
+                    ):
+                        raw_indent = " " * (indentation + 1)
+                        fence = "`" * delimiter_length
+                        source = (
+                            f"//!{raw_indent}{fence}{separator}compile_fail,E0308\n"
+                            f"//!{raw_indent}let _ = 1;\n"
+                            f"//!{raw_indent}{fence}\n"
+                        )
+                        witnesses = checker.extract_witnesses("synthetic.rs", source)
+                        self.assertEqual(len(witnesses), 1)
+                        self.assertEqual(witnesses[0].snippet, "let _ = 1;\n")
+
+    def test_non_ascii_whitespace_is_not_an_info_separator(self) -> None:
+        for separator in ("\u00a0", "\u2003"):
+            with self.subTest(separator=repr(separator)):
+                source = (
+                    f"//! ````{separator}compile_fail,E0308\n"
+                    "//! let _ = 1;\n"
+                    "//! ````\n"
+                )
+                self.assertEqual(checker.extract_witnesses("synthetic.rs", source), [])
+
+    def test_rustdoc_info_whitespace_after_code_is_extracted(self) -> None:
+        for suffix in ("", " ", "\t", "\v", "\f"):
+            with self.subTest(suffix=repr(suffix)):
+                source = (
+                    f"//! ```` compile_fail,E0308{suffix}\n"
+                    "//! let _ = 1;\n"
+                    "//! ````\n"
+                )
+                witnesses = checker.extract_witnesses("synthetic.rs", source)
+                self.assertEqual(len(witnesses), 1)
+
     def test_longer_closing_fence_is_compatible(self) -> None:
         source = (
             "//! ````compile_fail,E0308\n"
@@ -307,6 +351,17 @@ class ExtractionTests(unittest.TestCase):
         with self.assertRaisesRegex(checker.A018CheckError, "must name"):
             checker.extract_witnesses("synthetic.rs", source)
 
+    def test_whitespace_separated_unclassified_fences_are_rejected(self) -> None:
+        for separator in (" ", "\t", "\v", "\f"):
+            with self.subTest(separator=repr(separator)):
+                source = (
+                    f"//! ````{separator}compile_fail\n"
+                    "//! let _ = 1;\n"
+                    "//! ````\n"
+                )
+                with self.assertRaisesRegex(checker.A018CheckError, "must name"):
+                    checker.extract_witnesses("synthetic.rs", source)
+
     def test_new_indented_fence_causes_inventory_drift(self) -> None:
         source_name = checker.GOVERNED_SOURCES[0]
         source_text = (checker.ROOT / source_name).read_text(encoding="utf-8")
@@ -336,6 +391,32 @@ class ExtractionTests(unittest.TestCase):
         ]
         with self.assertRaisesRegex(checker.A018CheckError, "unexpected"):
             checker.compare_source_inventory(extracted, source_inventory)
+
+    def test_new_whitespace_separated_fences_cause_inventory_drift(self) -> None:
+        source_name = checker.GOVERNED_SOURCES[0]
+        source_text = (checker.ROOT / source_name).read_text(encoding="utf-8")
+        source_inventory = [
+            witness for witness in self._inventory() if witness.source == source_name
+        ]
+        for delimiter_length, separator, indentation in (
+            (4, " ", 0),
+            (8, "\t", 2),
+        ):
+            with self.subTest(
+                delimiter_length=delimiter_length,
+                separator=repr(separator),
+                indentation=indentation,
+            ):
+                raw_indent = " " * (indentation + 1)
+                fence = "`" * delimiter_length
+                source_with_extra = source_text + (
+                    f"\n//!{raw_indent}{fence}{separator}compile_fail,E0308\n"
+                    f"//!{raw_indent}let _: u8 = \"wrong\";\n"
+                    f"//!{raw_indent}{fence}\n"
+                )
+                extracted = checker.extract_witnesses(source_name, source_with_extra)
+                with self.assertRaisesRegex(checker.A018CheckError, "unexpected"):
+                    checker.compare_source_inventory(extracted, source_inventory)
 
     def test_missing_compatible_long_fence_is_rejected(self) -> None:
         source = (

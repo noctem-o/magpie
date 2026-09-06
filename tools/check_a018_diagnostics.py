@@ -47,12 +47,20 @@ EXPECTED_OCCURRENCE_COUNTS = {
     ("crates/magpie-claims/src/origin_admission_audit.rs", 18): 3,
 }
 
+RUSTDOC_INFO_WHITESPACE = r"[ \t\v\f]*"
 COMPILE_FAIL_FENCE = re.compile(
-    r"^(?P<indent> {0,3})(?P<delimiter>`{3,})compile_fail,"
-    r"(?P<code>E\d{4})[ \t]*$"
+    r"^(?P<indent> {0,3})(?P<delimiter>`{3,})"
+    + RUSTDOC_INFO_WHITESPACE
+    + r"compile_fail,(?P<code>E\d{4})"
+    + RUSTDOC_INFO_WHITESPACE
+    + r"$"
 )
 ANY_COMPILE_FAIL_FENCE = re.compile(
-    r"^(?P<indent> {0,3})(?P<delimiter>`{3,})compile_fail(?:,.*)?[ \t]*$"
+    r"^(?P<indent> {0,3})(?P<delimiter>`{3,})"
+    + RUSTDOC_INFO_WHITESPACE
+    + r"compile_fail(?:,.*)?"
+    + RUSTDOC_INFO_WHITESPACE
+    + r"$"
 )
 CLOSE_FENCE = re.compile(r"^(?P<indent> {0,3})(?P<delimiter>`{3,})[ \t]*$")
 RUST_ERROR_CODE = re.compile(r"^E\d{4}$")
@@ -143,6 +151,15 @@ def _remove_markdown_indent(text: str, indent: int) -> str:
     return text[min(indent, leading_spaces) :]
 
 
+def _source_lines(text: str) -> list[str]:
+    """Split Rust source lines without treating Rustdoc info whitespace as a break."""
+
+    lines = text.split("\n")
+    if lines and lines[-1] == "":
+        lines.pop()
+    return [line[:-1] if line.endswith("\r") else line for line in lines]
+
+
 def _parse_opening_fence(
     text: str, source: str, line_number: int
 ) -> FenceOpening | None:
@@ -173,7 +190,7 @@ def _is_closing_fence(text: str, opening: FenceOpening) -> bool:
 def extract_witnesses(source: str, text: str) -> list[ExtractedWitness]:
     """Extract every explicitly coded compile-fail fence from one source file."""
 
-    lines = text.splitlines()
+    lines = _source_lines(text)
     witnesses: list[ExtractedWitness] = []
     index = 0
     while index < len(lines):
