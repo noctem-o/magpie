@@ -1,0 +1,480 @@
+#!/usr/bin/env python3
+"""Verify the governed A-018 compile-fail witnesses with Rust JSON diagnostics.
+
+The source snippets are compiled as an external consumer of ``magpie-claims``.
+The committed inventory records the expected diagnostic and a hash of the
+normalized snippet, so adding, removing, reordering, or changing a governed
+witness fails before compiler results are considered. Only structured Rust
+diagnostic codes are inspected; human-readable compiler wording is ignored.
+"""
+
+from __future__ import annotations
+
+import argparse
+from collections import Counter
+from dataclasses import dataclass
+import hashlib
+import json
+from pathlib import Path
+import re
+import subprocess
+import tempfile
+from typing import Any, Iterable, Mapping, Sequence
+
+
+ROOT = Path(__file__).resolve().parents[1]
+INVENTORY_PATH = ROOT / "tools/a018_diagnostics_inventory.json"
+RUST_TOOLCHAIN = "1.98.1"
+
+GOVERNED_SOURCES = (
+    "crates/magpie-claims/src/origin_binding_verifier.rs",
+    "crates/magpie-claims/src/origin_admission_audit.rs",
+    "crates/magpie-claims/src/support_contribution_audit.rs",
+)
+EXPECTED_TOTAL = 43
+EXPECTED_SOURCE_COUNTS = {
+    "crates/magpie-claims/src/origin_binding_verifier.rs": 7,
+    "crates/magpie-claims/src/origin_admission_audit.rs": 20,
+    "crates/magpie-claims/src/support_contribution_audit.rs": 16,
+}
+EXPECTED_DIAGNOSTIC_COUNTS = {
+    "E0451": 7,
+    "E0277": 15,
+    "E0308": 16,
+    "E0599": 5,
+}
+
+COMPILE_FAIL_FENCE = re.compile(r"^//! ```compile_fail,(?P<code>E\d{4})\s*$")
+ANY_COMPILE_FAIL_FENCE = re.compile(r"^//! ```compile_fail(?:,.*)?\s*$")
+CLOSE_FENCE = re.compile(r"^//! ```\s*$")
+RUST_ERROR_CODE = re.compile(r"^E\d{4}$")
+
+
+class A018CheckError(RuntimeError):
+    """A deterministic failure in the inventory or compiler gate."""
+
+
+@dataclass(frozen=True)
+class ExtractedWitness:
+    source: str
+    ordinal: int
+    diagnostic: str
+    source_line: int
+    snippet: str
+    snippet_sha256: str
+
+    @property
+    def key(self) -> tuple[str, int]:
+        return self.source, self.ordinal
+
+
+@dataclass(frozen=True)
+class InventoryWitness:
+    witness_id: str
+    source: str
+    ordinal: int
+    diagnostic: str
+    snippet_sha256: str
+
+    @property
+    def key(self) -> tuple[str, int]:
+        return self.source, self.ordinal
+
+
+def _doc_text(line: str, source: str, line_number: int) -> str:
+    if not line.startswith("//!"):
+        raise A018CheckError(
+            f"{source}:{line_number}: expected a Rust module-doc line inside witness"
+        )
+    text = line[3:]
+    return text[1:] if text.startswith(" ") else text
+
+
+def normalize_snippet(lines: Iterable[str]) -> str:
+    """Return stable source text after removing Rust module-doc markers."""
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def snippet_sha256(snippet: str) -> str:
+    return hashlib.sha256(snippet.encode("utf-8")).hexdigest()
+
+
+def extract_witnesses(source: str, text: str) -> list[ExtractedWitness]:
+    """Extract every explicitly coded compile-fail fence from one source file."""
+
+    lines = text.splitlines()
+    witnesses: list[ExtractedWitness] = []
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        if ANY_COMPILE_FAIL_FENCE.fullmatch(line):
+            match = COMPILE_FAIL_FENCE.fullmatch(line)
+            if match is None:
+                raise A018CheckError(
+                    f"{source}:{index + 1}: compile_fail fence must name a Rust error code"
+                )
+            closing = index + 1
+            body: list[str] = []
+            while closing < len(lines) and not CLOSE_FENCE.fullmatch(lines[closing]):
+                body.append(_doc_text(lines[closing], source, closing + 1))
+                closing += 1
+            if closing == len(lines):
+                raise A018CheckError(
+                    f"{source}:{index + 1}: compile_fail fence has no closing fence"
+                )
+            snippet = normalize_snippet(body)
+            witnesses.append(
+                ExtractedWitness(
+                    source=source,
+                    ordinal=len(witnesses) + 1,
+                    diagnostic=match.group("code"),
+                    source_line=index + 1,
+                    snippet=snippet,
+                    snippet_sha256=snippet_sha256(snippet),
+                )
+            )
+            index = closing + 1
+            continue
+        index += 1
+    return witnesses
+
+
+def extract_governed_sources() -> list[ExtractedWitness]:
+    witnesses: list[ExtractedWitness] = []
+    for source in GOVERNED_SOURCES:
+        path = ROOT / source
+        if not path.is_file():
+            raise A018CheckError(f"governed source is missing: {source}")
+        witnesses.extend(extract_witnesses(source, path.read_text(encoding="utf-8")))
+    return witnesses
+
+
+def _counter(values: Iterable[str]) -> dict[str, int]:
+    return dict(sorted(Counter(values).items()))
+
+
+def load_inventory(path: Path = INVENTORY_PATH) -> tuple[dict[str, Any], list[InventoryWitness]]:
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise A018CheckError(f"cannot read inventory {path}: {exc}") from exc
+    if not isinstance(document, dict):
+        raise A018CheckError("A-018 inventory must be a JSON object")
+    raw_witnesses = document.get("witnesses")
+    if not isinstance(raw_witnesses, list):
+        raise A018CheckError("A-018 inventory must contain a witnesses list")
+
+    witnesses: list[InventoryWitness] = []
+    for entry in raw_witnesses:
+        if not isinstance(entry, dict):
+            raise A018CheckError("A-018 inventory witness entries must be objects")
+        try:
+            witnesses.append(
+                InventoryWitness(
+                    witness_id=str(entry["id"]),
+                    source=str(entry["source"]),
+                    ordinal=int(entry["ordinal"]),
+                    diagnostic=str(entry["diagnostic"]),
+                    snippet_sha256=str(entry["snippet_sha256"]),
+                )
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise A018CheckError(f"malformed A-018 inventory entry: {entry!r}") from exc
+    return document, witnesses
+
+
+def validate_inventory_contract(
+    document: Mapping[str, Any], witnesses: Sequence[InventoryWitness]
+) -> None:
+    """Enforce the reviewed 43-witness inventory contract."""
+
+    if document.get("schema_version") != 1:
+        raise A018CheckError("A-018 inventory schema_version must be 1")
+    if document.get("source_file_counts") != EXPECTED_SOURCE_COUNTS:
+        raise A018CheckError(
+            "A-018 inventory source counts changed: "
+            f"expected {EXPECTED_SOURCE_COUNTS}, got {document.get('source_file_counts')}"
+        )
+    if document.get("diagnostic_counts") != EXPECTED_DIAGNOSTIC_COUNTS:
+        raise A018CheckError(
+            "A-018 inventory diagnostic counts changed: "
+            f"expected {EXPECTED_DIAGNOSTIC_COUNTS}, got {document.get('diagnostic_counts')}"
+        )
+    if len(witnesses) != EXPECTED_TOTAL:
+        raise A018CheckError(
+            f"A-018 inventory witness count changed: expected {EXPECTED_TOTAL}, got {len(witnesses)}"
+        )
+
+    ids = [witness.witness_id for witness in witnesses]
+    if len(set(ids)) != len(ids):
+        raise A018CheckError("A-018 inventory contains duplicate witness IDs")
+    if any(witness.source not in EXPECTED_SOURCE_COUNTS for witness in witnesses):
+        raise A018CheckError("A-018 inventory contains an ungoverned source")
+
+    source_counts = _counter(witness.source for witness in witnesses)
+    diagnostic_counts = _counter(witness.diagnostic for witness in witnesses)
+    if source_counts != EXPECTED_SOURCE_COUNTS:
+        raise A018CheckError(
+            f"A-018 inventory source counts disagree: expected {EXPECTED_SOURCE_COUNTS}, got {source_counts}"
+        )
+    if diagnostic_counts != EXPECTED_DIAGNOSTIC_COUNTS:
+        raise A018CheckError(
+            f"A-018 inventory diagnostic counts disagree: expected {EXPECTED_DIAGNOSTIC_COUNTS}, got {diagnostic_counts}"
+        )
+
+    for source, expected_count in EXPECTED_SOURCE_COUNTS.items():
+        ordinals = sorted(
+            witness.ordinal for witness in witnesses if witness.source == source
+        )
+        expected_ordinals = list(range(1, expected_count + 1))
+        if ordinals != expected_ordinals:
+            raise A018CheckError(
+                f"A-018 inventory ordinals for {source} changed: "
+                f"expected {expected_ordinals}, got {ordinals}"
+            )
+
+
+def compare_source_inventory(
+    extracted: Sequence[ExtractedWitness], inventory: Sequence[InventoryWitness]
+) -> None:
+    """Reject source disappearance, insertion, reordering, or snippet drift."""
+
+    actual_by_key = {witness.key: witness for witness in extracted}
+    expected_by_key = {witness.key: witness for witness in inventory}
+    if set(actual_by_key) != set(expected_by_key):
+        missing = sorted(set(expected_by_key) - set(actual_by_key))
+        unexpected = sorted(set(actual_by_key) - set(expected_by_key))
+        raise A018CheckError(
+            f"A-018 governed witness inventory changed: missing={missing}, unexpected={unexpected}"
+        )
+
+    mismatches: list[str] = []
+    for key, expected in expected_by_key.items():
+        actual = actual_by_key[key]
+        if actual.diagnostic != expected.diagnostic:
+            mismatches.append(
+                f"{expected.witness_id}: expected {expected.diagnostic}, observed fence {actual.diagnostic}"
+            )
+        if actual.snippet_sha256 != expected.snippet_sha256:
+            mismatches.append(
+                f"{expected.witness_id}: snippet hash changed "
+                f"(expected {expected.snippet_sha256}, observed {actual.snippet_sha256})"
+            )
+    if mismatches:
+        raise A018CheckError("A-018 governed witness drift:\n" + "\n".join(mismatches))
+
+
+def parse_diagnostic_codes(output: str) -> frozenset[str]:
+    """Parse only coded diagnostics from rustc's JSON-lines stderr output."""
+
+    codes: set[str] = set()
+    for line_number, line in enumerate(output.splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise A018CheckError(
+                f"rustc emitted non-JSON diagnostic output on line {line_number}: {line[:160]!r}"
+            ) from exc
+        if not isinstance(payload, dict):
+            continue
+        code = payload.get("code")
+        if (
+            isinstance(code, dict)
+            and isinstance(code.get("code"), str)
+            and RUST_ERROR_CODE.fullmatch(code["code"])
+        ):
+            codes.add(code["code"])
+        for child in payload.get("children", []):
+            if isinstance(child, dict):
+                child_code = child.get("code")
+                if (
+                    isinstance(child_code, dict)
+                    and isinstance(child_code.get("code"), str)
+                    and RUST_ERROR_CODE.fullmatch(child_code["code"])
+                ):
+                    codes.add(child_code["code"])
+    return frozenset(codes)
+
+
+def validate_compilation_result(
+    witness_id: str, expected: str, returncode: int, diagnostic_output: str
+) -> frozenset[str]:
+    """Require a failed compile whose complete coded-error set is exactly expected."""
+
+    observed = parse_diagnostic_codes(diagnostic_output)
+    if returncode == 0:
+        raise A018CheckError(
+            f"{witness_id}: unexpectedly compiled successfully; expected {expected}"
+        )
+    expected_codes = frozenset({expected})
+    if observed != expected_codes:
+        raise A018CheckError(
+            f"{witness_id}: expected coded diagnostics {sorted(expected_codes)}, "
+            f"observed {sorted(observed)}"
+        )
+    return observed
+
+
+def _cargo_claims_rlib(target_directory: Path) -> Path:
+    command = [
+        "cargo",
+        f"+{RUST_TOOLCHAIN}",
+        "build",
+        "-p",
+        "magpie-claims",
+        "--lib",
+        "--locked",
+        "--offline",
+        "--target-dir",
+        str(target_directory),
+        "--message-format=json-render-diagnostics",
+    ]
+    result = subprocess.run(
+        command,
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise A018CheckError(
+            "magpie-claims build failed:\n" + (result.stderr or result.stdout).strip()
+        )
+
+    rlibs: list[Path] = []
+    for line in result.stdout.splitlines():
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if (
+            isinstance(payload, dict)
+            and payload.get("reason") == "compiler-artifact"
+            and isinstance(payload.get("target"), dict)
+            and payload["target"].get("name", "").replace("_", "-")
+            == "magpie-claims"
+        ):
+            rlibs.extend(
+                Path(filename)
+                for filename in payload.get("filenames", [])
+                if isinstance(filename, str) and filename.endswith(".rlib")
+            )
+    if len(rlibs) != 1:
+        raise A018CheckError(
+            "expected one magpie-claims rlib from cargo, got "
+            + repr([str(path) for path in rlibs])
+        )
+    return rlibs[0]
+
+
+def _single_dependency_rlib(dependency_directory: Path, crate_name: str) -> Path:
+    candidates = sorted(dependency_directory.glob(f"lib{crate_name}-*.rlib"))
+    if len(candidates) != 1:
+        raise A018CheckError(
+            f"expected one {crate_name} rlib, got {[str(path) for path in candidates]}"
+        )
+    return candidates[0]
+
+
+def _compile_external_witness(
+    witness: ExtractedWitness,
+    inventory: InventoryWitness,
+    claims_rlib: Path,
+    dependency_directory: Path,
+    source_directory: Path,
+) -> frozenset[str]:
+    source_path = source_directory / f"{inventory.witness_id}.rs"
+    source_path.write_text(
+        "fn main() {\n" + witness.snippet + "}\n", encoding="utf-8"
+    )
+    command = [
+        "rustc",
+        f"+{RUST_TOOLCHAIN}",
+        "--edition=2021",
+        "--crate-name",
+        inventory.witness_id.replace("-", "_"),
+        "--crate-type",
+        "bin",
+        "--emit=metadata",
+        "--error-format=json",
+        "--extern",
+        f"magpie_claims={claims_rlib}",
+        "--extern",
+        f"serde_json={_single_dependency_rlib(dependency_directory, 'serde_json')}",
+        "-L",
+        f"dependency={dependency_directory}",
+        str(source_path),
+    ]
+    result = subprocess.run(
+        command,
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    try:
+        return validate_compilation_result(
+            inventory.witness_id,
+            inventory.diagnostic,
+            result.returncode,
+            result.stderr,
+        )
+    except A018CheckError as exc:
+        raise A018CheckError(
+            f"{witness.source}:{witness.source_line}: {exc}"
+        ) from exc
+
+
+def run_check() -> None:
+    document, inventory = load_inventory()
+    validate_inventory_contract(document, inventory)
+    extracted = extract_governed_sources()
+    compare_source_inventory(extracted, inventory)
+
+    with tempfile.TemporaryDirectory(prefix="magpie-a018-") as temporary_directory:
+        temporary_root = Path(temporary_directory)
+        target_directory = temporary_root / "target"
+        source_directory = temporary_root / "sources"
+        source_directory.mkdir()
+        claims_rlib = _cargo_claims_rlib(target_directory)
+        dependency_directory = target_directory / "debug" / "deps"
+        observed_counts: Counter[str] = Counter()
+        inventory_by_key = {expected.key: expected for expected in inventory}
+        for witness in extracted:
+            expected = inventory_by_key[witness.key]
+            observed_counts.update(
+                _compile_external_witness(
+                    witness,
+                    expected,
+                    claims_rlib,
+                    dependency_directory,
+                    source_directory,
+                )
+            )
+
+    print(
+        "A-018 exact diagnostics passed: "
+        f"{len(extracted)} witnesses; "
+        f"files={_counter(witness.source for witness in extracted)}; "
+        f"codes={dict(sorted(observed_counts.items()))}; "
+        f"toolchain=rustc {RUST_TOOLCHAIN}; external_consumer=true; "
+        "coded_error_set=exact"
+    )
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.parse_args(argv)
+    try:
+        run_check()
+    except A018CheckError as exc:
+        print(f"A-018 exact diagnostics FAILED: {exc}")
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
