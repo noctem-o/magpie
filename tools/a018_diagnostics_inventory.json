@@ -210,7 +210,24 @@
       "ordinal": 18,
       "diagnostic": "E0308",
       "description": "Admitted origins, conflicts and decisions cannot substitute for authority",
-      "snippet_sha256": "e781c3b6aca7fd62a68fba46e13a7ee92fed8a0ca4b58b8b1e1ea0121c2c3f1c"
+      "snippet_sha256": "e781c3b6aca7fd62a68fba46e13a7ee92fed8a0ca4b58b8b1e1ea0121c2c3f1c",
+      "diagnostic_occurrences": [
+        {
+          "code": "E0308",
+          "relative_line": 11,
+          "relative_column": 55
+        },
+        {
+          "code": "E0308",
+          "relative_line": 12,
+          "relative_column": 55
+        },
+        {
+          "code": "E0308",
+          "relative_line": 13,
+          "relative_column": 55
+        }
+      ]
     },
     {
       "id": "origin-admission-audit-19",

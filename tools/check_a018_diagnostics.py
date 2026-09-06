@@ -43,11 +43,17 @@ EXPECTED_DIAGNOSTIC_COUNTS = {
     "E0308": 16,
     "E0599": 5,
 }
+EXPECTED_OCCURRENCE_COUNTS = {
+    ("crates/magpie-claims/src/origin_admission_audit.rs", 18): 3,
+}
 
-COMPILE_FAIL_FENCE = re.compile(r"^//! ```compile_fail,(?P<code>E\d{4})\s*$")
-ANY_COMPILE_FAIL_FENCE = re.compile(r"^//! ```compile_fail(?:,.*)?\s*$")
-CLOSE_FENCE = re.compile(r"^//! ```\s*$")
+COMPILE_FAIL_FENCE = re.compile(
+    r"^(?P<indent> {0,3})```compile_fail,(?P<code>E\d{4})\s*$"
+)
+ANY_COMPILE_FAIL_FENCE = re.compile(r"^ {0,3}```compile_fail(?:,.*)?\s*$")
+CLOSE_FENCE = re.compile(r"^ {0,3}```\s*$")
 RUST_ERROR_CODE = re.compile(r"^E\d{4}$")
+SNIPPET_WRAPPER_PREFIX_LINES = 1
 
 
 class A018CheckError(RuntimeError):
@@ -69,12 +75,28 @@ class ExtractedWitness:
 
 
 @dataclass(frozen=True)
+class ExpectedDiagnosticOccurrence:
+    code: str
+    relative_line: int | None = None
+    relative_column: int | None = None
+
+
+@dataclass(frozen=True)
+class DiagnosticOccurrence:
+    code: str
+    file_name: str | None
+    line_start: int | None
+    column_start: int | None
+
+
+@dataclass(frozen=True)
 class InventoryWitness:
     witness_id: str
     source: str
     ordinal: int
     diagnostic: str
     snippet_sha256: str
+    diagnostic_occurrences: tuple[ExpectedDiagnosticOccurrence, ...]
 
     @property
     def key(self) -> tuple[str, int]:
@@ -100,6 +122,13 @@ def snippet_sha256(snippet: str) -> str:
     return hashlib.sha256(snippet.encode("utf-8")).hexdigest()
 
 
+def _remove_markdown_indent(text: str, indent: int) -> str:
+    """Apply CommonMark's opening-fence indentation to a content line."""
+
+    leading_spaces = len(text) - len(text.lstrip(" "))
+    return text[min(indent, leading_spaces) :]
+
+
 def extract_witnesses(source: str, text: str) -> list[ExtractedWitness]:
     """Extract every explicitly coded compile-fail fence from one source file."""
 
@@ -108,16 +137,25 @@ def extract_witnesses(source: str, text: str) -> list[ExtractedWitness]:
     index = 0
     while index < len(lines):
         line = lines[index]
-        if ANY_COMPILE_FAIL_FENCE.fullmatch(line):
-            match = COMPILE_FAIL_FENCE.fullmatch(line)
+        doc_line = _doc_text(line, source, index + 1) if line.startswith("//!") else line
+        if ANY_COMPILE_FAIL_FENCE.fullmatch(doc_line):
+            match = COMPILE_FAIL_FENCE.fullmatch(doc_line)
             if match is None:
                 raise A018CheckError(
                     f"{source}:{index + 1}: compile_fail fence must name a Rust error code"
                 )
+            markdown_indent = len(match.group("indent"))
             closing = index + 1
             body: list[str] = []
-            while closing < len(lines) and not CLOSE_FENCE.fullmatch(lines[closing]):
-                body.append(_doc_text(lines[closing], source, closing + 1))
+            while closing < len(lines):
+                closing_doc_line = _doc_text(
+                    lines[closing], source, closing + 1
+                )
+                if CLOSE_FENCE.fullmatch(closing_doc_line):
+                    break
+                body.append(
+                    _remove_markdown_indent(closing_doc_line, markdown_indent)
+                )
                 closing += 1
             if closing == len(lines):
                 raise A018CheckError(
@@ -170,13 +208,58 @@ def load_inventory(path: Path = INVENTORY_PATH) -> tuple[dict[str, Any], list[In
         if not isinstance(entry, dict):
             raise A018CheckError("A-018 inventory witness entries must be objects")
         try:
+            diagnostic = str(entry["diagnostic"])
+            raw_occurrences = entry.get("diagnostic_occurrences")
+            if raw_occurrences is None:
+                diagnostic_occurrences = (
+                    ExpectedDiagnosticOccurrence(code=diagnostic),
+                )
+            else:
+                if not isinstance(raw_occurrences, list) or not raw_occurrences:
+                    raise A018CheckError(
+                        "A-018 inventory diagnostic_occurrences must be a non-empty list"
+                    )
+                parsed_occurrences: list[ExpectedDiagnosticOccurrence] = []
+                for occurrence in raw_occurrences:
+                    if not isinstance(occurrence, dict):
+                        raise A018CheckError(
+                            "A-018 inventory diagnostic occurrences must be objects"
+                        )
+                    code = str(occurrence["code"])
+                    relative_line = occurrence.get("relative_line")
+                    relative_column = occurrence.get("relative_column")
+                    if (relative_line is None) != (relative_column is None):
+                        raise A018CheckError(
+                            "A-018 inventory occurrence spans must include both "
+                            "relative_line and relative_column"
+                        )
+                    if relative_line is not None and (
+                        isinstance(relative_line, bool)
+                        or not isinstance(relative_line, int)
+                        or relative_line < 1
+                        or isinstance(relative_column, bool)
+                        or not isinstance(relative_column, int)
+                        or relative_column < 1
+                    ):
+                        raise A018CheckError(
+                            "A-018 inventory occurrence spans must use positive integers"
+                        )
+                    parsed_occurrences.append(
+                        ExpectedDiagnosticOccurrence(
+                            code=code,
+                            relative_line=relative_line,
+                            relative_column=relative_column,
+                        )
+                    )
+                diagnostic_occurrences = tuple(parsed_occurrences)
             witnesses.append(
                 InventoryWitness(
                     witness_id=str(entry["id"]),
                     source=str(entry["source"]),
                     ordinal=int(entry["ordinal"]),
-                    diagnostic=str(entry["diagnostic"]),
+                    diagnostic=diagnostic,
                     snippet_sha256=str(entry["snippet_sha256"]),
+                    diagnostic_occurrences=diagnostic_occurrences,
                 )
             )
         except (KeyError, TypeError, ValueError) as exc:
@@ -223,6 +306,34 @@ def validate_inventory_contract(
             f"A-018 inventory diagnostic counts disagree: expected {EXPECTED_DIAGNOSTIC_COUNTS}, got {diagnostic_counts}"
         )
 
+    for witness in witnesses:
+        expected_occurrence_count = EXPECTED_OCCURRENCE_COUNTS.get(
+            witness.key, 1
+        )
+        if len(witness.diagnostic_occurrences) != expected_occurrence_count:
+            raise A018CheckError(
+                f"{witness.witness_id}: expected {expected_occurrence_count} "
+                "diagnostic occurrences, got "
+                f"{len(witness.diagnostic_occurrences)}"
+            )
+        if any(
+            occurrence.code != witness.diagnostic
+            for occurrence in witness.diagnostic_occurrences
+        ):
+            raise A018CheckError(
+                f"{witness.witness_id}: diagnostic occurrence codes must all be "
+                f"{witness.diagnostic}"
+            )
+        if witness.key in EXPECTED_OCCURRENCE_COUNTS and any(
+            occurrence.relative_line is None
+            or occurrence.relative_column is None
+            for occurrence in witness.diagnostic_occurrences
+        ):
+            raise A018CheckError(
+                f"{witness.witness_id}: governed multi-call occurrences must "
+                "include relative primary spans"
+            )
+
     for source, expected_count in EXPECTED_SOURCE_COUNTS.items():
         ordinals = sorted(
             witness.ordinal for witness in witnesses if witness.source == source
@@ -265,10 +376,20 @@ def compare_source_inventory(
         raise A018CheckError("A-018 governed witness drift:\n" + "\n".join(mismatches))
 
 
-def parse_diagnostic_codes(output: str) -> frozenset[str]:
-    """Parse only coded diagnostics from rustc's JSON-lines stderr output."""
+def _primary_span(payload: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    spans = payload.get("spans")
+    if not isinstance(spans, list):
+        return None
+    for span in spans:
+        if isinstance(span, dict) and span.get("is_primary") is True:
+            return span
+    return None
 
-    codes: set[str] = set()
+
+def parse_diagnostic_occurrences(output: str) -> tuple[DiagnosticOccurrence, ...]:
+    """Parse top-level coded compiler errors without collapsing occurrences."""
+
+    occurrences: list[DiagnosticOccurrence] = []
     for line_number, line in enumerate(output.splitlines(), start=1):
         if not line.strip():
             continue
@@ -280,46 +401,123 @@ def parse_diagnostic_codes(output: str) -> frozenset[str]:
             ) from exc
         if not isinstance(payload, dict):
             continue
+        if payload.get("level") != "error":
+            continue
         code = payload.get("code")
         if (
             isinstance(code, dict)
             and isinstance(code.get("code"), str)
             and RUST_ERROR_CODE.fullmatch(code["code"])
         ):
-            codes.add(code["code"])
-        for child in payload.get("children", []):
-            if isinstance(child, dict):
-                child_code = child.get("code")
-                if (
-                    isinstance(child_code, dict)
-                    and isinstance(child_code.get("code"), str)
-                    and RUST_ERROR_CODE.fullmatch(child_code["code"])
-                ):
-                    codes.add(child_code["code"])
-    return frozenset(codes)
+            span = _primary_span(payload)
+            occurrences.append(
+                DiagnosticOccurrence(
+                    code=code["code"],
+                    file_name=(
+                        span.get("file_name")
+                        if span is not None and isinstance(span.get("file_name"), str)
+                        else None
+                    ),
+                    line_start=(
+                        span.get("line_start")
+                        if span is not None and isinstance(span.get("line_start"), int)
+                        else None
+                    ),
+                    column_start=(
+                        span.get("column_start")
+                        if span is not None
+                        and isinstance(span.get("column_start"), int)
+                        else None
+                    ),
+                )
+            )
+    return tuple(occurrences)
+
+
+def _relative_primary_position(
+    occurrence: DiagnosticOccurrence, source_path: Path
+) -> tuple[int, int] | None:
+    if occurrence.file_name is None:
+        return None
+    try:
+        if Path(occurrence.file_name).resolve() != source_path.resolve():
+            return None
+    except OSError:
+        return None
+    if occurrence.line_start is None or occurrence.column_start is None:
+        return None
+    return (
+        occurrence.line_start - SNIPPET_WRAPPER_PREFIX_LINES,
+        occurrence.column_start,
+    )
 
 
 def validate_compilation_result(
-    witness_id: str, expected: str, returncode: int, diagnostic_output: str
-) -> frozenset[str]:
-    """Require a failed compile whose complete coded-error set is exactly expected."""
+    witness_id: str,
+    expected: str,
+    returncode: int,
+    diagnostic_output: str,
+    expected_occurrences: Sequence[ExpectedDiagnosticOccurrence] | None = None,
+    source_path: Path | None = None,
+) -> tuple[DiagnosticOccurrence, ...]:
+    """Require exact top-level coded errors and, when supplied, their spans."""
 
-    observed = parse_diagnostic_codes(diagnostic_output)
+    observed = parse_diagnostic_occurrences(diagnostic_output)
     if returncode == 0:
         raise A018CheckError(
             f"{witness_id}: unexpectedly compiled successfully; expected {expected}"
         )
-    expected_codes = frozenset({expected})
-    if observed != expected_codes:
+    expected_occurrences = tuple(
+        expected_occurrences or (ExpectedDiagnosticOccurrence(code=expected),)
+    )
+    expected_codes = Counter(occurrence.code for occurrence in expected_occurrences)
+    observed_codes = Counter(occurrence.code for occurrence in observed)
+    if observed_codes != expected_codes:
         raise A018CheckError(
-            f"{witness_id}: expected coded diagnostics {sorted(expected_codes)}, "
-            f"observed {sorted(observed)}"
+            f"{witness_id}: expected diagnostic occurrences "
+            f"{dict(sorted(expected_codes.items()))}, observed "
+            f"{dict(sorted(observed_codes.items()))}"
         )
+
+    remaining = list(observed)
+    for expected_occurrence in expected_occurrences:
+        matching_index: int | None = None
+        for index, occurrence in enumerate(remaining):
+            if occurrence.code != expected_occurrence.code:
+                continue
+            if (
+                expected_occurrence.relative_line is not None
+                or expected_occurrence.relative_column is not None
+            ):
+                if source_path is None:
+                    raise A018CheckError(
+                        f"{witness_id}: relative diagnostic spans require the "
+                        "generated source path"
+                    )
+                if _relative_primary_position(occurrence, source_path) != (
+                    expected_occurrence.relative_line,
+                    expected_occurrence.relative_column,
+                ):
+                    continue
+            matching_index = index
+            break
+        if matching_index is None:
+            expected_position = (
+                f" at relative line {expected_occurrence.relative_line}, "
+                f"column {expected_occurrence.relative_column}"
+                if expected_occurrence.relative_line is not None
+                else ""
+            )
+            raise A018CheckError(
+                f"{witness_id}: missing diagnostic occurrence "
+                f"{expected_occurrence.code}{expected_position}"
+            )
+        remaining.pop(matching_index)
     return observed
 
 
-def _cargo_claims_rlib(target_directory: Path) -> Path:
-    command = [
+def _cargo_claims_command(target_directory: Path) -> list[str]:
+    return [
         "cargo",
         f"+{RUST_TOOLCHAIN}",
         "build",
@@ -327,11 +525,14 @@ def _cargo_claims_rlib(target_directory: Path) -> Path:
         "magpie-claims",
         "--lib",
         "--locked",
-        "--offline",
         "--target-dir",
         str(target_directory),
         "--message-format=json-render-diagnostics",
     ]
+
+
+def _cargo_claims_rlib(target_directory: Path) -> Path:
+    command = _cargo_claims_command(target_directory)
     result = subprocess.run(
         command,
         cwd=ROOT,
@@ -385,7 +586,7 @@ def _compile_external_witness(
     claims_rlib: Path,
     dependency_directory: Path,
     source_directory: Path,
-) -> frozenset[str]:
+) -> tuple[DiagnosticOccurrence, ...]:
     source_path = source_directory / f"{inventory.witness_id}.rs"
     source_path.write_text(
         "fn main() {\n" + witness.snippet + "}\n", encoding="utf-8"
@@ -421,6 +622,8 @@ def _compile_external_witness(
             inventory.diagnostic,
             result.returncode,
             result.stderr,
+            inventory.diagnostic_occurrences,
+            source_path,
         )
     except A018CheckError as exc:
         raise A018CheckError(
@@ -446,7 +649,8 @@ def run_check() -> None:
         for witness in extracted:
             expected = inventory_by_key[witness.key]
             observed_counts.update(
-                _compile_external_witness(
+                occurrence.code
+                for occurrence in _compile_external_witness(
                     witness,
                     expected,
                     claims_rlib,
@@ -459,7 +663,8 @@ def run_check() -> None:
         "A-018 exact diagnostics passed: "
         f"{len(extracted)} witnesses; "
         f"files={_counter(witness.source for witness in extracted)}; "
-        f"codes={dict(sorted(observed_counts.items()))}; "
+        f"witness_codes={_counter(witness.diagnostic for witness in extracted)}; "
+        f"occurrence_codes={dict(sorted(observed_counts.items()))}; "
         f"toolchain=rustc {RUST_TOOLCHAIN}; external_consumer=true; "
         "coded_error_set=exact"
     )
