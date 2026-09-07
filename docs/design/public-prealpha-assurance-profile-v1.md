@@ -110,9 +110,15 @@ The committed `magpie-validation-environment-v1` emitter records the governed
 input hashes, candidate/checkout/workflow coordinates, run and attempt, selected
 runner label, actual hosted image coordinates, toolchain outputs, Python package
 versions, Go OS/architecture, and the explicit unavailable libsodium version.
-The canonical JSON and its SHA-256 are evidence records, not signed provenance
-or authority. The emitter does not make the run hermetic and cannot turn an
-unknown native library identity into a known one.
+The canonical JSON is exactly the emitter's `canonical_record` output: the
+`json.dumps` serialization with `ensure_ascii=True`, `sort_keys=True`, and
+`separators=(",", ":")`, encoded to UTF-8, and the SHA-256 is computed over
+those exact bytes (`tools/emit_validation_environment.py`). That is the
+current emitter contract at the selected candidate, not RFC 8785, a new
+canonicalization profile, or new authority. The canonical JSON and its SHA-256
+are evidence records, not signed provenance or authority. The emitter does not
+make the run hermetic and cannot turn an unknown native library identity into
+a known one.
 
 ## 5. Required semantic and front-door evidence
 
