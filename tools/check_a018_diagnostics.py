@@ -1,11 +1,20 @@
 #!/usr/bin/env python3
 """Verify the governed A-018 compile-fail witnesses with Rust JSON diagnostics.
 
-The source snippets are compiled as an external consumer of ``magpie-claims``.
-The committed inventory records the expected diagnostic and a hash of the
-normalized snippet, so adding, removing, reordering, or changing a governed
-witness fails before compiler results are considered. Only structured Rust
-diagnostic codes are inspected; human-readable compiler wording is ignored.
+Completeness is bound to the raw bytes of three reviewed source modules, NOT
+to Python implementing Rustdoc/CommonMark. Any source-byte change requires an
+explicit reviewed inventory update before extraction. The convenience extractor
+is only qualified for those reviewed bytes; future syntax requires review even
+if it is invisible to this extractor. Whole-file binding deliberately includes
+non-doc code and line endings; extracting just docs would recreate the problem.
+
+The 43 known snippets additionally have stable IDs and normalized hashes, and
+are compiled as external consumers of ``magpie-claims`` with exact top-level
+diagnostic occurrence/span checks. Ordinary Rustdoc/workspace tests are an
+independent behavior check, not an error-code oracle. No hashes are regenerated
+by checking: review the full source diff, Rustdoc discovery and witness contracts
+before manually updating governed_sources. Digest agreement is not evidence of
+review approval; maker/checker separation and owner authority still apply.
 """
 
 from __future__ import annotations
@@ -196,7 +205,7 @@ def _rustdoc_info_tokens(raw_info_string: str) -> tuple[str, ...]:
 
 
 def _is_rustdoc_compile_fail(raw_info_string: str) -> bool:
-    """Recognize Rustdoc's compile-fail attribute without accepting its syntax."""
+    """Convenience predicate, not a complete Rustdoc language-string parser."""
 
     tokens = _rustdoc_info_tokens(raw_info_string)
     return bool(tokens) and tokens[0] in RUSTDOC_INFO_PREFIXES and (
@@ -207,7 +216,7 @@ def _is_rustdoc_compile_fail(raw_info_string: str) -> bool:
 def _classify_compile_fail_fence(
     opening: FenceOpening, source: str, line_number: int
 ) -> str | None:
-    """Return the governed code, or fail closed for Rustdoc compile-fail syntax."""
+    """Return the governed code for syntax supported by this extractor."""
 
     if not _is_rustdoc_compile_fail(opening.raw_info_string):
         return None
@@ -230,7 +239,11 @@ def _is_closing_fence(text: str, opening: FenceOpening) -> bool:
 
 
 def extract_witnesses(source: str, text: str) -> list[ExtractedWitness]:
-    """Extract every explicitly coded compile-fail fence from one source file."""
+    """Extract known witnesses; callers must first verify governed source bytes.
+
+    This helper is not an authoritative discovery API for arbitrary Rust docs.
+    Its standalone synthetic tests describe supported convenience syntax only.
+    """
 
     lines = _source_lines(text)
     witnesses: list[ExtractedWitness] = []
@@ -277,13 +290,43 @@ def extract_witnesses(source: str, text: str) -> list[ExtractedWitness]:
     return witnesses
 
 
-def extract_governed_sources() -> list[ExtractedWitness]:
-    witnesses: list[ExtractedWitness] = []
+def verified_governed_source_bytes(document: Mapping[str, Any]) -> dict[str, bytes]:
+    """Verify ALL raw source identities before any decoding or extraction."""
+
+    identities = document.get("governed_sources")
+    if not isinstance(identities, dict) or set(identities) != set(GOVERNED_SOURCES):
+        raise A018CheckError("A-018 inventory must bind exactly the three governed sources")
+    snapshots: dict[str, bytes] = {}
     for source in GOVERNED_SOURCES:
-        path = ROOT / source
-        if not path.is_file():
-            raise A018CheckError(f"governed source is missing: {source}")
-        witnesses.extend(extract_witnesses(source, path.read_text(encoding="utf-8")))
+        identity = identities[source]
+        if (
+            not isinstance(identity, dict)
+            or not isinstance(identity.get("sha256"), str)
+            or re.fullmatch(r"[0-9a-f]{64}", identity["sha256"]) is None
+        ):
+            raise A018CheckError(f"{source}: invalid governed source SHA-256 identity")
+        try:
+            raw = (ROOT / source).read_bytes()
+        except OSError as exc:
+            raise A018CheckError(f"cannot read governed source {source}: {exc}") from exc
+        observed = hashlib.sha256(raw).hexdigest()
+        if observed != identity["sha256"]:
+            raise A018CheckError(
+                f"{source}: governed source digest changed; explicit A-018 inventory "
+                f"review required (expected {identity['sha256']}, observed {observed}). "
+                "Review the complete source diff and all Rustdoc witnesses before "
+                "manually updating the inventory; checking never updates hashes."
+            )
+        snapshots[source] = raw
+    return snapshots
+
+
+def extract_governed_sources(document: Mapping[str, Any]) -> list[ExtractedWitness]:
+    snapshots = verified_governed_source_bytes(document)
+    witnesses: list[ExtractedWitness] = []
+    for source, raw in snapshots.items():
+        # Decode the exact bytes hashed above, never a second filesystem read.
+        witnesses.extend(extract_witnesses(source, raw.decode("utf-8")))
     return witnesses
 
 
@@ -371,8 +414,8 @@ def validate_inventory_contract(
 ) -> None:
     """Enforce the reviewed 43-witness inventory contract."""
 
-    if document.get("schema_version") != 1:
-        raise A018CheckError("A-018 inventory schema_version must be 1")
+    if document.get("schema_version") != 2:
+        raise A018CheckError("A-018 inventory schema_version must be 2")
     if document.get("source_file_counts") != EXPECTED_SOURCE_COUNTS:
         raise A018CheckError(
             "A-018 inventory source counts changed: "
@@ -733,7 +776,7 @@ def _compile_external_witness(
 def run_check() -> None:
     document, inventory = load_inventory()
     validate_inventory_contract(document, inventory)
-    extracted = extract_governed_sources()
+    extracted = extract_governed_sources(document)
     compare_source_inventory(extracted, inventory)
 
     with tempfile.TemporaryDirectory(prefix="magpie-a018-") as temporary_directory:
@@ -765,7 +808,7 @@ def run_check() -> None:
         f"witness_codes={_counter(witness.diagnostic for witness in extracted)}; "
         f"occurrence_codes={dict(sorted(observed_counts.items()))}; "
         f"toolchain=rustc {RUST_TOOLCHAIN}; external_consumer=true; "
-        "coded_error_set=exact"
+        "governed_source_sha256=verified; diagnostic_occurrences=exact"
     )
 
 

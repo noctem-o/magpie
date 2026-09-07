@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from copy import deepcopy
 import json
 from pathlib import Path
 import unittest
+from unittest import mock
 
 from tools import check_a018_diagnostics as checker
 
@@ -212,12 +214,12 @@ class InventoryTests(unittest.TestCase):
             checker.validate_inventory_contract(self.document, self.inventory[:-1])
 
     def test_source_extraction_matches_hash_backed_inventory(self) -> None:
-        extracted = checker.extract_governed_sources()
+        extracted = checker.extract_governed_sources(self.document)
         checker.compare_source_inventory(extracted, self.inventory)
         self.assertEqual(len(extracted), 43)
 
     def test_snippet_drift_is_rejected(self) -> None:
-        extracted = checker.extract_governed_sources()
+        extracted = checker.extract_governed_sources(self.document)
         changed = replace(
             extracted[0],
             snippet_sha256="0" * 64,
@@ -226,7 +228,121 @@ class InventoryTests(unittest.TestCase):
             checker.compare_source_inventory([changed, *extracted[1:]], self.inventory)
 
 
+class GovernedSourceIdentityTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.document, cls.inventory = checker.load_inventory()
+        cls.original_bytes = {
+            source: (checker.ROOT / source).read_bytes()
+            for source in checker.GOVERNED_SOURCES
+        }
+
+    def test_exact_current_sources_and_known_witnesses_pass(self) -> None:
+        snapshots = checker.verified_governed_source_bytes(self.document)
+        self.assertEqual(snapshots, self.original_bytes)
+        extracted = checker.extract_governed_sources(self.document)
+        checker.compare_source_inventory(extracted, self.inventory)
+        self.assertEqual(len(extracted), 43)
+
+    def assert_source_change_stops_gate(self, source: str, changed: bytes) -> None:
+        snapshots = dict(self.original_bytes)
+        snapshots[source] = changed
+        # Exercise the real gate entry point, not just the digest helper. No
+        # extraction or Cargo/rustc call may occur, even for the LAST source.
+        document = deepcopy(self.document)
+        before = deepcopy(document)
+
+        def read_bytes(path: Path) -> bytes:
+            return snapshots[path.relative_to(checker.ROOT).as_posix()]
+
+        with (
+            mock.patch.object(checker, "load_inventory", return_value=(document, self.inventory)),
+            mock.patch.object(Path, "read_bytes", autospec=True, side_effect=read_bytes),
+            mock.patch.object(checker, "extract_witnesses") as extraction,
+            mock.patch.object(checker.subprocess, "run") as subprocess_run,
+        ):
+            with self.assertRaisesRegex(
+                checker.A018CheckError,
+                "governed source digest changed; explicit A-018 inventory review required",
+            ) as error:
+                checker.run_check()
+            self.assertIn(source, str(error.exception))
+            extraction.assert_not_called()
+            subprocess_run.assert_not_called()
+        self.assertEqual(document, before, "checking must never regenerate identities")
+
+    def test_one_byte_change_in_each_source_fails_before_any_extraction(self) -> None:
+        for source, raw in self.original_bytes.items():
+            with self.subTest(source=source):
+                self.assert_source_change_stops_gate(source, raw + b" ")
+
+    def test_future_rustdoc_forms_cannot_escape_source_identity(self) -> None:
+        forms = {
+            "outer": '/// ```compile_fail,E0308\n/// missing_name();\n/// ```\npub fn added() {}\n',
+            "quote": '//! > ```compile_fail,E0308\n//! > missing_name();\n//! > ```\n',
+            "list": '//! - item\n//!\n//!   ```compile_fail,E0308\n//!   missing_name();\n//!   ```\n',
+            "tab": '//!\t```compile_fail,E0308\n//!\tmissing_name();\n//!\t```\n',
+            "target_ignore": '//! ```ignore-windows,compile_fail,E0308\n//! missing_name();\n//! ```\n',
+            "explicit_rust": '//! ```text,rust,compile_fail,E0308\n//! missing_name();\n//! ```\n',
+            "invalid_backtick_info": '//! ```text`\n//! ```compile_fail,E0308\n//! missing_name();\n//! ```\n',
+            "block_doc": '/**\n```compile_fail,E0308\nmissing_name();\n```\n*/\npub fn added() {}\n',
+            "doc_attribute": '#[doc = "```compile_fail,E0308\\nmissing_name();\\n```"]\npub fn added() {}\n',
+        }
+        for source, raw in self.original_bytes.items():
+            for name, form in forms.items():
+                with self.subTest(source=source, form=name):
+                    # Inner docs belong before source items; outer docs after.
+                    addition = form.encode("utf-8")
+                    changed = addition + raw if form.startswith("//!") else raw + addition
+                    self.assert_source_change_stops_gate(source, changed)
+
+    def test_non_doc_rust_change_deliberately_requires_review(self) -> None:
+        source = checker.GOVERNED_SOURCES[0]
+        self.assert_source_change_stops_gate(
+            source, self.original_bytes[source] + b"\nconst ADDED: u8 = 1;\n"
+        )
+
+    def test_raw_line_endings_are_not_normalized_before_hashing(self) -> None:
+        source = checker.GOVERNED_SOURCES[0]
+        self.assert_source_change_stops_gate(
+            source, self.original_bytes[source].replace(b"\n", b"\r\n")
+        )
+
+    def test_witness_expectation_update_cannot_bypass_source_identity(self) -> None:
+        document = deepcopy(self.document)
+        document["witnesses"][0]["snippet_sha256"] = "0" * 64
+        source = checker.GOVERNED_SOURCES[0]
+        with mock.patch.object(Path, "read_bytes", return_value=self.original_bytes[source] + b" "):
+            with self.assertRaisesRegex(checker.A018CheckError, "source digest changed"):
+                checker.extract_governed_sources(document)
+
+    def test_source_identity_set_and_hash_shape_are_required(self) -> None:
+        for identities in (None, {}, {"unexpected.rs": {"sha256": "0" * 64}}):
+            with self.subTest(identities=identities):
+                with self.assertRaisesRegex(checker.A018CheckError, "exactly the three"):
+                    checker.verified_governed_source_bytes({"governed_sources": identities})
+        for invalid in (None, {}, {"sha256": "bad"}, {"sha256": 42}):
+            with self.subTest(invalid=invalid):
+                document = deepcopy(self.document)
+                document["governed_sources"][checker.GOVERNED_SOURCES[0]] = invalid
+                with self.assertRaisesRegex(checker.A018CheckError, "invalid governed source"):
+                    checker.verified_governed_source_bytes(document)
+
+    def test_missing_source_fails_closed(self) -> None:
+        with mock.patch.object(Path, "read_bytes", side_effect=FileNotFoundError("missing")):
+            with self.assertRaisesRegex(checker.A018CheckError, "cannot read governed source"):
+                checker.extract_governed_sources(self.document)
+
+    def test_extraction_uses_verified_snapshot_without_rereading(self) -> None:
+        original_read = Path.read_bytes
+        with mock.patch.object(Path, "read_bytes", autospec=True, side_effect=original_read) as reads:
+            extracted = checker.extract_governed_sources(self.document)
+        self.assertEqual(reads.call_count, 3)
+        checker.compare_source_inventory(extracted, self.inventory)
+
+
 class ExtractionTests(unittest.TestCase):
+    """Convenience syntax coverage, NOT a Rustdoc completeness specification."""
     def test_zero_through_three_space_fences_are_extracted(self) -> None:
         for indentation in range(4):
             with self.subTest(indentation=indentation):

@@ -1,5 +1,16 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
+  "governed_sources": {
+    "crates/magpie-claims/src/origin_binding_verifier.rs": {
+      "sha256": "d65ea87886a217fc8303f40efe960fcad9f75e1af0407510d1241d39a050eae6"
+    },
+    "crates/magpie-claims/src/origin_admission_audit.rs": {
+      "sha256": "7b7b624c1fe71723d44f76c76ef253d52bd1f4276a3744ac3d2d7b6e2ec10d7c"
+    },
+    "crates/magpie-claims/src/support_contribution_audit.rs": {
+      "sha256": "ae85c164aff7968aa2e8dc86322b929fd2d694e01b1a2b3f03e20b4e02b53d2e"
+    }
+  },
   "source_file_counts": {
     "crates/magpie-claims/src/origin_binding_verifier.rs": 7,
     "crates/magpie-claims/src/origin_admission_audit.rs": 20,
