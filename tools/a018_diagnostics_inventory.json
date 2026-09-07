@@ -1,0 +1,388 @@
+{
+  "schema_version": 2,
+  "governed_sources": {
+    "crates/magpie-claims/src/origin_binding_verifier.rs": {
+      "sha256": "d65ea87886a217fc8303f40efe960fcad9f75e1af0407510d1241d39a050eae6"
+    },
+    "crates/magpie-claims/src/origin_admission_audit.rs": {
+      "sha256": "7b7b624c1fe71723d44f76c76ef253d52bd1f4276a3744ac3d2d7b6e2ec10d7c"
+    },
+    "crates/magpie-claims/src/support_contribution_audit.rs": {
+      "sha256": "ae85c164aff7968aa2e8dc86322b929fd2d694e01b1a2b3f03e20b4e02b53d2e"
+    }
+  },
+  "source_file_counts": {
+    "crates/magpie-claims/src/origin_binding_verifier.rs": 7,
+    "crates/magpie-claims/src/origin_admission_audit.rs": 20,
+    "crates/magpie-claims/src/support_contribution_audit.rs": 16
+  },
+  "diagnostic_counts": {
+    "E0451": 7,
+    "E0277": 15,
+    "E0308": 16,
+    "E0599": 5
+  },
+  "witnesses": [
+    {
+      "id": "origin-binding-verifier-01",
+      "source": "crates/magpie-claims/src/origin_binding_verifier.rs",
+      "ordinal": 1,
+      "diagnostic": "E0451",
+      "description": "Origin-binding receipts cannot be constructed with struct literals",
+      "snippet_sha256": "d0b7e56013b1f5845bb6f6fb2466aede7307eb86b2a0ca5cff485c30b64aa4df"
+    },
+    {
+      "id": "origin-binding-verifier-02",
+      "source": "crates/magpie-claims/src/origin_binding_verifier.rs",
+      "ordinal": 2,
+      "diagnostic": "E0277",
+      "description": "Origin-binding receipts cannot be deserialized",
+      "snippet_sha256": "c606fb5af5cb402632ab4384d462639a64701b4a36da710038c5f0c0a04a3ad6"
+    },
+    {
+      "id": "origin-binding-verifier-03",
+      "source": "crates/magpie-claims/src/origin_binding_verifier.rs",
+      "ordinal": 3,
+      "diagnostic": "E0277",
+      "description": "Contribution identities cannot be deserialized",
+      "snippet_sha256": "e9dbc6ed9d4a3d37658847b5b141464376ec8e8feba6a481f11cfd417d01e07c"
+    },
+    {
+      "id": "origin-binding-verifier-04",
+      "source": "crates/magpie-claims/src/origin_binding_verifier.rs",
+      "ordinal": 4,
+      "diagnostic": "E0277",
+      "description": "Comparison namespaces cannot be deserialized",
+      "snippet_sha256": "8394245d54376d3e7357339c064f6225efdf7563ab37ad48d7ab82f88fdade4b"
+    },
+    {
+      "id": "origin-binding-verifier-05",
+      "source": "crates/magpie-claims/src/origin_binding_verifier.rs",
+      "ordinal": 5,
+      "diagnostic": "E0599",
+      "description": "A standalone StandingView has no origin-binding resolver",
+      "snippet_sha256": "09e48268a26b42e8daf79939d1b05ffe3998306ed84b5d85f4563814f74af166"
+    },
+    {
+      "id": "origin-binding-verifier-06",
+      "source": "crates/magpie-claims/src/origin_binding_verifier.rs",
+      "ordinal": 6,
+      "diagnostic": "E0308",
+      "description": "A caller-created anchor index cannot substitute for the replay-derived selector",
+      "snippet_sha256": "c415ca4f80d611daf24782bc7c295f5c206ac5be08cd26b36330866907fcb5ca"
+    },
+    {
+      "id": "origin-binding-verifier-07",
+      "source": "crates/magpie-claims/src/origin_binding_verifier.rs",
+      "ordinal": 7,
+      "diagnostic": "E0308",
+      "description": "Cloned receipt material is not accepted as resolver authority",
+      "snippet_sha256": "ff873d08e053685b70f22d722b6f3ed9f22836db6037dbc91b4f55f8e1043a45"
+    },
+    {
+      "id": "origin-admission-audit-01",
+      "source": "crates/magpie-claims/src/origin_admission_audit.rs",
+      "ordinal": 1,
+      "diagnostic": "E0451",
+      "description": "Candidate audits cannot be constructed with struct literals",
+      "snippet_sha256": "1890258fc220b37e6f175b4cef066ec6201e0689833531e48db2da687f2b57e9"
+    },
+    {
+      "id": "origin-admission-audit-02",
+      "source": "crates/magpie-claims/src/origin_admission_audit.rs",
+      "ordinal": 2,
+      "diagnostic": "E0451",
+      "description": "Admitted origins cannot be constructed with struct literals",
+      "snippet_sha256": "dfd28471dc656666ca47866345119b5364ae4fd873236fc372bcecc55596cc29"
+    },
+    {
+      "id": "origin-admission-audit-03",
+      "source": "crates/magpie-claims/src/origin_admission_audit.rs",
+      "ordinal": 3,
+      "diagnostic": "E0451",
+      "description": "Conflicts cannot be constructed with struct literals",
+      "snippet_sha256": "eb735fed17de71a34939e5da734f4c858217d4858ddd4bb03d29876a64939284"
+    },
+    {
+      "id": "origin-admission-audit-04",
+      "source": "crates/magpie-claims/src/origin_admission_audit.rs",
+      "ordinal": 4,
+      "diagnostic": "E0451",
+      "description": "Complete audits cannot be constructed with struct literals",
+      "snippet_sha256": "1d14355ec99cb5227e1b1212456988907e531ed394455813efa3a1db5b6fae74"
+    },
+    {
+      "id": "origin-admission-audit-05",
+      "source": "crates/magpie-claims/src/origin_admission_audit.rs",
+      "ordinal": 5,
+      "diagnostic": "E0277",
+      "description": "Audit completion values cannot be deserialized",
+      "snippet_sha256": "801665044bead218349691ab2ed87c1004e7e3b2e7d0dca261fde99cf81a49e7"
+    },
+    {
+      "id": "origin-admission-audit-06",
+      "source": "crates/magpie-claims/src/origin_admission_audit.rs",
+      "ordinal": 6,
+      "diagnostic": "E0277",
+      "description": "Candidate dispositions cannot be deserialized",
+      "snippet_sha256": "8e7a670d808aa48eb0c758e8b10b034ed8c34a875c57a15d4552884465d7605e"
+    },
+    {
+      "id": "origin-admission-audit-07",
+      "source": "crates/magpie-claims/src/origin_admission_audit.rs",
+      "ordinal": 7,
+      "diagnostic": "E0277",
+      "description": "Candidate audits cannot be deserialized",
+      "snippet_sha256": "ff20bb3303709e387556f51a1c50c43bd2fbb0d60bbef8cf5794dc1b8db7a234"
+    },
+    {
+      "id": "origin-admission-audit-08",
+      "source": "crates/magpie-claims/src/origin_admission_audit.rs",
+      "ordinal": 8,
+      "diagnostic": "E0277",
+      "description": "Admitted origins cannot be deserialized",
+      "snippet_sha256": "0361c85fff19e76a35580a4a257ca61403e969944388a8f867e70e1fcdc30855"
+    },
+    {
+      "id": "origin-admission-audit-09",
+      "source": "crates/magpie-claims/src/origin_admission_audit.rs",
+      "ordinal": 9,
+      "diagnostic": "E0277",
+      "description": "Conflicts cannot be deserialized",
+      "snippet_sha256": "15118339686d1bc4f26b7c68f3301fe7a93781f6b67c59c26de8dec61e821c46"
+    },
+    {
+      "id": "origin-admission-audit-10",
+      "source": "crates/magpie-claims/src/origin_admission_audit.rs",
+      "ordinal": 10,
+      "diagnostic": "E0277",
+      "description": "Decisions cannot be deserialized",
+      "snippet_sha256": "5046feda9f9f1b11464fbad1f3c93ac1ce74047ae33482e50e1cfbb32b7dcca4"
+    },
+    {
+      "id": "origin-admission-audit-11",
+      "source": "crates/magpie-claims/src/origin_admission_audit.rs",
+      "ordinal": 11,
+      "diagnostic": "E0277",
+      "description": "Complete audits cannot be deserialized",
+      "snippet_sha256": "0ce190b500b04e4ba942a68e536d41860b9c31f6a147649775504c1ea3850ec1"
+    },
+    {
+      "id": "origin-admission-audit-12",
+      "source": "crates/magpie-claims/src/origin_admission_audit.rs",
+      "ordinal": 12,
+      "diagnostic": "E0308",
+      "description": "No resolver accepts a caller-selected candidate list",
+      "snippet_sha256": "7d604d65468a535e9342e34422f89da71522dac5ef884b776e0fafcc44e84013"
+    },
+    {
+      "id": "origin-admission-audit-13",
+      "source": "crates/magpie-claims/src/origin_admission_audit.rs",
+      "ordinal": 13,
+      "diagnostic": "E0308",
+      "description": "No resolver accepts a caller-created anchor index",
+      "snippet_sha256": "c9cde4390c1d7dda542e106e518f4af36cadc166bf3f21da1e7fee10d559465d"
+    },
+    {
+      "id": "origin-admission-audit-14",
+      "source": "crates/magpie-claims/src/origin_admission_audit.rs",
+      "ordinal": 14,
+      "diagnostic": "E0308",
+      "description": "No resolver accepts a caller-selected policy ID",
+      "snippet_sha256": "d28c91e70a2c514fa9e1c8455b2118bd43dffee1c8fca5dec04ed593ab61f8c0"
+    },
+    {
+      "id": "origin-admission-audit-15",
+      "source": "crates/magpie-claims/src/origin_admission_audit.rs",
+      "ordinal": 15,
+      "diagnostic": "E0308",
+      "description": "No resolver accepts a caller-created authority table",
+      "snippet_sha256": "b83e5987b62b880c5a0296f81103e99aa996e35271650ce43aceb28dbffd12d6"
+    },
+    {
+      "id": "origin-admission-audit-16",
+      "source": "crates/magpie-claims/src/origin_admission_audit.rs",
+      "ordinal": 16,
+      "diagnostic": "E0308",
+      "description": "Serialized audit bytes cannot substitute for replay and closure",
+      "snippet_sha256": "b09076689bfb2ea901471f48755f4ade16207aead25089a02f1a11c7f5da5f80"
+    },
+    {
+      "id": "origin-admission-audit-17",
+      "source": "crates/magpie-claims/src/origin_admission_audit.rs",
+      "ordinal": 17,
+      "diagnostic": "E0308",
+      "description": "Cloned audit output cannot substitute for replay and closure",
+      "snippet_sha256": "036784274df63568274f180024242f958ba675d6b85fbed50768d239ab4f753c"
+    },
+    {
+      "id": "origin-admission-audit-18",
+      "source": "crates/magpie-claims/src/origin_admission_audit.rs",
+      "ordinal": 18,
+      "diagnostic": "E0308",
+      "description": "Admitted origins, conflicts and decisions cannot substitute for authority",
+      "snippet_sha256": "e781c3b6aca7fd62a68fba46e13a7ee92fed8a0ca4b58b8b1e1ea0121c2c3f1c",
+      "diagnostic_occurrences": [
+        {
+          "code": "E0308",
+          "relative_line": 11,
+          "relative_column": 55
+        },
+        {
+          "code": "E0308",
+          "relative_line": 12,
+          "relative_column": 55
+        },
+        {
+          "code": "E0308",
+          "relative_line": 13,
+          "relative_column": 55
+        }
+      ]
+    },
+    {
+      "id": "origin-admission-audit-19",
+      "source": "crates/magpie-claims/src/origin_admission_audit.rs",
+      "ordinal": 19,
+      "diagnostic": "E0599",
+      "description": "A standalone standing snapshot has no complete audit resolver",
+      "snippet_sha256": "fcac32b2bbc46ef75179929d5679fc43366748a4dc30e00ede9b0ae9bc560408"
+    },
+    {
+      "id": "origin-admission-audit-20",
+      "source": "crates/magpie-claims/src/origin_admission_audit.rs",
+      "ordinal": 20,
+      "diagnostic": "E0599",
+      "description": "Other public replay-derived views are not complete audit carriers",
+      "snippet_sha256": "1bd238f999bd523682393e4e3ff8229b7723c4f41a11502f16131ea2ef319c19"
+    },
+    {
+      "id": "support-contribution-audit-01",
+      "source": "crates/magpie-claims/src/support_contribution_audit.rs",
+      "ordinal": 1,
+      "diagnostic": "E0451",
+      "description": "Support contributions cannot be constructed with struct literals",
+      "snippet_sha256": "d62aa62bdce6bb1a719aa33d89e91ff255b68545ce5eb1e176299bfc15560fcf"
+    },
+    {
+      "id": "support-contribution-audit-02",
+      "source": "crates/magpie-claims/src/support_contribution_audit.rs",
+      "ordinal": 2,
+      "diagnostic": "E0451",
+      "description": "Support audits cannot be constructed with struct literals",
+      "snippet_sha256": "dc34b29b7e1b56a96833dc412155282bfd60ec2238545a357fa7f8ef0503295d"
+    },
+    {
+      "id": "support-contribution-audit-03",
+      "source": "crates/magpie-claims/src/support_contribution_audit.rs",
+      "ordinal": 3,
+      "diagnostic": "E0277",
+      "description": "Completion values cannot be deserialized",
+      "snippet_sha256": "f1e7ec7d7c7ae551957d60e94bd6d8d173759df69512190967df18deb530b6c2"
+    },
+    {
+      "id": "support-contribution-audit-04",
+      "source": "crates/magpie-claims/src/support_contribution_audit.rs",
+      "ordinal": 4,
+      "diagnostic": "E0277",
+      "description": "Composition failures cannot be deserialized",
+      "snippet_sha256": "d83780e70671ff73d6ec4fe1f19359f260522d3481de4f1ebde0e6dbd01cf233"
+    },
+    {
+      "id": "support-contribution-audit-05",
+      "source": "crates/magpie-claims/src/support_contribution_audit.rs",
+      "ordinal": 5,
+      "diagnostic": "E0277",
+      "description": "Invariant reasons cannot be deserialized",
+      "snippet_sha256": "1681985cf4eee5b3001254090c556baa054863a2b055597e230d1e15b1195382"
+    },
+    {
+      "id": "support-contribution-audit-06",
+      "source": "crates/magpie-claims/src/support_contribution_audit.rs",
+      "ordinal": 6,
+      "diagnostic": "E0277",
+      "description": "Support contributions cannot be deserialized",
+      "snippet_sha256": "81201ef69b8028162a24951709152aae2d1a9baec2149d5a55586835df49331f"
+    },
+    {
+      "id": "support-contribution-audit-07",
+      "source": "crates/magpie-claims/src/support_contribution_audit.rs",
+      "ordinal": 7,
+      "diagnostic": "E0277",
+      "description": "Support audits cannot be deserialized",
+      "snippet_sha256": "6db8ac2263f6e33f8cbb7e687db58082b38b45248615540fcb3d31459ace11a0"
+    },
+    {
+      "id": "support-contribution-audit-08",
+      "source": "crates/magpie-claims/src/support_contribution_audit.rs",
+      "ordinal": 8,
+      "diagnostic": "E0308",
+      "description": "No resolver accepts a caller-created admitted audit",
+      "snippet_sha256": "c742c491d21045b41e7bb804f8160c8bcc25be413fddedccbf5a4bf079c6fa60"
+    },
+    {
+      "id": "support-contribution-audit-09",
+      "source": "crates/magpie-claims/src/support_contribution_audit.rs",
+      "ordinal": 9,
+      "diagnostic": "E0308",
+      "description": "No resolver accepts a caller-created admitted-contribution list",
+      "snippet_sha256": "b1bcbbd85e62b7760ac532875d0bc88a02faf183f703373557246b9b3e48bf43"
+    },
+    {
+      "id": "support-contribution-audit-10",
+      "source": "crates/magpie-claims/src/support_contribution_audit.rs",
+      "ordinal": 10,
+      "diagnostic": "E0308",
+      "description": "No resolver accepts a caller-selected claim ID",
+      "snippet_sha256": "4cb3c8a2259ab77dfad55d74ae94c3edf852e153d3f2f78c4d197391ffbce625"
+    },
+    {
+      "id": "support-contribution-audit-11",
+      "source": "crates/magpie-claims/src/support_contribution_audit.rs",
+      "ordinal": 11,
+      "diagnostic": "E0308",
+      "description": "No resolver accepts a caller-selected origin group",
+      "snippet_sha256": "3a6e74278955406f101545616158038008e40946a5dcc3d8981e46cddf9fa589"
+    },
+    {
+      "id": "support-contribution-audit-12",
+      "source": "crates/magpie-claims/src/support_contribution_audit.rs",
+      "ordinal": 12,
+      "diagnostic": "E0308",
+      "description": "No resolver accepts a caller-selected policy ID",
+      "snippet_sha256": "22ff7b58320da1dd878c16adfbcd69be0708faf41caccba89ed78ac020d960aa"
+    },
+    {
+      "id": "support-contribution-audit-13",
+      "source": "crates/magpie-claims/src/support_contribution_audit.rs",
+      "ordinal": 13,
+      "diagnostic": "E0308",
+      "description": "Serialized audit bytes cannot substitute for replay authority",
+      "snippet_sha256": "d77e6855ec37b065fcac8afeab7fbc4dfa70a6e8dac845ae40db2e1320300647"
+    },
+    {
+      "id": "support-contribution-audit-14",
+      "source": "crates/magpie-claims/src/support_contribution_audit.rs",
+      "ordinal": 14,
+      "diagnostic": "E0308",
+      "description": "Cloned audit output cannot substitute for replay authority",
+      "snippet_sha256": "f848cd6fac2b1e0a91e39f141a869cc417065f19f3506a448eaf981211b39026"
+    },
+    {
+      "id": "support-contribution-audit-15",
+      "source": "crates/magpie-claims/src/support_contribution_audit.rs",
+      "ordinal": 15,
+      "diagnostic": "E0599",
+      "description": "A standalone standing view has no support-contribution resolver",
+      "snippet_sha256": "a2e8da14f75584bad13505ddf5af133cd2b388d7f8c135c9e45b9e1df7be22cb"
+    },
+    {
+      "id": "support-contribution-audit-16",
+      "source": "crates/magpie-claims/src/support_contribution_audit.rs",
+      "ordinal": 16,
+      "diagnostic": "E0599",
+      "description": "A standalone standing replay snapshot has no complete support-contribution resolver",
+      "snippet_sha256": "d13d7a41808deeed2cd5133248e18540e7d1e8268abbf35739ec76a2895ec2dc"
+    }
+  ]
+}
