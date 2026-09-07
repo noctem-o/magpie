@@ -13,6 +13,10 @@ mod artifact_provenance_verifier;
 mod claim_inline_sha256_predicate;
 mod deadbolt_context;
 mod deterministic_verifier_context;
+// Inert spike: unreachable from production code by design; suppress
+// non-test reachability warnings without hiding test-build problems.
+#[cfg_attr(not(test), allow(dead_code))]
+mod epistemic_gate;
 mod inline_predicate_attestation;
 mod origin_admission_audit;
 mod origin_admission_replay;
