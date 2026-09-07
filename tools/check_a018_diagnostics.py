@@ -48,21 +48,39 @@ EXPECTED_OCCURRENCE_COUNTS = {
 }
 
 RUSTDOC_INFO_WHITESPACE = r"[ \t\v\f]*"
-COMPILE_FAIL_FENCE = re.compile(
-    r"^(?P<indent> {0,3})(?P<delimiter>`{3,})"
-    + RUSTDOC_INFO_WHITESPACE
+RUSTDOC_INFO_TOKEN_SEPARATOR = re.compile(r"[ \t\v\f,]+")
+FENCE_OPENING = re.compile(
+    r"^(?P<indent> {0,3})"
+    r"(?P<delimiter>(?P<delimiter_char>[`~])(?P=delimiter_char){2,})"
+    r"(?P<raw_info_string>.*)$"
+)
+FENCE_CLOSING = re.compile(
+    r"^(?P<indent> {0,3})"
+    r"(?P<delimiter>(?P<delimiter_char>[`~])(?P=delimiter_char){2,})"
+    r"[ \t]*$"
+)
+CANONICAL_COMPILE_FAIL_INFO = re.compile(
+    RUSTDOC_INFO_WHITESPACE
     + r"compile_fail,(?P<code>E\d{4})"
     + RUSTDOC_INFO_WHITESPACE
     + r"$"
 )
-ANY_COMPILE_FAIL_FENCE = re.compile(
-    r"^(?P<indent> {0,3})(?P<delimiter>`{3,})"
-    + RUSTDOC_INFO_WHITESPACE
-    + r"compile_fail(?:,.*)?"
-    + RUSTDOC_INFO_WHITESPACE
-    + r"$"
+RUSTDOC_INFO_PREFIXES = frozenset(
+    {
+        "rust",
+        "compile_fail",
+        "no_run",
+        "should_panic",
+        "ignore",
+        "edition2015",
+        "edition2018",
+        "edition2021",
+        "edition2024",
+        "test_harness",
+        "standalone_crate",
+        "no_crate_inject",
+    }
 )
-CLOSE_FENCE = re.compile(r"^(?P<indent> {0,3})(?P<delimiter>`{3,})[ \t]*$")
 RUST_ERROR_CODE = re.compile(r"^E\d{4}$")
 SNIPPET_WRAPPER_PREFIX_LINES = 1
 
@@ -88,12 +106,9 @@ class ExtractedWitness:
 @dataclass(frozen=True)
 class FenceOpening:
     indent: int
-    delimiter: str
-    diagnostic: str
-
-    @property
-    def delimiter_length(self) -> int:
-        return len(self.delimiter)
+    delimiter_char: str
+    delimiter_length: int
+    raw_info_string: str
 
 
 @dataclass(frozen=True)
@@ -160,29 +175,56 @@ def _source_lines(text: str) -> list[str]:
     return [line[:-1] if line.endswith("\r") else line for line in lines]
 
 
-def _parse_opening_fence(
-    text: str, source: str, line_number: int
-) -> FenceOpening | None:
-    any_match = ANY_COMPILE_FAIL_FENCE.fullmatch(text)
-    if any_match is None:
-        return None
-    match = COMPILE_FAIL_FENCE.fullmatch(text)
+def _parse_opening_fence(text: str) -> FenceOpening | None:
+    match = FENCE_OPENING.fullmatch(text)
     if match is None:
-        raise A018CheckError(
-            f"{source}:{line_number}: compile_fail fence must name a Rust error code"
-        )
+        return None
     return FenceOpening(
         indent=len(match.group("indent")),
-        delimiter=match.group("delimiter"),
-        diagnostic=match.group("code"),
+        delimiter_char=match.group("delimiter_char"),
+        delimiter_length=len(match.group("delimiter")),
+        raw_info_string=match.group("raw_info_string"),
     )
 
 
+def _rustdoc_info_tokens(raw_info_string: str) -> tuple[str, ...]:
+    return tuple(
+        token
+        for token in RUSTDOC_INFO_TOKEN_SEPARATOR.split(raw_info_string)
+        if token
+    )
+
+
+def _is_rustdoc_compile_fail(raw_info_string: str) -> bool:
+    """Recognize Rustdoc's compile-fail attribute without accepting its syntax."""
+
+    tokens = _rustdoc_info_tokens(raw_info_string)
+    return bool(tokens) and tokens[0] in RUSTDOC_INFO_PREFIXES and (
+        "compile_fail" in tokens
+    )
+
+
+def _classify_compile_fail_fence(
+    opening: FenceOpening, source: str, line_number: int
+) -> str | None:
+    """Return the governed code, or fail closed for Rustdoc compile-fail syntax."""
+
+    if not _is_rustdoc_compile_fail(opening.raw_info_string):
+        return None
+    match = CANONICAL_COMPILE_FAIL_INFO.fullmatch(opening.raw_info_string)
+    if match is None:
+        raise A018CheckError(
+            f"{source}:{line_number}: compile_fail fence must name a Rust error code "
+            "using the canonical governed annotation compile_fail,E####"
+        )
+    return match.group("code")
+
+
 def _is_closing_fence(text: str, opening: FenceOpening) -> bool:
-    match = CLOSE_FENCE.fullmatch(text)
+    match = FENCE_CLOSING.fullmatch(text)
     return (
         match is not None
-        and match.group("delimiter")[0] == opening.delimiter[0]
+        and match.group("delimiter_char") == opening.delimiter_char
         and len(match.group("delimiter")) >= opening.delimiter_length
     )
 
@@ -196,14 +238,13 @@ def extract_witnesses(source: str, text: str) -> list[ExtractedWitness]:
     while index < len(lines):
         line = lines[index]
         doc_line = _doc_text(line, source, index + 1) if line.startswith("//!") else line
-        opening = _parse_opening_fence(doc_line, source, index + 1)
+        opening = _parse_opening_fence(doc_line)
         if opening is not None:
+            diagnostic = _classify_compile_fail_fence(opening, source, index + 1)
             closing = index + 1
             body: list[str] = []
             while closing < len(lines):
-                closing_doc_line = _doc_text(
-                    lines[closing], source, closing + 1
-                )
+                closing_doc_line = _doc_text(lines[closing], source, closing + 1)
                 if _is_closing_fence(closing_doc_line, opening):
                     break
                 body.append(
@@ -211,15 +252,20 @@ def extract_witnesses(source: str, text: str) -> list[ExtractedWitness]:
                 )
                 closing += 1
             if closing == len(lines):
-                raise A018CheckError(
-                    f"{source}:{index + 1}: compile_fail fence has no closing fence"
-                )
+                if diagnostic is not None:
+                    raise A018CheckError(
+                        f"{source}:{index + 1}: compile_fail fence has no closing fence"
+                    )
+                break
+            if diagnostic is None:
+                index = closing + 1
+                continue
             snippet = normalize_snippet(body)
             witnesses.append(
                 ExtractedWitness(
                     source=source,
                     ordinal=len(witnesses) + 1,
-                    diagnostic=opening.diagnostic,
+                    diagnostic=diagnostic,
                     source_line=index + 1,
                     snippet=snippet,
                     snippet_sha256=snippet_sha256(snippet),
