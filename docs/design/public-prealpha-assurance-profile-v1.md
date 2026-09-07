@@ -264,7 +264,7 @@ production-ready, or finding-closed.
 
 | Requirement | Current evidence on main | Evidence strength | Remaining gap | Proposed later tranche | Blocks C5? |
 | --- | --- | --- | --- | --- | --- |
-| Selected public portable boundary | README, convergence reassessment, #146-era implementation and tests; C3 receipt exclusion is explicit in `AGENTS.md`/`CLAUDE.md` and current docs. | Strong, bounded doctrine plus implementation | No C4 assurance record for one final candidate. | C4.5 profile-conformance record gate | Yes |
+| Selected public portable boundary | README, convergence reassessment, #146-era implementation and tests; C3 receipt exclusion is explicit in `CLAUDE.md` and current docs. | Strong, bounded doctrine plus implementation | No C4 assurance record for one final candidate. | C4.5 profile-conformance record gate | Yes |
 | Rust public/file front door | `FileStore::verify_portable_history`; exact-byte and hostile tests; current audit disposition narrows closure to selected profile. | Strong for selected path | Candidate-specific hosted evidence and final record still required. | C4.5 | Yes |
 | Frozen corpus and three-way semantics | 432-case manifest, independent Python/Go paths, seven-field differential, repeat-two, corpus checker. | Strong finite conformance evidence | Not universal correctness; must rerun for claimed candidate and retain coordinates. | C4.5 | Yes |
 | A-018 exact diagnostic boundary | Current main includes source-bound persistent checker and 43-witness evidence in the audit record. | Strong bounded evidence | Must be included in the future candidate record; no broad parser equivalence. | C4.5 | Yes |
