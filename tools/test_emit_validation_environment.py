@@ -91,6 +91,105 @@ class ValidationEnvironmentTests(unittest.TestCase):
             (root / "nested" / "a.txt").write_bytes(b"changed")
             self.assertNotEqual(first["sha256"], provenance._tree_identity(root)["sha256"])
 
+    def test_tree_identity_changes_when_file_is_renamed_or_moved(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="magpie-provenance-tree-") as directory:
+            root = Path(directory)
+            (root / "a.txt").write_bytes(b"identical payload")
+            baseline = provenance._tree_identity(root)
+            self.assertEqual(baseline["entry_count"], 1)
+
+            (root / "a.txt").rename(root / "b.txt")
+            self.assertEqual((root / "b.txt").read_bytes(), b"identical payload")
+            renamed = provenance._tree_identity(root)
+            self.assertNotEqual(baseline["sha256"], renamed["sha256"])
+
+            (root / "nested").mkdir()
+            (root / "b.txt").rename(root / "nested" / "b.txt")
+            self.assertEqual(
+                (root / "nested" / "b.txt").read_bytes(), b"identical payload"
+            )
+            moved = provenance._tree_identity(root)
+            self.assertNotEqual(baseline["sha256"], moved["sha256"])
+            self.assertNotEqual(renamed["sha256"], moved["sha256"])
+
+    def test_tree_identity_distinguishes_file_from_symlink_with_same_text(self) -> None:
+        with tempfile.TemporaryDirectory(
+            prefix="magpie-provenance-tree-"
+        ) as directory, tempfile.TemporaryDirectory(
+            prefix="magpie-provenance-external-"
+        ) as external:
+            root = Path(directory)
+            target = Path(external) / "target.txt"
+            target.write_bytes(str(target).encode("utf-8"))
+
+            (root / "f.txt").write_bytes(str(target).encode("utf-8"))
+            file_identity = provenance._tree_identity(root)
+
+            (root / "f.txt").unlink()
+            os.symlink(target, root / "f.txt")
+            self.assertEqual(
+                (root / "f.txt").read_bytes(), str(target).encode("utf-8")
+            )
+            link_identity = provenance._tree_identity(root)
+
+            self.assertEqual(file_identity["entry_count"], 1)
+            self.assertEqual(link_identity["entry_count"], 1)
+            self.assertNotEqual(file_identity["sha256"], link_identity["sha256"])
+
+    def test_tree_identity_changes_when_symlink_target_changes(self) -> None:
+        with tempfile.TemporaryDirectory(
+            prefix="magpie-provenance-tree-"
+        ) as directory, tempfile.TemporaryDirectory(
+            prefix="magpie-provenance-external-"
+        ) as external:
+            root = Path(directory)
+            first_target = Path(external) / "a.txt"
+            second_target = Path(external) / "b.txt"
+            first_target.write_bytes(b"identical payload")
+            second_target.write_bytes(b"identical payload")
+
+            os.symlink(first_target, root / "link.txt")
+            first = provenance._tree_identity(root)
+
+            (root / "link.txt").unlink()
+            os.symlink(second_target, root / "link.txt")
+            self.assertEqual((root / "link.txt").read_bytes(), b"identical payload")
+            second = provenance._tree_identity(root)
+
+            self.assertEqual(first["entry_count"], 1)
+            self.assertEqual(second["entry_count"], 1)
+            self.assertNotEqual(first["sha256"], second["sha256"])
+
+    def test_tree_identity_ignores_contents_resolved_through_symlink(self) -> None:
+        with tempfile.TemporaryDirectory(
+            prefix="magpie-provenance-tree-"
+        ) as directory, tempfile.TemporaryDirectory(
+            prefix="magpie-provenance-external-"
+        ) as external:
+            root = Path(directory)
+            target = Path(external) / "target.txt"
+            target.write_bytes(b"original contents")
+            os.symlink(target, root / "link.txt")
+
+            first = provenance._tree_identity(root)
+            target.write_bytes(b"changed contents")
+            second = provenance._tree_identity(root)
+
+            self.assertEqual(first, second)
+
+    def test_tree_identity_ignores_empty_directories(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="magpie-provenance-tree-") as directory:
+            root = Path(directory)
+            (root / "a.txt").write_bytes(b"data")
+            baseline = provenance._tree_identity(root)
+            self.assertEqual(baseline["entry_count"], 1)
+
+            (root / "empty-dir").mkdir()
+            self.assertEqual(provenance._tree_identity(root), baseline)
+
+            (root / "empty-dir").rmdir()
+            self.assertEqual(provenance._tree_identity(root), baseline)
+
     def test_record_keeps_candidate_github_and_checkout_shas_distinct(self) -> None:
         environment = self._github_environment("pull_request")
         record = provenance.collect_environment(environment, self._command_output)
