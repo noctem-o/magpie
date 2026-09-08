@@ -2,8 +2,11 @@
 
 Each test mutates exactly one aspect of an isolated copy of the repository
 and requires the checker to fail closed with
-``DependencyNativeCheckError``. The unmutated copy and the real repository
-must both pass.
+``DependencyNativeCheckError``; a few positive-control tests rewrite
+supported alternative syntaxes (block and folded run forms, comment
+lines, parenthesized require blocks) and require the checker to keep
+passing, so the new parsers are exercised in both directions. The
+unmutated copy and the real repository must both pass.
 
 Tests that mutate a repository file rebind the inventory digests first so
 the failure reaches the intended semantic check rather than the digest
@@ -243,6 +246,12 @@ class CheckerTestCase(unittest.TestCase):
         self.write_inventory(document)
         self.assert_fails()
 
+    def test_inventory_missing_sha256(self) -> None:
+        document = self.inventory()
+        del document["rust"]["cargo_lock"]["sha256"]
+        self.write_inventory(document)
+        self.assert_fails()
+
     def test_inventory_unexpected_reference(self) -> None:
         document = self.inventory()
         document["rust"]["rogue_manifest"] = {
@@ -282,11 +291,37 @@ class CheckerTestCase(unittest.TestCase):
             lambda text: text.replace(
                 "run: python -m pip install -r tools/requirements-portable-verifier.txt",
                 "run: python -m pip install -r tools/requirements-portable-verifier.txt "
-                "&& python -m pip install requests; python -m pip install six",
+                "&& python -m pip install requests",
             ),
         )
         self.rebind()
         self.assert_fails()
+
+    def test_folded_form_pip_escape(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: >\n"
+                "          python -m pip install -r tools/requirements-portable-verifier.txt\n"
+                "          python -m pip install requests",
+            ),
+        )
+        self.rebind()
+        self.assert_fails()
+
+    def test_block_form_pip_comment_is_not_execution(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                "          # python -m pip install requests\n"
+                "          python -m pip install -r tools/requirements-portable-verifier.txt",
+            ),
+        )
+        self.rebind()
+        checker.run_check(self.root)
 
     # --- P1 C: effective workflow values --------------------------------
 
@@ -295,8 +330,24 @@ class CheckerTestCase(unittest.TestCase):
             checker.WORKFLOW_RELATIVE,
             lambda text: text.replace(
                 "    runs-on: ubuntu-24.04",
-                "    runs-on: ubuntu-22.04",
+                "    runs-on: ubuntu-22.04  # old: runs-on: ubuntu-24.04",
             ),
+        )
+        self.rebind()
+        self.assert_fails()
+
+    def test_unrelated_job_does_not_satisfy_governed_values(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "    runs-on: ubuntu-24.04\n",
+                "    runs-on: ubuntu-22.04\n",
+            )
+            + "\n  decoy:\n"
+            "    runs-on: ubuntu-24.04\n"
+            "    steps:\n"
+            "      - name: noop\n"
+            "        run: echo ok\n",
         )
         self.rebind()
         self.assert_fails()
@@ -306,7 +357,7 @@ class CheckerTestCase(unittest.TestCase):
             checker.WORKFLOW_RELATIVE,
             lambda text: text.replace(
                 "MAGPIE_RUNNER_LABEL: ubuntu-24.04",
-                "MAGPIE_RUNNER_LABEL: ubuntu-22.04",
+                "MAGPIE_RUNNER_LABEL: ubuntu-22.04  # old: ubuntu-24.04",
             ),
         )
         self.rebind()
@@ -317,7 +368,7 @@ class CheckerTestCase(unittest.TestCase):
             checker.WORKFLOW_RELATIVE,
             lambda text: text.replace(
                 "go-version: '1.27.0'",
-                "go-version: '1.26.0'",
+                "go-version: '1.26.0'  # old: go-version: '1.27.0'",
             ),
         )
         self.rebind()
@@ -328,7 +379,7 @@ class CheckerTestCase(unittest.TestCase):
             checker.WORKFLOW_RELATIVE,
             lambda text: text.replace(
                 "rustup default 1.98.1",
-                "rustup default 1.97.0",
+                "rustup default 1.97.0  # rustup default 1.98.1",
             ),
         )
         self.rebind()
@@ -395,7 +446,10 @@ class CheckerTestCase(unittest.TestCase):
     def test_go_directive_changed(self) -> None:
         self.mutate_text(
             checker.GO_MOD_RELATIVE,
-            lambda text: text.replace("go 1.27\n", "go 1.26\n"),
+            lambda text: text.replace(
+                "go 1.27\n",
+                "go 1.26 // go 1.27\n",
+            ),
         )
         self.rebind()
         self.assert_fails()
@@ -405,11 +459,22 @@ class CheckerTestCase(unittest.TestCase):
             checker.GO_MOD_RELATIVE,
             lambda text: text.replace(
                 "require filippo.io/edwards25519 v1.2.0",
-                "require filippo.io/edwards25519 v1.3.0",
+                "require filippo.io/edwards25519 v1.3.0 // require filippo.io/edwards25519 v1.2.0",
             ),
         )
         self.rebind()
         self.assert_fails()
+
+    def test_go_require_block_form_is_accepted(self) -> None:
+        self.mutate_text(
+            checker.GO_MOD_RELATIVE,
+            lambda text: text.replace(
+                "require filippo.io/edwards25519 v1.2.0",
+                "require (\n    filippo.io/edwards25519 v1.2.0\n)",
+            ),
+        )
+        self.rebind()
+        checker.run_check(self.root)
 
     def test_go_require_marked_indirect(self) -> None:
         self.mutate_text(
