@@ -877,6 +877,137 @@ class CheckerTestCase(unittest.TestCase):
         self.rebind()
         self.assert_fails("workflow action pins drifted")
 
+    # --- audit F1: piped commands were invisible to the segmenter ---
+
+    def test_piped_pip_install_is_detected(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: echo ok | pip install requests",
+            ),
+        )
+        self.rebind()
+        self.assert_fails(
+            "workflow pip install must install only from the requirements file"
+        )
+
+    def test_piped_pip_install_in_shell_c_is_detected(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                "          python -m pip install -r tools/requirements-portable-verifier.txt\n"
+                '          bash -c "echo ok | pip install requests"',
+            ),
+        )
+        self.rebind()
+        self.assert_fails(
+            "expected exactly one pip install command in the workflow, found 2"
+        )
+
+    # --- audit F2: backgrounded commands were invisible to the segmenter ---
+
+    def test_backgrounded_pip_install_is_detected(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: echo ok & pip install requests",
+            ),
+        )
+        self.rebind()
+        self.assert_fails(
+            "workflow pip install must install only from the requirements file"
+        )
+
+    # --- audit F3: backslash-escaped command names were invisible ---
+
+    def test_backslash_escaped_pip_install_is_detected(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                "          p\\ip install requests\n"
+                "          pi\\p install requests\n"
+                "          python -m pi\\p install requests\n"
+                "          env X=1 p\\ip install requests\n"
+                "          command p\\ip install requests\n"
+                "          bash -c 'p\\ip install requests'",
+            ),
+        )
+        self.rebind()
+        self.assert_fails(
+            "expected exactly one pip install command in the workflow, found 6"
+        )
+
+    def test_backslash_inside_double_quotes_is_not_execution(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                "          python -m pip install -r tools/requirements-portable-verifier.txt\n"
+                '          echo "p\\ip install requests"',
+            ),
+        )
+        self.rebind()
+        checker.run_check(self.root)
+
+    # --- audit F4: rust toolchain environment was not bound ---
+
+    def test_workflow_rust_toolchain_env_changed(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "MAGPIE_RUST_TOOLCHAIN: '1.98.1'",
+                "MAGPIE_RUST_TOOLCHAIN: '1.97.0'  # was '1.98.1'",
+            ),
+        )
+        self.rebind()
+        self.assert_fails("MAGPIE_RUST_TOOLCHAIN")
+
+    def test_workflow_rustup_toolchain_env_changed(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "RUSTUP_TOOLCHAIN: '1.98.1'",
+                "RUSTUP_TOOLCHAIN: '1.97.0'  # was '1.98.1'",
+            ),
+        )
+        self.rebind()
+        self.assert_fails("RUSTUP_TOOLCHAIN")
+
+    def test_workflow_rust_toolchain_env_missing(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace("      MAGPIE_RUST_TOOLCHAIN: '1.98.1'\n", ""),
+        )
+        self.rebind()
+        self.assert_fails("MAGPIE_RUST_TOOLCHAIN")
+
+    def test_workflow_rustup_toolchain_env_missing(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace("      RUSTUP_TOOLCHAIN: '1.98.1'\n", ""),
+        )
+        self.rebind()
+        self.assert_fails("RUSTUP_TOOLCHAIN")
+
+    def test_workflow_duplicate_rust_toolchain_env_rejected(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "MAGPIE_RUST_TOOLCHAIN: '1.98.1'",
+                "MAGPIE_RUST_TOOLCHAIN: '1.98.0'\n"
+                "      MAGPIE_RUST_TOOLCHAIN: '1.98.1'",
+            ),
+        )
+        self.rebind()
+        self.assert_fails("duplicate env key")
+
 
 if __name__ == "__main__":
     unittest.main()

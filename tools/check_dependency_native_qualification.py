@@ -199,13 +199,101 @@ def _yaml_scalar(text: str) -> str:
     return text
 
 
+def _decode_shell_escapes(text: str) -> str:
+    """Resolve backslash escapes once, the way the shell does before word
+    splitting and command lookup.
+
+    Unquoted, a backslash quotes the following character; a backslash
+    before a newline is a line continuation and both characters are
+    dropped (they must not become a segment separator). Inside double
+    quotes only ``$``, backtick, double quote, and backslash are special
+    after a backslash, and a backslash before a newline is still a line
+    continuation; every other backslash is literal. Inside single quotes
+    nothing is special. Decoding is applied exactly once per command
+    level, mirroring the shell: decoded text is not re-decoded, so a
+    literal backslash pair (``\\p``) must not re-form an escaped name.
+    """
+    out: list[str] = []
+    quote = ""
+    i = 0
+    n = len(text)
+    while i < n:
+        ch = text[i]
+        if quote == "'":
+            out.append(ch)
+            if ch == "'":
+                quote = ""
+            i += 1
+        elif quote == '"':
+            if ch == "\\":
+                if i + 1 < n and text[i + 1] == "\n":
+                    i += 2
+                    continue
+                if i + 1 < n and text[i + 1] in '$`"\\':
+                    out.append(text[i + 1])
+                    i += 2
+                    continue
+            out.append(ch)
+            if ch == '"':
+                quote = ""
+            i += 1
+        elif ch == "'" or ch == '"':
+            quote = ch
+            out.append(ch)
+            i += 1
+        elif ch == "\\":
+            if i + 1 < n and text[i + 1] != "\n":
+                out.append(text[i + 1])
+            i += 2 if i + 1 < n else 1
+        else:
+            out.append(ch)
+            i += 1
+    return "".join(out)
+
+
 def _split_effective_segments(command: str) -> list[str]:
     segments: list[str] = []
-    for line in command.splitlines():
-        for part in re.split(r"\s*(?:&&|\|\||;)\s*", line):
-            part = part.strip()
-            if part:
-                segments.append(part)
+    current: list[str] = []
+    in_single = False
+    in_double = False
+
+    def _flush() -> None:
+        segment = "".join(current).strip()
+        if segment:
+            segments.append(segment)
+        current.clear()
+
+    i = 0
+    while i < len(command):
+        ch = command[i]
+        if in_single:
+            current.append(ch)
+            if ch == "'":
+                in_single = False
+        elif in_double:
+            current.append(ch)
+            if ch == '"':
+                in_double = False
+        elif ch == "'":
+            in_single = True
+            current.append(ch)
+        elif ch == '"':
+            in_double = True
+            current.append(ch)
+        elif ch == ";" or ch == "\n":
+            _flush()
+        elif ch == "&":
+            if i + 1 < len(command) and command[i + 1] == "&":
+                i += 1
+            _flush()
+        elif ch == "|":
+            if i + 1 < len(command) and command[i + 1] == "|":
+                i += 1
+            _flush()
+        else:
+            current.append(ch)
+        i += 1
+    _flush()
     return segments
 
 
@@ -313,8 +401,19 @@ def _finds_pip_install(text: str, depth: int = 0) -> bool:
     text = _strip_shell_comment(text).strip()
     if not text:
         return False
-    if "\\" in text or depth > 2:
+    if "\\" in text:
+        # Decode escapes before command-identity analysis so a pip
+        # invocation hidden behind backslash escapes (``p\ip install``)
+        # or split across a line continuation cannot be missed.
+        text = _decode_shell_escapes(text).strip()
+        if not text:
+            return False
+    if depth > 2:
+        # Nesting too deep to model precisely; stay conservative.
         return _rest_mentions_pip_install(text.split())
+    segments = _split_effective_segments(text)
+    if len(segments) > 1:
+        return any(_finds_pip_install(segment, depth) for segment in segments)
     tokens = _tokenize_shell(text)
     if tokens is None:
         return _rest_mentions_pip_install(text.split())
@@ -766,6 +865,14 @@ def verify_toolchains(root: Path, document: dict[str, object]) -> None:
     _require(
         job["env"].get("MAGPIE_RUNNER_LABEL") == RUNNER_LABEL,
         "workflow runner label environment is missing or changed",
+    )
+    _require(
+        job["env"].get("MAGPIE_RUST_TOOLCHAIN") == RUST_TOOLCHAIN,
+        "workflow MAGPIE_RUST_TOOLCHAIN environment is missing or changed",
+    )
+    _require(
+        job["env"].get("RUSTUP_TOOLCHAIN") == RUST_TOOLCHAIN,
+        "workflow RUSTUP_TOOLCHAIN environment is missing or changed",
     )
 
     python_steps = [
