@@ -211,7 +211,16 @@ def _split_effective_segments(command: str) -> list[str]:
 
 _ENV_ASSIGN_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=.*")
 _PYTHON_HEAD_RE = re.compile(r"python(\d(\.\d+)?)?")
+_PIP_HEAD_RE = re.compile(r"pip(\d+([.]\d+)*)?")
 _SHELL_WRAPPER_HEADS = ("sh", "bash", "dash", "zsh")
+_WRAPPER_HEADS = ("env", "command", "exec", "sudo")
+_NON_EXECUTING_HEADS = ("echo", "true", "false", ":")
+_PIP_INSTALL_TEXT_RE = re.compile(
+    r"(?<![\w.])pip(?:\d+(?:\.\d+)*)? install"
+)
+_PYTHON_PIP_INSTALL_TEXT_RE = re.compile(
+    r"python(?:\d+(?:\.\d+)?)?\s+.*?-m\s+pip(?:\d+(?:\.\d+)*)?\s+.*?install"
+)
 
 
 def _strip_shell_comment(text: str) -> str:
@@ -266,15 +275,49 @@ def _tokenize_shell(text: str) -> list[str] | None:
     return tokens
 
 
+def _is_command_head(token: str) -> bool:
+    name = token.rsplit("/", 1)[-1]
+    return (
+        name in _SHELL_WRAPPER_HEADS
+        or name in _WRAPPER_HEADS
+        or _PIP_HEAD_RE.fullmatch(name) is not None
+        or _PYTHON_HEAD_RE.fullmatch(name) is not None
+    )
+
+
+def _rest_mentions_pip_install(tokens: list[str]) -> bool:
+    joined = " ".join(tokens)
+    unquoted = joined.replace('"', "").replace("'", "")
+    if _PIP_INSTALL_TEXT_RE.search(unquoted):
+        return True
+    if _PYTHON_PIP_INSTALL_TEXT_RE.search(unquoted):
+        return True
+    stripped = [token.strip("\"'") for token in tokens]
+    for i, token in enumerate(stripped):
+        name = token.rsplit("/", 1)[-1]
+        if _PIP_HEAD_RE.fullmatch(name) and "install" in stripped[i + 1 :]:
+            return True
+        if _PYTHON_HEAD_RE.fullmatch(name):
+            rest = stripped[i + 1 :]
+            for j in range(len(rest) - 1):
+                if (
+                    rest[j] == "-m"
+                    and _PIP_HEAD_RE.fullmatch(rest[j + 1].rsplit("/", 1)[-1])
+                    and "install" in rest[j + 2 :]
+                ):
+                    return True
+    return False
+
+
 def _finds_pip_install(text: str, depth: int = 0) -> bool:
     text = _strip_shell_comment(text).strip()
     if not text:
         return False
     if "\\" in text or depth > 2:
-        return "pip install" in text
+        return _rest_mentions_pip_install(text.split())
     tokens = _tokenize_shell(text)
     if tokens is None:
-        return "pip install" in text
+        return _rest_mentions_pip_install(text.split())
     i = 0
     while i < len(tokens) and _ENV_ASSIGN_RE.fullmatch(tokens[i]):
         i += 1
@@ -282,7 +325,7 @@ def _finds_pip_install(text: str, depth: int = 0) -> bool:
         return False
     head = tokens[i].rsplit("/", 1)[-1]
     rest = tokens[i + 1 :]
-    if head == "pip":
+    if _PIP_HEAD_RE.fullmatch(head):
         return "install" in rest
     if _PYTHON_HEAD_RE.fullmatch(head):
         return any(
@@ -291,18 +334,49 @@ def _finds_pip_install(text: str, depth: int = 0) -> bool:
             and "install" in rest[j + 2 :]
             for j in range(len(rest) - 1)
         )
-    if head in ("env", "command", "exec") and rest:
-        if head == "env":
-            k = 0
-            while k < len(rest) and _ENV_ASSIGN_RE.fullmatch(rest[k]):
-                k += 1
+    if head == "env":
+        for k, token in enumerate(rest):
+            if _ENV_ASSIGN_RE.fullmatch(token):
+                continue
+            if token.startswith("-"):
+                return _rest_mentions_pip_install(rest[k + 1 :])
+            if _is_command_head(token):
+                return _finds_pip_install(" ".join(rest[k:]), depth + 1)
+            return _rest_mentions_pip_install(rest[k:])
+        return False
+    if head in ("command", "exec"):
+        k = 0
+        while k < len(rest) and rest[k].startswith("-"):
+            k += 1
+        if k < len(rest):
             return _finds_pip_install(" ".join(rest[k:]), depth + 1)
-        return _finds_pip_install(" ".join(rest[1:]), depth + 1)
+        return False
+    if head == "sudo":
+        for k, token in enumerate(rest):
+            if token.startswith("-"):
+                continue
+            if _is_command_head(token):
+                return _finds_pip_install(" ".join(rest[k:]), depth + 1)
+        return False
     if head in _SHELL_WRAPPER_HEADS:
         for j, token in enumerate(rest):
-            if token == "-c" and j + 1 < len(rest):
+            if j + 1 >= len(rest):
+                continue
+            if token.startswith("--command="):
+                return _finds_pip_install(token.split("=", 1)[1], depth + 1)
+            if (
+                token == "-c"
+                or token == "--command"
+                or (
+                    token.startswith("-")
+                    and not token.startswith("--")
+                    and "c" in token[1:]
+                )
+            ):
                 return _finds_pip_install(rest[j + 1], depth + 1)
-    return False
+    if head in _NON_EXECUTING_HEADS and "$(" not in text and "`" not in text:
+        return False
+    return _rest_mentions_pip_install(rest)
 
 
 def _read_run_block(

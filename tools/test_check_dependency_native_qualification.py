@@ -638,6 +638,207 @@ class CheckerTestCase(unittest.TestCase):
             "workflow pip install must install only from the requirements file"
         )
 
+    def test_combined_shell_flag_pip_install_is_detected(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                "          bash -ec \"pip install requests\"\n"
+                "          sh -ec \"pip install requests\"\n"
+                "          bash -lc \"pip install requests\"",
+            ),
+        )
+        self.rebind()
+        self.assert_fails(
+            "expected exactly one pip install command in the workflow, found 3"
+        )
+
+    def test_command_and_exec_prefixed_pip_install_are_detected(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                "          command pip install requests\n"
+                "          exec pip install requests",
+            ),
+        )
+        self.rebind()
+        self.assert_fails(
+            "expected exactly one pip install command in the workflow, found 2"
+        )
+
+    def test_pip3_pip_install_is_detected(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: pip3 install requests",
+            ),
+        )
+        self.rebind()
+        self.assert_fails(
+            "workflow pip install must install only from the requirements file"
+        )
+
+    def test_versioned_pip3_pip_install_is_detected(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: pip3.12 install requests",
+            ),
+        )
+        self.rebind()
+        self.assert_fails(
+            "workflow pip install must install only from the requirements file"
+        )
+
+    def test_sudo_prefixed_pip_install_is_detected(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                "          sudo pip install requests\n"
+                "          sudo python -m pip install requests\n"
+                "          sudo pip3 install requests\n"
+                "          sudo -u root pip install requests\n"
+                "          sudo -H pip install requests\n"
+                "          sudo /usr/bin/pip install requests",
+            ),
+        )
+        self.rebind()
+        self.assert_fails(
+            "expected exactly one pip install command in the workflow, found 6"
+        )
+
+    def test_combined_shell_flag_echo_pip_text_is_not_execution(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                "          python -m pip install -r tools/requirements-portable-verifier.txt\n"
+                '          bash -ec "echo pip install requests"',
+            ),
+        )
+        self.rebind()
+        checker.run_check(self.root)
+
+    def test_command_v_pip_is_not_execution(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                "          python -m pip install -r tools/requirements-portable-verifier.txt\n"
+                "          command -v pip",
+            ),
+        )
+        self.rebind()
+        checker.run_check(self.root)
+
+    def test_sudo_non_pip_command_is_not_execution(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                "          python -m pip install -r tools/requirements-portable-verifier.txt\n"
+                "          sudo -u root cargo --version",
+            ),
+        )
+        self.rebind()
+        checker.run_check(self.root)
+
+    def test_env_option_prefixed_pip_install_is_detected(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                "          env -i pip install requests\n"
+                "          env -u bash pip install requests",
+            ),
+        )
+        self.rebind()
+        self.assert_fails(
+            "expected exactly one pip install command in the workflow, found 2"
+        )
+
+    def test_env_option_non_pip_command_is_not_execution(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                "          python -m pip install -r tools/requirements-portable-verifier.txt\n"
+                "          env -i rustc --version",
+            ),
+        )
+        self.rebind()
+        checker.run_check(self.root)
+
+    def test_unknown_wrapper_pip_install_is_detected(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                "          nohup pip install requests\n"
+                "          timeout 10 pip install requests",
+            ),
+        )
+        self.rebind()
+        self.assert_fails(
+            "expected exactly one pip install command in the workflow, found 2"
+        )
+
+    def test_unknown_wrapper_quoted_pip_install_is_detected(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                '          nohup "pip" "install" requests\n'
+                '          env -i "pip" "install" requests',
+            ),
+        )
+        self.rebind()
+        self.assert_fails(
+            "expected exactly one pip install command in the workflow, found 2"
+        )
+
+    def test_unknown_wrapper_non_pip_command_is_not_execution(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                "          python -m pip install -r tools/requirements-portable-verifier.txt\n"
+                "          timeout 10 rustc --version",
+            ),
+        )
+        self.rebind()
+        checker.run_check(self.root)
+
+    def test_echo_command_substitution_pip_install_is_detected(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                "          python -m pip install -r tools/requirements-portable-verifier.txt\n"
+                "          echo $(pip install requests)",
+            ),
+        )
+        self.rebind()
+        self.assert_fails(
+            "expected exactly one pip install command in the workflow, found 2"
+        )
+
     def test_duplicate_verify_job_rejected(self) -> None:
         self.mutate_text(
             checker.WORKFLOW_RELATIVE,
