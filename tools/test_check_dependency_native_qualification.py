@@ -86,9 +86,11 @@ class CheckerTestCase(unittest.TestCase):
         rebind_node(document)
         self.write_inventory(document)
 
-    def assert_fails(self) -> None:
-        with self.assertRaises(checker.DependencyNativeCheckError):
+    def assert_fails(self, message: str | None = None) -> None:
+        with self.assertRaises(checker.DependencyNativeCheckError) as ctx:
             checker.run_check(self.root)
+        if message is not None:
+            self.assertIn(message, str(ctx.exception))
 
     def test_unmutated_tree_passes(self) -> None:
         checker.run_check(self.root)
@@ -530,6 +532,87 @@ class CheckerTestCase(unittest.TestCase):
         )
         self.rebind()
         self.assert_fails()
+
+    # --- pre-audit: same-class closure for held candidate 4dbf867 -------
+
+    def test_pip_install_in_quoted_text_is_not_execution(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                '          echo "pip install requests"\n'
+                "          python -m pip install -r tools/requirements-portable-verifier.txt",
+            ),
+        )
+        self.rebind()
+        checker.run_check(self.root)
+
+    def test_pip_install_in_inline_comment_is_not_execution(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                "          echo ok # pip install requests\n"
+                "          python -m pip install -r tools/requirements-portable-verifier.txt",
+            ),
+        )
+        self.rebind()
+        checker.run_check(self.root)
+
+    def test_unauthorized_pip_still_detected_among_noise(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                '          echo "pip install requests"\n'
+                "          python -m pip install requests",
+            ),
+        )
+        self.rebind()
+        self.assert_fails(
+            "workflow pip install must install only from the requirements file"
+        )
+
+    def test_duplicate_verify_job_rejected(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.rstrip("\n")
+            + "\n  verify:\n"
+            "    runs-on: ubuntu-22.04\n"
+            "    steps:\n"
+            "      - name: shadow\n"
+            "        run: echo ok\n",
+        )
+        self.rebind()
+        self.assert_fails("duplicate 'verify' job keys")
+
+    def test_duplicate_with_key_rejected(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "python-version: '3.12.14'",
+                "python-version: '3.12.13'\n"
+                "          python-version: '3.12.14'",
+            ),
+        )
+        self.rebind()
+        self.assert_fails("duplicate workflow step with key 'python-version'")
+
+    def test_duplicate_action_step_rejected(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4\n",
+                "        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4\n"
+                "      - name: checkout again\n"
+                "        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262\n",
+            ),
+        )
+        self.rebind()
+        self.assert_fails("workflow action pins drifted")
 
 
 if __name__ == "__main__":

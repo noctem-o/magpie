@@ -209,6 +209,31 @@ def _split_effective_segments(command: str) -> list[str]:
     return segments
 
 
+def _strip_shell_noise(segment: str) -> str:
+    out: list[str] = []
+    in_single = False
+    in_double = False
+    for i, ch in enumerate(segment):
+        if in_single:
+            if ch == "'":
+                in_single = False
+            continue
+        if in_double:
+            if ch == '"':
+                in_double = False
+            continue
+        if ch == "'":
+            in_single = True
+            continue
+        if ch == '"':
+            in_double = True
+            continue
+        if ch == "#" and (i == 0 or segment[i - 1] in " \t"):
+            break
+        out.append(ch)
+    return "".join(out)
+
+
 def _read_run_block(
     lines: list[str], i: int, n: int, style: str
 ) -> tuple[str, int]:
@@ -300,6 +325,10 @@ def _parse_step(lines: list[str], i: int, n: int) -> tuple[dict, int]:
                     break
                 wm = re.match(r"^          ([A-Za-z_][A-Za-z0-9_-]*):\s*(.*)$", wl)
                 if wm:
+                    _require(
+                        wm.group(1) not in step["with_"],
+                        f"duplicate workflow step with key {wm.group(1)!r}",
+                    )
                     step["with_"][wm.group(1)] = _yaml_scalar(
                         _strip_yaml_comment(wm.group(2))
                     )
@@ -313,14 +342,14 @@ def _parse_workflow_verify_job(text: str) -> dict:
     lines = text.splitlines()
     n = len(lines)
     result: dict = {"runs_on": None, "env": {}, "steps": []}
-    start = None
-    for i in range(n):
-        if lines[i].rstrip() == "  verify:":
-            start = i + 1
-            break
-    if start is None:
+    verify_jobs = [i for i in range(n) if lines[i].rstrip() == "  verify:"]
+    if not verify_jobs:
         raise DependencyNativeCheckError("workflow has no 'verify' job")
-    i = start
+    _require(
+        len(verify_jobs) == 1,
+        "workflow contains duplicate 'verify' job keys",
+    )
+    i = verify_jobs[0] + 1
     seen_job: set[str] = set()
     while i < n:
         line = lines[i]
@@ -763,10 +792,9 @@ def verify_python_governance(root: Path, document: dict[str, object]) -> None:
         if not isinstance(run, str):
             continue
         for segment in _split_effective_segments(run):
-            if segment.startswith("#"):
-                continue
-            if "pip install" in segment:
-                pip_segments.append(segment)
+            effective = _strip_shell_noise(segment).strip()
+            if "pip install" in effective:
+                pip_segments.append(effective)
     _require(
         len(pip_segments) == 1,
         f"expected exactly one pip install command in the workflow, "
@@ -905,7 +933,7 @@ def verify_github_pins(root: Path, document: dict[str, object]) -> None:
             f"workflow action reference is not a full-SHA pin: {pin!r}",
         )
     _require(
-        set(observed) == set(EXPECTED_ACTION_PINS),
+        sorted(observed) == sorted(EXPECTED_ACTION_PINS),
         f"workflow action pins drifted: {sorted(observed)}",
     )
     _require(
