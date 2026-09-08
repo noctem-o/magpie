@@ -4,3 +4,8 @@
 PyNaCl==1.6.2
 cffi==2.0.0
 pycparser==3.0
+# cryptography is a governed validation-environment dependency: the workflow
+# installs it, tools/emit_validation_environment.py records its version, and
+# ADR-0010's Python-path characterization was performed against it. No
+# repository module imports it directly.
+cryptography==50.0.0
