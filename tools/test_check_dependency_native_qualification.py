@@ -4,8 +4,13 @@ Each test mutates exactly one aspect of an isolated copy of the repository
 and requires the checker to fail closed with
 ``DependencyNativeCheckError``. The unmutated copy and the real repository
 must both pass.
+
+Tests that mutate a repository file rebind the inventory digests first so
+the failure reaches the intended semantic check rather than the digest
+stage; the digest stage has its own dedicated witness.
 """
 
+import hashlib
 import json
 import shutil
 import tempfile
@@ -58,6 +63,25 @@ class CheckerTestCase(unittest.TestCase):
     def mutate_text(self, relative: str, transform) -> None:
         path = self.root / relative
         path.write_text(transform(path.read_text(encoding="utf-8")), encoding="utf-8")
+
+    def rebind(self) -> None:
+        document = self.inventory()
+
+        def rebind_node(node) -> None:
+            if isinstance(node, dict):
+                path = node.get("path")
+                if isinstance(path, str):
+                    node["sha256"] = hashlib.sha256(
+                        (self.root / path).read_bytes()
+                    ).hexdigest()
+                for value in node.values():
+                    rebind_node(value)
+            elif isinstance(node, list):
+                for value in node:
+                    rebind_node(value)
+
+        rebind_node(document)
+        self.write_inventory(document)
 
     def assert_fails(self) -> None:
         with self.assertRaises(checker.DependencyNativeCheckError):
@@ -147,6 +171,7 @@ class CheckerTestCase(unittest.TestCase):
                 "actions/checkout@11d5960",
             ),
         )
+        self.rebind()
         self.assert_fails()
 
     def test_ci_python_version_changed(self) -> None:
@@ -156,6 +181,7 @@ class CheckerTestCase(unittest.TestCase):
                 "python-version: '3.12.14'", "python-version: '3.12.13'"
             ),
         )
+        self.rebind()
         self.assert_fails()
 
     def test_go_sum_hash_line_changed(self) -> None:
@@ -163,9 +189,10 @@ class CheckerTestCase(unittest.TestCase):
             checker.GO_SUM_RELATIVE,
             lambda text: text.replace(
                 "h1:crnVqOiS4jqYleHd9vaKZ+HKtHfllngJIiOpNpoJsjo=",
-                "h1:crnVqOiS4jqYleHd9vaKZ+HKtHfllngJIiOpNpoJsjoX",
+                "h1:" + "A" * 44 + "=",
             ),
         )
+        self.rebind()
         self.assert_fails()
 
     def test_inline_pip_package_in_ci(self) -> None:
@@ -173,10 +200,10 @@ class CheckerTestCase(unittest.TestCase):
             checker.WORKFLOW_RELATIVE,
             lambda text: text.replace(
                 "run: python -m pip install -r tools/requirements-portable-verifier.txt",
-                "run: python -m pip install "
-                "-r tools/requirements-portable-verifier.txt requests",
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt requests",
             ),
         )
+        self.rebind()
         self.assert_fails()
 
     def test_inventory_schema_changed(self) -> None:
@@ -206,6 +233,237 @@ class CheckerTestCase(unittest.TestCase):
 
     def test_missing_inventory_fails_closed(self) -> None:
         (self.root / "tools/dependency_native_inventory.json").unlink()
+        self.assert_fails()
+
+    # --- P1 A: digest-reference closure --------------------------------
+
+    def test_inventory_missing_bound_reference(self) -> None:
+        document = self.inventory()
+        del document["rust"]["cargo_lock"]
+        self.write_inventory(document)
+        self.assert_fails()
+
+    def test_inventory_unexpected_reference(self) -> None:
+        document = self.inventory()
+        document["rust"]["rogue_manifest"] = {
+            "path": "README.md",
+            "sha256": "0" * 64,
+        }
+        self.write_inventory(document)
+        self.assert_fails()
+
+    def test_inventory_duplicate_reference(self) -> None:
+        document = self.inventory()
+        document["rust"]["rogue_duplicate"] = {
+            "path": "Cargo.lock",
+            "sha256": document["rust"]["cargo_lock"]["sha256"],
+        }
+        self.write_inventory(document)
+        self.assert_fails()
+
+    # --- P1 B: pip install escapes -------------------------------------
+
+    def test_block_form_pip_escape(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                "          python -m pip install -r tools/requirements-portable-verifier.txt\n"
+                "          python -m pip install requests",
+            ),
+        )
+        self.rebind()
+        self.assert_fails()
+
+    def test_chained_pip_install_escape(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt "
+                "&& python -m pip install requests; python -m pip install six",
+            ),
+        )
+        self.rebind()
+        self.assert_fails()
+
+    # --- P1 C: effective workflow values --------------------------------
+
+    def test_workflow_runs_on_changed(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "    runs-on: ubuntu-24.04",
+                "    runs-on: ubuntu-22.04",
+            ),
+        )
+        self.rebind()
+        self.assert_fails()
+
+    def test_workflow_runner_label_env_changed(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "MAGPIE_RUNNER_LABEL: ubuntu-24.04",
+                "MAGPIE_RUNNER_LABEL: ubuntu-22.04",
+            ),
+        )
+        self.rebind()
+        self.assert_fails()
+
+    def test_workflow_go_version_changed(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "go-version: '1.27.0'",
+                "go-version: '1.26.0'",
+            ),
+        )
+        self.rebind()
+        self.assert_fails()
+
+    def test_workflow_rustup_default_changed(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "rustup default 1.98.1",
+                "rustup default 1.97.0",
+            ),
+        )
+        self.rebind()
+        self.assert_fails()
+
+    def test_workflow_unapproved_rustup_command(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "rustup default 1.98.1",
+                "rustup default 1.98.1 && rustup update stable",
+            ),
+        )
+        self.rebind()
+        self.assert_fails()
+
+    def test_workflow_duplicate_runs_on_key(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "    runs-on: ubuntu-24.04\n",
+                "    runs-on: ubuntu-24.04\n    runs-on: ubuntu-22.04\n",
+            ),
+        )
+        self.rebind()
+        self.assert_fails()
+
+    def test_workflow_duplicate_step_run_key(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "        run: python -m pip install -r tools/requirements-portable-verifier.txt\n",
+                "        run: python -m pip install -r tools/requirements-portable-verifier.txt\n"
+                "        run: python -m pip install requests\n",
+            ),
+        )
+        self.rebind()
+        self.assert_fails()
+
+    # --- P1 D: effective go.mod declaration -----------------------------
+
+    def test_go_module_path_changed(self) -> None:
+        self.mutate_text(
+            checker.GO_MOD_RELATIVE,
+            lambda text: text.replace(
+                "module example.com/magpie/go-verify-chain",
+                "module example.com/magpie/go-verify-chain-evil",
+            ),
+        )
+        self.rebind()
+        self.assert_fails()
+
+    def test_go_module_comment_shadow(self) -> None:
+        self.mutate_text(
+            checker.GO_MOD_RELATIVE,
+            lambda text: text.replace(
+                "module example.com/magpie/go-verify-chain",
+                "module example.com/evil // module example.com/magpie/go-verify-chain",
+            ),
+        )
+        self.rebind()
+        self.assert_fails()
+
+    def test_go_directive_changed(self) -> None:
+        self.mutate_text(
+            checker.GO_MOD_RELATIVE,
+            lambda text: text.replace("go 1.27\n", "go 1.26\n"),
+        )
+        self.rebind()
+        self.assert_fails()
+
+    def test_go_edwards_version_changed(self) -> None:
+        self.mutate_text(
+            checker.GO_MOD_RELATIVE,
+            lambda text: text.replace(
+                "require filippo.io/edwards25519 v1.2.0",
+                "require filippo.io/edwards25519 v1.3.0",
+            ),
+        )
+        self.rebind()
+        self.assert_fails()
+
+    def test_go_require_marked_indirect(self) -> None:
+        self.mutate_text(
+            checker.GO_MOD_RELATIVE,
+            lambda text: text.replace(
+                "require filippo.io/edwards25519 v1.2.0",
+                "require filippo.io/edwards25519 v1.2.0 // indirect",
+            ),
+        )
+        self.rebind()
+        self.assert_fails()
+
+    def test_go_replace_directive(self) -> None:
+        self.mutate_text(
+            checker.GO_MOD_RELATIVE,
+            lambda text: text.rstrip("\n")
+            + "\n\nreplace filippo.io/edwards25519 => example.com/evil v1.2.0\n",
+        )
+        self.rebind()
+        self.assert_fails()
+
+    def test_go_duplicate_module_directive(self) -> None:
+        self.mutate_text(
+            checker.GO_MOD_RELATIVE,
+            lambda text: text.rstrip("\n")
+            + "\n\nmodule example.com/magpie/go-verify-chain\n",
+        )
+        self.rebind()
+        self.assert_fails()
+
+    # --- P1 E: duplicate Cargo.lock packages ----------------------------
+
+    def test_duplicate_rusqlite_package(self) -> None:
+        self.mutate_text(
+            checker.CARGO_LOCK_RELATIVE,
+            lambda text: text.rstrip("\n")
+            + "\n\n[[package]]\n"
+            + 'name = "rusqlite"\n'
+            + 'version = "0.38.0"\n'
+            + 'source = "registry+https://github.com/rust-lang/crates.io-index"\n',
+        )
+        self.rebind()
+        self.assert_fails()
+
+    def test_duplicate_libsqlite3_sys_package(self) -> None:
+        self.mutate_text(
+            checker.CARGO_LOCK_RELATIVE,
+            lambda text: text.rstrip("\n")
+            + "\n\n[[package]]\n"
+            + 'name = "libsqlite3-sys"\n'
+            + 'version = "0.34.0"\n'
+            + 'source = "registry+https://github.com/rust-lang/crates.io-index"\n',
+        )
+        self.rebind()
         self.assert_fails()
 
 

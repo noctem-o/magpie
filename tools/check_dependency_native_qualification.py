@@ -135,7 +135,6 @@ EXPECTED_ACTION_PINS = (
     "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
 )
 ACTION_PIN_RE = re.compile(r"^actions/[a-z0-9-]+@[0-9a-f]{40}$")
-PIP_INSTALL_RE = re.compile(r"^\s*run:.*pip install", re.MULTILINE)
 
 SQLITE_VERSION = "3.50.2"
 SQLITE_NUMBER = "3050002"
@@ -177,6 +176,286 @@ def _require(condition: bool, message: str) -> None:
 
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _strip_yaml_comment(text: str) -> str:
+    in_single = False
+    in_double = False
+    for i, ch in enumerate(text):
+        if ch == "'" and not in_double:
+            in_single = not in_single
+        elif ch == '"' and not in_single:
+            in_double = not in_double
+        elif ch == "#" and not in_single and not in_double:
+            if i == 0 or text[i - 1] in " \t":
+                return text[:i].rstrip()
+    return text.rstrip()
+
+
+def _yaml_scalar(text: str) -> str:
+    text = text.strip()
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in ("'", '"'):
+        return text[1:-1]
+    return text
+
+
+def _split_effective_segments(command: str) -> list[str]:
+    segments: list[str] = []
+    for line in command.splitlines():
+        for part in re.split(r"\s*(?:&&|\|\||;)\s*", line):
+            part = part.strip()
+            if part:
+                segments.append(part)
+    return segments
+
+
+def _read_run_block(
+    lines: list[str], i: int, n: int, style: str
+) -> tuple[str, int]:
+    block_lines: list[str] = []
+    i += 1
+    while i < n:
+        bl = lines[i]
+        if not bl.strip():
+            block_lines.append("")
+            i += 1
+            continue
+        if not bl.startswith("          "):
+            break
+        block_lines.append(bl.strip())
+        i += 1
+    while block_lines and not block_lines[-1]:
+        block_lines.pop()
+    if style.startswith(">"):
+        return " ".join(l for l in block_lines if l), i
+    return "\n".join(block_lines), i
+
+
+def _parse_step(lines: list[str], i: int, n: int) -> tuple[dict, int]:
+    step: dict = {"name": None, "uses": None, "run": None, "with_": {}}
+    seen_step: set[str] = set()
+
+    def note_key(key: str) -> None:
+        _require(
+            key not in seen_step,
+            f"duplicate workflow step key {key!r}",
+        )
+        seen_step.add(key)
+
+    rest = lines[i][8:].strip()
+    if rest:
+        m = re.match(r"([A-Za-z_][A-Za-z0-9_-]*):\s*(.*)$", rest)
+        if m is not None:
+            key = m.group(1)
+            value = _strip_yaml_comment(m.group(2).strip())
+            if key in ("name", "uses", "run", "with"):
+                note_key(key)
+            if key == "name":
+                step["name"] = _yaml_scalar(value)
+            elif key == "uses":
+                step["uses"] = _yaml_scalar(value)
+            elif key == "run":
+                if value in ("|", ">") or value.startswith("|") or value.startswith(">"):
+                    step["run"], i = _read_run_block(lines, i, n, value)
+                    return step, i
+                step["run"] = _yaml_scalar(value)
+    i += 1
+    while i < n:
+        pl = lines[i]
+        if not pl.strip():
+            i += 1
+            continue
+        if pl.startswith("      - "):
+            break
+        if pl.startswith("    ") and not pl.startswith("      "):
+            break
+        m = re.match(r"^        (\S+):\s*(.*)$", pl)
+        if not m:
+            i += 1
+            continue
+        key = m.group(1)
+        value = _strip_yaml_comment(m.group(2).strip())
+        if key in ("name", "uses", "run", "with"):
+            note_key(key)
+        if key == "name":
+            step["name"] = _yaml_scalar(value)
+            i += 1
+        elif key == "uses":
+            step["uses"] = _yaml_scalar(value)
+            i += 1
+        elif key == "run":
+            if value in ("|", ">") or value.startswith("|") or value.startswith(">"):
+                step["run"], i = _read_run_block(lines, i, n, value)
+            else:
+                step["run"] = _yaml_scalar(value)
+                i += 1
+        elif key == "with":
+            i += 1
+            while i < n:
+                wl = lines[i]
+                if not wl.strip():
+                    i += 1
+                    continue
+                if not wl.startswith("          "):
+                    break
+                wm = re.match(r"^          ([A-Za-z_][A-Za-z0-9_-]*):\s*(.*)$", wl)
+                if wm:
+                    step["with_"][wm.group(1)] = _yaml_scalar(
+                        _strip_yaml_comment(wm.group(2))
+                    )
+                i += 1
+        else:
+            i += 1
+    return step, i
+
+
+def _parse_workflow_verify_job(text: str) -> dict:
+    lines = text.splitlines()
+    n = len(lines)
+    result: dict = {"runs_on": None, "env": {}, "steps": []}
+    start = None
+    for i in range(n):
+        if lines[i].rstrip() == "  verify:":
+            start = i + 1
+            break
+    if start is None:
+        raise DependencyNativeCheckError("workflow has no 'verify' job")
+    i = start
+    seen_job: set[str] = set()
+    while i < n:
+        line = lines[i]
+        if not line.strip():
+            i += 1
+            continue
+        if line.startswith("  ") and not line.startswith("    "):
+            break
+        if line.startswith("    runs-on:"):
+            _require(
+                "runs-on" not in seen_job,
+                "duplicate 'runs-on' key in verify job",
+            )
+            seen_job.add("runs-on")
+            result["runs_on"] = _yaml_scalar(_strip_yaml_comment(line[12:]))
+            i += 1
+            continue
+        if line.startswith("    env:"):
+            _require("env" not in seen_job, "duplicate 'env' key in verify job")
+            seen_job.add("env")
+            i += 1
+            while i < n:
+                el = lines[i]
+                if not el.strip():
+                    i += 1
+                    continue
+                if not el.startswith("      "):
+                    break
+                em = re.match(r"^      ([A-Za-z_][A-Za-z0-9_]*):\s*(.*)$", el)
+                if em:
+                    _require(
+                        em.group(1) not in result["env"],
+                        f"duplicate env key {em.group(1)!r} in verify job",
+                    )
+                    result["env"][em.group(1)] = _yaml_scalar(
+                        _strip_yaml_comment(em.group(2))
+                    )
+                i += 1
+            continue
+        if line.startswith("    steps:"):
+            _require("steps" not in seen_job, "duplicate 'steps' key in verify job")
+            seen_job.add("steps")
+            i += 1
+            while i < n:
+                sl = lines[i]
+                if not sl.strip():
+                    i += 1
+                    continue
+                if sl.startswith("    ") and not sl.startswith("      "):
+                    break
+                if sl.startswith("      - "):
+                    step, i = _parse_step(lines, i, n)
+                    result["steps"].append(step)
+                    continue
+                i += 1
+            break
+        i += 1
+    return result
+
+
+def _split_go_comment(line: str) -> tuple[str, str]:
+    match = re.search(r"\s//", line)
+    if match is None:
+        return line.strip(), ""
+    return line[: match.start()].strip(), line[match.start() :].strip()
+
+
+def _parse_go_mod(text: str) -> dict:
+    result: dict = {"module": None, "go": None, "requires": []}
+    lines = text.splitlines()
+    i = 0
+    n = len(lines)
+    while i < n:
+        line, _comment = _split_go_comment(lines[i])
+        if not line or line.startswith("//"):
+            i += 1
+            continue
+        if line.startswith("module "):
+            rest = line[7:].strip()
+            _require(rest, "malformed go module directive")
+            _require(result["module"] is None, "duplicate go module directive")
+            result["module"] = rest
+            i += 1
+        elif line.startswith("go "):
+            rest = line[3:].strip()
+            _require(rest, "malformed go directive")
+            _require(result["go"] is None, "duplicate go directive")
+            result["go"] = rest
+            i += 1
+        elif line.startswith("require "):
+            raw_line = lines[i]
+            rest = raw_line[raw_line.index("require ") + 8 :].strip()
+            if rest.startswith("("):
+                i += 1
+                while i < n:
+                    raw = lines[i]
+                    stripped, comment = _split_go_comment(raw)
+                    if stripped == ")":
+                        i += 1
+                        break
+                    if stripped and not stripped.startswith("//"):
+                        parts = stripped.split()
+                        if len(parts) >= 2:
+                            indirect = bool(re.search(r"\bindirect\b", comment))
+                            result["requires"].append((parts[0], parts[1], indirect))
+                        else:
+                            _require(False, "malformed go require directive")
+                    i += 1
+                _require(i <= n and lines[i - 1].strip() == ")", "unterminated go require block")
+            else:
+                parts, comment = _split_go_comment(rest)
+                parts = parts.split()
+                if len(parts) >= 2:
+                    indirect = bool(re.search(r"\bindirect\b", comment))
+                    result["requires"].append((parts[0], parts[1], indirect))
+                else:
+                    _require(False, "malformed go require directive")
+            i += 1
+        else:
+            tokens = line.split()
+            if tokens and tokens[0] in ("replace", "exclude", "retract"):
+                _require(False, f"go {tokens[0]} directive is not permitted")
+            i += 1
+    return result
+
+
+def _cargo_lock_packages(lock_text: str) -> dict[str, list[dict]]:
+    lock = tomllib.loads(lock_text)
+    packages = lock.get("package", [])
+    by_name: dict[str, list[dict]] = {}
+    for pkg in packages:
+        name = pkg.get("name")
+        if isinstance(name, str):
+            by_name.setdefault(name, []).append(pkg)
+    return by_name
 
 
 def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
@@ -226,12 +505,12 @@ def verify_inventory_contract(document: dict[str, object]) -> None:
 
 
 def verify_file_hashes(root: Path, document: dict[str, object]) -> None:
-    references: list[tuple[str, object]] = []
+    references: list[tuple[object, object]] = []
 
     def collect(node: object) -> None:
         if isinstance(node, dict):
-            if "path" in node and "sha256" in node:
-                references.append((node["path"], node["sha256"]))
+            if "path" in node:
+                references.append((node.get("path"), node.get("sha256")))
             for value in node.values():
                 collect(value)
         elif isinstance(node, list):
@@ -239,11 +518,32 @@ def verify_file_hashes(root: Path, document: dict[str, object]) -> None:
                 collect(value)
 
     collect(document)
+    seen: set[str] = set()
+    normalized: list[tuple[str, str]] = []
     for relative, expected in references:
-        if not isinstance(relative, str) or not isinstance(expected, str):
-            raise DependencyNativeCheckError(
-                "inventory file reference must carry string path and sha256"
-            )
+        if not isinstance(relative, str):
+            raise DependencyNativeCheckError("inventory file reference path must be a string")
+        _require(
+            relative not in seen,
+            f"inventory contains duplicate file reference: {relative}",
+        )
+        seen.add(relative)
+        _require(
+            isinstance(expected, str),
+            f"inventory file reference has no sha256: {relative}",
+        )
+        normalized.append((relative, expected))
+    missing = set(BOUND_FILES) - seen
+    _require(
+        not missing,
+        f"inventory is missing bound file references: {sorted(missing)}",
+    )
+    unexpected = seen - set(BOUND_FILES)
+    _require(
+        not unexpected,
+        f"inventory references unexpected files: {sorted(unexpected)}",
+    )
+    for relative, expected in normalized:
         path = root / relative
         _require(path.is_file(), f"bound file is missing: {relative}")
         observed = _sha256(path)
@@ -284,42 +584,69 @@ def verify_toolchains(root: Path, document: dict[str, object]) -> None:
     )
 
     workflow = (root / WORKFLOW_RELATIVE).read_text(encoding="utf-8")
+    job = _parse_workflow_verify_job(workflow)
     _require(
-        f"runs-on: {RUNNER_LABEL}" in workflow,
+        job["runs_on"] == RUNNER_LABEL,
         f"workflow runner is not {RUNNER_LABEL}",
     )
     _require(
-        f"MAGPIE_RUNNER_LABEL: {RUNNER_LABEL}" in workflow,
+        job["env"].get("MAGPIE_RUNNER_LABEL") == RUNNER_LABEL,
         "workflow runner label environment is missing or changed",
     )
+
+    python_steps = [
+        step
+        for step in job["steps"]
+        if step.get("uses") == f"actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97"
+    ]
+    _require(len(python_steps) == 1, "workflow has no effective setup-python step")
     _require(
-        f"python-version: '{PYTHON_VERSION}'" in workflow,
+        python_steps[0].get("with_", {}).get("python-version") == PYTHON_VERSION,
         f"workflow Python is not {PYTHON_VERSION}",
     )
+
+    go_steps = [
+        step
+        for step in job["steps"]
+        if step.get("uses") == f"actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16"
+    ]
+    _require(len(go_steps) == 1, "workflow has no effective setup-go step")
     _require(
-        f"go-version: '{GO_VERSION}'" in workflow,
+        go_steps[0].get("with_", {}).get("go-version") == GO_VERSION,
         f"workflow Go is not {GO_VERSION}",
     )
+
+    rust_segments: list[str] = []
+    for step in job["steps"]:
+        run = step.get("run")
+        if isinstance(run, str):
+            rust_segments.extend(_split_effective_segments(run))
+    install_prefix = f"rustup toolchain install {RUST_TOOLCHAIN}"
+    default_target = f"rustup default {RUST_TOOLCHAIN}"
+
+    def _install_targets(segment: str) -> bool:
+        return segment == install_prefix or segment.startswith(install_prefix + " ")
+
+    rustup_segments = [s for s in rust_segments if s.startswith("rustup ")]
     _require(
-        f"rustup toolchain install {RUST_TOOLCHAIN}" in workflow,
+        any(_install_targets(s) for s in rustup_segments),
         f"workflow Rust toolchain is not {RUST_TOOLCHAIN}",
     )
+    defaults = [s for s in rustup_segments if s.startswith("rustup default ")]
     _require(
-        f"rustup default {RUST_TOOLCHAIN}" in workflow,
-        f"workflow default Rust toolchain is not {RUST_TOOLCHAIN}",
+        bool(defaults)
+        and all(s == default_target for s in defaults),
+        f"workflow default Rust toolchain is not {RUST_TOOLCHAIN}: {defaults!r}",
     )
-
-
-def _lock_package_block(lock_text: str, name: str) -> str | None:
-    for block in re.split(r"^\[\[package\]\]\s*$", lock_text, flags=re.MULTILINE):
-        if re.search(rf'^name = "{re.escape(name)}"$', block, flags=re.MULTILINE):
-            return block
-    return None
-
-
-def _block_field(block: str, field: str) -> str | None:
-    match = re.search(rf'^{field} = "([^"]+)"$', block, flags=re.MULTILINE)
-    return None if match is None else match.group(1)
+    unapproved = [
+        s
+        for s in rustup_segments
+        if not _install_targets(s) and s != default_target
+    ]
+    _require(
+        not unapproved,
+        f"workflow contains unapproved rustup command: {unapproved!r}",
+    )
 
 
 def verify_cargo_identity(root: Path, document: dict[str, object]) -> None:
@@ -334,40 +661,54 @@ def verify_cargo_identity(root: Path, document: dict[str, object]) -> None:
     )
 
     lock_text = (root / CARGO_LOCK_RELATIVE).read_text(encoding="utf-8")
-    rusqlite_block = _lock_package_block(lock_text, "rusqlite")
-    _require(rusqlite_block is not None, "Cargo.lock no longer pins a rusqlite package")
+    try:
+        packages = _cargo_lock_packages(lock_text)
+    except tomllib.TOMLDecodeError as exc:
+        raise DependencyNativeCheckError(f"Cargo.lock is not valid TOML: {exc}") from exc
+
+    rusqlite_packages = packages.get("rusqlite", [])
     _require(
-        _block_field(rusqlite_block, "version") == RUSQLITE_VERSION,
+        len(rusqlite_packages) == 1,
+        f"expected exactly one rusqlite package in Cargo.lock, "
+        f"found {len(rusqlite_packages)}",
+    )
+    rusqlite_package = rusqlite_packages[0]
+    _require(
+        rusqlite_package.get("version") == RUSQLITE_VERSION,
         f"locked rusqlite version changed: expected {RUSQLITE_VERSION}",
     )
     _require(
-        _block_field(rusqlite_block, "source") == RUSQLITE_SOURCE,
+        rusqlite_package.get("source") == RUSQLITE_SOURCE,
         "locked rusqlite source changed",
     )
     _require(
-        _block_field(rusqlite_block, "checksum") == RUSQLITE_CHECKSUM,
+        rusqlite_package.get("checksum") == RUSQLITE_CHECKSUM,
         "locked rusqlite checksum changed",
     )
+    rusqlite_dependencies = rusqlite_package.get("dependencies", [])
     _require(
-        '"libsqlite3-sys"' in rusqlite_block,
+        isinstance(rusqlite_dependencies, list)
+        and "libsqlite3-sys" in rusqlite_dependencies,
         "locked rusqlite no longer depends on libsqlite3-sys",
     )
 
-    sqlite_block = _lock_package_block(lock_text, "libsqlite3-sys")
+    sqlite_packages = packages.get("libsqlite3-sys", [])
     _require(
-        sqlite_block is not None,
-        "Cargo.lock no longer pins a libsqlite3-sys package",
+        len(sqlite_packages) == 1,
+        f"expected exactly one libsqlite3-sys package in Cargo.lock, "
+        f"found {len(sqlite_packages)}",
     )
+    sqlite_package = sqlite_packages[0]
     _require(
-        _block_field(sqlite_block, "version") == LIBSQLITE3_SYS_VERSION,
+        sqlite_package.get("version") == LIBSQLITE3_SYS_VERSION,
         f"locked libsqlite3-sys version changed: expected {LIBSQLITE3_SYS_VERSION}",
     )
     _require(
-        _block_field(sqlite_block, "source") == LIBSQLITE3_SYS_SOURCE,
+        sqlite_package.get("source") == LIBSQLITE3_SYS_SOURCE,
         "locked libsqlite3-sys source changed",
     )
     _require(
-        _block_field(sqlite_block, "checksum") == LIBSQLITE3_SYS_CHECKSUM,
+        sqlite_package.get("checksum") == LIBSQLITE3_SYS_CHECKSUM,
         "locked libsqlite3-sys checksum changed",
     )
 
@@ -415,18 +756,27 @@ def verify_python_governance(root: Path, document: dict[str, object]) -> None:
     )
 
     workflow = (root / WORKFLOW_RELATIVE).read_text(encoding="utf-8")
-    pip_lines = [
-        line.strip()
-        for line in workflow.splitlines()
-        if line.strip().startswith("run:") and "pip install" in line
-    ]
+    job = _parse_workflow_verify_job(workflow)
+    pip_segments: list[str] = []
+    for step in job["steps"]:
+        run = step.get("run")
+        if not isinstance(run, str):
+            continue
+        for segment in _split_effective_segments(run):
+            if segment.startswith("#"):
+                continue
+            if "pip install" in segment:
+                pip_segments.append(segment)
     _require(
-        len(pip_lines) == 1,
-        f"expected exactly one pip install step in the workflow, found {len(pip_lines)}",
+        len(pip_segments) == 1,
+        f"expected exactly one pip install command in the workflow, "
+        f"found {len(pip_segments)}",
     )
     _require(
-        pip_lines[0] == "run: python -m pip install -r tools/requirements-portable-verifier.txt",
-        f"workflow pip install must install only from the requirements file: {pip_lines[0]!r}",
+        pip_segments[0]
+        == "python -m pip install -r tools/requirements-portable-verifier.txt",
+        f"workflow pip install must install only from the requirements file: "
+        f"{pip_segments[0]!r}",
     )
 
     lane = python.get("lane")
@@ -479,11 +829,32 @@ def verify_go_identity(root: Path, document: dict[str, object]) -> None:
     _require(isinstance(go, dict), "inventory 'go' must be an object")
 
     go_mod = (root / GO_MOD_RELATIVE).read_text(encoding="utf-8")
-    _require(f"module {GO_MODULE}" in go_mod, "go module path changed")
-    _require(f"go {GO_DIRECTIVE}" in go_mod, "go directive changed")
+    parsed_go_mod = _parse_go_mod(go_mod)
     _require(
-        f"require {EDWARDS_MODULE} {EDWARDS_VERSION}" in go_mod,
-        "go module no longer requires the owner-approved dependency",
+        parsed_go_mod["module"] == GO_MODULE,
+        "go module path changed",
+    )
+    _require(
+        parsed_go_mod["go"] == GO_DIRECTIVE,
+        "go directive changed",
+    )
+    edwards_requires = [
+        (version, indirect)
+        for module, version, indirect in parsed_go_mod["requires"]
+        if module == EDWARDS_MODULE
+    ]
+    _require(
+        len(edwards_requires) == 1,
+        f"expected exactly one go require for {EDWARDS_MODULE}, "
+        f"found {len(edwards_requires)}",
+    )
+    _require(
+        not edwards_requires[0][1],
+        f"{EDWARDS_MODULE} must remain a direct go require",
+    )
+    _require(
+        edwards_requires[0][0] == EDWARDS_VERSION,
+        f"go module requires wrong {EDWARDS_MODULE} version: {edwards_requires[0][0]!r}",
     )
 
     go_sum_lines = (root / GO_SUM_RELATIVE).read_text(encoding="utf-8").splitlines()
@@ -526,7 +897,8 @@ def verify_github_pins(root: Path, document: dict[str, object]) -> None:
     )
 
     workflow = (root / WORKFLOW_RELATIVE).read_text(encoding="utf-8")
-    observed = re.findall(r"^\s*uses:\s*(\S+)", workflow, flags=re.MULTILINE)
+    job = _parse_workflow_verify_job(workflow)
+    observed = [step.get("uses") for step in job["steps"] if step.get("uses")]
     for pin in observed:
         _require(
             ACTION_PIN_RE.match(pin) is not None,
