@@ -576,6 +576,68 @@ class CheckerTestCase(unittest.TestCase):
             "workflow pip install must install only from the requirements file"
         )
 
+    # --- pip parser: command-identity detection follow-up ---------------
+
+    def test_unquoted_echo_pip_text_is_not_execution(self) -> None:
+        # Unquoted "pip install" tokens that are mere arguments to echo are
+        # not pip invocations. The substring detector over-counted these and
+        # rejected a valid workflow.
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                "          echo pip install requests\n"
+                "          python -m pip install -r tools/requirements-portable-verifier.txt",
+            ),
+        )
+        self.rebind()
+        checker.run_check(self.root)
+
+    def test_pip_install_via_shell_c_is_detected(self) -> None:
+        # A pip install hidden behind `sh -c "..."` must still be discovered:
+        # the old detector stripped quoted content, which made this invisible
+        # (a false green).
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                "          python -m pip install -r tools/requirements-portable-verifier.txt\n"
+                '          sh -c "pip install requests"',
+            ),
+        )
+        self.rebind()
+        self.assert_fails(
+            "expected exactly one pip install command in the workflow, found 2"
+        )
+
+    def test_versioned_python_pip_install_is_detected(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: python3 -m pip install requests",
+            ),
+        )
+        self.rebind()
+        self.assert_fails(
+            "workflow pip install must install only from the requirements file"
+        )
+
+    def test_env_prefixed_pip_install_is_detected(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: PIP_NO_INPUT=1 python -m pip install requests",
+            ),
+        )
+        self.rebind()
+        self.assert_fails(
+            "workflow pip install must install only from the requirements file"
+        )
+
     def test_duplicate_verify_job_rejected(self) -> None:
         self.mutate_text(
             checker.WORKFLOW_RELATIVE,

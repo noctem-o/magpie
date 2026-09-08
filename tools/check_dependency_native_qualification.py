@@ -209,29 +209,100 @@ def _split_effective_segments(command: str) -> list[str]:
     return segments
 
 
-def _strip_shell_noise(segment: str) -> str:
-    out: list[str] = []
+_ENV_ASSIGN_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=.*")
+_PYTHON_HEAD_RE = re.compile(r"python(\d(\.\d+)?)?")
+_SHELL_WRAPPER_HEADS = ("sh", "bash", "dash", "zsh")
+
+
+def _strip_shell_comment(text: str) -> str:
     in_single = False
     in_double = False
-    for i, ch in enumerate(segment):
+    for i, ch in enumerate(text):
         if in_single:
             if ch == "'":
                 in_single = False
-            continue
-        if in_double:
+        elif in_double:
             if ch == '"':
                 in_double = False
-            continue
-        if ch == "'":
+        elif ch == "'":
             in_single = True
-            continue
-        if ch == '"':
+        elif ch == '"':
             in_double = True
-            continue
-        if ch == "#" and (i == 0 or segment[i - 1] in " \t"):
-            break
-        out.append(ch)
-    return "".join(out)
+        elif ch == "#" and (i == 0 or text[i - 1] in " \t"):
+            return text[:i]
+    return text
+
+
+def _tokenize_shell(text: str) -> list[str] | None:
+    tokens: list[str] = []
+    current: list[str] = []
+    in_single = False
+    in_double = False
+    for ch in text:
+        if in_single:
+            if ch == "'":
+                in_single = False
+            else:
+                current.append(ch)
+        elif in_double:
+            if ch == '"':
+                in_double = False
+            else:
+                current.append(ch)
+        elif ch == "'":
+            in_single = True
+        elif ch == '"':
+            in_double = True
+        elif ch.isspace():
+            if current:
+                tokens.append("".join(current))
+                current = []
+        else:
+            current.append(ch)
+    if in_single or in_double:
+        return None
+    if current:
+        tokens.append("".join(current))
+    return tokens
+
+
+def _finds_pip_install(text: str, depth: int = 0) -> bool:
+    text = _strip_shell_comment(text).strip()
+    if not text:
+        return False
+    if "\\" in text or depth > 2:
+        return "pip install" in text
+    tokens = _tokenize_shell(text)
+    if tokens is None:
+        return "pip install" in text
+    i = 0
+    while i < len(tokens) and _ENV_ASSIGN_RE.fullmatch(tokens[i]):
+        i += 1
+    if i >= len(tokens):
+        return False
+    head = tokens[i].rsplit("/", 1)[-1]
+    rest = tokens[i + 1 :]
+    if head == "pip":
+        return "install" in rest
+    if _PYTHON_HEAD_RE.fullmatch(head):
+        return any(
+            rest[j] == "-m"
+            and rest[j + 1] == "pip"
+            and "install" in rest[j + 2 :]
+            for j in range(len(rest) - 1)
+        )
+    if head in ("env", "command", "exec") and rest:
+        if head == "env":
+            k = 0
+            while k < len(rest) and _ENV_ASSIGN_RE.fullmatch(rest[k]):
+                k += 1
+            return _finds_pip_install(" ".join(rest[k:]), depth + 1)
+        return _finds_pip_install(" ".join(rest[1:]), depth + 1)
+    if head in _SHELL_WRAPPER_HEADS:
+        for j, token in enumerate(rest):
+            if token == "-c" and j + 1 < len(rest):
+                return _finds_pip_install(rest[j + 1], depth + 1)
+    return False
 
 
 def _read_run_block(
@@ -792,9 +863,8 @@ def verify_python_governance(root: Path, document: dict[str, object]) -> None:
         if not isinstance(run, str):
             continue
         for segment in _split_effective_segments(run):
-            effective = _strip_shell_noise(segment).strip()
-            if "pip install" in effective:
-                pip_segments.append(effective)
+            if _finds_pip_install(segment):
+                pip_segments.append(_strip_shell_comment(segment).strip())
     _require(
         len(pip_segments) == 1,
         f"expected exactly one pip install command in the workflow, "
