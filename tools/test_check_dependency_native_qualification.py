@@ -956,6 +956,37 @@ class CheckerTestCase(unittest.TestCase):
         self.rebind()
         checker.run_check(self.root)
 
+    def test_line_continuation_pip_install_is_detected(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                "          python -m pip install -r tools/requirements-portable-verifier.txt\n"
+                "          pip install \\\n"
+                "              requests",
+            ),
+        )
+        self.rebind()
+        self.assert_fails(
+            "expected exactly one pip install command in the workflow, found 2"
+        )
+
+    def test_nested_double_escaped_pip_install_in_shell_c_is_detected(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                "          python -m pip install -r tools/requirements-portable-verifier.txt\n"
+                r'          bash -c "bash -c \"p\\ip install requests\""',
+            ),
+        )
+        self.rebind()
+        self.assert_fails(
+            "expected exactly one pip install command in the workflow, found 2"
+        )
+
     # --- audit F4: rust toolchain environment was not bound ---
 
     def test_workflow_rust_toolchain_env_changed(self) -> None:

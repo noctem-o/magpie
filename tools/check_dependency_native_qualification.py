@@ -264,35 +264,64 @@ def _split_effective_segments(command: str) -> list[str]:
         current.clear()
 
     i = 0
-    while i < len(command):
+    n = len(command)
+    while i < n:
         ch = command[i]
         if in_single:
             current.append(ch)
             if ch == "'":
                 in_single = False
+            i += 1
         elif in_double:
+            if ch == "\\":
+                current.append(ch)
+                i += 1
+                if i >= n:
+                    break
+                nxt = command[i]
+                if nxt == "\n":
+                    # Line continuation inside double quotes: the shell
+                    # joins the lines, so this is not a separator.
+                    continue
+                current.append(nxt)
+                # An escaped double quote does not close the quote.
+            else:
+                current.append(ch)
+                if ch == '"':
+                    in_double = False
+            i += 1
+        elif ch == "\\":
+            if i + 1 < n and command[i + 1] == "\n":
+                # Line continuation: the shell joins the lines, so this
+                # is not a separator.
+                i += 2
+                continue
             current.append(ch)
-            if ch == '"':
-                in_double = False
+            i += 1
         elif ch == "'":
             in_single = True
             current.append(ch)
+            i += 1
         elif ch == '"':
             in_double = True
             current.append(ch)
+            i += 1
         elif ch == ";" or ch == "\n":
             _flush()
+            i += 1
         elif ch == "&":
-            if i + 1 < len(command) and command[i + 1] == "&":
+            if i + 1 < n and command[i + 1] == "&":
                 i += 1
             _flush()
+            i += 1
         elif ch == "|":
-            if i + 1 < len(command) and command[i + 1] == "|":
+            if i + 1 < n and command[i + 1] == "|":
                 i += 1
             _flush()
+            i += 1
         else:
             current.append(ch)
-        i += 1
+            i += 1
     _flush()
     return segments
 
@@ -331,31 +360,77 @@ def _strip_shell_comment(text: str) -> str:
 
 
 def _tokenize_shell(text: str) -> list[str] | None:
+    """Split into shell words, decoding backslash escapes the way the
+    shell does at this level of interpretation.
+
+    Unquoted, a backslash quotes the following character; a backslash
+    before a newline is a line continuation (both dropped) and a
+    trailing backslash quotes the end of the text (dropped). Inside
+    double quotes a backslash only quotes double quote, backslash,
+    ``$``, and backtick, and a backslash before a newline is still a
+    line continuation; every other backslash is literal. Inside single
+    quotes nothing is special. Decoding happens exactly once per
+    command level, mirroring the shell: a nested level is re-tokenized
+    from the decoded body rather than re-decoded as a whole, so quoted
+    structure at one level cannot be destroyed by escapes at another.
+    Returns None when a quote is left unclosed, so the caller can fall
+    back to the conservative mention check.
+    """
     tokens: list[str] = []
     current: list[str] = []
     in_single = False
     in_double = False
-    for ch in text:
+    i = 0
+    n = len(text)
+    while i < n:
+        ch = text[i]
         if in_single:
             if ch == "'":
                 in_single = False
             else:
                 current.append(ch)
+            i += 1
         elif in_double:
-            if ch == '"':
+            if ch == "\\":
+                i += 1
+                if i >= n:
+                    break
+                nxt = text[i]
+                if nxt == "\n":
+                    continue
+                if nxt in ('"', "$", "`", "\\"):
+                    current.append(nxt)
+                else:
+                    current.append(ch)
+                    current.append(nxt)
+            elif ch == '"':
                 in_double = False
             else:
                 current.append(ch)
+            i += 1
         elif ch == "'":
             in_single = True
+            i += 1
         elif ch == '"':
             in_double = True
+            i += 1
+        elif ch == "\\":
+            i += 1
+            if i >= n:
+                break
+            nxt = text[i]
+            if nxt == "\n":
+                continue
+            current.append(nxt)
+            i += 1
         elif ch.isspace():
             if current:
                 tokens.append("".join(current))
                 current = []
+            i += 1
         else:
             current.append(ch)
+            i += 1
     if in_single or in_double:
         return None
     if current:
@@ -401,16 +476,14 @@ def _finds_pip_install(text: str, depth: int = 0) -> bool:
     text = _strip_shell_comment(text).strip()
     if not text:
         return False
-    if "\\" in text:
-        # Decode escapes before command-identity analysis so a pip
-        # invocation hidden behind backslash escapes (``p\ip install``)
-        # or split across a line continuation cannot be missed.
-        text = _decode_shell_escapes(text).strip()
-        if not text:
-            return False
     if depth > 2:
-        # Nesting too deep to model precisely; stay conservative.
-        return _rest_mentions_pip_install(text.split())
+        # Nesting too deep to model precisely; stay conservative. The
+        # mention check runs on the raw text and on a single decode, so
+        # an escaped name one level deeper (``p\ip install``) cannot be
+        # missed without re-interpreting the quotes.
+        return _rest_mentions_pip_install(text.split()) or _rest_mentions_pip_install(
+            _decode_shell_escapes(text).split()
+        )
     segments = _split_effective_segments(text)
     if len(segments) > 1:
         return any(_finds_pip_install(segment, depth) for segment in segments)
