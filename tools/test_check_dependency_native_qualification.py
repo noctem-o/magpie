@@ -357,7 +357,7 @@ class CheckerTestCase(unittest.TestCase):
             checker.WORKFLOW_RELATIVE,
             lambda text: text.replace(
                 "MAGPIE_RUNNER_LABEL: ubuntu-24.04",
-                "MAGPIE_RUNNER_LABEL: ubuntu-22.04  # old: ubuntu-24.04",
+                "MAGPIE_RUNNER_LABEL: ubuntu-22.04  # old: MAGPIE_RUNNER_LABEL: ubuntu-24.04",
             ),
         )
         self.rebind()
