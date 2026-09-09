@@ -148,8 +148,8 @@ class SqliteL0QualificationCheckerTests(unittest.TestCase):
 
     def test_load_inventory_rejects_invalid_json(self) -> None:
         with mock.patch.object(
-            Path, "read_text", autospec=True, return_value="{not json"
-        ):
+            Path, "read_bytes", autospec=True, return_value=b"{not json"
+        ), mock.patch.object(checker, "verify_inventory_digest", return_value=None):
             with self.assertRaises(checker.SqliteL0CheckError):
                 checker.load_inventory()
 
@@ -177,7 +177,9 @@ class SqliteL0QualificationCheckerTests(unittest.TestCase):
             entries[partial_index]["classification"] = "EXACT"
 
         with mock.patch.object(
-            Path, "read_text", autospec=True, return_value=self._inventory_text(mutate)
+            Path, "read_bytes",
+            autospec=True,
+            return_value=self._inventory_text(mutate).encode("utf-8"),
         ):
             with self.assertRaises(checker.SqliteL0CheckError) as ctx:
                 checker.load_inventory()
@@ -198,7 +200,9 @@ class SqliteL0QualificationCheckerTests(unittest.TestCase):
             document["witnesses"][0]["claim_fence"] = rewritten_fence
 
         with mock.patch.object(
-            Path, "read_text", autospec=True, return_value=self._inventory_text(mutate)
+            Path, "read_bytes",
+            autospec=True,
+            return_value=self._inventory_text(mutate).encode("utf-8"),
         ):
             with self.assertRaises(checker.SqliteL0CheckError) as ctx:
                 checker.load_inventory()
@@ -220,8 +224,23 @@ class SqliteL0QualificationCheckerTests(unittest.TestCase):
             document["witnesses"][0]["families"] = list(swapped_families)
 
         with mock.patch.object(
-            Path, "read_text", autospec=True, return_value=self._inventory_text(mutate)
+            Path, "read_bytes",
+            autospec=True,
+            return_value=self._inventory_text(mutate).encode("utf-8"),
         ):
+            with self.assertRaises(checker.SqliteL0CheckError) as ctx:
+                checker.load_inventory()
+        self.assertIn("digest", str(ctx.exception))
+
+    def test_inventory_digest_catches_line_ending_only_mutation(self) -> None:
+        raw = checker.INVENTORY_PATH.read_bytes()
+        crlf = raw.replace(b"\n", b"\r\n")
+        self.assertNotEqual(crlf, raw)
+        # The rewrite is semantically identical: text-mode readers normalize
+        # CRLF to LF and would hash the governed digest, so the digest must
+        # be computed over raw bytes to reject it.
+        self.assertEqual(json.loads(crlf), json.loads(raw))
+        with mock.patch.object(Path, "read_bytes", autospec=True, return_value=crlf):
             with self.assertRaises(checker.SqliteL0CheckError) as ctx:
                 checker.load_inventory()
         self.assertIn("digest", str(ctx.exception))
@@ -605,12 +624,15 @@ class SqliteL0QualificationCheckerTests(unittest.TestCase):
         original = path.read_bytes()
         changed = original + b"\n// drift\n"
         lib_original = (checker.ROOT / checker.LIB_SOURCE).read_bytes()
+        inventory_original = checker.INVENTORY_PATH.read_bytes()
 
         def read_bytes(path: Path) -> bytes:
             if path == (checker.ROOT / checker.INTEGRATION_SOURCE):
                 return changed
             if path == (checker.ROOT / checker.LIB_SOURCE):
                 return lib_original
+            if path == checker.INVENTORY_PATH:
+                return inventory_original
             raise AssertionError(f"unexpected source read: {path}")
 
         with mock.patch.object(

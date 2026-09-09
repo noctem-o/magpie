@@ -4,7 +4,7 @@
   "lane": "sqlite-l0-resource-crash-recovery-v0",
   "governed_sources": {
     "crates/magpie-log/src/sqlite_l0.rs": "744c480546c77925e69ad84aae3aeb69a9e5c18fad755da9e15dcae7f144c01a",
-    "crates/magpie-log/tests/sqlite_l0.rs": "c0ca382aae7ec12ab1f4b20f8e7b54adfa09756f381d3dea2c67eb7fe7a4e98c"
+    "crates/magpie-log/tests/sqlite_l0.rs": "2efcdb2ec76727ba4076b8be832dc7666ea03891434e762020918c90b81e5c07"
   },
   "source_file_counts": {
     "crates/magpie-log/tests/sqlite_l0.rs": 32,
@@ -22,7 +22,7 @@
       "test_kind": "integration",
       "test_name": "p1_creation_is_atomic_bounded_and_initializes_exact_writer_coordinates",
       "cargo_test_name": "p1_creation_is_atomic_bounded_and_initializes_exact_writer_coordinates",
-      "source_line": 121,
+      "source_line": 132,
       "classification": "EXACT",
       "families": [
         "creation-atomicity",
@@ -39,7 +39,7 @@
       "test_kind": "integration",
       "test_name": "p19_creation_rejects_oversized_journal_before_any_sqlite_open",
       "cargo_test_name": "p19_creation_rejects_oversized_journal_before_any_sqlite_open",
-      "source_line": 249,
+      "source_line": 260,
       "classification": "EXACT",
       "families": [
         "finite-resource-limits",
@@ -55,7 +55,7 @@
       "test_kind": "integration",
       "test_name": "p2_p3_p17_ownership_and_schema_refusals_do_not_adopt_or_repair",
       "cargo_test_name": "p2_p3_p17_ownership_and_schema_refusals_do_not_adopt_or_repair",
-      "source_line": 297,
+      "source_line": 308,
       "classification": "EXACT",
       "families": [
         "schema-ownership",
@@ -71,7 +71,7 @@
       "test_kind": "integration",
       "test_name": "p3_exact_schema_refuses_extra_index_trigger_and_view",
       "cargo_test_name": "p3_exact_schema_refuses_extra_index_trigger_and_view",
-      "source_line": 364,
+      "source_line": 375,
       "classification": "EXACT",
       "families": [
         "schema-ownership"
@@ -86,7 +86,7 @@
       "test_kind": "integration",
       "test_name": "p4_p5_p6_p7_checkpoint_open_preserves_verification_and_mismatch_distinctions",
       "cargo_test_name": "p4_p5_p6_p7_checkpoint_open_preserves_verification_and_mismatch_distinctions",
-      "source_line": 390,
+      "source_line": 401,
       "classification": "EXACT",
       "families": [
         "checkpoint-qualified-open",
@@ -102,7 +102,7 @@
       "test_kind": "integration",
       "test_name": "checkpoint_qualified_opens_retain_distinct_genuine_producing_contexts",
       "cargo_test_name": "checkpoint_qualified_opens_retain_distinct_genuine_producing_contexts",
-      "source_line": 444,
+      "source_line": 455,
       "classification": "EXACT",
       "families": [
         "checkpoint-qualified-open",
@@ -118,7 +118,7 @@
       "test_kind": "integration",
       "test_name": "checkpoint_qualified_append_preserves_binding_and_writer_state_machine",
       "cargo_test_name": "checkpoint_qualified_append_preserves_binding_and_writer_state_machine",
-      "source_line": 479,
+      "source_line": 490,
       "classification": "EXACT",
       "families": [
         "checkpoint-qualified-append",
@@ -134,7 +134,7 @@
       "test_kind": "integration",
       "test_name": "p8_wrong_branch_length_never_substitutes_for_checkpoint_ancestry",
       "cargo_test_name": "p8_wrong_branch_length_never_substitutes_for_checkpoint_ancestry",
-      "source_line": 520,
+      "source_line": 531,
       "classification": "EXACT",
       "families": [
         "checkpoint-qualified-open"
@@ -149,7 +149,7 @@
       "test_kind": "integration",
       "test_name": "p1_missing_persisted_terminal_is_stale_and_cannot_advance_writer",
       "cargo_test_name": "p1_missing_persisted_terminal_is_stale_and_cannot_advance_writer",
-      "source_line": 550,
+      "source_line": 561,
       "classification": "EXACT",
       "families": [
         "stale-writer-atomicity",
@@ -165,7 +165,7 @@
       "test_kind": "integration",
       "test_name": "p19_append_terminal_blob_is_bounded_before_parsing",
       "cargo_test_name": "p19_append_terminal_blob_is_bounded_before_parsing",
-      "source_line": 579,
+      "source_line": 590,
       "classification": "EXACT",
       "families": [
         "finite-resource-limits"
@@ -180,7 +180,7 @@
       "test_kind": "integration",
       "test_name": "p2_append_revalidates_cumulative_bytes_after_terminal_rewrite",
       "cargo_test_name": "p2_append_revalidates_cumulative_bytes_after_terminal_rewrite",
-      "source_line": 623,
+      "source_line": 634,
       "classification": "EXACT",
       "families": [
         "finite-resource-limits",
@@ -196,7 +196,7 @@
       "test_kind": "integration",
       "test_name": "p2_append_revalidates_cumulative_bytes_after_nonterminal_rewrite",
       "cargo_test_name": "p2_append_revalidates_cumulative_bytes_after_nonterminal_rewrite",
-      "source_line": 682,
+      "source_line": 693,
       "classification": "EXACT",
       "families": [
         "finite-resource-limits",
@@ -212,7 +212,7 @@
       "test_kind": "integration",
       "test_name": "p9_stale_writers_cannot_commit_sibling_successors",
       "cargo_test_name": "p9_stale_writers_cannot_commit_sibling_successors",
-      "source_line": 753,
+      "source_line": 764,
       "classification": "EXACT",
       "families": [
         "stale-writer-atomicity"
@@ -227,7 +227,7 @@
       "test_kind": "integration",
       "test_name": "p1_append_rechecks_delete_journal_mode_after_begin",
       "cargo_test_name": "p1_append_rechecks_delete_journal_mode_after_begin",
-      "source_line": 779,
+      "source_line": 790,
       "classification": "EXACT",
       "families": [
         "rollback-journal-profile",
@@ -243,7 +243,7 @@
       "test_kind": "integration",
       "test_name": "p10_stable_reader_forces_commit_busy_cleanup_without_hidden_retry",
       "cargo_test_name": "p10_stable_reader_forces_commit_busy_cleanup_without_hidden_retry",
-      "source_line": 809,
+      "source_line": 820,
       "classification": "EXACT",
       "families": [
         "busy-contention",
@@ -260,7 +260,7 @@
       "test_kind": "integration",
       "test_name": "begin_immediate_busy_is_not_retried_and_poisons_without_committing",
       "cargo_test_name": "begin_immediate_busy_is_not_retried_and_poisons_without_committing",
-      "source_line": 863,
+      "source_line": 874,
       "classification": "EXACT",
       "families": [
         "busy-contention",
@@ -276,7 +276,7 @@
       "test_kind": "integration",
       "test_name": "p11_post_insert_resource_failure_rolls_back_and_poisons",
       "cargo_test_name": "p11_post_insert_resource_failure_rolls_back_and_poisons",
-      "source_line": 891,
+      "source_line": 902,
       "classification": "EXACT",
       "families": [
         "finite-resource-limits",
@@ -292,7 +292,7 @@
       "test_kind": "integration",
       "test_name": "p12_lost_process_acknowledgement_requires_reopen_instead_of_blind_retry",
       "cargo_test_name": "p12_lost_process_acknowledgement_requires_reopen_instead_of_blind_retry",
-      "source_line": 918,
+      "source_line": 929,
       "classification": "PARTIAL",
       "families": [
         "crash-recovery-boundary",
@@ -308,14 +308,14 @@
       "test_kind": "integration",
       "test_name": "p14_corruption_never_truncates_to_an_earlier_valid_prefix",
       "cargo_test_name": "p14_corruption_never_truncates_to_an_earlier_valid_prefix",
-      "source_line": 953,
+      "source_line": 964,
       "classification": "EXACT",
       "families": [
         "stable-snapshot",
         "tamper-resistance"
       ],
       "overclaim_risk": "none",
-      "claim_fence": "WITNESSES: corrupt records, signatures, and positions fail open; no truncation to an earlier valid prefix occurs. NOT: authenticated external origin."
+      "claim_fence": "WITNESSES: corrupt records, signatures, and positions fail closed and the persisted database bytes are unchanged after each failed open; no truncation to an earlier valid prefix occurs. NOT: recovery from corruption."
     },
     {
       "witness_id": "integration/p15_p16_checkpoint_comparison_detects_only_the_explicit_retained_coordinate",
@@ -324,7 +324,7 @@
       "test_kind": "integration",
       "test_name": "p15_p16_checkpoint_comparison_detects_only_the_explicit_retained_coordinate",
       "cargo_test_name": "p15_p16_checkpoint_comparison_detects_only_the_explicit_retained_coordinate",
-      "source_line": 1011,
+      "source_line": 1028,
       "classification": "EXACT",
       "families": [
         "checkpoint-qualified-open"
@@ -339,7 +339,7 @@
       "test_kind": "integration",
       "test_name": "p19_physical_logical_and_blob_limits_fail_before_semantic_publication",
       "cargo_test_name": "p19_physical_logical_and_blob_limits_fail_before_semantic_publication",
-      "source_line": 1059,
+      "source_line": 1076,
       "classification": "EXACT",
       "families": [
         "finite-resource-limits"
@@ -354,7 +354,7 @@
       "test_kind": "integration",
       "test_name": "sqlite_record_bytes_match_filestore_bytes_without_jsonl_framing",
       "cargo_test_name": "sqlite_record_bytes_match_filestore_bytes_without_jsonl_framing",
-      "source_line": 1143,
+      "source_line": 1160,
       "classification": "PARTIAL",
       "families": [
         "compatibility-byte-parity"
@@ -369,7 +369,7 @@
       "test_kind": "integration",
       "test_name": "p19_sequential_append_uses_updated_total_and_failed_append_advances_nothing",
       "cargo_test_name": "p19_sequential_append_uses_updated_total_and_failed_append_advances_nothing",
-      "source_line": 1176,
+      "source_line": 1193,
       "classification": "EXACT",
       "families": [
         "finite-resource-limits",
@@ -385,7 +385,7 @@
       "test_kind": "integration",
       "test_name": "p19_record_count_wrong_key_empty_owned_and_wal_are_fail_closed",
       "cargo_test_name": "p19_record_count_wrong_key_empty_owned_and_wal_are_fail_closed",
-      "source_line": 1231,
+      "source_line": 1248,
       "classification": "EXACT",
       "families": [
         "finite-resource-limits",
@@ -394,23 +394,23 @@
         "tamper-resistance"
       ],
       "overclaim_risk": "none",
-      "claim_fence": "WITNESSES: wrong key, empty file, owned file, and WAL mode fail closed. NOT: external ownership or authentication."
+      "claim_fence": "WITNESSES: a record-count limit, a wrong key, an owned database with its records deleted (empty owned history), and WAL mode each fail closed. NOT: external ownership, authentication, or a separate empty-file case."
     },
     {
-      "witness_id": "integration/read_only_verification_establishes_and_preserves_delete_profile",
+      "witness_id": "integration/read_only_verification_preserves_established_delete_profile",
       "source": "crates/magpie-log/tests/sqlite_l0.rs",
       "ordinal": 25,
       "test_kind": "integration",
-      "test_name": "read_only_verification_establishes_and_preserves_delete_profile",
-      "cargo_test_name": "read_only_verification_establishes_and_preserves_delete_profile",
-      "source_line": 1300,
+      "test_name": "read_only_verification_preserves_established_delete_profile",
+      "cargo_test_name": "read_only_verification_preserves_established_delete_profile",
+      "source_line": 1317,
       "classification": "EXACT",
       "families": [
         "rollback-journal-profile",
         "stable-snapshot"
       ],
       "overclaim_risk": "none",
-      "claim_fence": "WITNESSES: read-only verification establishes and preserves the delete journal profile. NOT: write durability or recovery."
+      "claim_fence": "WITNESSES: read-only verification of a governed database with an already-established delete journal profile preserves that profile. NOT: establishment of the profile, write durability, or recovery."
     },
     {
       "witness_id": "integration/p20_schema_has_no_ambient_checkpoint_or_mutable_head_state",
@@ -419,7 +419,7 @@
       "test_kind": "integration",
       "test_name": "p20_schema_has_no_ambient_checkpoint_or_mutable_head_state",
       "cargo_test_name": "p20_schema_has_no_ambient_checkpoint_or_mutable_head_state",
-      "source_line": 1320,
+      "source_line": 1345,
       "classification": "EXACT",
       "families": [
         "no-ambient-head",
@@ -435,7 +435,7 @@
       "test_kind": "integration",
       "test_name": "p1_append_fails_on_same_length_interior_semantic_rewrite",
       "cargo_test_name": "p1_append_fails_on_same_length_interior_semantic_rewrite",
-      "source_line": 1357,
+      "source_line": 1382,
       "classification": "EXACT",
       "families": [
         "stable-snapshot",
@@ -451,7 +451,7 @@
       "test_kind": "integration",
       "test_name": "p1_append_fails_on_interior_position_swap",
       "cargo_test_name": "p1_append_fails_on_interior_position_swap",
-      "source_line": 1421,
+      "source_line": 1446,
       "classification": "EXACT",
       "families": [
         "stale-writer-atomicity",
@@ -467,7 +467,7 @@
       "test_kind": "integration",
       "test_name": "p1_append_fails_on_schema_mutation_after_writer_open",
       "cargo_test_name": "p1_append_fails_on_schema_mutation_after_writer_open",
-      "source_line": 1473,
+      "source_line": 1498,
       "classification": "EXACT",
       "families": [
         "schema-ownership",
@@ -483,7 +483,7 @@
       "test_kind": "integration",
       "test_name": "p1_append_fails_on_identity_mutation_after_writer_open",
       "cargo_test_name": "p1_append_fails_on_identity_mutation_after_writer_open",
-      "source_line": 1510,
+      "source_line": 1535,
       "classification": "EXACT",
       "families": [
         "schema-ownership",
@@ -499,7 +499,7 @@
       "test_kind": "integration",
       "test_name": "sqlite_rejected_append_does_not_consume_injected_clock",
       "cargo_test_name": "sqlite_rejected_append_does_not_consume_injected_clock",
-      "source_line": 1543,
+      "source_line": 1568,
       "classification": "EXACT",
       "families": [
         "deterministic-clock",
@@ -515,7 +515,7 @@
       "test_kind": "integration",
       "test_name": "supported_reopen_recovers_owned_hot_journal_and_preserves_committed_prefix",
       "cargo_test_name": "supported_reopen_recovers_owned_hot_journal_and_preserves_committed_prefix",
-      "source_line": 1628,
+      "source_line": 1817,
       "classification": "EXACT",
       "families": [
         "hot-journal-recovery-boundary",

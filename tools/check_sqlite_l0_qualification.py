@@ -37,7 +37,7 @@ EXPECTED_SOURCE_COUNTS = {
     LIB_SOURCE: 8,
 }
 EXPECTED_CLASSIFICATION_COUNTS = {"EXACT": 36, "PARTIAL": 4}
-EXPECTED_INVENTORY_SHA256 = "22766d3fe7dc09469a561ec88e09b467cf919b5349360ef867545c1be9056cf1"
+EXPECTED_INVENTORY_SHA256 = "a0267e6e83d4e34ebf54623f2ebc6d77b9c40fb6c9f4b5380de7c33e00f962b8"
 ALLOWED_CLASSIFICATIONS = frozenset({"EXACT", "PARTIAL", "ADJACENT"})
 
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
@@ -134,8 +134,8 @@ def _claim_fence_field(entry: dict[str, object], field: str) -> str:
     return value
 
 
-def verify_inventory_digest(raw_text: str) -> None:
-    actual = hashlib.sha256(raw_text.encode("utf-8")).hexdigest()
+def verify_inventory_digest(raw: bytes) -> None:
+    actual = hashlib.sha256(raw).hexdigest()
     if actual != EXPECTED_INVENTORY_SHA256:
         raise SqliteL0CheckError(
             "SQLite L0 qualification inventory digest does not match the governed "
@@ -148,13 +148,13 @@ def load_inventory(
     path: Path = INVENTORY_PATH,
 ) -> tuple[dict[str, object], list[InventoryWitness]]:
     try:
-        raw_text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as error:
+        raw_bytes = path.read_bytes()
+    except OSError as error:
         raise SqliteL0CheckError(f"cannot read SQLite L0 qualification inventory: {error}") from error
-    verify_inventory_digest(raw_text)
+    verify_inventory_digest(raw_bytes)
     try:
-        raw = json.loads(raw_text)
-    except json.JSONDecodeError as error:
+        raw = json.loads(raw_bytes)
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
         raise SqliteL0CheckError(f"cannot read SQLite L0 qualification inventory: {error}") from error
     if not isinstance(raw, dict):
         raise SqliteL0CheckError("SQLite L0 qualification inventory must be a JSON object")
