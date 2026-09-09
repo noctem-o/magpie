@@ -30,12 +30,12 @@ LIB_TEST_PREFIX = "sqlite_l0::tests::"
 SELF_SPAWNING_WITNESS_ID = (
     "integration/p12_lost_process_acknowledgement_requires_reopen_instead_of_blind_retry"
 )
-EXPECTED_TOTAL = 39
+EXPECTED_TOTAL = 40
 EXPECTED_SOURCE_COUNTS = {
-    INTEGRATION_SOURCE: 31,
+    INTEGRATION_SOURCE: 32,
     LIB_SOURCE: 8,
 }
-EXPECTED_CLASSIFICATION_COUNTS = {"EXACT": 35, "PARTIAL": 4}
+EXPECTED_CLASSIFICATION_COUNTS = {"EXACT": 36, "PARTIAL": 4}
 ALLOWED_CLASSIFICATIONS = frozenset({"EXACT", "PARTIAL", "ADJACENT"})
 
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")

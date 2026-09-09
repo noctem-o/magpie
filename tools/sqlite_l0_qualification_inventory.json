@@ -4,14 +4,14 @@
   "lane": "sqlite-l0-resource-crash-recovery-v0",
   "governed_sources": {
     "crates/magpie-log/src/sqlite_l0.rs": "744c480546c77925e69ad84aae3aeb69a9e5c18fad755da9e15dcae7f144c01a",
-    "crates/magpie-log/tests/sqlite_l0.rs": "6d304a920d4a46dbd57a7e92f2483d423eecaf6a6899119399a7dc3b69d77791"
+    "crates/magpie-log/tests/sqlite_l0.rs": "c2b4d771b30cb063d7bb6126f71b60d1864574b172704eba9b2d3f7d85c7a1db"
   },
   "source_file_counts": {
-    "crates/magpie-log/tests/sqlite_l0.rs": 31,
+    "crates/magpie-log/tests/sqlite_l0.rs": 32,
     "crates/magpie-log/src/sqlite_l0.rs": 8
   },
   "classification_counts": {
-    "EXACT": 35,
+    "EXACT": 36,
     "PARTIAL": 4
   },
   "witnesses": [
@@ -507,6 +507,22 @@
       ],
       "overclaim_risk": "none",
       "claim_fence": "WITNESSES: a pre-transaction rejected append does not consume the injected clock or persist state. NOT: wall-clock semantics."
+    },
+    {
+      "witness_id": "integration/supported_reopen_recovers_owned_hot_journal_and_preserves_committed_prefix",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 32,
+      "test_kind": "integration",
+      "test_name": "supported_reopen_recovers_owned_hot_journal_and_preserves_committed_prefix",
+      "cargo_test_name": "supported_reopen_recovers_owned_hot_journal_and_preserves_committed_prefix",
+      "source_line": 1566,
+      "classification": "EXACT",
+      "families": [
+        "hot-journal-recovery-boundary",
+        "ownership-gate"
+      ],
+      "overclaim_risk": "real power-loss or universal crash-recovery misreading",
+      "claim_fence": "WITNESSES: a supported reopen of an owned database left with a hot DELETE rollback journal recovers the journal and preserves the committed prefix exactly. NOT: real power loss, kernel crash, or universal crash recovery."
     },
     {
       "witness_id": "lib/create_revalidates_empty_unowned_state_inside_transaction",

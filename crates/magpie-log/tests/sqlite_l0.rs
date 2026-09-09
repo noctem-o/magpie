@@ -1561,3 +1561,72 @@ fn sqlite_rejected_append_does_not_consume_injected_clock() {
     assert_eq!(accepted.core.timestamp_nanos, baseline.core.timestamp_nanos);
     assert_eq!(accepted.hash, baseline.hash);
 }
+
+#[test]
+fn supported_reopen_recovers_owned_hot_journal_and_preserves_committed_prefix() {
+    let path = TestPath::new("supported-hot-journal-owned");
+    let staged = TestPath::new("supported-hot-journal-staged");
+    let journal = format!("{}-journal", path.path().display());
+    let staged_journal = format!("{}-journal", staged.path().display());
+
+    let genesis_tip = {
+        let writer = create(path.path());
+        let tip = writer.tip();
+        drop(writer);
+        tip
+    };
+
+    // Begin a live write transaction on the owned database and mutate a
+    // scratch object so a hot DELETE rollback journal is left behind it.
+    let connection = raw_connection(path.path());
+    connection.execute_batch("BEGIN IMMEDIATE").unwrap();
+    connection
+        .execute("CREATE TABLE scratch_interrupted(x INTEGER)", [])
+        .unwrap();
+    connection
+        .execute("INSERT INTO scratch_interrupted VALUES (1)", [])
+        .unwrap();
+    assert!(
+        Path::new(&journal).exists(),
+        "the live write must leave a hot rollback journal"
+    );
+
+    // Capture the crash pair (mid-transaction main + hot journal) while the
+    // transaction is live, then roll the live transaction back.
+    fs::copy(path.path(), staged.path()).unwrap();
+    fs::copy(&journal, &staged_journal).unwrap();
+    connection.execute_batch("ROLLBACK").unwrap();
+    drop(connection);
+
+    // Restore the crash pair over the destination to simulate a crash that
+    // left a hot journal behind on the owned database.
+    fs::remove_file(path.path()).unwrap();
+    fs::copy(staged.path(), path.path()).unwrap();
+    fs::copy(&staged_journal, &journal).unwrap();
+    assert!(
+        Path::new(&journal).exists(),
+        "the restored hot journal must be present before reopen"
+    );
+
+    // Supported reopen: the ownership gate passes for the owned database and
+    // the hot journal is recovered, preserving the committed prefix exactly.
+    let reopened = LogWriter::<SqliteL0Store>::open_verified_prefix(
+        path.path(),
+        key(),
+        broad_limits(),
+    )
+    .unwrap();
+    assert_eq!(reopened.len(), 1);
+    assert_eq!(reopened.tip(), genesis_tip);
+    drop(reopened);
+
+    assert!(
+        !Path::new(&journal).exists(),
+        "recovery must consume the hot rollback journal"
+    );
+    assert_eq!(
+        records(path.path()).len(),
+        1,
+        "recovery must preserve the committed prefix exactly"
+    );
+}
