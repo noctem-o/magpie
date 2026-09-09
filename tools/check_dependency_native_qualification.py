@@ -457,7 +457,7 @@ def _rest_mentions_pip_install(tokens: list[str]) -> bool:
         return True
     stripped = [token.strip("\"'") for token in tokens]
     for i, token in enumerate(stripped):
-        name = token.rsplit("/", 1)[-1]
+        name = token.lstrip("(").rsplit("/", 1)[-1]
         if _PIP_HEAD_RE.fullmatch(name) and "install" in stripped[i + 1 :]:
             return True
         if _PYTHON_HEAD_RE.fullmatch(name):
@@ -472,6 +472,151 @@ def _rest_mentions_pip_install(tokens: list[str]) -> bool:
     return False
 
 
+def _match_backtick(text: str, start: int) -> int | None:
+    """Index of the backtick that closes a backtick substitution opened
+    just before ``start``, or None when the text ends first.
+
+    Parsed as a fresh quoting context: single and double quotes shield
+    the closing backtick, and a backslash quotes the next character.
+    """
+    in_single = False
+    in_double = False
+    i = start
+    n = len(text)
+    while i < n:
+        ch = text[i]
+        if in_single:
+            if ch == "'":
+                in_single = False
+        elif in_double:
+            if ch == "\\":
+                i += 1
+            elif ch == '"':
+                in_double = False
+        elif ch == "'":
+            in_single = True
+        elif ch == '"':
+            in_double = True
+        elif ch == "\\":
+            i += 1
+        elif ch == "`":
+            return i
+        i += 1
+    return None
+
+
+def _match_command_substitution(text: str, start: int) -> int | None:
+    """Index of the ``)`` that closes a ``$(`` opened just before
+    ``start``, or None when the text ends first.
+
+    The body is parsed as a fresh quoting context: quotes re-open,
+    nested ``$(`` and bare ``(`` subshells add depth, ``${...}`` shields
+    parentheses, and backtick substitutions are skipped whole. A
+    parenthesis inside double quotes is treated as opening, which can
+    only over-read the body, never under-read it.
+    """
+    depth = 1
+    brace = 0
+    in_single = False
+    in_double = False
+    i = start
+    n = len(text)
+    while i < n:
+        ch = text[i]
+        if in_single:
+            if ch == "'":
+                in_single = False
+            i += 1
+        elif ch == "\\":
+            i += 2
+        elif in_double and ch == '"':
+            in_double = False
+            i += 1
+        elif ch == "$" and i + 1 < n and text[i + 1] == "(":
+            depth += 1
+            i += 2
+        elif ch == "$" and i + 1 < n and text[i + 1] == "{":
+            brace += 1
+            i += 2
+        elif not in_double and ch == "'":
+            in_single = True
+            i += 1
+        elif ch == '"':
+            in_double = True
+            i += 1
+        elif ch == "`":
+            close = _match_backtick(text, i + 1)
+            if close is None:
+                return None
+            i = close + 1
+        elif ch == "}":
+            if brace:
+                brace -= 1
+            i += 1
+        elif brace:
+            i += 1
+        elif ch == "(":
+            depth += 1
+            i += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                return i
+            i += 1
+        else:
+            i += 1
+    return None
+
+
+def _command_substitution_bodies(text: str) -> list[str]:
+    """Bodies of the command substitutions ``text`` will execute.
+
+    Scans the command at its own quoting level: single quotes leave a
+    substitution inert, double quotes do not, and a backslash quotes the
+    next character. An unclosed substitution yields the rest of the
+    text so the caller can stay conservative.
+    """
+    bodies: list[str] = []
+    in_single = False
+    in_double = False
+    i = 0
+    n = len(text)
+    while i < n:
+        ch = text[i]
+        if in_single:
+            if ch == "'":
+                in_single = False
+            i += 1
+        elif ch == "\\":
+            i += 2
+        elif in_double and ch == '"':
+            in_double = False
+            i += 1
+        elif not in_double and ch == "'":
+            in_single = True
+            i += 1
+        elif ch == '"':
+            in_double = True
+            i += 1
+        elif ch == "$" and i + 1 < n and text[i + 1] == "(":
+            close = _match_command_substitution(text, i + 2)
+            if close is None:
+                bodies.append(text[i + 2 :])
+                break
+            bodies.append(text[i + 2 : close])
+            i = close + 1
+        elif ch == "`":
+            close = _match_backtick(text, i + 1)
+            if close is None:
+                bodies.append(text[i + 1 :])
+                break
+            bodies.append(text[i + 1 : close])
+            i = close + 1
+        else:
+            i += 1
+    return bodies
+
+
 def _finds_pip_install(text: str, depth: int = 0) -> bool:
     text = _strip_shell_comment(text).strip()
     if not text:
@@ -484,6 +629,10 @@ def _finds_pip_install(text: str, depth: int = 0) -> bool:
         return _rest_mentions_pip_install(text.split()) or _rest_mentions_pip_install(
             _decode_shell_escapes(text).split()
         )
+    bodies = _command_substitution_bodies(text)
+    for body in bodies:
+        if _finds_pip_install(body, depth + 1):
+            return True
     segments = _split_effective_segments(text)
     if len(segments) > 1:
         return any(_finds_pip_install(segment, depth) for segment in segments)
@@ -495,7 +644,7 @@ def _finds_pip_install(text: str, depth: int = 0) -> bool:
         i += 1
     if i >= len(tokens):
         return False
-    head = tokens[i].rsplit("/", 1)[-1]
+    head = tokens[i].lstrip("(").rsplit("/", 1)[-1]
     rest = tokens[i + 1 :]
     if _PIP_HEAD_RE.fullmatch(head):
         return "install" in rest
@@ -546,7 +695,7 @@ def _finds_pip_install(text: str, depth: int = 0) -> bool:
                 )
             ):
                 return _finds_pip_install(rest[j + 1], depth + 1)
-    if head in _NON_EXECUTING_HEADS and "$(" not in text and "`" not in text:
+    if head in _NON_EXECUTING_HEADS and not bodies:
         return False
     return _rest_mentions_pip_install(rest)
 

@@ -1039,6 +1039,116 @@ class CheckerTestCase(unittest.TestCase):
         self.rebind()
         self.assert_fails("duplicate env key")
 
+    # --- audit F5: command substitutions were invisible to the pip detector ---
+
+    def test_command_substitution_pip_install_is_detected(self) -> None:
+        # A pip install hidden inside a $(...) command substitution must be
+        # discovered: the old detector tokenized the substitution opener as
+        # part of an inert token and missed the pip inside (a false green).
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                "          python -m pip install -r tools/requirements-portable-verifier.txt\n"
+                "          $(pip install requests)",
+            ),
+        )
+        self.rebind()
+        self.assert_fails(
+            "expected exactly one pip install command in the workflow, found 2"
+        )
+
+    def test_backtick_pip_install_is_detected(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                "          python -m pip install -r tools/requirements-portable-verifier.txt\n"
+                "          `pip install requests`",
+            ),
+        )
+        self.rebind()
+        self.assert_fails(
+            "expected exactly one pip install command in the workflow, found 2"
+        )
+
+    def test_assignment_wrapped_command_substitution_pip_install_is_detected(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                "          python -m pip install -r tools/requirements-portable-verifier.txt\n"
+                "          x=$(pip install requests)",
+            ),
+        )
+        self.rebind()
+        self.assert_fails(
+            "expected exactly one pip install command in the workflow, found 2"
+        )
+
+    def test_nested_command_substitution_pip_install_is_detected(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                "          python -m pip install -r tools/requirements-portable-verifier.txt\n"
+                "          sh -c \"$(pip install requests)\"",
+            ),
+        )
+        self.rebind()
+        self.assert_fails(
+            "expected exactly one pip install command in the workflow, found 2"
+        )
+
+    def test_double_nested_command_substitution_pip_install_is_detected(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                "          python -m pip install -r tools/requirements-portable-verifier.txt\n"
+                "          echo $(echo $(pip install requests))",
+            ),
+        )
+        self.rebind()
+        self.assert_fails(
+            "expected exactly one pip install command in the workflow, found 2"
+        )
+
+    def test_command_substitution_without_pip_is_not_execution(self) -> None:
+        # A command substitution that does not run pip must not be counted
+        # as an install (positive control for the F5 fix).
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                "          echo $(ls tools)\n"
+                "          python -m pip install -r tools/requirements-portable-verifier.txt",
+            ),
+        )
+        self.rebind()
+        checker.run_check(self.root)
+
+    def test_single_quoted_command_substitution_is_not_execution(self) -> None:
+        # Single quotes make a substitution inert: the text inside is data,
+        # not a command, so it must not be counted as an install.
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                "          echo '$(pip install requests)'\n"
+                "          python -m pip install -r tools/requirements-portable-verifier.txt",
+            ),
+        )
+        self.rebind()
+        checker.run_check(self.root)
+
 
 if __name__ == "__main__":
     unittest.main()
