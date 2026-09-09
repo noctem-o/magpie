@@ -522,7 +522,7 @@
         "schema-ownership"
       ],
       "overclaim_risk": "none",
-      "claim_fence": "WITNESSES: empty unowned state revalidated inside the create transaction is accepted and initialized. NOT: ownership by an external identity."
+      "claim_fence": "WITNESSES: a foreign table added to an empty unowned destination in the create window is detected by the in-transaction revalidation and rejected with ForeignDatabase and no initialized MPL0 state. NOT: ownership by an external identity."
     },
     {
       "witness_id": "lib/create_revalidates_the_database_opened_after_path_preflight",
