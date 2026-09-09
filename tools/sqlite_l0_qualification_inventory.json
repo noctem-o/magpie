@@ -345,7 +345,7 @@
         "finite-resource-limits"
       ],
       "overclaim_risk": "none",
-      "claim_fence": "WITNESSES: physical, logical, and blob limits fail before semantic publication. NOT: semantic payload validation."
+      "claim_fence": "WITNESSES: physical main-database, physical rollback-journal, and individual record-byte limits each fail closed before any semantic publication. NOT: an independent logical gate or semantic payload validation."
     },
     {
       "witness_id": "integration/sqlite_record_bytes_match_filestore_bytes_without_jsonl_framing",
