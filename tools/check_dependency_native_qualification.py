@@ -341,6 +341,13 @@ _PYTHON_PIP_INSTALL_TEXT_RE = re.compile(
 
 
 def _strip_shell_comment(text: str) -> str:
+    """Strip the first unquoted ``#`` comment, honoring its line boundary.
+
+    A shell comment runs only to the end of its own line; commands on the
+    following lines still execute, so the newline and everything after it
+    are preserved and only the comment text is dropped. A comment on the
+    final line with no trailing newline drops to the end of the text.
+    """
     in_single = False
     in_double = False
     for i, ch in enumerate(text):
@@ -355,7 +362,10 @@ def _strip_shell_comment(text: str) -> str:
         elif ch == '"':
             in_double = True
         elif ch == "#" and (i == 0 or text[i - 1] in " \t"):
-            return text[:i]
+            end = text.find("\n", i)
+            if end == -1:
+                return text[:i]
+            return text[:i] + text[end:]
     return text
 
 

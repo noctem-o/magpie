@@ -1149,6 +1149,75 @@ class CheckerTestCase(unittest.TestCase):
         self.rebind()
         checker.run_check(self.root)
 
+    # --- audit F6: shell comments swallowed the following line -----------
+
+    def test_shell_c_comment_newline_pip_install_is_detected(self) -> None:
+        # A comment inside a shell -c body ends at its own newline; the
+        # pip install on the next line still executes and must be found.
+        # The old comment strip dropped everything to the end of the text
+        # (a false green).
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                "          python -m pip install -r tools/requirements-portable-verifier.txt\n"
+                '          bash -c "echo ok # comment\n'
+                "          pip install requests\"",
+            ),
+        )
+        self.rebind()
+        self.assert_fails(
+            "expected exactly one pip install command in the workflow, found 2"
+        )
+
+    def test_shell_c_comment_only_first_line_pip_install_is_detected(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                "          python -m pip install -r tools/requirements-portable-verifier.txt\n"
+                '          sh -c "# comment\n'
+                "          pip install requests\"",
+            ),
+        )
+        self.rebind()
+        self.assert_fails(
+            "expected exactly one pip install command in the workflow, found 2"
+        )
+
+    def test_shell_c_assignment_comment_newline_pip_install_is_detected(self) -> None:
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                "          python -m pip install -r tools/requirements-portable-verifier.txt\n"
+                '          dash -c "x=1 # comment\n'
+                "          pip install requests\"",
+            ),
+        )
+        self.rebind()
+        self.assert_fails(
+            "expected exactly one pip install command in the workflow, found 2"
+        )
+
+    def test_shell_c_inline_comment_without_newline_is_not_execution(self) -> None:
+        # A same-line comment with no following line swallows only its own
+        # line (positive control for the F6 fix).
+        self.mutate_text(
+            checker.WORKFLOW_RELATIVE,
+            lambda text: text.replace(
+                "run: python -m pip install -r tools/requirements-portable-verifier.txt",
+                "run: |\n"
+                "          python -m pip install -r tools/requirements-portable-verifier.txt\n"
+                '          bash -c "echo ok # pip install requests"',
+            ),
+        )
+        self.rebind()
+        checker.run_check(self.root)
+
 
 if __name__ == "__main__":
     unittest.main()
