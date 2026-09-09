@@ -1562,12 +1562,99 @@ fn sqlite_rejected_append_does_not_consume_injected_clock() {
     assert_eq!(accepted.hash, baseline.hash);
 }
 
+fn assert_hot_journal(journal: &[u8], committed_main: &[u8]) {
+    const ROLLBACK_JOURNAL_MAGIC: [u8; 8] = [0xd9, 0xd5, 0x05, 0xf9, 0x20, 0xa1, 0x63, 0xd7];
+    assert!(
+        journal.len() > 32,
+        "hot journal is too small to carry a header: {} bytes",
+        journal.len()
+    );
+    assert_eq!(
+        &journal[0..8],
+        &ROLLBACK_JOURNAL_MAGIC,
+        "hot journal must carry the live rollback-journal magic"
+    );
+    let n_rec = u32::from_be_bytes(journal[8..12].try_into().unwrap());
+    assert_eq!(
+        n_rec, 0xffff_ffff,
+        "an un-synced hot journal must mark an uncounted record stream"
+    );
+    let truncate_target = u32::from_be_bytes(journal[16..20].try_into().unwrap());
+    let sector_size = u32::from_be_bytes(journal[20..24].try_into().unwrap());
+    let page_size = u32::from_be_bytes(journal[24..28].try_into().unwrap());
+    assert!(
+        (512..=65536).contains(&page_size) && page_size.is_power_of_two(),
+        "journal page size {page_size} is not a valid SQLite page size"
+    );
+    let committed_page_size = u16::from_be_bytes(committed_main[16..18].try_into().unwrap());
+    let committed_page_size = if committed_page_size == 0 {
+        65536
+    } else {
+        u32::from(committed_page_size)
+    };
+    assert_eq!(
+        page_size, committed_page_size,
+        "journal page size must match the committed database page size"
+    );
+    let header_size = sector_size as usize;
+    assert!(
+        journal.len() >= header_size,
+        "hot journal is smaller than its {header_size}-byte header"
+    );
+    let record_size = usize::try_from(page_size).unwrap() + 8;
+    assert_eq!(
+        (journal.len() - header_size) % record_size,
+        0,
+        "hot journal size must be a header plus whole page records"
+    );
+    let record_count = (journal.len() - header_size) / record_size;
+    assert!(
+        record_count >= 1,
+        "hot journal must carry at least one page record"
+    );
+    let first_page = u32::from_be_bytes(journal[header_size..header_size + 4].try_into().unwrap());
+    assert_eq!(
+        first_page, 1,
+        "the interrupted writer's first journaled page must be the schema page"
+    );
+    assert_eq!(
+        truncate_target as usize * usize::try_from(page_size).unwrap(),
+        committed_main.len(),
+        "the rollback target must restore the committed database size"
+    );
+}
+
 #[test]
 fn supported_reopen_recovers_owned_hot_journal_and_preserves_committed_prefix() {
+    const CHILD_ENV: &str = "MAGPIE_SQLITE_L0_HOTJOURNAL_CHILD";
+    const PATH_ENV: &str = "MAGPIE_SQLITE_L0_HOTJOURNAL_PATH";
+    const TEST_NAME: &str =
+        "supported_reopen_recovers_owned_hot_journal_and_preserves_committed_prefix";
+
+    if std::env::var_os(CHILD_ENV).is_some() {
+        let path = PathBuf::from(std::env::var_os(PATH_ENV).unwrap());
+        let ready = PathBuf::from(format!("{}-hotjournal-ready", path.display()));
+        let kill = PathBuf::from(format!("{}-hotjournal-kill", path.display()));
+        let connection = raw_connection(&path);
+        connection
+            .execute_batch(
+                "PRAGMA synchronous = OFF; \
+                 BEGIN IMMEDIATE; \
+                 CREATE TABLE scratch_interrupted(x INTEGER); \
+                 INSERT INTO scratch_interrupted VALUES (1);",
+            )
+            .unwrap();
+        fs::File::create(&ready).unwrap().sync_all().unwrap();
+        while !kill.exists() {
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        std::process::abort();
+    }
+
     let path = TestPath::new("supported-hot-journal-owned");
-    let staged = TestPath::new("supported-hot-journal-staged");
-    let journal = format!("{}-journal", path.path().display());
-    let staged_journal = format!("{}-journal", staged.path().display());
+    let journal = PathBuf::from(format!("{}-journal", path.path().display()));
+    let ready = PathBuf::from(format!("{}-hotjournal-ready", path.path().display()));
+    let kill = PathBuf::from(format!("{}-hotjournal-kill", path.path().display()));
 
     let genesis_tip = {
         let writer = create(path.path());
@@ -1575,53 +1662,87 @@ fn supported_reopen_recovers_owned_hot_journal_and_preserves_committed_prefix() 
         drop(writer);
         tip
     };
+    let committed_main = fs::read(path.path()).unwrap();
 
-    // Begin a live write transaction on the owned database and mutate a
-    // scratch object so a hot DELETE rollback journal is left behind it.
-    let connection = raw_connection(path.path());
-    connection.execute_batch("BEGIN IMMEDIATE").unwrap();
-    connection
-        .execute("CREATE TABLE scratch_interrupted(x INTEGER)", [])
+    let mut child = Command::new(std::env::current_exe().unwrap())
+        .arg("--exact")
+        .arg(TEST_NAME)
+        .arg("--nocapture")
+        .env(CHILD_ENV, "1")
+        .env(PATH_ENV, path.path())
+        .spawn()
         .unwrap();
-    connection
-        .execute("INSERT INTO scratch_interrupted VALUES (1)", [])
-        .unwrap();
-    assert!(
-        Path::new(&journal).exists(),
-        "the live write must leave a hot rollback journal"
+
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        if ready.exists() {
+            break;
+        }
+        if let Some(status) = child.try_wait().unwrap() {
+            let _ = fs::remove_file(&ready);
+            let _ = fs::remove_file(&kill);
+            panic!("the child writer exited before reaching the hot-journal state: {status:?}");
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            let _ = fs::remove_file(&ready);
+            let _ = fs::remove_file(&kill);
+            panic!("the child writer never reached the hot-journal state");
+        }
+        std::thread::sleep(Duration::from_millis(1));
+    }
+
+    // The child holds a live write transaction and a genuine hot rollback
+    // journal on disk; verify the journal while the writer is still alive.
+    let live_journal = fs::read(&journal).unwrap();
+    assert_hot_journal(&live_journal, &committed_main);
+    assert_eq!(
+        fs::read(path.path()).unwrap(),
+        committed_main,
+        "the database file must stay untouched until the interrupted writer commits"
     );
 
-    // Capture the crash pair (mid-transaction main + hot journal) while the
-    // transaction is live, then roll the live transaction back.
-    fs::copy(path.path(), staged.path()).unwrap();
-    fs::copy(&journal, &staged_journal).unwrap();
-    connection.execute_batch("ROLLBACK").unwrap();
-    drop(connection);
+    // Terminate the writer without COMMIT, ROLLBACK, or a clean close.
+    fs::File::create(&kill).unwrap().sync_all().unwrap();
+    let status = child.wait().unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::ExitStatusExt;
+        assert_eq!(
+            status.signal(),
+            Some(6),
+            "the child writer must die from SIGABRT, not a clean exit path"
+        );
+    }
+    #[cfg(not(unix))]
+    {
+        assert!(!status.success(), "the child writer must not exit cleanly");
+    }
 
-    // Restore the crash pair over the destination to simulate a crash that
-    // left a hot journal behind on the owned database.
-    fs::remove_file(path.path()).unwrap();
-    fs::copy(staged.path(), path.path()).unwrap();
-    fs::copy(&staged_journal, &journal).unwrap();
-    assert!(
-        Path::new(&journal).exists(),
-        "the restored hot journal must be present before reopen"
+    // The crash must leave exactly what the live writer left behind.
+    assert_eq!(
+        fs::read(&journal).unwrap(),
+        live_journal,
+        "the hot journal must survive the crash byte-for-byte"
+    );
+    assert_eq!(
+        fs::read(path.path()).unwrap(),
+        committed_main,
+        "the crash must leave the committed database file untouched"
     );
 
     // Supported reopen: the ownership gate passes for the owned database and
     // the hot journal is recovered, preserving the committed prefix exactly.
-    let reopened = LogWriter::<SqliteL0Store>::open_verified_prefix(
-        path.path(),
-        key(),
-        broad_limits(),
-    )
-    .unwrap();
+    let reopened =
+        LogWriter::<SqliteL0Store>::open_verified_prefix(path.path(), key(), broad_limits())
+            .unwrap();
     assert_eq!(reopened.len(), 1);
     assert_eq!(reopened.tip(), genesis_tip);
     drop(reopened);
 
     assert!(
-        !Path::new(&journal).exists(),
+        !journal.exists(),
         "recovery must consume the hot rollback journal"
     );
     assert_eq!(
@@ -1629,4 +1750,32 @@ fn supported_reopen_recovers_owned_hot_journal_and_preserves_committed_prefix() 
         1,
         "recovery must preserve the committed prefix exactly"
     );
+    assert_eq!(
+        fs::read(path.path()).unwrap(),
+        committed_main,
+        "recovery must restore the committed database file exactly"
+    );
+
+    let connection = raw_connection(path.path());
+    let mut statement = connection
+        .prepare(
+            "SELECT name FROM sqlite_master \
+             WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+        )
+        .unwrap();
+    let tables: Vec<String> = statement
+        .query_map([], |row| row.get(0))
+        .unwrap()
+        .map(Result::unwrap)
+        .collect();
+    assert_eq!(
+        tables,
+        vec!["magpie_l0_records"],
+        "the interrupted scratch table must not survive recovery"
+    );
+    drop(statement);
+    drop(connection);
+
+    fs::remove_file(&ready).unwrap();
+    fs::remove_file(&kill).unwrap();
 }

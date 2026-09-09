@@ -4,7 +4,7 @@
   "lane": "sqlite-l0-resource-crash-recovery-v0",
   "governed_sources": {
     "crates/magpie-log/src/sqlite_l0.rs": "744c480546c77925e69ad84aae3aeb69a9e5c18fad755da9e15dcae7f144c01a",
-    "crates/magpie-log/tests/sqlite_l0.rs": "c2b4d771b30cb063d7bb6126f71b60d1864574b172704eba9b2d3f7d85c7a1db"
+    "crates/magpie-log/tests/sqlite_l0.rs": "c0ca382aae7ec12ab1f4b20f8e7b54adfa09756f381d3dea2c67eb7fe7a4e98c"
   },
   "source_file_counts": {
     "crates/magpie-log/tests/sqlite_l0.rs": 32,
@@ -515,7 +515,7 @@
       "test_kind": "integration",
       "test_name": "supported_reopen_recovers_owned_hot_journal_and_preserves_committed_prefix",
       "cargo_test_name": "supported_reopen_recovers_owned_hot_journal_and_preserves_committed_prefix",
-      "source_line": 1566,
+      "source_line": 1628,
       "classification": "EXACT",
       "families": [
         "hot-journal-recovery-boundary",

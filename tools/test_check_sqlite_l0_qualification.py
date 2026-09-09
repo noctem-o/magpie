@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import unittest
 from copy import deepcopy
 from dataclasses import replace
@@ -151,6 +152,79 @@ class SqliteL0QualificationCheckerTests(unittest.TestCase):
         ):
             with self.assertRaises(checker.SqliteL0CheckError):
                 checker.load_inventory()
+
+    def _inventory_text(self, mutate_document) -> str:
+        document = deepcopy(self.document)
+        mutate_document(document)
+        return json.dumps(document, indent=2)
+
+    def test_inventory_digest_catches_classification_swap(self) -> None:
+        exact_index = next(
+            i for i, witness in enumerate(self.witnesses) if witness.classification == "EXACT"
+        )
+        partial_index = next(
+            i for i, witness in enumerate(self.witnesses) if witness.classification == "PARTIAL"
+        )
+        swapped = list(self.witnesses)
+        swapped[exact_index] = replace(self.witnesses[exact_index], classification="PARTIAL")
+        swapped[partial_index] = replace(self.witnesses[partial_index], classification="EXACT")
+        # The structural contract tolerates the swap because aggregate counts are unchanged.
+        checker.validate_inventory_contract(self.document, swapped)
+
+        def mutate(document: dict) -> None:
+            entries = document["witnesses"]
+            entries[exact_index]["classification"] = "PARTIAL"
+            entries[partial_index]["classification"] = "EXACT"
+
+        with mock.patch.object(
+            Path, "read_text", autospec=True, return_value=self._inventory_text(mutate)
+        ):
+            with self.assertRaises(checker.SqliteL0CheckError) as ctx:
+                checker.load_inventory()
+        self.assertIn("digest", str(ctx.exception))
+
+    def test_inventory_digest_catches_fence_prose_rewrite(self) -> None:
+        witness = self.witnesses[0]
+        rewritten_fence = (
+            "WITNESSES: rewritten prose preserves both boundary markers. "
+            "NOT: rewritten prose still denies the same out-of-scope claim."
+        )
+        mutated_list = list(self.witnesses)
+        mutated_list[0] = replace(witness, claim_fence=rewritten_fence)
+        # The structural contract tolerates the rewrite because both markers remain.
+        checker.validate_inventory_contract(self.document, mutated_list)
+
+        def mutate(document: dict) -> None:
+            document["witnesses"][0]["claim_fence"] = rewritten_fence
+
+        with mock.patch.object(
+            Path, "read_text", autospec=True, return_value=self._inventory_text(mutate)
+        ):
+            with self.assertRaises(checker.SqliteL0CheckError) as ctx:
+                checker.load_inventory()
+        self.assertIn("digest", str(ctx.exception))
+
+    def test_inventory_digest_catches_family_swap(self) -> None:
+        witness = self.witnesses[0]
+        first_family = witness.families[0]
+        replacement = (
+            "ownership-gate" if first_family != "ownership-gate" else "creation-atomicity"
+        )
+        swapped_families = (replacement,)
+        mutated_list = list(self.witnesses)
+        mutated_list[0] = replace(witness, families=swapped_families)
+        # The structural contract tolerates the swap because families stay non-empty.
+        checker.validate_inventory_contract(self.document, mutated_list)
+
+        def mutate(document: dict) -> None:
+            document["witnesses"][0]["families"] = list(swapped_families)
+
+        with mock.patch.object(
+            Path, "read_text", autospec=True, return_value=self._inventory_text(mutate)
+        ):
+            with self.assertRaises(checker.SqliteL0CheckError) as ctx:
+                checker.load_inventory()
+        self.assertIn("digest", str(ctx.exception))
 
     def test_attribute_followed_by_fn_is_extracted(self) -> None:
         witnesses = checker.extract_test_witnesses(
@@ -360,11 +434,25 @@ class SqliteL0QualificationCheckerTests(unittest.TestCase):
         )
         output = "running 1 test\n" + self._successful_execution_output(cargo_test_name)
         witness = self._inventory_witness(
-            witness_id=checker.SELF_SPAWNING_WITNESS_ID,
+            witness_id=checker.SELF_SPAWNING_WITNESS_IDS[0],
             test_name=cargo_test_name,
             cargo_test_name=cargo_test_name,
         )
         checker.validate_execution_result(witness, 0, output)
+
+    def test_validate_execution_result_accepts_each_self_spawning_witness(self) -> None:
+        for witness_id in checker.SELF_SPAWNING_WITNESS_IDS:
+            cargo_test_name = witness_id.split("/", 1)[1]
+            output = (
+                "running 1 test\n"
+                + self._successful_execution_output(cargo_test_name)
+            )
+            witness = self._inventory_witness(
+                witness_id=witness_id,
+                test_name=cargo_test_name,
+                cargo_test_name=cargo_test_name,
+            )
+            checker.validate_execution_result(witness, 0, output)
 
     def test_validate_execution_result_rejects_unexpected_self_spawning_output(self) -> None:
         cargo_test_name = (
@@ -372,7 +460,7 @@ class SqliteL0QualificationCheckerTests(unittest.TestCase):
         )
         base = self._successful_execution_output(cargo_test_name)
         witness = self._inventory_witness(
-            witness_id=checker.SELF_SPAWNING_WITNESS_ID,
+            witness_id=checker.SELF_SPAWNING_WITNESS_IDS[0],
             test_name=cargo_test_name,
             cargo_test_name=cargo_test_name,
         )

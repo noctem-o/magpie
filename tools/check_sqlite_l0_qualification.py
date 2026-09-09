@@ -27,8 +27,9 @@ INTEGRATION_SOURCE = "crates/magpie-log/tests/sqlite_l0.rs"
 LIB_SOURCE = "crates/magpie-log/src/sqlite_l0.rs"
 GOVERNED_SOURCES = (INTEGRATION_SOURCE, LIB_SOURCE)
 LIB_TEST_PREFIX = "sqlite_l0::tests::"
-SELF_SPAWNING_WITNESS_ID = (
-    "integration/p12_lost_process_acknowledgement_requires_reopen_instead_of_blind_retry"
+SELF_SPAWNING_WITNESS_IDS = (
+    "integration/p12_lost_process_acknowledgement_requires_reopen_instead_of_blind_retry",
+    "integration/supported_reopen_recovers_owned_hot_journal_and_preserves_committed_prefix",
 )
 EXPECTED_TOTAL = 40
 EXPECTED_SOURCE_COUNTS = {
@@ -36,6 +37,7 @@ EXPECTED_SOURCE_COUNTS = {
     LIB_SOURCE: 8,
 }
 EXPECTED_CLASSIFICATION_COUNTS = {"EXACT": 36, "PARTIAL": 4}
+EXPECTED_INVENTORY_SHA256 = "22766d3fe7dc09469a561ec88e09b467cf919b5349360ef867545c1be9056cf1"
 ALLOWED_CLASSIFICATIONS = frozenset({"EXACT", "PARTIAL", "ADJACENT"})
 
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
@@ -132,12 +134,27 @@ def _claim_fence_field(entry: dict[str, object], field: str) -> str:
     return value
 
 
+def verify_inventory_digest(raw_text: str) -> None:
+    actual = hashlib.sha256(raw_text.encode("utf-8")).hexdigest()
+    if actual != EXPECTED_INVENTORY_SHA256:
+        raise SqliteL0CheckError(
+            "SQLite L0 qualification inventory digest does not match the governed "
+            f"inventory (expected {EXPECTED_INVENTORY_SHA256}, actual {actual}); "
+            "explicit review of the qualification inventory is required"
+        )
+
+
 def load_inventory(
     path: Path = INVENTORY_PATH,
 ) -> tuple[dict[str, object], list[InventoryWitness]]:
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raw_text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as error:
+        raise SqliteL0CheckError(f"cannot read SQLite L0 qualification inventory: {error}") from error
+    verify_inventory_digest(raw_text)
+    try:
+        raw = json.loads(raw_text)
+    except json.JSONDecodeError as error:
         raise SqliteL0CheckError(f"cannot read SQLite L0 qualification inventory: {error}") from error
     if not isinstance(raw, dict):
         raise SqliteL0CheckError("SQLite L0 qualification inventory must be a JSON object")
@@ -467,7 +484,7 @@ def validate_execution_result(
     lines = [line.strip() for line in output.splitlines()]
     expected_running_count = (
         2
-        if witness.witness_id == SELF_SPAWNING_WITNESS_ID
+        if witness.witness_id in SELF_SPAWNING_WITNESS_IDS
         else 1
     )
     running_count = sum(line == "running 1 test" for line in lines)
