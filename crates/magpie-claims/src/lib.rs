@@ -13,6 +13,7 @@ mod artifact_provenance_verifier;
 mod claim_inline_sha256_predicate;
 mod deadbolt_context;
 mod deterministic_verifier_context;
+pub mod historical_ingress;
 mod inline_predicate_attestation;
 mod origin_admission_audit;
 mod origin_admission_replay;
