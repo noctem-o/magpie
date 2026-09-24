@@ -11,7 +11,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use magpie_log::{
-    FileStore, LogError, LogReader, Payload, Projection, SignedEvent, Status, VerifiedReplayEvent,
+    LogError, LogReader, LogStore, Payload, Projection, SignedEvent, Status, VerifiedReplayEvent,
     VerifiedReplaySummary,
 };
 use serde::de::{self, Deserializer, MapAccess, Visitor};
@@ -100,8 +100,8 @@ pub(crate) struct LedgerIndex {
 
 impl LedgerIndex {
     /// Replay one completely verified snapshot of the log into a fresh index.
-    pub(crate) fn replay(
-        reader: &LogReader<FileStore>,
+    pub(crate) fn replay<S: LogStore>(
+        reader: &LogReader<S>,
     ) -> Result<(Self, VerifiedReplaySummary), LogError> {
         let mut index = Self::default();
         let summary = reader.replay_with_summary(&mut index)?;

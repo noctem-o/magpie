@@ -1,14 +1,15 @@
 //! A store directory: its files, its lock, and its rollback checkpoint.
 
 use std::fs::{self, File, OpenOptions, TryLockError};
-use std::io::{ErrorKind, Read, Seek, SeekFrom, Write};
+use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::Duration;
 
 use magpie_log::{
     ContentHash, FileStore, HistoryCheckpointV0, HistoryExpectationOutcomeV0,
-    HistoryExpectationRelationV0, LogError, LogReader, LogWriter, SigningKey, VerifyingKey,
+    HistoryExpectationRelationV0, LogError, LogReader, LogStore, LogWriter, SigningKey,
+    VerifyingKey,
 };
 use serde::{Deserialize, Serialize};
 
@@ -109,6 +110,15 @@ impl Store {
         let signing_key = SigningKey::from_bytes(&seed);
         seed.fill(0);
         let verifying_key = signing_key.verifying_key();
+        let store = Store {
+            dir: dir.to_path_buf(),
+            agent,
+            verifying_key,
+        };
+        // Both locks before the first store file, so a missing state directory
+        // fails here and leaves nothing that would make a retry refuse.
+        let _store_lock = store.lock(LockMode::Exclusive)?;
+        let _checkpoint_lock = store.lock_checkpoint(LockMode::Exclusive)?;
 
         write_new(
             &dir.join(KEY_FILE),
@@ -117,25 +127,28 @@ impl Store {
         )?;
         let config = StoreConfig {
             format: STORE_FORMAT.into(),
-            agent: agent.clone(),
+            agent: store.agent.clone(),
             verifying_key: hex::encode(verifying_key.as_bytes()),
         };
         let mut config_text = serde_json::to_string_pretty(&config)?;
         config_text.push('\n');
         write_new(&dir.join(CONFIG_FILE), config_text.as_bytes(), false)?;
 
-        let store = Store {
-            dir: dir.to_path_buf(),
-            agent,
-            verifying_key,
-        };
-        let _lock = store.lock(LockMode::Exclusive)?;
         // Opening an empty FileStore writes the library's genesis event.
         let writer = LogWriter::<FileStore>::open(FileStore::new(store.log_path()), signing_key)
             .map_err(log_failure)?;
-        sync_file(&store.log_path())?;
-        sync_dir(dir)?;
-        store.save_checkpoint(writer.len(), writer.tip())?;
+        // The store exists now, so a failure from here on must not send the
+        // caller back to `init`, which refuses an existing store.
+        if let Err(error) = sync_file(&store.log_path())
+            .and_then(|()| sync_dir(dir))
+            .and_then(|()| store.save_checkpoint(writer.len(), writer.tip()))
+        {
+            return Err(CliError::Io(format!(
+                "created the store in {}, but could not finish: {error}. Don't run `magpie \
+                 init` again; fix the problem, then run `magpie checkpoint --accept-current`.",
+                dir.display()
+            )));
+        }
         Ok((store, writer.tip()))
     }
 
@@ -170,6 +183,35 @@ impl Store {
         })
     }
 
+    /// A store opened only to verify its log against a caller-supplied key.
+    ///
+    /// It reads neither `config.json` nor `signing.key`, so an off-machine key
+    /// can still check the log when that local state is damaged. It has no
+    /// agent and must never be used to write.
+    pub(crate) fn for_verification(
+        dir: &Path,
+        verifying_key: VerifyingKey,
+    ) -> Result<Store, CliError> {
+        let store = Store {
+            dir: dir.to_path_buf(),
+            agent: String::new(),
+            verifying_key,
+        };
+        // Checked before anything takes a lock, so a mistyped path gets a
+        // clear answer instead of a stray lock file.
+        if !store.log_path().is_file() {
+            return Err(CliError::Usage(format!(
+                "{} is not a Magpie store (no {LOG_FILE})",
+                dir.display()
+            )));
+        }
+        Ok(store)
+    }
+
+    pub(crate) fn dir(&self) -> &Path {
+        &self.dir
+    }
+
     pub(crate) fn log_path(&self) -> PathBuf {
         self.dir.join(LOG_FILE)
     }
@@ -180,14 +222,6 @@ impl Store {
 
     pub(crate) fn verifying_key(&self) -> VerifyingKey {
         self.verifying_key
-    }
-
-    pub(crate) fn reader(&self) -> LogReader<FileStore> {
-        self.reader_with_key(self.verifying_key)
-    }
-
-    pub(crate) fn reader_with_key(&self, verifying_key: VerifyingKey) -> LogReader<FileStore> {
-        LogReader::open(FileStore::new(self.log_path()), verifying_key)
     }
 
     /// Load the signing key, refusing one that doesn't match the recorded
@@ -215,54 +249,43 @@ impl Store {
 
     /// Take the store's advisory lock; it is released when the file is dropped.
     pub(crate) fn lock(&self, mode: LockMode) -> Result<File, CliError> {
-        let file = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .open(self.dir.join(LOCK_FILE))?;
-        for _ in 0..LOCK_ATTEMPTS {
-            let attempt = match mode {
-                LockMode::Shared => file.try_lock_shared(),
-                LockMode::Exclusive => file.try_lock(),
-            };
-            match attempt {
-                Ok(()) => return Ok(file),
-                Err(TryLockError::WouldBlock) => thread::sleep(LOCK_RETRY),
-                Err(TryLockError::Error(error)) => return Err(error.into()),
-            }
-        }
-        Err(CliError::Refused(
-            "another magpie command is using this store; try again when it finishes".into(),
-        ))
+        lock_file(
+            &self.dir.join(LOCK_FILE),
+            mode,
+            "another magpie command is using this store; try again when it finishes",
+        )
     }
 
-    /// Refuse to append after a torn final record.
+    /// Take the lock on this key's checkpoint.
     ///
-    /// `FileStore` writes a record and its newline separately. If a crash
-    /// landed between the two, the next append would run two records together
-    /// and break the chain, so this check runs before every write.
-    pub(crate) fn ensure_terminated(&self) -> Result<(), CliError> {
-        let path = self.log_path();
-        let mut file = File::open(&path)?;
-        if file.metadata()?.len() == 0 {
-            return Err(CliError::Refused(format!(
-                "{} is empty, so it has no genesis event; create a new store with `magpie init`",
-                path.display()
-            )));
+    /// Checkpoints are shared by every copy of a store that holds the same key,
+    /// while the store lock covers only one directory. Writes hold this lock
+    /// from checking the checkpoint until replacing it, so two copies cannot
+    /// both extend the same checkpoint and fork the history.
+    ///
+    /// A shared lock is skipped while the lock file doesn't exist. Every
+    /// checkpoint is saved under an exclusive lock, which creates the file
+    /// first, and the checkpoint itself is replaced atomically; so a reader
+    /// that skips the lock still sees a whole checkpoint or none, and a verify
+    /// with some other key leaves no lock file behind.
+    pub(crate) fn lock_checkpoint(&self, mode: LockMode) -> Result<Option<File>, CliError> {
+        let path = self.checkpoint_path()?.with_extension("lock");
+        match mode {
+            LockMode::Shared if !path.exists() => return Ok(None),
+            LockMode::Shared => {}
+            LockMode::Exclusive => {
+                if let Some(parent) = path.parent() {
+                    fs::create_dir_all(parent)?;
+                }
+            }
         }
-        file.seek(SeekFrom::End(-1))?;
-        let mut last = [0u8; 1];
-        file.read_exact(&mut last)?;
-        if last[0] != b'\n' {
-            return Err(CliError::Refused(format!(
-                "{} ends part-way through a record, probably from an interrupted append, so \
-                 nothing was written. If its last line is a complete record, add the missing \
-                 newline; then run `magpie verify`.",
-                path.display()
-            )));
-        }
-        Ok(())
+        lock_file(
+            &path,
+            mode,
+            "another magpie command is using this key's checkpoint (perhaps from a copy of \
+             this store); try again when it finishes",
+        )
+        .map(Some)
     }
 
     fn checkpoint_path(&self) -> Result<PathBuf, CliError> {
@@ -328,9 +351,9 @@ impl Store {
     }
 
     /// Verify the log and check it still contains the saved checkpoint.
-    pub(crate) fn check_checkpoint(
+    pub(crate) fn check_checkpoint<S: LogStore>(
         &self,
-        reader: &LogReader<FileStore>,
+        reader: &LogReader<S>,
     ) -> Result<CheckpointState, CliError> {
         let Some(saved) = self.saved_checkpoint()? else {
             return Ok(CheckpointState::Missing);
@@ -378,8 +401,31 @@ fn state_dir() -> Result<PathBuf, CliError> {
     ))
 }
 
+fn lock_file(path: &Path, mode: LockMode, busy: &str) -> Result<File, CliError> {
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(path)?;
+    for _ in 0..LOCK_ATTEMPTS {
+        let attempt = match mode {
+            LockMode::Shared => file.try_lock_shared(),
+            LockMode::Exclusive => file.try_lock(),
+        };
+        match attempt {
+            Ok(()) => return Ok(file),
+            Err(TryLockError::WouldBlock) => thread::sleep(LOCK_RETRY),
+            Err(TryLockError::Error(error)) => return Err(error.into()),
+        }
+    }
+    Err(CliError::Refused(busy.to_owned()))
+}
+
+/// Flush a file to disk. The handle is opened for writing because Windows'
+/// `FlushFileBuffers` refuses a read-only handle; nothing is written through it.
 pub(crate) fn sync_file(path: &Path) -> Result<(), CliError> {
-    File::open(path)?.sync_all()?;
+    OpenOptions::new().write(true).open(path)?.sync_all()?;
     Ok(())
 }
 

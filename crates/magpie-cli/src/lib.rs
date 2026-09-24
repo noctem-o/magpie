@@ -14,21 +14,37 @@
 //! supported SQLite L0, because SQLite L0 deliberately offers no replay into
 //! projections until projection failure has a typed lifecycle (audit finding
 //! A-007), and every read this tool does is a projection. JSONL has one real
-//! advantage: the independent Python and Go conformers read it directly. This
-//! crate adds what `FileStore` lacks for single-user use: an advisory lock
-//! around every command, a refusal to append after a torn final record, and an
-//! fsync after each append. It makes no multi-host or network-filesystem
-//! guarantee.
+//! advantage: the independent Python and Go conformers read it directly.
+//!
+//! Each command reads the log once and runs every check and projection against
+//! that one image. Before any read or write, the exact bytes must pass
+//! [`magpie_log::FileStore::verify_portable_history`], because the record
+//! reader skips blank lines that the portable language rejects. That entry
+//! point takes a path, so it reads a short-lived private copy in the store
+//! directory. Around this the crate adds what `FileStore` lacks for single-user
+//! use: advisory locks, a refusal to append after a torn final record, a last
+//! byte-for-byte comparison with the image before appending, and an fsync after
+//! each append. The locks coordinate only `magpie` processes, so another
+//! program that replaces the log between that comparison and the append is not
+//! stopped. It makes no multi-host or network-filesystem guarantee.
 //!
 //! ## Rollback detection
 //!
 //! After each append the tool saves the log's `(count, tip)` checkpoint outside
 //! the store directory (`$MAGPIE_STATE_DIR`, else `$XDG_STATE_HOME/magpie`,
-//! else `~/.local/state/magpie`). Every later command checks, through
+//! else `~/.local/state/magpie`, else `%LOCALAPPDATA%\magpie\state`). Every
+//! later command checks, through
 //! [`magpie_log::LogReader::evaluate_history_expectation_v0`], that the log
 //! still contains that checkpoint, so a store restored from an older copy or
 //! swapped for a fork is refused. Restoring the checkpoint directory together
 //! with the store defeats this, so keep them apart.
+//!
+//! Checkpoints are keyed by verifying key, so every copy of a store shares
+//! one. A write holds a lock beside it from checking it until replacing it, so
+//! two copies cannot both extend the same checkpoint. `magpie verify
+//! --verifying-key <hex>` reads neither `config.json` nor `signing.key`, so a
+//! key kept off the machine can still check a store whose local state is
+//! damaged.
 //!
 //! ## Authority
 //!
@@ -47,6 +63,7 @@ mod display;
 mod export;
 mod index;
 mod policy;
+mod snapshot;
 mod store;
 mod trace;
 

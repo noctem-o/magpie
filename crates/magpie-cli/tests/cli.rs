@@ -84,6 +84,20 @@ impl Scratch {
     fn log_bytes(&self) -> Vec<u8> {
         fs::read(self.log()).unwrap()
     }
+
+    /// The verifying key recorded in the store's config.
+    fn verifying_key(&self) -> String {
+        let config: Value =
+            serde_json::from_slice(&fs::read(self.store().join("config.json")).unwrap()).unwrap();
+        config["verifying_key"].as_str().unwrap().to_owned()
+    }
+
+    /// Where the store's rollback checkpoint is saved.
+    fn checkpoint_file(&self) -> PathBuf {
+        self.state()
+            .join("checkpoints")
+            .join(format!("{}.json", self.verifying_key()))
+    }
 }
 
 impl Drop for Scratch {
@@ -98,6 +112,15 @@ fn code(output: &Output) -> i32 {
 
 fn stderr(output: &Output) -> String {
     String::from_utf8_lossy(&output.stderr).into_owned()
+}
+
+/// Copy a store directory, key and all, as a backup tool would.
+fn copy_store(from: &Path, to: &Path) {
+    fs::create_dir_all(to).unwrap();
+    for entry in fs::read_dir(from).unwrap() {
+        let entry = entry.unwrap();
+        fs::copy(entry.path(), to.join(entry.file_name())).unwrap();
+    }
 }
 
 /// A store with one claim, one evidence node with a hashed file, one link, and a note.
@@ -279,6 +302,143 @@ fn torn_final_record_blocks_appends() {
 }
 
 #[test]
+fn blank_physical_record_blocks_reads_and_writes() {
+    let scratch = Scratch::new();
+    small_ledger(&scratch);
+    // A blank line between two events: the record reader skips it, but the
+    // portable language rejects the history.
+    let log = scratch.log_bytes();
+    let first_end = log.iter().position(|byte| *byte == b'\n').unwrap() + 1;
+    let mut blank = log[..first_end].to_vec();
+    blank.push(b'\n');
+    blank.extend_from_slice(&log[first_end..]);
+    fs::write(scratch.log(), &blank).unwrap();
+    let checkpoint = fs::read(scratch.checkpoint_file()).unwrap();
+
+    for args in [
+        vec!["note", "must not extend a portable-invalid log"],
+        vec!["checkpoint", "--accept-current"],
+        vec!["log"],
+        vec!["show", "claim-1"],
+    ] {
+        let output = scratch.run(&args);
+        assert_eq!(code(&output), 1, "{args:?}: {}", stderr(&output));
+        assert!(
+            stderr(&output).contains("portable verifier rejects"),
+            "{args:?}: {}",
+            stderr(&output)
+        );
+    }
+    assert_eq!(
+        scratch.log_bytes(),
+        blank,
+        "a refused command must not write"
+    );
+    assert_eq!(fs::read(scratch.checkpoint_file()).unwrap(), checkpoint);
+
+    let output = scratch.run(&["verify", "--json"]);
+    assert_eq!(code(&output), 1);
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(
+        report["signatures"], "ok",
+        "the record reader alone accepts it"
+    );
+    assert_eq!(report["portable"], "reject");
+}
+
+#[test]
+fn external_key_verifies_a_store_whose_config_is_damaged() {
+    let scratch = Scratch::new();
+    small_ledger(&scratch);
+    let key = scratch.verifying_key();
+    let config = scratch.store().join("config.json");
+
+    fs::write(&config, "{ not json").unwrap();
+    assert_eq!(code(&scratch.run(&["verify"])), 1);
+    let report = scratch.json(&["verify", "--verifying-key", &key, "--json"]);
+    assert_eq!(report["ok"], true);
+    assert_eq!(report["signatures"], "ok");
+    assert_eq!(report["portable"], "accept");
+    assert!(report["checkpoint"]
+        .as_str()
+        .unwrap()
+        .starts_with("contained"));
+
+    fs::remove_file(&config).unwrap();
+    let report = scratch.json(&["verify", "--verifying-key", &key, "--json"]);
+    assert_eq!(report["ok"], true);
+
+    let elsewhere = scratch.root.join("not-a-store");
+    fs::create_dir_all(&elsewhere).unwrap();
+    let output = scratch.run_in(&elsewhere, &["verify", "--verifying-key", &key]);
+    assert_eq!(code(&output), 2, "{}", stderr(&output));
+    assert!(
+        fs::read_dir(&elsewhere).unwrap().next().is_none(),
+        "nothing may be created outside a store"
+    );
+}
+
+#[test]
+fn copies_of_a_store_cannot_fork_its_history() {
+    let scratch = Scratch::new();
+    small_ledger(&scratch);
+    let copy = scratch.root.join("copy");
+    copy_store(&scratch.store(), &copy);
+    let copy_log = copy.join("log.jsonl");
+    let before = fs::read(&copy_log).unwrap();
+
+    // A command in the original holds the key's checkpoint lock. The copy has
+    // its own store lock, so only the key-scoped lock can stop it.
+    let lock = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(scratch.checkpoint_file().with_extension("lock"))
+        .unwrap();
+    lock.try_lock().unwrap();
+    let busy = scratch.run_in(&copy, &["note", "from the copy"]);
+    assert_eq!(code(&busy), 1, "{}", stderr(&busy));
+    assert!(stderr(&busy).contains("this key's checkpoint"));
+    assert_eq!(fs::read(&copy_log).unwrap(), before);
+    drop(lock);
+
+    // Once one copy extends the checkpoint, the other is a fork.
+    let written = scratch.run_in(&copy, &["note", "from the copy"]);
+    assert!(written.status.success(), "{}", stderr(&written));
+    let original = scratch.log_bytes();
+    let forked = scratch.run(&["note", "from the original"]);
+    assert_eq!(code(&forked), 1);
+    assert!(stderr(&forked).contains("does not contain the checkpoint"));
+    assert_eq!(scratch.log_bytes(), original);
+}
+
+#[test]
+fn failure_after_an_append_says_the_event_was_recorded() {
+    let scratch = Scratch::new();
+    scratch.init();
+    scratch.ok(&["note", "first"]);
+    // A directory where the checkpoint's temporary file goes makes the save
+    // fail after the note is already in the log.
+    let blocker = scratch.checkpoint_file().with_extension("json.tmp");
+    fs::create_dir_all(&blocker).unwrap();
+
+    let output = scratch.run(&["note", "second"]);
+    assert_eq!(code(&output), 3, "{}", stderr(&output));
+    assert!(
+        stderr(&output).contains("recorded seq 2"),
+        "{}",
+        stderr(&output)
+    );
+    assert!(stderr(&output).contains("Don't retry"));
+    let events = scratch.json(&["log", "--json"]);
+    assert_eq!(events[2]["subject"], "second");
+
+    fs::remove_dir(&blocker).unwrap();
+    scratch.ok(&["checkpoint", "--accept-current"]);
+    scratch.ok(&["note", "third"]);
+    scratch.ok(&["verify"]);
+}
+
+#[test]
 fn unknown_vocabulary_is_rejected_before_anything_is_appended() {
     let scratch = Scratch::new();
     small_ledger(&scratch);
@@ -364,6 +524,25 @@ fn init_refuses_an_existing_store() {
     scratch.init();
     let again = scratch.run(&["init", scratch.store().to_str().unwrap()]);
     assert_eq!(code(&again), 2);
+}
+
+#[test]
+fn init_without_a_state_directory_leaves_nothing_behind() {
+    let scratch = Scratch::new();
+    let store = scratch.store();
+    let output = Command::new(env!("CARGO_BIN_EXE_magpie"))
+        .args(["init", store.to_str().unwrap()])
+        .env_remove("MAGPIE_STATE_DIR")
+        .env_remove("XDG_STATE_HOME")
+        .env_remove("HOME")
+        .env_remove("LOCALAPPDATA")
+        .output()
+        .expect("magpie binary runs");
+    assert_eq!(code(&output), 2, "{}", stderr(&output));
+    for name in ["log.jsonl", "signing.key", "config.json"] {
+        assert!(!store.join(name).exists(), "{name} would block a retry");
+    }
+    scratch.init();
 }
 
 #[test]

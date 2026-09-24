@@ -1,10 +1,11 @@
 //! What each command does.
 //!
-//! Writes follow one sequence: take the exclusive lock, refuse a torn log,
-//! verify the log contains the saved checkpoint, replay it, validate the new
-//! event against that replay, append through `LogWriter`, fsync, and move the
-//! checkpoint forward. Reads take a shared lock, run the same checkpoint check,
-//! and replay into fresh projections.
+//! Every command reads the log once into a [`Snapshot`] and runs all of its
+//! checks and projections against that one image. Writes hold the store lock
+//! and the checkpoint lock, refuse a torn or portable-invalid log, check the
+//! saved checkpoint, validate the new event against the replay, confirm the
+//! file still matches the snapshot, append through `LogWriter`, fsync, and move
+//! the checkpoint forward. Reads take the same locks in shared mode.
 
 use std::fs::File;
 use std::io::{Read, Write};
@@ -13,7 +14,10 @@ use std::path::{Path, PathBuf};
 use magpie_claims::policy::{ClaimDomain, EvidenceKind};
 use magpie_claims::{replay_origin_admission_context_v0, OriginAdmissionReplayContextV0};
 use magpie_episodic::EpisodicView;
-use magpie_log::{FileStore, LogWriter, Payload, Provenance, SignedEvent, VerifiedReplaySummary};
+use magpie_log::{
+    FileStore, LogError, LogReader, LogWriter, MemStore, Payload, Provenance, SignedEvent,
+    VerifiedReplaySummary,
+};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
@@ -22,6 +26,7 @@ use crate::display::{preview, utc};
 use crate::export::desk_v0;
 use crate::index::{claim_domain, metadata_object, LedgerIndex};
 use crate::policy::{PolicyChoice, Resolver};
+use crate::snapshot::Snapshot;
 use crate::store::{log_failure, parse_verifying_key, sync_file, CheckpointState, LockMode, Store};
 use crate::trace::trace_lines;
 use crate::CliError;
@@ -59,6 +64,16 @@ pub(crate) fn execute(
             Ok(())
         }
         Command::Init { dir, agent } => init(&dir, agent, json, out),
+        Command::Verify { verifying_key } => {
+            let dir = store_dir(invocation.store)?;
+            let store = match &verifying_key {
+                // An off-machine key must still be able to check the log when
+                // the store's own config is damaged, so it needs none.
+                Some(text) => Store::for_verification(&dir, parse_verifying_key(text)?)?,
+                None => Store::open(&dir)?,
+            };
+            verify(&store, json, out)
+        }
         command => {
             let store = Store::open(&store_dir(invocation.store)?)?;
             match command {
@@ -126,12 +141,14 @@ pub(crate) fn execute(
                     standing(&store, &claim, &policy, true, json, out, err)
                 }
                 Command::Log => log(&store, json, out, err),
-                Command::Verify { verifying_key } => verify(&store, verifying_key, json, out),
                 Command::Export { format, policy } => export(&store, &format, &policy, out, err),
                 Command::Checkpoint { accept_current } => {
                     checkpoint(&store, accept_current, json, out)
                 }
-                Command::Help | Command::Version | Command::Init { .. } => {
+                Command::Help
+                | Command::Version
+                | Command::Init { .. }
+                | Command::Verify { .. } => {
                     unreachable!("handled before the store is opened")
                 }
             }
@@ -248,9 +265,13 @@ fn write_events(
     if source.trim().is_empty() {
         return Err(usage("--source must not be empty"));
     }
-    let _lock = store.lock(LockMode::Exclusive)?;
-    store.ensure_terminated()?;
-    let reader = store.reader();
+    let _store_lock = store.lock(LockMode::Exclusive)?;
+    let _checkpoint_lock = store.lock_checkpoint(LockMode::Exclusive)?;
+    let log_path = store.log_path();
+    let snapshot = Snapshot::read(&log_path)?;
+    snapshot.ensure_terminated(&log_path)?;
+    snapshot.require_portable(store.dir(), store.verifying_key())?;
+    let reader = snapshot.reader(store.verifying_key());
     if let CheckpointState::Missing = store.check_checkpoint(&reader)? {
         return Err(CliError::Refused(
             "no checkpoint is saved for this log, so a rolled-back copy could not be told apart \
@@ -262,10 +283,14 @@ fn write_events(
     let (index, summary) = LedgerIndex::replay(&reader).map_err(log_failure)?;
     let payloads = build(&index, summary.event_count())?;
 
-    let mut writer =
-        LogWriter::<FileStore>::open(FileStore::new(store.log_path()), store.signing_key()?)
-            .map_err(log_failure)?;
-    if writer.len() != summary.event_count() || writer.tip() != summary.tip() {
+    let mut writer = LogWriter::<FileStore>::open(FileStore::new(&log_path), store.signing_key()?)
+        .map_err(log_failure)?;
+    // The last check before appending: the file must still be exactly the
+    // snapshot that every check above ran against.
+    if writer.len() != summary.event_count()
+        || writer.tip() != summary.tip()
+        || std::fs::read(&log_path)? != snapshot.bytes()
+    {
         return Err(CliError::Refused(
             "the log changed while this command was running; nothing was written".into(),
         ));
@@ -282,13 +307,39 @@ fn write_events(
             }
         }
     }
-    sync_file(&store.log_path())?;
-    store.save_checkpoint(writer.len(), writer.tip())?;
+    let recorded: Vec<String> = written
+        .iter()
+        .map(|event| format!("seq {}", event.core.seq))
+        .collect();
+    let recorded = recorded.join(", ");
+    if !written.is_empty() {
+        // The events are in the log now. A failure from here on must say so,
+        // or a retry would record them twice.
+        if let Err(error) =
+            sync_file(&log_path).and_then(|()| store.save_checkpoint(writer.len(), writer.tip()))
+        {
+            return Err(CliError::Io(format!(
+                "recorded {recorded} in the log, but could not finish afterwards: {error}. \
+                 Don't retry the command, or it will be recorded twice; fix the problem, then \
+                 run `magpie checkpoint --accept-current`."
+            )));
+        }
+    }
+    let before = if written.is_empty() {
+        String::new()
+    } else {
+        format!("recorded {recorded}, but then ")
+    };
     match failure {
         None => Ok(written),
-        Some(error) => Err(CliError::Refused(format!(
-            "append failed after {} event(s) were written: {error}",
-            written.len()
+        // Only a failed write can leave part of a record behind; anything else
+        // is refused before the store is touched.
+        Some(LogError::Io(error)) => Err(CliError::Io(format!(
+            "{before}an append failed: {error}. Part of the event may have reached the log, \
+             so run `magpie verify` before retrying."
+        ))),
+        Some(other) => Err(CliError::Refused(format!(
+            "{before}the log refused an event, so it was not written: {other}"
         ))),
     }
 }
@@ -593,21 +644,26 @@ fn link(
 // ---------------------------------------------------------------- reads
 
 struct ReadView {
-    _lock: File,
+    _store_lock: File,
+    _checkpoint_lock: Option<File>,
+    reader: LogReader<MemStore>,
     index: LedgerIndex,
     summary: VerifiedReplaySummary,
     context: Option<OriginAdmissionReplayContextV0>,
 }
 
-/// Shared lock, checkpoint check, and one verified replay into the index (and,
-/// when asked, into the standing context from the same locked snapshot).
+/// Shared locks, one snapshot, the portable and checkpoint checks, and the
+/// projections a read needs, all from that same snapshot.
 fn read_view(
     store: &Store,
     with_standing: bool,
     err: &mut dyn Write,
 ) -> Result<ReadView, CliError> {
-    let lock = store.lock(LockMode::Shared)?;
-    let reader = store.reader();
+    let store_lock = store.lock(LockMode::Shared)?;
+    let checkpoint_lock = store.lock_checkpoint(LockMode::Shared)?;
+    let snapshot = Snapshot::read(&store.log_path())?;
+    snapshot.require_portable(store.dir(), store.verifying_key())?;
+    let reader = snapshot.reader(store.verifying_key());
     if let CheckpointState::Missing = store.check_checkpoint(&reader)? {
         writeln!(
             err,
@@ -617,13 +673,7 @@ fn read_view(
     }
     let (index, summary) = LedgerIndex::replay(&reader).map_err(log_failure)?;
     let context = if with_standing {
-        let context = replay_origin_admission_context_v0(&reader).map_err(log_failure)?;
-        if context.snapshot().event_count() != summary.event_count() {
-            return Err(CliError::Refused(
-                "the log changed while it was being read; try again".into(),
-            ));
-        }
-        Some(context)
+        Some(replay_origin_admission_context_v0(&reader).map_err(log_failure)?)
     } else {
         None
     };
@@ -636,7 +686,9 @@ fn read_view(
         )?;
     }
     Ok(ReadView {
-        _lock: lock,
+        _store_lock: store_lock,
+        _checkpoint_lock: checkpoint_lock,
+        reader,
         index,
         summary,
         context,
@@ -880,12 +932,7 @@ fn search(
     let view = read_view(store, false, err)?;
     let mut episodic = EpisodicView::in_memory()
         .map_err(|error| CliError::Io(format!("could not open the search index: {error}")))?;
-    let replayed = store.reader().replay(&mut episodic).map_err(log_failure)?;
-    if replayed != view.summary.event_count() {
-        return Err(CliError::Refused(
-            "the log changed while it was being read; try again".into(),
-        ));
-    }
+    view.reader.replay(&mut episodic).map_err(log_failure)?;
     let seqs = episodic
         .search(text)
         .map_err(|error| CliError::Io(format!("search failed: {error}")))?;
@@ -1015,19 +1062,15 @@ fn log(
     Ok(())
 }
 
-fn verify(
-    store: &Store,
-    verifying_key: Option<String>,
-    json: bool,
-    out: &mut dyn Write,
-) -> Result<(), CliError> {
-    let key = match &verifying_key {
-        Some(text) => parse_verifying_key(text)?,
-        None => store.verifying_key(),
-    };
+fn verify(store: &Store, json: bool, out: &mut dyn Write) -> Result<(), CliError> {
+    let key = store.verifying_key();
     let key_hex = hex::encode(key.as_bytes());
-    let _lock = store.lock(LockMode::Shared)?;
-    let reader = store.reader_with_key(key);
+    let _store_lock = store.lock(LockMode::Shared)?;
+    // A checkpoint problem is reported in its own row, like the others, so the
+    // signature and portable rows need nothing but the log and the key.
+    let checkpoint_lock = store.lock_checkpoint(LockMode::Shared);
+    let snapshot = Snapshot::read(&store.log_path())?;
+    let reader = snapshot.reader(key);
 
     let (signatures, event_count, tip) = match LedgerIndex::replay(&reader) {
         Ok((_, summary)) => (
@@ -1037,21 +1080,19 @@ fn verify(
         ),
         Err(error) => (format!("failed: {}", log_failure(error)), None, None),
     };
-    let portable = match FileStore::new(store.log_path()).verify_portable_history(&key_hex) {
+    let portable = match snapshot.portable_accepts(store.dir(), key) {
         Ok(true) => "accept".to_owned(),
         Ok(false) => "reject".to_owned(),
         Err(error) => format!("could not run: {error}"),
     };
-    let checkpoint = if key != store.verifying_key() {
-        "not checked (checkpoints are keyed by the store's own key)".to_owned()
-    } else {
-        match store.check_checkpoint(&reader) {
-            Ok(CheckpointState::Contained(saved)) => {
-                format!("contained (saved at event {})", saved.event_count)
-            }
-            Ok(CheckpointState::Missing) => "none saved".to_owned(),
-            Err(error) => format!("failed: {error}"),
+    // Checkpoints are keyed by verifying key, so an external key finds the
+    // store's checkpoint only when it is the store's real key.
+    let checkpoint = match checkpoint_lock.and_then(|_lock| store.check_checkpoint(&reader)) {
+        Ok(CheckpointState::Contained(saved)) => {
+            format!("contained (saved at event {})", saved.event_count)
         }
+        Ok(CheckpointState::Missing) => "none saved".to_owned(),
+        Err(error) => format!("failed: {error}"),
     };
     let ok = signatures == "ok" && portable == "accept" && !checkpoint.starts_with("failed");
 
@@ -1122,9 +1163,14 @@ fn checkpoint(
     out: &mut dyn Write,
 ) -> Result<(), CliError> {
     if accept_current {
-        let _lock = store.lock(LockMode::Exclusive)?;
-        store.ensure_terminated()?;
-        let (_, summary) = LedgerIndex::replay(&store.reader()).map_err(log_failure)?;
+        let _store_lock = store.lock(LockMode::Exclusive)?;
+        let _checkpoint_lock = store.lock_checkpoint(LockMode::Exclusive)?;
+        let log_path = store.log_path();
+        let snapshot = Snapshot::read(&log_path)?;
+        snapshot.ensure_terminated(&log_path)?;
+        snapshot.require_portable(store.dir(), store.verifying_key())?;
+        let (_, summary) =
+            LedgerIndex::replay(&snapshot.reader(store.verifying_key())).map_err(log_failure)?;
         store.save_checkpoint(summary.event_count(), summary.tip())?;
         if json {
             writeln!(
@@ -1143,8 +1189,11 @@ fn checkpoint(
         }
         return Ok(());
     }
-    let _lock = store.lock(LockMode::Shared)?;
-    let state = store.check_checkpoint(&store.reader())?;
+    let _store_lock = store.lock(LockMode::Shared)?;
+    let _checkpoint_lock = store.lock_checkpoint(LockMode::Shared)?;
+    let snapshot = Snapshot::read(&store.log_path())?;
+    snapshot.require_portable(store.dir(), store.verifying_key())?;
+    let state = store.check_checkpoint(&snapshot.reader(store.verifying_key()))?;
     match state {
         CheckpointState::Contained(saved) => {
             if json {
