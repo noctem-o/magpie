@@ -6,6 +6,19 @@ commitments; changing one does not silently rename or mutate the others.
 
 ## Unreleased
 
+### Added
+
+- `magpie-cli`: the `magpie` command. `init` creates a store with a fresh
+  signing key. `note`, `claim`, `evidence`, and `link` append signed typed
+  events. `show`, `search`, `log`, `standing`, and `why` read through a
+  complete verified replay, and standing always needs an explicit
+  `--policy v0..v4`. `verify` runs the structural and portable verifiers
+  plus a checkpoint check, and `export --format desk-v0` feeds the Magpie Desk
+  viewer. Each append saves a `(count, tip)` checkpoint outside the store, so
+  a rolled-back or forked log is refused until explicitly accepted. The store
+  is JSONL (`FileStore`) because SQLite L0 has no replay into projections yet;
+  see the crate docs.
+
 ### Status history moved from CLAUDE.md
 
 Until 2026-09-24, `CLAUDE.md` carried a running queue and status log that
