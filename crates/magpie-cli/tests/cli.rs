@@ -799,3 +799,25 @@ fn reads_fall_back_when_the_scratch_directory_refuses_files() {
     scratch.ok(&["log"]);
     scratch.ok(&["verify"]);
 }
+
+#[cfg(unix)]
+#[test]
+fn a_link_planted_at_the_checkpoint_temporary_path_is_not_followed() {
+    let scratch = Scratch::new();
+    scratch.init();
+    // Someone who can write the state directory plants a link where the next
+    // checkpoint save writes its temporary file, aiming at a file of ours.
+    let victim = scratch.root.join("victim.txt");
+    fs::write(&victim, "precious\n").unwrap();
+    let temporary = scratch.checkpoint_file().with_extension("json.tmp");
+    std::os::unix::fs::symlink(&victim, &temporary).unwrap();
+
+    scratch.ok(&["note", "saved past the planted link"]);
+    assert_eq!(fs::read_to_string(&victim).unwrap(), "precious\n");
+    let report = scratch.json(&["verify", "--json"]);
+    assert_eq!(report["event_count"], 2);
+    assert!(report["checkpoint"]
+        .as_str()
+        .unwrap()
+        .starts_with("contained (saved at event 2)"));
+}

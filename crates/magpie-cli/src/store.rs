@@ -92,7 +92,7 @@ impl Store {
             return Err(CliError::Usage("--agent must not be empty".into()));
         }
         refuse_existing(dir)?;
-        fs::create_dir_all(dir)?;
+        create_dir_all_durable(dir)?;
 
         let mut seed = [0u8; 32];
         getrandom::getrandom(&mut seed).map_err(|error| {
@@ -307,7 +307,7 @@ impl Store {
     pub(crate) fn lock_checkpoint(&self, mode: LockMode) -> Result<Option<File>, CliError> {
         let path = self.checkpoint_path()?.with_extension("lock");
         if let (LockMode::Exclusive, Some(parent)) = (mode, path.parent()) {
-            fs::create_dir_all(parent)?;
+            create_dir_all_durable(parent)?;
         }
         lock_file(
             &path,
@@ -358,9 +358,13 @@ impl Store {
         tip: ContentHash,
     ) -> Result<(), CliError> {
         let path = self.checkpoint_path()?;
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
-        }
+        let Some(parent) = path.parent() else {
+            return Err(CliError::Io(format!(
+                "{} has no parent directory",
+                path.display()
+            )));
+        };
+        create_dir_all_durable(parent)?;
         let record = CheckpointRecord {
             format: CHECKPOINT_FORMAT.into(),
             event_count,
@@ -369,20 +373,23 @@ impl Store {
         };
         let mut text = serde_json::to_string_pretty(&record)?;
         text.push('\n');
+        // Clear any leftover from an interrupted save, then create the file
+        // exclusively. `create_new` refuses anything already at the path, a
+        // planted symlink included, so the write can't be redirected into
+        // another file even if the state directory is shared. Removing a
+        // symlink removes only the link. The checkpoint lock keeps other
+        // `magpie` commands off this path.
         let temporary = path.with_extension("json.tmp");
-        {
-            let mut file = File::create(&temporary)?;
-            file.write_all(text.as_bytes())?;
-            file.sync_all()?;
+        let _ = fs::remove_file(&temporary);
+        write_new(&temporary, text.as_bytes(), false)?;
+        if let Err(error) = fs::rename(&temporary, &path) {
+            let _ = fs::remove_file(&temporary);
+            return Err(error.into());
         }
-        fs::rename(&temporary, &path)?;
         // The rename survives a power cut only once its directory is synced.
         // Without this, a crash could keep the appended event but lose the
         // new checkpoint, and a later restore to the old tip would pass.
-        if let Some(parent) = path.parent() {
-            sync_dir(parent)?;
-        }
-        Ok(())
+        sync_dir(parent)
     }
 
     /// Verify the log and check it still contains the saved checkpoint.
@@ -510,6 +517,31 @@ pub(crate) fn sync_file(path: &Path) -> Result<(), CliError> {
     Ok(())
 }
 
+/// Create `dir` and any missing parents, syncing each parent that gains an
+/// entry. A plain `create_dir_all` can lose new directories in a power cut
+/// even after the files inside them are synced; losing the checkpoint
+/// directory would quietly turn rollback detection into a warning.
+fn create_dir_all_durable(dir: &Path) -> Result<(), CliError> {
+    if dir.as_os_str().is_empty() || dir.is_dir() {
+        return Ok(());
+    }
+    let parent = dir.parent().filter(|parent| !parent.as_os_str().is_empty());
+    if let Some(parent) = parent {
+        create_dir_all_durable(parent)?;
+    }
+    match fs::create_dir(dir) {
+        Ok(()) => {}
+        // Another process created it first. Sync the parent anyway rather than
+        // rely on that process having done so.
+        Err(error) if error.kind() == ErrorKind::AlreadyExists && dir.is_dir() => {}
+        Err(error) => return Err(error.into()),
+    }
+    match parent {
+        Some(parent) => sync_dir(parent),
+        None => Ok(()),
+    }
+}
+
 fn sync_dir(dir: &Path) -> Result<(), CliError> {
     #[cfg(unix)]
     File::open(dir)?.sync_all()?;
@@ -566,5 +598,21 @@ mod tests {
             "{error}"
         );
         fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn durable_directory_creation_makes_every_missing_level_once() {
+        let root = std::env::temp_dir().join(format!("magpie-cli-durable-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let nested = root.join("state").join("checkpoints");
+        create_dir_all_durable(&nested).unwrap();
+        assert!(nested.is_dir());
+        // Already there: nothing to do, and no error.
+        create_dir_all_durable(&nested).unwrap();
+        // A file in the way is an error, not a silent success.
+        let blocked = root.join("file");
+        fs::write(&blocked, b"").unwrap();
+        assert!(create_dir_all_durable(&blocked.join("below")).is_err());
+        fs::remove_dir_all(&root).unwrap();
     }
 }

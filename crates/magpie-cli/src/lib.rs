@@ -54,7 +54,10 @@
 //! Writes are recorded with `actor_class` `HumanRoot`: the tool assumes the
 //! person typing is the owner. Anyone who can read `signing.key` can sign as the
 //! owner, so agents must not be given write access through this tool; agent
-//! proposals need the governed admission path the MCP contracts describe.
+//! proposals need the governed admission path the MCP contracts describe. On
+//! Unix the key file is created readable only by its owner. On Windows the
+//! standard library can't set that, so it inherits the folder's permissions,
+//! and `init` says so: keep a Windows store in a folder only you can read.
 
 use std::ffi::OsString;
 use std::fmt;

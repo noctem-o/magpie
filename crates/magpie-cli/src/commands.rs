@@ -63,7 +63,7 @@ pub(crate) fn execute(
             writeln!(out, "magpie {}", env!("CARGO_PKG_VERSION"))?;
             Ok(())
         }
-        Command::Init { dir, agent } => init(&dir, agent, json, out),
+        Command::Init { dir, agent } => init(&dir, agent, json, out, err),
         Command::Verify { verifying_key } => {
             let dir = store_dir(invocation.store)?;
             let store = match &verifying_key {
@@ -214,6 +214,7 @@ fn init(
     agent: Option<String>,
     json: bool,
     out: &mut dyn Write,
+    err: &mut dyn Write,
 ) -> Result<(), CliError> {
     let agent = agent
         .or_else(|| std::env::var("USER").ok())
@@ -221,6 +222,17 @@ fn init(
         .filter(|name| !name.trim().is_empty())
         .unwrap_or_else(|| "owner".to_owned());
     let (store, tip) = Store::init(dir, agent)?;
+    if cfg!(windows) {
+        // The standard library can't set an owner-only ACL, so the key file
+        // takes whatever the folder grants. Advisory: the store exists.
+        let _ = writeln!(
+            err,
+            "warning: on Windows, signing.key gets the permissions of {}, so anyone who can \
+             read that folder can sign as you; keep the store in a folder only you can read, \
+             such as one under your user profile",
+            dir.display()
+        );
+    }
     let verifying_key = hex::encode(store.verifying_key().as_bytes());
     // The store exists now, and `init` refuses to run twice, so a failed print
     // must say where to find the key instead of inviting a retry.
