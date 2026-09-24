@@ -28,16 +28,21 @@ change field order, encodings, tag values, domain strings, or an existing
 match (no `_ => {}`).
 
 **A failing golden test means the format broke.** Fix the cause. Never edit
-the expected hashes or regenerate the fixtures to make it pass;
-`examples/regen_golden.rs` exists only for cutting a new, owner-approved
-profile.
+the expected hashes or regenerate the fixtures to make it pass.
+`crates/magpie-log/examples/regen_golden.rs` is only for reviewed,
+owner-approved format changes: cutting a new profile, or appending records
+for a new payload tag while every existing record stays byte-for-byte
+unchanged.
 
 **Authority stays where it is.** `LogWriter` is the only way to append, and
 nothing mutates or deletes history; corrections are new events. Readers and
 projections can't write. Projections are pure folds, so rebuilding from zero
 must match incremental building byte for byte
-([`regenerable.rs`](crates/magpie-claims/tests/regenerable.rs)). Reads verify
-and replay the complete history; don't add a path that skips verification.
+([`regenerable.rs`](crates/magpie-claims/tests/regenerable.rs)). Replay and
+projections run only on a completely verified history; don't add a replay or
+projection path that skips verification. `LogReader::unverified_events` is a
+deliberate raw-inspection exception for diagnostics, and its events can't feed
+a projection.
 Standing is always computed under an explicitly selected policy. A refactor
 must not quietly widen what any of these grant.
 

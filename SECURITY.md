@@ -14,8 +14,11 @@ Please don't open a public issue or pull request for a suspected
 vulnerability. That includes anything involving:
 
 - signing keys or key files;
-- a history that verifies but shouldn't: a forged, reordered, truncated, or
-  tampered log accepted by any verifier (Rust, Python, or Go);
+- a history that verifies but shouldn't: a forged, reordered, or tampered
+  log, or a malformed partial record, accepted by any verifier (Rust,
+  Python, or Go). A log cut back to an earlier complete record is a valid
+  shorter history and verifies by design; catching that is the job of the
+  CLI's checkpoint, below;
 - a way to append, mutate, or delete history other than `LogWriter`, or for a
   projection to write;
 - a way around the CLI's rollback checkpoint, locks, or file protections;
