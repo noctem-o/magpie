@@ -120,8 +120,8 @@ impl Store {
             .map_err(|error| store.discard_partial(error))?;
         // The store exists now, so a failure from here on must not send the
         // caller back to `init`, which refuses an existing store.
-        if let Err(error) = sync_file(&store.log_path())
-            .and_then(|()| sync_dir(dir))
+        if let Err(error) = store
+            .sync_log()
             .and_then(|()| store.save_checkpoint(writer.len(), writer.tip()))
         {
             return Err(CliError::Io(format!(
@@ -239,6 +239,17 @@ impl Store {
 
     pub(crate) fn config_path(&self) -> PathBuf {
         self.dir.join(CONFIG_FILE)
+    }
+
+    /// Flush the log and the store directory's entries to disk.
+    ///
+    /// A checkpoint must never reach disk ahead of the events it names, or a
+    /// power cut could leave a log that no longer contains its own checkpoint.
+    /// So every checkpoint save runs this first, including the one that
+    /// recovers from an earlier failed sync.
+    pub(crate) fn sync_log(&self) -> Result<(), CliError> {
+        sync_file(&self.log_path())?;
+        sync_dir(&self.dir)
     }
 
     pub(crate) fn agent(&self) -> &str {
@@ -512,7 +523,7 @@ fn lock_file(path: &Path, mode: LockMode, busy: &str) -> Result<Option<File>, Cl
 
 /// Flush a file to disk. The handle is opened for writing because Windows'
 /// `FlushFileBuffers` refuses a read-only handle; nothing is written through it.
-pub(crate) fn sync_file(path: &Path) -> Result<(), CliError> {
+fn sync_file(path: &Path) -> Result<(), CliError> {
     OpenOptions::new().write(true).open(path)?.sync_all()?;
     Ok(())
 }
@@ -525,7 +536,7 @@ fn create_dir_all_durable(dir: &Path) -> Result<(), CliError> {
     if dir.as_os_str().is_empty() || dir.is_dir() {
         return Ok(());
     }
-    let parent = dir.parent().filter(|parent| !parent.as_os_str().is_empty());
+    let parent = entry_parent(dir);
     if let Some(parent) = parent {
         create_dir_all_durable(parent)?;
     }
@@ -539,6 +550,16 @@ fn create_dir_all_durable(dir: &Path) -> Result<(), CliError> {
     match parent {
         Some(parent) => sync_dir(parent),
         None => Ok(()),
+    }
+}
+
+/// The directory holding `path`'s entry. For a bare relative name such as
+/// `ledger`, `Path::parent` is empty and the entry lives in the current
+/// directory, which must be synced like any other parent.
+fn entry_parent(path: &Path) -> Option<&Path> {
+    match path.parent() {
+        Some(parent) if parent.as_os_str().is_empty() => Some(Path::new(".")),
+        parent => parent,
     }
 }
 
@@ -598,6 +619,20 @@ mod tests {
             "{error}"
         );
         fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_bare_relative_name_lives_in_the_current_directory() {
+        assert_eq!(entry_parent(Path::new("ledger")), Some(Path::new(".")));
+        assert_eq!(
+            entry_parent(Path::new("state/checkpoints")),
+            Some(Path::new("state"))
+        );
+        assert_eq!(
+            entry_parent(Path::new("/srv/ledger")),
+            Some(Path::new("/srv"))
+        );
+        assert_eq!(entry_parent(Path::new("/")), None);
     }
 
     #[test]

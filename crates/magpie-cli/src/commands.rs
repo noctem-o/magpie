@@ -27,7 +27,7 @@ use crate::export::desk_v0;
 use crate::index::{claim_domain, metadata_object, LedgerIndex};
 use crate::policy::{PolicyChoice, Resolver};
 use crate::snapshot::Snapshot;
-use crate::store::{log_failure, parse_verifying_key, sync_file, CheckpointState, LockMode, Store};
+use crate::store::{log_failure, parse_verifying_key, CheckpointState, LockMode, Store};
 use crate::trace::trace_lines;
 use crate::CliError;
 
@@ -342,8 +342,9 @@ fn write_events(
     if !written.is_empty() {
         // The events are in the log now. A failure from here on must say so,
         // or a retry would record them twice.
-        if let Err(error) =
-            sync_file(&log_path).and_then(|()| store.save_checkpoint(writer.len(), writer.tip()))
+        if let Err(error) = store
+            .sync_log()
+            .and_then(|()| store.save_checkpoint(writer.len(), writer.tip()))
         {
             return Err(CliError::Io(format!(
                 "recorded {recorded} in the log, but could not finish afterwards: {error}. \
@@ -1245,6 +1246,15 @@ fn checkpoint(
         let snapshot = Snapshot::read_for_write(&log_path, store.verifying_key())?;
         let (_, summary) =
             LedgerIndex::replay(&snapshot.reader(store.verifying_key())).map_err(log_failure)?;
+        // This is also the recovery step after a failed sync, so the log may
+        // still be only in the page cache: flush it before the checkpoint that
+        // names it, and check that what reached disk is what was verified.
+        store.sync_log()?;
+        if std::fs::read(&log_path)? != snapshot.bytes() {
+            return Err(CliError::Refused(
+                "the log changed while this command was running; no checkpoint was saved".into(),
+            ));
+        }
         store.save_checkpoint(summary.event_count(), summary.tip())?;
         if json {
             writeln!(

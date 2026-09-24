@@ -821,3 +821,31 @@ fn a_link_planted_at_the_checkpoint_temporary_path_is_not_followed() {
         .unwrap()
         .starts_with("contained (saved at event 2)"));
 }
+
+#[test]
+fn relative_store_and_state_paths_work() {
+    let scratch = Scratch::new();
+    // Bare relative names, whose directory entries live in the working
+    // directory rather than under any named parent.
+    let run = |args: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_magpie"))
+            .args(args)
+            .current_dir(&scratch.root)
+            .env("MAGPIE_STORE", "ledger")
+            .env("MAGPIE_STATE_DIR", "state")
+            .env_remove("XDG_STATE_HOME")
+            .output()
+            .expect("magpie binary runs")
+    };
+    for args in [
+        vec!["init", "ledger", "--agent", "tester"],
+        vec!["note", "written through relative paths"],
+        vec!["checkpoint", "--accept-current"],
+        vec!["verify"],
+    ] {
+        let output = run(&args);
+        assert!(output.status.success(), "{args:?}: {}", stderr(&output));
+    }
+    assert!(scratch.root.join("ledger").join("log.jsonl").is_file());
+    assert!(scratch.root.join("state").join("checkpoints").is_dir());
+}
