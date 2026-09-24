@@ -973,6 +973,20 @@ fn search(
     err: &mut dyn Write,
 ) -> Result<(), CliError> {
     let view = read_view(store, false, err)?;
+    // The search index stores seq and timestamp as SQLite's signed 64-bit
+    // integers and panics on a larger value, which a validly signed log can
+    // hold. Refuse such a log here instead.
+    if let Some(event) = view.index.events.iter().find(|event| {
+        i64::try_from(event.recorded.seq).is_err()
+            || i64::try_from(event.recorded.timestamp_nanos).is_err()
+    }) {
+        return Err(CliError::Refused(format!(
+            "event seq {} holds a number too large for the search index, which stores seq and \
+             timestamp as signed 64-bit integers, so search can't read this log; the other \
+             commands still can",
+            event.recorded.seq
+        )));
+    }
     let mut episodic = EpisodicView::in_memory()
         .map_err(|error| CliError::Io(format!("could not open the search index: {error}")))?;
     view.reader.replay(&mut episodic).map_err(log_failure)?;

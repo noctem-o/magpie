@@ -749,3 +749,53 @@ fn signing_key_is_readable_only_by_its_owner() {
         .mode();
     assert_eq!(mode & 0o777, 0o600);
 }
+
+#[test]
+fn search_refuses_a_timestamp_its_index_cannot_store() {
+    use magpie_log::{FileStore, LogWriter, Payload, Provenance, SigningKey};
+    let scratch = Scratch::new();
+    scratch.init();
+    // A validly signed event from a writer whose clock reads u64::MAX, past
+    // the signed 64-bit integers the search index stores.
+    let key_text = fs::read_to_string(scratch.store().join("signing.key")).unwrap();
+    let key: [u8; 32] = hex::decode(key_text.trim()).unwrap().try_into().unwrap();
+    let mut writer = LogWriter::<FileStore>::open_with_clock(
+        FileStore::new(scratch.log()),
+        SigningKey::from_bytes(&key),
+        Box::new(|| u64::MAX),
+    )
+    .unwrap();
+    writer
+        .append(
+            Provenance::new("elsewhere", "test"),
+            Payload::Note {
+                text: "from the far future".into(),
+            },
+        )
+        .unwrap();
+    drop(writer);
+
+    scratch.ok(&["verify"]);
+    scratch.ok(&["log"]);
+    let output = scratch.run(&["search", "future"]);
+    assert_eq!(code(&output), 1, "{}", stderr(&output));
+    assert!(
+        stderr(&output).contains("search index"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn reads_fall_back_when_the_scratch_directory_refuses_files() {
+    let scratch = Scratch::new();
+    small_ledger(&scratch);
+    // /proc is a directory in which no one, not even root, can create a file:
+    // the state directory's scratch area exists but can't take the copy.
+    let scratch_dir = scratch.state().join("scratch");
+    let _ = fs::remove_dir_all(&scratch_dir);
+    std::os::unix::fs::symlink("/proc", &scratch_dir).unwrap();
+    scratch.ok(&["log"]);
+    scratch.ok(&["verify"]);
+}

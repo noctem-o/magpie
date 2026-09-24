@@ -14,7 +14,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use magpie_log::{FileStore, LogReader, MemStore, VerifyingKey};
 
-use crate::store::scratch_dir;
+use crate::store::scratch_dirs;
 use crate::CliError;
 
 pub(crate) struct Snapshot {
@@ -111,15 +111,15 @@ impl Snapshot {
 
     /// Run the exact-byte portable verifier over a private copy of these bytes.
     pub(crate) fn portable_accepts(&self, verifying_key: VerifyingKey) -> Result<bool, CliError> {
-        self.portable_accepts_in(&scratch_dir(), verifying_key)
+        self.portable_accepts_in(&scratch_dirs(), verifying_key)
     }
 
     fn portable_accepts_in(
         &self,
-        dir: &Path,
+        dirs: &[PathBuf],
         verifying_key: VerifyingKey,
     ) -> Result<bool, CliError> {
-        let copy = ScratchCopy::write(dir, &self.bytes)?;
+        let copy = ScratchCopy::write_in_first(dirs, &self.bytes)?;
         FileStore::new(&copy.path)
             .verify_portable_history(&hex::encode(verifying_key.as_bytes()))
             .map_err(|error| CliError::Io(format!("the portable verifier could not run: {error}")))
@@ -150,6 +150,25 @@ struct ScratchCopy {
 }
 
 impl ScratchCopy {
+    /// Write the copy into the first of `dirs` that takes it. A directory can
+    /// exist and still refuse a new file (read-only, or full), so the next one
+    /// is tried after any failure, not only a missing directory.
+    fn write_in_first(dirs: &[PathBuf], bytes: &[u8]) -> Result<Self, CliError> {
+        let mut last_error = None;
+        for dir in dirs {
+            match fs::create_dir_all(dir)
+                .map_err(CliError::from)
+                .and_then(|()| Self::write(dir, bytes))
+            {
+                Ok(copy) => return Ok(copy),
+                Err(error) => last_error = Some(error),
+            }
+        }
+        Err(last_error.unwrap_or_else(|| {
+            CliError::Io("there is no directory for a scratch copy of the log".into())
+        }))
+    }
+
     fn write(dir: &Path, bytes: &[u8]) -> Result<Self, CliError> {
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -225,7 +244,9 @@ mod tests {
             .verify_chain()
             .unwrap();
         assert_eq!(from_snapshot, from_file);
-        assert!(snapshot.portable_accepts_in(&dir, verifying_key).unwrap());
+        assert!(snapshot
+            .portable_accepts_in(std::slice::from_ref(&dir), verifying_key)
+            .unwrap());
 
         let mut with_blank_line = snapshot.bytes().to_vec();
         with_blank_line.push(b'\n');
@@ -236,7 +257,17 @@ mod tests {
             blank.reader(verifying_key).verify_chain().unwrap(),
             from_file
         );
-        assert!(!blank.portable_accepts_in(&dir, verifying_key).unwrap());
+        assert!(!blank
+            .portable_accepts_in(std::slice::from_ref(&dir), verifying_key)
+            .unwrap());
+
+        // A directory that refuses the copy falls through to the next one.
+        let not_a_dir = dir.join("not-a-directory");
+        fs::write(&not_a_dir, b"").unwrap();
+        assert!(snapshot
+            .portable_accepts_in(&[not_a_dir.join("scratch"), dir.clone()], verifying_key)
+            .unwrap());
+        fs::remove_file(&not_a_dir).unwrap();
 
         let leftovers = fs::read_dir(&dir)
             .unwrap()

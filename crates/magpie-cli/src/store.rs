@@ -376,6 +376,12 @@ impl Store {
             file.sync_all()?;
         }
         fs::rename(&temporary, &path)?;
+        // The rename survives a power cut only once its directory is synced.
+        // Without this, a crash could keep the appended event but lose the
+        // new checkpoint, and a later restore to the old tip would pass.
+        if let Some(parent) = path.parent() {
+            sync_dir(parent)?;
+        }
         Ok(())
     }
 
@@ -430,15 +436,16 @@ fn state_dir() -> Result<PathBuf, CliError> {
     ))
 }
 
-/// Where the portable verifier's private copies of the log go: the state
-/// directory when it can be used, else the system temporary directory. Never
-/// the store directory, which may be read-only.
-pub(crate) fn scratch_dir() -> PathBuf {
-    state_dir()
-        .ok()
-        .map(|dir| dir.join("scratch"))
-        .filter(|dir| fs::create_dir_all(dir).is_ok())
-        .unwrap_or_else(std::env::temp_dir)
+/// Where the portable verifier's private copies of the log may go, in order:
+/// the state directory, which is private to this user, then the system
+/// temporary directory. Never the store directory, which may be read-only.
+pub(crate) fn scratch_dirs() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    if let Ok(state) = state_dir() {
+        dirs.push(state.join("scratch"));
+    }
+    dirs.push(std::env::temp_dir());
+    dirs
 }
 
 /// Refuse a directory that already has a store file, even a dangling link.
