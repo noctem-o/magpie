@@ -99,6 +99,24 @@ cargo run --locked --example tour -p magpie-claims
 The [frozen tour](docs/design/governed-standing-tour-v1.md) creates and verifies one signed history, resolves policies **v0–v2**, deletes the derived state, and replays the history to check byte-identical regeneration. Policies **v3 and v4** are implemented and tested separately; they are outside the frozen tour output.
 
 <details>
+<summary><strong>Keep a ledger with the <code>magpie</code> command</strong></summary>
+
+```sh
+cargo install --locked --path crates/magpie-cli
+magpie init ~/ledger                     # prints the verifying key; record it elsewhere
+export MAGPIE_STORE=~/ledger
+magpie claim "Theorem 2 holds" --domain OperationalObservation
+magpie evidence "numerics agree to 1e-15" --kind ExecutionEvidence --file run.log
+magpie link supports ev-2 claim-1 --rationale "numerical check"
+magpie why claim-1 --policy v2           # the policy's own explanation
+magpie verify                            # signatures, portable profile, checkpoint
+```
+
+Every read verifies the whole log first. There is no default policy. The log is JSONL, so `tools/verify_chain.py` can check it independently. The crate docs explain why it doesn't use the SQLite L0 yet, and how its rollback checkpoint works.
+
+</details>
+
+<details>
 <summary><strong>Verify the golden history with the independent Python conformer</strong></summary>
 
 Use the Python environment and dependencies described in the [development checks](#development), then run:
@@ -140,6 +158,7 @@ Policies that need external artifacts or foreign bundles receive those exact byt
 | [`magpie-log`](crates/magpie-log) | Canonical encoding, signatures, hash chain, readers/writers, SQLite L0, complete verification, checkpoints, and replay. | The historical record and verification of supplied histories. |
 | [`magpie-claims`](crates/magpie-claims) | Typed claims and evidence, immutable supplied content, provenance and origin checks, policies v0–v4. | Governed standing and one-way audit explanations. |
 | [`magpie-episodic`](crates/magpie-episodic) | Rebuildable SQLite projection, FTS5, deterministic log-order search. | Searchable derived state with no write-back path to history. |
+| [`magpie-cli`](crates/magpie-cli) | The `magpie` command: store setup, signed writes, verified reads, rollback checkpoints. | A claim ledger you can keep from the shell, exportable as `magpie-desk-export-v0`. |
 
 ## What works today
 

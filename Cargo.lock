@@ -246,6 +246,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "magpie-cli"
+version = "0.1.0"
+dependencies = [
+ "getrandom",
+ "hex",
+ "magpie-claims",
+ "magpie-episodic",
+ "magpie-log",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "magpie-episodic"
 version = "0.1.0"
 dependencies = [

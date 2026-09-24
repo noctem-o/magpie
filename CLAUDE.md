@@ -122,6 +122,7 @@ Freeze consequences:
 - `crates/magpie-log` — L0: event model, `magpie-core-v1` codec, hashing, signing, chain verification, stores (`FileStore`, `MemStore`)
 - `crates/magpie-claims` — first projection: `ClaimsView`, the epistemic claim store
 - `crates/magpie-episodic` — second projection: `EpisodicView`, SQLite + FTS5 full-text search over events
+- `crates/magpie-cli` — the `magpie` command: JSONL store, signed writes, verified reads, rollback checkpoints, `desk-v0` export
 - `crates/magpie-log` — also owns the contract-selected supported SQLite L0 persistence backend; L0 and projection databases remain separate
 - `docs/FORMAT.md` — normative spec; a from-scratch reimplementation must reproduce the golden vectors from this page alone
 - `tools/verify_chain.py` — readable independent/reference conformer for the selected portable language and profile; `tools/portable_verifier.py` remains the earlier independent complete conformer artifact
@@ -130,6 +131,7 @@ Freeze consequences:
 
 - `cargo test` — whole workspace; must stay green (17 tests at format freeze; grow the suite, never shrink it).
 - `cargo run --example tour -p magpie-claims` — 30-second end-to-end demo.
+- `cargo run -p magpie-cli -- help` — the ledger command and its subcommands.
 
 ## Conventions
 
