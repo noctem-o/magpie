@@ -14,6 +14,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use magpie_log::{FileStore, LogReader, MemStore, VerifyingKey};
 
+use crate::store::scratch_dir;
 use crate::CliError;
 
 pub(crate) struct Snapshot {
@@ -21,6 +22,28 @@ pub(crate) struct Snapshot {
 }
 
 impl Snapshot {
+    /// Read the log for a command that only reads it.
+    pub(crate) fn read_checked(path: &Path, verifying_key: VerifyingKey) -> Result<Self, CliError> {
+        let snapshot = Self::read(path)?;
+        snapshot.require_events(path)?;
+        snapshot.require_portable(verifying_key)?;
+        Ok(snapshot)
+    }
+
+    /// Read the log for a command that appends to it or moves its checkpoint,
+    /// which must also refuse a torn final record.
+    pub(crate) fn read_for_write(
+        path: &Path,
+        verifying_key: VerifyingKey,
+    ) -> Result<Self, CliError> {
+        let snapshot = Self::read(path)?;
+        snapshot.require_events(path)?;
+        snapshot.ensure_terminated(path)?;
+        snapshot.require_portable(verifying_key)?;
+        Ok(snapshot)
+    }
+
+    /// Read the log with no checks, for `verify`, which reports each one.
     pub(crate) fn read(path: &Path) -> Result<Self, CliError> {
         let bytes = fs::read(path).map_err(|error| {
             if error.kind() == ErrorKind::NotFound {
@@ -48,34 +71,55 @@ impl Snapshot {
         LogReader::open(MemStore::from_records(records), verifying_key)
     }
 
-    /// Refuse an empty log or one that ends part-way through a record.
+    /// True for a log with no events at all.
+    ///
+    /// Every store's log begins with the genesis event that binds it to its
+    /// key, but the portable verifier accepts an empty history and the
+    /// structural reader replays it as zero events, so an empty (for example
+    /// truncated) log would otherwise pass every check.
+    pub(crate) fn is_empty(&self) -> bool {
+        self.bytes.is_empty()
+    }
+
+    fn require_events(&self, path: &Path) -> Result<(), CliError> {
+        if self.is_empty() {
+            return Err(CliError::Refused(format!(
+                "{} is empty, so no genesis event binds it to a key; restore it from a backup, \
+                 or create a new store with `magpie init`",
+                path.display()
+            )));
+        }
+        Ok(())
+    }
+
+    /// Refuse a log that ends part-way through a record.
     ///
     /// `FileStore` writes a record and its newline separately. If a crash
     /// landed between the two, the next append would run two records together
-    /// and break the chain, so every write checks this first.
-    pub(crate) fn ensure_terminated(&self, path: &Path) -> Result<(), CliError> {
+    /// and break the chain.
+    fn ensure_terminated(&self, path: &Path) -> Result<(), CliError> {
         match self.bytes.last() {
-            None => Err(CliError::Refused(format!(
-                "{} is empty, so it has no genesis event; create a new store with `magpie init`",
-                path.display()
-            ))),
-            Some(b'\n') => Ok(()),
-            Some(_) => Err(CliError::Refused(format!(
+            Some(byte) if *byte != b'\n' => Err(CliError::Refused(format!(
                 "{} ends part-way through a record, probably from an interrupted append, so \
                  nothing was written. If its last line is a complete record, add the missing \
                  newline; then run `magpie verify`.",
                 path.display()
             ))),
+            _ => Ok(()),
         }
     }
 
     /// Run the exact-byte portable verifier over a private copy of these bytes.
-    pub(crate) fn portable_accepts(
+    pub(crate) fn portable_accepts(&self, verifying_key: VerifyingKey) -> Result<bool, CliError> {
+        self.portable_accepts_in(&scratch_dir(), verifying_key)
+    }
+
+    fn portable_accepts_in(
         &self,
-        scratch_dir: &Path,
+        dir: &Path,
         verifying_key: VerifyingKey,
     ) -> Result<bool, CliError> {
-        let copy = ScratchCopy::write(scratch_dir, &self.bytes)?;
+        let copy = ScratchCopy::write(dir, &self.bytes)?;
         FileStore::new(&copy.path)
             .verify_portable_history(&hex::encode(verifying_key.as_bytes()))
             .map_err(|error| CliError::Io(format!("the portable verifier could not run: {error}")))
@@ -86,12 +130,8 @@ impl Snapshot {
     /// The structural reader skips blank lines that the portable language
     /// rejects, so without this a write could extend a history that `magpie
     /// verify` would then fail.
-    pub(crate) fn require_portable(
-        &self,
-        scratch_dir: &Path,
-        verifying_key: VerifyingKey,
-    ) -> Result<(), CliError> {
-        if self.portable_accepts(scratch_dir, verifying_key)? {
+    fn require_portable(&self, verifying_key: VerifyingKey) -> Result<(), CliError> {
+        if self.portable_accepts(verifying_key)? {
             Ok(())
         } else {
             Err(CliError::Refused(
@@ -185,7 +225,7 @@ mod tests {
             .verify_chain()
             .unwrap();
         assert_eq!(from_snapshot, from_file);
-        assert!(snapshot.portable_accepts(&dir, verifying_key).unwrap());
+        assert!(snapshot.portable_accepts_in(&dir, verifying_key).unwrap());
 
         let mut with_blank_line = snapshot.bytes().to_vec();
         with_blank_line.push(b'\n');
@@ -196,7 +236,7 @@ mod tests {
             blank.reader(verifying_key).verify_chain().unwrap(),
             from_file
         );
-        assert!(!blank.portable_accepts(&dir, verifying_key).unwrap());
+        assert!(!blank.portable_accepts_in(&dir, verifying_key).unwrap());
 
         let leftovers = fs::read_dir(&dir)
             .unwrap()

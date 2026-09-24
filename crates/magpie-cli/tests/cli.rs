@@ -47,12 +47,18 @@ impl Scratch {
         self.store().join("log.jsonl")
     }
 
-    fn run_in(&self, store: &Path, args: &[&str]) -> Output {
-        Command::new(env!("CARGO_BIN_EXE_magpie"))
+    fn command(&self, store: &Path, args: &[&str]) -> Command {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_magpie"));
+        command
             .args(args)
             .env("MAGPIE_STORE", store)
             .env("MAGPIE_STATE_DIR", self.state())
-            .env_remove("XDG_STATE_HOME")
+            .env_remove("XDG_STATE_HOME");
+        command
+    }
+
+    fn run_in(&self, store: &Path, args: &[&str]) -> Output {
+        self.command(store, args)
             .output()
             .expect("magpie binary runs")
     }
@@ -436,6 +442,168 @@ fn failure_after_an_append_says_the_event_was_recorded() {
     scratch.ok(&["checkpoint", "--accept-current"]);
     scratch.ok(&["note", "third"]);
     scratch.ok(&["verify"]);
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn output_failure_after_a_write_says_the_event_was_recorded() {
+    let scratch = Scratch::new();
+    scratch.init();
+    // Every write to /dev/full fails, as a closed pipe or a full disk would,
+    // but only after the note and its checkpoint are committed.
+    let full = fs::OpenOptions::new()
+        .write(true)
+        .open("/dev/full")
+        .unwrap();
+    let output = scratch
+        .command(&scratch.store(), &["note", "printed nowhere"])
+        .stdout(full)
+        .output()
+        .expect("magpie binary runs");
+    assert_eq!(code(&output), 3, "{}", stderr(&output));
+    assert!(
+        stderr(&output).contains("recorded seq 1"),
+        "{}",
+        stderr(&output)
+    );
+    assert!(stderr(&output).contains("Don't retry"));
+    let events = scratch.json(&["log", "--json"]);
+    assert_eq!(events[1]["subject"], "printed nowhere");
+    scratch.ok(&["verify"]);
+}
+
+#[test]
+fn empty_log_is_refused_and_fails_verification() {
+    let scratch = Scratch::new();
+    small_ledger(&scratch);
+    let key = scratch.verifying_key();
+    // Truncated, and the checkpoint lost too. Both verifiers accept an empty
+    // history, so only the genesis requirement catches this.
+    fs::write(scratch.log(), b"").unwrap();
+    fs::remove_dir_all(scratch.state()).unwrap();
+
+    for args in [
+        vec!["verify", "--json"],
+        vec!["verify", "--verifying-key", key.as_str(), "--json"],
+    ] {
+        let output = scratch.run(&args);
+        assert_eq!(code(&output), 1, "{args:?}: {}", stderr(&output));
+        let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(report["ok"], false, "{args:?}");
+        assert!(
+            report["signatures"].as_str().unwrap().contains("empty"),
+            "{args:?}: {report}"
+        );
+    }
+    for args in [
+        vec!["log"],
+        vec!["note", "must not become the first event"],
+        vec!["checkpoint", "--accept-current"],
+    ] {
+        let output = scratch.run(&args);
+        assert_eq!(code(&output), 1, "{args:?}: {}", stderr(&output));
+        assert!(
+            stderr(&output).contains("is empty"),
+            "{args:?}: {}",
+            stderr(&output)
+        );
+    }
+    assert!(scratch.log_bytes().is_empty());
+}
+
+#[test]
+fn writes_refuse_an_empty_agent_name() {
+    let scratch = Scratch::new();
+    small_ledger(&scratch);
+    let config_path = scratch.store().join("config.json");
+    let mut config: Value = serde_json::from_slice(&fs::read(&config_path).unwrap()).unwrap();
+    config["agent"] = Value::String("  ".into());
+    fs::write(&config_path, serde_json::to_vec_pretty(&config).unwrap()).unwrap();
+    let before = scratch.log_bytes();
+
+    let refused = scratch.run(&["note", "written by nobody"]);
+    assert_eq!(code(&refused), 1, "{}", stderr(&refused));
+    assert!(stderr(&refused).contains("empty agent name"));
+    assert_eq!(scratch.log_bytes(), before);
+    scratch.ok(&["log"]);
+}
+
+#[test]
+fn reads_never_write_to_the_store_directory() {
+    let scratch = Scratch::new();
+    small_ledger(&scratch);
+    let key = scratch.verifying_key();
+    // With its lock file gone, a read that wrote here would recreate it.
+    fs::remove_file(scratch.store().join("lock")).unwrap();
+    let listing = |dir: &Path| {
+        let mut names: Vec<String> = fs::read_dir(dir)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        names
+    };
+    let before = listing(&scratch.store());
+    for args in [
+        vec!["log"],
+        vec!["show", "claim-1"],
+        vec!["search", "Theorem"],
+        vec!["standing", "claim-1", "--policy", "v2"],
+        vec!["checkpoint"],
+        vec!["verify"],
+        vec!["verify", "--verifying-key", key.as_str()],
+    ] {
+        scratch.ok(&args);
+        assert_eq!(listing(&scratch.store()), before, "{args:?}");
+    }
+    assert!(
+        listing(&scratch.state().join("scratch")).is_empty(),
+        "scratch copies must be removed"
+    );
+}
+
+/// Root ignores directory permissions, so this bites only when the tests run
+/// as an ordinary user, as they do in CI.
+#[cfg(unix)]
+#[test]
+fn a_read_only_store_can_still_be_read_and_verified() {
+    use std::os::unix::fs::PermissionsExt;
+    let scratch = Scratch::new();
+    small_ledger(&scratch);
+    let key = scratch.verifying_key();
+    let store = scratch.store();
+    fs::set_permissions(&store, fs::Permissions::from_mode(0o555)).unwrap();
+    let outputs: Vec<Output> = [
+        vec!["log"],
+        vec!["verify"],
+        vec!["verify", "--verifying-key", key.as_str()],
+    ]
+    .iter()
+    .map(|args| scratch.run(args))
+    .collect();
+    // Restore before asserting, so a failure still lets the scratch area go.
+    fs::set_permissions(&store, fs::Permissions::from_mode(0o755)).unwrap();
+    for output in &outputs {
+        assert!(output.status.success(), "{}", stderr(output));
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn init_refuses_a_dangling_link_where_a_store_file_goes() {
+    let scratch = Scratch::new();
+    let store = scratch.store();
+    fs::create_dir_all(&store).unwrap();
+    let elsewhere = scratch.root.join("elsewhere");
+    std::os::unix::fs::symlink(elsewhere.join("log.jsonl"), store.join("log.jsonl")).unwrap();
+
+    let output = scratch.run(&["init", store.to_str().unwrap()]);
+    assert_eq!(code(&output), 2, "{}", stderr(&output));
+    assert!(
+        !elsewhere.exists(),
+        "nothing may be written through the link"
+    );
+    assert!(!store.join("signing.key").exists());
 }
 
 #[test]

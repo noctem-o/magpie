@@ -88,17 +88,10 @@ pub(crate) fn parse_verifying_key(text: &str) -> Result<VerifyingKey, CliError> 
 impl Store {
     /// Create a new store: a fresh signing key, its config, and the genesis event.
     pub(crate) fn init(dir: &Path, agent: String) -> Result<(Store, ContentHash), CliError> {
-        for name in [LOG_FILE, KEY_FILE, CONFIG_FILE] {
-            if dir.join(name).exists() {
-                return Err(CliError::Usage(format!(
-                    "{} already holds a Magpie store; refusing to replace it",
-                    dir.display()
-                )));
-            }
-        }
         if agent.trim().is_empty() {
             return Err(CliError::Usage("--agent must not be empty".into()));
         }
+        refuse_existing(dir)?;
         fs::create_dir_all(dir)?;
 
         let mut seed = [0u8; 32];
@@ -119,24 +112,12 @@ impl Store {
         // fails here and leaves nothing that would make a retry refuse.
         let _store_lock = store.lock(LockMode::Exclusive)?;
         let _checkpoint_lock = store.lock_checkpoint(LockMode::Exclusive)?;
-
-        write_new(
-            &dir.join(KEY_FILE),
-            format!("{}\n", hex::encode(signing_key.to_bytes())).as_bytes(),
-            true,
-        )?;
-        let config = StoreConfig {
-            format: STORE_FORMAT.into(),
-            agent: store.agent.clone(),
-            verifying_key: hex::encode(verifying_key.as_bytes()),
-        };
-        let mut config_text = serde_json::to_string_pretty(&config)?;
-        config_text.push('\n');
-        write_new(&dir.join(CONFIG_FILE), config_text.as_bytes(), false)?;
-
-        // Opening an empty FileStore writes the library's genesis event.
-        let writer = LogWriter::<FileStore>::open(FileStore::new(store.log_path()), signing_key)
-            .map_err(log_failure)?;
+        // Checked again under the lock: from here on, any store file in the
+        // directory was created by this attempt, so a failure may remove it.
+        refuse_existing(dir)?;
+        let writer = store
+            .create_files(signing_key)
+            .map_err(|error| store.discard_partial(error))?;
         // The store exists now, so a failure from here on must not send the
         // caller back to `init`, which refuses an existing store.
         if let Err(error) = sync_file(&store.log_path())
@@ -150,6 +131,50 @@ impl Store {
             )));
         }
         Ok((store, writer.tip()))
+    }
+
+    /// Write the signing key, the config, and the genesis event.
+    fn create_files(&self, signing_key: SigningKey) -> Result<LogWriter<FileStore>, CliError> {
+        write_new(
+            &self.dir.join(KEY_FILE),
+            format!("{}\n", hex::encode(signing_key.to_bytes())).as_bytes(),
+            true,
+        )?;
+        let config = StoreConfig {
+            format: STORE_FORMAT.into(),
+            agent: self.agent.clone(),
+            verifying_key: hex::encode(self.verifying_key.as_bytes()),
+        };
+        let mut config_text = serde_json::to_string_pretty(&config)?;
+        config_text.push('\n');
+        write_new(&self.dir.join(CONFIG_FILE), config_text.as_bytes(), false)?;
+        // Opening an empty FileStore writes the library's genesis event.
+        LogWriter::<FileStore>::open(FileStore::new(self.log_path()), signing_key)
+            .map_err(log_failure)
+    }
+
+    /// Remove the store files a failed `init` created, so a retry starts clean.
+    ///
+    /// Nothing here was ever a usable store: the genesis event did not finish,
+    /// so the key has signed nothing that survives.
+    fn discard_partial(&self, error: CliError) -> CliError {
+        let mut left = Vec::new();
+        for name in [LOG_FILE, CONFIG_FILE, KEY_FILE] {
+            match fs::remove_file(self.dir.join(name)) {
+                Ok(()) => {}
+                Err(removal) if removal.kind() == ErrorKind::NotFound => {}
+                Err(_) => left.push(name),
+            }
+        }
+        if left.is_empty() {
+            return error;
+        }
+        CliError::Io(format!(
+            "{error}. The partly created store could not be removed, so delete {} in {} before \
+             retrying.",
+            left.join(", "),
+            self.dir.display()
+        ))
     }
 
     /// Open an existing store without touching its signing key.
@@ -208,16 +233,31 @@ impl Store {
         Ok(store)
     }
 
-    pub(crate) fn dir(&self) -> &Path {
-        &self.dir
-    }
-
     pub(crate) fn log_path(&self) -> PathBuf {
         self.dir.join(LOG_FILE)
     }
 
+    pub(crate) fn config_path(&self) -> PathBuf {
+        self.dir.join(CONFIG_FILE)
+    }
+
     pub(crate) fn agent(&self) -> &str {
         &self.agent
+    }
+
+    /// The agent to record as the author of new events.
+    ///
+    /// `init` refuses an empty name, but `config.json` can be edited later, so
+    /// every write checks again rather than sign events with no author.
+    pub(crate) fn writing_agent(&self) -> Result<&str, CliError> {
+        if self.agent.trim().is_empty() {
+            return Err(CliError::Refused(format!(
+                "{} records an empty agent name, so new events would have no author; set \
+                 \"agent\" there, then retry",
+                self.config_path().display()
+            )));
+        }
+        Ok(&self.agent)
     }
 
     pub(crate) fn verifying_key(&self) -> VerifyingKey {
@@ -248,7 +288,7 @@ impl Store {
     }
 
     /// Take the store's advisory lock; it is released when the file is dropped.
-    pub(crate) fn lock(&self, mode: LockMode) -> Result<File, CliError> {
+    pub(crate) fn lock(&self, mode: LockMode) -> Result<Option<File>, CliError> {
         lock_file(
             &self.dir.join(LOCK_FILE),
             mode,
@@ -261,23 +301,13 @@ impl Store {
     /// Checkpoints are shared by every copy of a store that holds the same key,
     /// while the store lock covers only one directory. Writes hold this lock
     /// from checking the checkpoint until replacing it, so two copies cannot
-    /// both extend the same checkpoint and fork the history.
-    ///
-    /// A shared lock is skipped while the lock file doesn't exist. Every
-    /// checkpoint is saved under an exclusive lock, which creates the file
-    /// first, and the checkpoint itself is replaced atomically; so a reader
-    /// that skips the lock still sees a whole checkpoint or none, and a verify
-    /// with some other key leaves no lock file behind.
+    /// both extend the same checkpoint and fork the history. The checkpoint
+    /// itself is replaced atomically, so a reader that finds no lock file to
+    /// wait on still sees a whole checkpoint or none.
     pub(crate) fn lock_checkpoint(&self, mode: LockMode) -> Result<Option<File>, CliError> {
         let path = self.checkpoint_path()?.with_extension("lock");
-        match mode {
-            LockMode::Shared if !path.exists() => return Ok(None),
-            LockMode::Shared => {}
-            LockMode::Exclusive => {
-                if let Some(parent) = path.parent() {
-                    fs::create_dir_all(parent)?;
-                }
-            }
+        if let (LockMode::Exclusive, Some(parent)) = (mode, path.parent()) {
+            fs::create_dir_all(parent)?;
         }
         lock_file(
             &path,
@@ -285,7 +315,6 @@ impl Store {
             "another magpie command is using this key's checkpoint (perhaps from a copy of \
              this store); try again when it finishes",
         )
-        .map(Some)
     }
 
     fn checkpoint_path(&self) -> Result<PathBuf, CliError> {
@@ -401,20 +430,65 @@ fn state_dir() -> Result<PathBuf, CliError> {
     ))
 }
 
-fn lock_file(path: &Path, mode: LockMode, busy: &str) -> Result<File, CliError> {
-    let file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .truncate(false)
-        .open(path)?;
+/// Where the portable verifier's private copies of the log go: the state
+/// directory when it can be used, else the system temporary directory. Never
+/// the store directory, which may be read-only.
+pub(crate) fn scratch_dir() -> PathBuf {
+    state_dir()
+        .ok()
+        .map(|dir| dir.join("scratch"))
+        .filter(|dir| fs::create_dir_all(dir).is_ok())
+        .unwrap_or_else(std::env::temp_dir)
+}
+
+/// Refuse a directory that already has a store file, even a dangling link.
+fn refuse_existing(dir: &Path) -> Result<(), CliError> {
+    for name in [LOG_FILE, KEY_FILE, CONFIG_FILE] {
+        match fs::symlink_metadata(dir.join(name)) {
+            Ok(_) => {
+                return Err(CliError::Usage(format!(
+                    "{} already holds a Magpie store ({name} exists); refusing to replace it",
+                    dir.display()
+                )))
+            }
+            Err(error) if error.kind() == ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+    }
+    Ok(())
+}
+
+/// Take an advisory lock, retrying briefly while another command holds it.
+///
+/// Only an exclusive lock creates the lock file. A shared lock opens it
+/// read-only, so reads work on read-only media, and returns `None` when there
+/// is no lock file: every writer creates it before writing, so no `magpie`
+/// writer was running when we looked. One that starts afterwards can race the
+/// read, but a torn read fails the portable check and is refused.
+fn lock_file(path: &Path, mode: LockMode, busy: &str) -> Result<Option<File>, CliError> {
+    let opened = match mode {
+        LockMode::Shared => OpenOptions::new().read(true).open(path),
+        LockMode::Exclusive => OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(path),
+    };
+    let file = match opened {
+        Ok(file) => file,
+        Err(error) if matches!(mode, LockMode::Shared) && error.kind() == ErrorKind::NotFound => {
+            return Ok(None)
+        }
+        Err(error) => return Err(error.into()),
+    };
     for _ in 0..LOCK_ATTEMPTS {
         let attempt = match mode {
             LockMode::Shared => file.try_lock_shared(),
             LockMode::Exclusive => file.try_lock(),
         };
         match attempt {
-            Ok(()) => return Ok(file),
+            Ok(()) => return Ok(Some(file)),
             Err(TryLockError::WouldBlock) => thread::sleep(LOCK_RETRY),
             Err(TryLockError::Error(error)) => return Err(error.into()),
         }
@@ -451,4 +525,39 @@ fn write_new(path: &Path, bytes: &[u8], private: bool) -> Result<(), CliError> {
     file.write_all(bytes)?;
     file.sync_all()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_failed_init_removes_its_store_files_and_names_any_it_cannot() {
+        let dir = std::env::temp_dir().join(format!("magpie-cli-discard-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let store = Store {
+            dir: dir.clone(),
+            agent: "tester".into(),
+            verifying_key: SigningKey::from_bytes(&[3u8; 32]).verifying_key(),
+        };
+        // An attempt that wrote the key and config, then failed at genesis.
+        fs::write(dir.join(KEY_FILE), "key\n").unwrap();
+        fs::write(dir.join(CONFIG_FILE), "{}\n").unwrap();
+        fs::write(dir.join(LOCK_FILE), "").unwrap();
+        let error = store.discard_partial(CliError::Io("disk full".into()));
+        assert_eq!(error.to_string(), "disk full");
+        assert!(!dir.join(KEY_FILE).exists());
+        assert!(!dir.join(CONFIG_FILE).exists());
+        assert!(dir.join(LOCK_FILE).exists(), "only store files are removed");
+
+        // A file that can't be removed is named, so the retry can be unblocked.
+        fs::create_dir_all(dir.join(LOG_FILE).join("inner")).unwrap();
+        let error = store.discard_partial(CliError::Io("disk full".into()));
+        assert!(
+            error.to_string().contains(&format!("delete {LOG_FILE} in")),
+            "{error}"
+        );
+        fs::remove_dir_all(&dir).unwrap();
+    }
 }

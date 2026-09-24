@@ -222,6 +222,26 @@ fn init(
         .unwrap_or_else(|| "owner".to_owned());
     let (store, tip) = Store::init(dir, agent)?;
     let verifying_key = hex::encode(store.verifying_key().as_bytes());
+    // The store exists now, and `init` refuses to run twice, so a failed print
+    // must say where to find the key instead of inviting a retry.
+    print_created(dir, &verifying_key, store.agent(), &tip.to_hex(), json, out).map_err(|error| {
+        CliError::Io(format!(
+            "created the store in {}, but could not print the result: {error}. Don't run `magpie \
+             init` again; the verifying key is recorded in {}.",
+            dir.display(),
+            store.config_path().display()
+        ))
+    })
+}
+
+fn print_created(
+    dir: &Path,
+    verifying_key: &str,
+    agent: &str,
+    tip: &str,
+    json: bool,
+    out: &mut dyn Write,
+) -> std::io::Result<()> {
     if json {
         writeln!(
             out,
@@ -229,8 +249,8 @@ fn init(
             json!({
                 "store": dir.display().to_string(),
                 "verifying_key": verifying_key,
-                "agent": store.agent(),
-                "tip": tip.to_hex(),
+                "agent": agent,
+                "tip": tip,
             })
         )?;
     } else {
@@ -248,7 +268,7 @@ fn init(
             dir.display()
         )?;
     }
-    Ok(())
+    out.flush()
 }
 
 // ---------------------------------------------------------------- writes
@@ -265,12 +285,11 @@ fn write_events(
     if source.trim().is_empty() {
         return Err(usage("--source must not be empty"));
     }
+    let agent = store.writing_agent()?;
     let _store_lock = store.lock(LockMode::Exclusive)?;
     let _checkpoint_lock = store.lock_checkpoint(LockMode::Exclusive)?;
     let log_path = store.log_path();
-    let snapshot = Snapshot::read(&log_path)?;
-    snapshot.ensure_terminated(&log_path)?;
-    snapshot.require_portable(store.dir(), store.verifying_key())?;
+    let snapshot = Snapshot::read_for_write(&log_path, store.verifying_key())?;
     let reader = snapshot.reader(store.verifying_key());
     if let CheckpointState::Missing = store.check_checkpoint(&reader)? {
         return Err(CliError::Refused(
@@ -295,7 +314,7 @@ fn write_events(
             "the log changed while this command was running; nothing was written".into(),
         ));
     }
-    let provenance = Provenance::new(store.agent(), source);
+    let provenance = Provenance::new(agent, source);
     let mut written = Vec::new();
     let mut failure = None;
     for payload in payloads {
@@ -307,11 +326,7 @@ fn write_events(
             }
         }
     }
-    let recorded: Vec<String> = written
-        .iter()
-        .map(|event| format!("seq {}", event.core.seq))
-        .collect();
-    let recorded = recorded.join(", ");
+    let recorded = recorded_seqs(&written);
     if !written.is_empty() {
         // The events are in the log now. A failure from here on must say so,
         // or a retry would record them twice.
@@ -389,12 +404,39 @@ fn scope_or_default(scope: Option<String>) -> Result<String, CliError> {
     Ok(scope)
 }
 
+/// `seq 4, seq 5`: which events a write recorded.
+fn recorded_seqs(events: &[SignedEvent]) -> String {
+    let seqs: Vec<String> = events
+        .iter()
+        .map(|event| format!("seq {}", event.core.seq))
+        .collect();
+    seqs.join(", ")
+}
+
+/// Print what a write recorded. The events are already in the log and the
+/// checkpoint has moved, so a failed print must say so, or a retry would
+/// record them twice.
 fn report_written(
     events: &[SignedEvent],
     id: Option<&str>,
     json: bool,
     out: &mut dyn Write,
 ) -> Result<(), CliError> {
+    print_written(events, id, json, out).map_err(|error| {
+        CliError::Io(format!(
+            "recorded {}, but could not print the result: {error}. Don't retry the command, or \
+             it will be recorded twice.",
+            recorded_seqs(events)
+        ))
+    })
+}
+
+fn print_written(
+    events: &[SignedEvent],
+    id: Option<&str>,
+    json: bool,
+    out: &mut dyn Write,
+) -> std::io::Result<()> {
     for event in events {
         let kind = event_kind(&event.core.payload);
         if json {
@@ -415,7 +457,7 @@ fn report_written(
             }
         }
     }
-    Ok(())
+    out.flush()
 }
 
 fn event_kind(payload: &Payload) -> &'static str {
@@ -636,7 +678,9 @@ fn link(
     })?;
     report_written(&written, Some(chosen.as_str()), json, out)?;
     if let Some(note) = scope_note {
-        writeln!(err, "{note}")?;
+        // Advisory only: the link is recorded and reported, so failing to
+        // print this must not turn the command into an apparent failure.
+        let _ = writeln!(err, "{note}");
     }
     Ok(())
 }
@@ -644,7 +688,7 @@ fn link(
 // ---------------------------------------------------------------- reads
 
 struct ReadView {
-    _store_lock: File,
+    _store_lock: Option<File>,
     _checkpoint_lock: Option<File>,
     reader: LogReader<MemStore>,
     index: LedgerIndex,
@@ -661,8 +705,7 @@ fn read_view(
 ) -> Result<ReadView, CliError> {
     let store_lock = store.lock(LockMode::Shared)?;
     let checkpoint_lock = store.lock_checkpoint(LockMode::Shared)?;
-    let snapshot = Snapshot::read(&store.log_path())?;
-    snapshot.require_portable(store.dir(), store.verifying_key())?;
+    let snapshot = Snapshot::read_checked(&store.log_path(), store.verifying_key())?;
     let reader = snapshot.reader(store.verifying_key());
     if let CheckpointState::Missing = store.check_checkpoint(&reader)? {
         writeln!(
@@ -1073,6 +1116,13 @@ fn verify(store: &Store, json: bool, out: &mut dyn Write) -> Result<(), CliError
     let reader = snapshot.reader(key);
 
     let (signatures, event_count, tip) = match LedgerIndex::replay(&reader) {
+        // Both verifiers accept an empty history, but a store's log must
+        // start with the genesis event that binds it to the key.
+        Ok(_) if snapshot.is_empty() => (
+            "failed: the log is empty, so no genesis event binds it to this key".to_owned(),
+            Some(0),
+            None,
+        ),
         Ok((_, summary)) => (
             "ok".to_owned(),
             Some(summary.event_count()),
@@ -1080,7 +1130,7 @@ fn verify(store: &Store, json: bool, out: &mut dyn Write) -> Result<(), CliError
         ),
         Err(error) => (format!("failed: {}", log_failure(error)), None, None),
     };
-    let portable = match snapshot.portable_accepts(store.dir(), key) {
+    let portable = match snapshot.portable_accepts(key) {
         Ok(true) => "accept".to_owned(),
         Ok(false) => "reject".to_owned(),
         Err(error) => format!("could not run: {error}"),
@@ -1166,9 +1216,7 @@ fn checkpoint(
         let _store_lock = store.lock(LockMode::Exclusive)?;
         let _checkpoint_lock = store.lock_checkpoint(LockMode::Exclusive)?;
         let log_path = store.log_path();
-        let snapshot = Snapshot::read(&log_path)?;
-        snapshot.ensure_terminated(&log_path)?;
-        snapshot.require_portable(store.dir(), store.verifying_key())?;
+        let snapshot = Snapshot::read_for_write(&log_path, store.verifying_key())?;
         let (_, summary) =
             LedgerIndex::replay(&snapshot.reader(store.verifying_key())).map_err(log_failure)?;
         store.save_checkpoint(summary.event_count(), summary.tip())?;
@@ -1191,8 +1239,7 @@ fn checkpoint(
     }
     let _store_lock = store.lock(LockMode::Shared)?;
     let _checkpoint_lock = store.lock_checkpoint(LockMode::Shared)?;
-    let snapshot = Snapshot::read(&store.log_path())?;
-    snapshot.require_portable(store.dir(), store.verifying_key())?;
+    let snapshot = Snapshot::read_checked(&store.log_path(), store.verifying_key())?;
     let state = store.check_checkpoint(&snapshot.reader(store.verifying_key()))?;
     match state {
         CheckpointState::Contained(saved) => {

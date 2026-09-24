@@ -17,11 +17,14 @@
 //! advantage: the independent Python and Go conformers read it directly.
 //!
 //! Each command reads the log once and runs every check and projection against
-//! that one image. Before any read or write, the exact bytes must pass
+//! that one image. Before any read or write, the image must hold at least the
+//! genesis event and its exact bytes must pass
 //! [`magpie_log::FileStore::verify_portable_history`], because the record
 //! reader skips blank lines that the portable language rejects. That entry
-//! point takes a path, so it reads a short-lived private copy in the store
-//! directory. Around this the crate adds what `FileStore` lacks for single-user
+//! point takes a path, so it reads a short-lived private copy in the state
+//! directory, or the system temporary directory when there is none; reads never
+//! write to the store directory, so a read-only store can still be read and
+//! verified. Around this the crate adds what `FileStore` lacks for single-user
 //! use: advisory locks, a refusal to append after a torn final record, a last
 //! byte-for-byte comparison with the image before appending, and an fsync after
 //! each append. The locks coordinate only `magpie` processes, so another
