@@ -11,7 +11,7 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PACKAGES = ("magpie-log", "magpie-claims", "magpie-episodic")
+PACKAGES = ("magpie-log", "magpie-claims", "magpie-episodic", "magpie-cli")
 EXPECTED_VERSION = "0.1.0"
 EXPECTED_REPOSITORY = "https://github.com/noctem-o/magpie"
 REQUIRED_COMMON = {
@@ -44,6 +44,7 @@ REQUIRED_PACKAGE_FILES = {
         "tests/standing_resolution.rs",
     },
     "magpie-episodic": {"tests/episodic.rs"},
+    "magpie-cli": {"src/main.rs", "tests/cli.rs"},
 }
 PROHIBITED_PREFIXES = (".git/", ".github/", ".agent-runs/", "target/", "tickets/")
 PROHIBITED_LICENSE_FILES = frozenset({"LICENSE-MIT"})
@@ -94,7 +95,7 @@ def check_metadata() -> None:
         if readme.resolve() != (ROOT / "README.md").resolve():
             fail(f"{name}: README does not resolve to workspace README.md")
 
-    for name in ("magpie-claims", "magpie-episodic"):
+    for name in ("magpie-claims", "magpie-episodic", "magpie-cli"):
         dependency = next(
             dep for dep in packages[name]["dependencies"] if dep["name"] == "magpie-log"
         )
