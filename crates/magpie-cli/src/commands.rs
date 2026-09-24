@@ -301,7 +301,7 @@ fn write_events(
     let _store_lock = store.lock(LockMode::Exclusive)?;
     let _checkpoint_lock = store.lock_checkpoint(LockMode::Exclusive)?;
     let log_path = store.log_path();
-    let snapshot = Snapshot::read_for_write(&log_path, store.verifying_key())?;
+    let snapshot = Snapshot::read_for_write(store)?;
     let reader = snapshot.reader(store.verifying_key());
     if let CheckpointState::Missing = store.check_checkpoint(&reader)? {
         return Err(CliError::Refused(
@@ -718,7 +718,7 @@ fn read_view(
 ) -> Result<ReadView, CliError> {
     let store_lock = store.lock(LockMode::Shared)?;
     let checkpoint_lock = store.lock_checkpoint(LockMode::Shared)?;
-    let snapshot = Snapshot::read_checked(&store.log_path(), store.verifying_key())?;
+    let snapshot = Snapshot::read_checked(store)?;
     let reader = snapshot.reader(store.verifying_key());
     if let CheckpointState::Missing = store.check_checkpoint(&reader)? {
         writeln!(
@@ -845,6 +845,7 @@ fn show(
                 "statement": claim.statement,
                 "typed": claim.typed.is_some(),
                 "domain": domain,
+                "metadata_json": claim.typed.as_ref().map(|t| &t.metadata_json),
                 "scope": claim.typed.as_ref().map(|t| &t.scope),
                 "actor_class": claim.typed.as_ref().map(|t| &t.actor_class),
                 "legacy_raw_status": claim.legacy_status,
@@ -877,7 +878,10 @@ fn show(
         write_links(out, index, &incoming, &outgoing)?;
         writeln!(out, "  standing: magpie standing {id} --policy <v0..v4>")?;
     } else if let Some(evidence) = index.evidence.get(id) {
-        let metadata = metadata_object(&evidence.metadata_json).unwrap_or_default();
+        // L0 treats metadata as opaque text, and another writer may record
+        // text that isn't a JSON object with unique keys. Show it as recorded
+        // rather than as if it were empty.
+        let metadata = metadata_object(&evidence.metadata_json);
         if json {
             let value = json!({
                 "type": "evidence",
@@ -888,6 +892,7 @@ fn show(
                 "actor_class": evidence.actor_class,
                 "content_hash": evidence.content_hash,
                 "metadata": metadata,
+                "metadata_json": evidence.metadata_json,
                 "recorded": recorded_json(&evidence.recorded),
                 "links_in": link_json(&incoming),
                 "links_out": link_json(&outgoing),
@@ -909,15 +914,24 @@ fn show(
         if !evidence.content_hash.is_empty() {
             writeln!(out, "  sha256 {}", evidence.content_hash)?;
         }
-        for (key, value) in &metadata {
-            writeln!(
+        match &metadata {
+            Some(metadata) => {
+                for (key, value) in metadata {
+                    writeln!(
+                        out,
+                        "  {key}: {}",
+                        value
+                            .as_str()
+                            .map(str::to_owned)
+                            .unwrap_or_else(|| value.to_string())
+                    )?;
+                }
+            }
+            None => writeln!(
                 out,
-                "  {key}: {}",
-                value
-                    .as_str()
-                    .map(str::to_owned)
-                    .unwrap_or_else(|| value.to_string())
-            )?;
+                "  metadata, as recorded (not a JSON object with unique keys): {:?}",
+                evidence.metadata_json
+            )?,
         }
         write_links(out, index, &incoming, &outgoing)?;
     } else if let Some(edge) = index.edges.get(id) {
@@ -1157,7 +1171,7 @@ fn verify(store: &Store, json: bool, out: &mut dyn Write) -> Result<(), CliError
         ),
         Err(error) => (format!("failed: {}", log_failure(error)), None, None),
     };
-    let portable = match snapshot.portable_accepts(key) {
+    let portable = match snapshot.portable_accepts(&store.scratch_dirs(), key) {
         Ok(true) => "accept".to_owned(),
         Ok(false) => "reject".to_owned(),
         Err(error) => format!("could not run: {error}"),
@@ -1243,7 +1257,7 @@ fn checkpoint(
         let _store_lock = store.lock(LockMode::Exclusive)?;
         let _checkpoint_lock = store.lock_checkpoint(LockMode::Exclusive)?;
         let log_path = store.log_path();
-        let snapshot = Snapshot::read_for_write(&log_path, store.verifying_key())?;
+        let snapshot = Snapshot::read_for_write(store)?;
         let (_, summary) =
             LedgerIndex::replay(&snapshot.reader(store.verifying_key())).map_err(log_failure)?;
         // This is also the recovery step after a failed sync, so the log may
@@ -1275,7 +1289,7 @@ fn checkpoint(
     }
     let _store_lock = store.lock(LockMode::Shared)?;
     let _checkpoint_lock = store.lock_checkpoint(LockMode::Shared)?;
-    let snapshot = Snapshot::read_checked(&store.log_path(), store.verifying_key())?;
+    let snapshot = Snapshot::read_checked(store)?;
     let state = store.check_checkpoint(&snapshot.reader(store.verifying_key()))?;
     match state {
         CheckpointState::Contained(saved) => {

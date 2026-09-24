@@ -328,8 +328,49 @@ impl Store {
         )
     }
 
+    /// The state directory for this store's checkpoint and scratch copies.
+    ///
+    /// Refused when it resolves inside the store, symlinks included. A
+    /// checkpoint kept there is backed up and restored along with the log, so
+    /// a restored older log would still contain its equally old checkpoint and
+    /// the rollback would pass unnoticed.
+    fn state_dir(&self) -> Result<PathBuf, CliError> {
+        let state = configured_state_dir()?;
+        let unresolved = |error: std::io::Error| {
+            CliError::Io(format!(
+                "could not check the state directory {} against the store: {error}",
+                state.display()
+            ))
+        };
+        let resolved_state = resolve(&state).map_err(unresolved)?;
+        let resolved_store = resolve(&self.dir).map_err(unresolved)?;
+        if resolved_state.starts_with(&resolved_store) {
+            return Err(CliError::Usage(format!(
+                "the state directory {} is inside the store {}, so its checkpoints would be \
+                 backed up and restored with the log and could not reveal a rollback; set \
+                 MAGPIE_STATE_DIR to a directory outside the store",
+                state.display(),
+                self.dir.display()
+            )));
+        }
+        Ok(state)
+    }
+
+    /// Where the portable verifier's private copies of the log may go, in
+    /// order: the state directory, which is private to this user, then the
+    /// system temporary directory. Never the store directory, which may be
+    /// read-only, and never a state directory refused for lying inside it.
+    pub(crate) fn scratch_dirs(&self) -> Vec<PathBuf> {
+        let mut dirs = Vec::new();
+        if let Ok(state) = self.state_dir() {
+            dirs.push(state.join("scratch"));
+        }
+        dirs.push(std::env::temp_dir());
+        dirs
+    }
+
     fn checkpoint_path(&self) -> Result<PathBuf, CliError> {
-        Ok(state_dir()?.join("checkpoints").join(format!(
+        Ok(self.state_dir()?.join("checkpoints").join(format!(
             "{}.json",
             hex::encode(self.verifying_key.as_bytes())
         )))
@@ -431,8 +472,8 @@ impl Store {
     }
 }
 
-/// Where checkpoints live: deliberately outside any store directory.
-fn state_dir() -> Result<PathBuf, CliError> {
+/// The configured state directory, before it is checked against a store.
+fn configured_state_dir() -> Result<PathBuf, CliError> {
     let from_env = |name: &str| std::env::var_os(name).filter(|value| !value.is_empty());
     if let Some(dir) = from_env("MAGPIE_STATE_DIR") {
         return Ok(PathBuf::from(dir));
@@ -454,16 +495,30 @@ fn state_dir() -> Result<PathBuf, CliError> {
     ))
 }
 
-/// Where the portable verifier's private copies of the log may go, in order:
-/// the state directory, which is private to this user, then the system
-/// temporary directory. Never the store directory, which may be read-only.
-pub(crate) fn scratch_dirs() -> Vec<PathBuf> {
-    let mut dirs = Vec::new();
-    if let Ok(state) = state_dir() {
-        dirs.push(state.join("scratch"));
+/// `path` made absolute with its symlinks resolved, even when its last
+/// components don't exist yet: those can't be links, so they are appended as
+/// written. A missing component followed by `..` can't be resolved and is an
+/// error, which callers treat as a refusal.
+fn resolve(path: &Path) -> std::io::Result<PathBuf> {
+    let absolute = std::path::absolute(path)?;
+    let mut existing = absolute.as_path();
+    let mut missing = Vec::new();
+    loop {
+        match fs::canonicalize(existing) {
+            Ok(mut resolved) => {
+                resolved.extend(missing.iter().rev());
+                return Ok(resolved);
+            }
+            Err(error) if error.kind() == ErrorKind::NotFound => {
+                let (Some(name), Some(parent)) = (existing.file_name(), existing.parent()) else {
+                    return Err(error);
+                };
+                missing.push(name);
+                existing = parent;
+            }
+            Err(error) => return Err(error),
+        }
     }
-    dirs.push(std::env::temp_dir());
-    dirs
 }
 
 /// Refuse a directory that already has a store file, even a dangling link.
@@ -619,6 +674,29 @@ mod tests {
             "{error}"
         );
         fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn resolve_follows_links_and_keeps_missing_components() {
+        let root = std::env::temp_dir().join(format!("magpie-cli-resolve-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("store")).unwrap();
+        let store = fs::canonicalize(root.join("store")).unwrap();
+        assert_eq!(resolve(&root.join("store")).unwrap(), store);
+        assert_eq!(
+            resolve(&root.join("store").join("new").join("state")).unwrap(),
+            store.join("new").join("state")
+        );
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(root.join("store"), root.join("link")).unwrap();
+            assert_eq!(
+                resolve(&root.join("link").join("state")).unwrap(),
+                store.join("state")
+            );
+        }
+        assert!(resolve(&root.join("gone").join("..").join("x")).is_err());
+        fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]

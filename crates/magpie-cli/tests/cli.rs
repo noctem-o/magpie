@@ -849,3 +849,89 @@ fn relative_store_and_state_paths_work() {
     assert!(scratch.root.join("ledger").join("log.jsonl").is_file());
     assert!(scratch.root.join("state").join("checkpoints").is_dir());
 }
+
+#[test]
+fn a_state_directory_inside_the_store_is_refused() {
+    let scratch = Scratch::new();
+    let store = scratch.store();
+    let inside = store.join("state");
+    let run = |state: &Path, args: &[&str]| -> Output {
+        Command::new(env!("CARGO_BIN_EXE_magpie"))
+            .args(args)
+            .env("MAGPIE_STORE", &store)
+            .env("MAGPIE_STATE_DIR", state)
+            .env_remove("XDG_STATE_HOME")
+            .output()
+            .expect("magpie binary runs")
+    };
+    // A checkpoint kept inside the store would be restored along with it.
+    let refused = run(&inside, &["init", store.to_str().unwrap()]);
+    assert_eq!(code(&refused), 2, "{}", stderr(&refused));
+    assert!(stderr(&refused).contains("inside the store"));
+    assert!(!store.join("log.jsonl").exists());
+
+    // A store whose state was kept apart, later pointed at a state directory
+    // inside it: writes and reads refuse, and verify fails its checkpoint row.
+    small_ledger(&scratch);
+    let before = scratch.log_bytes();
+    for args in [vec!["note", "must not be written"], vec!["log"]] {
+        let output = run(&inside, &args);
+        assert_eq!(code(&output), 2, "{args:?}: {}", stderr(&output));
+    }
+    let verify = run(&inside, &["verify", "--json"]);
+    assert_eq!(code(&verify), 1, "{}", stderr(&verify));
+    let report: Value = serde_json::from_slice(&verify.stdout).unwrap();
+    assert!(report["checkpoint"]
+        .as_str()
+        .unwrap()
+        .contains("inside the store"));
+    #[cfg(unix)]
+    {
+        let link = scratch.root.join("link-to-store");
+        std::os::unix::fs::symlink(&store, &link).unwrap();
+        let through_link = run(&link.join("state"), &["note", "must not be written"]);
+        assert_eq!(code(&through_link), 2, "{}", stderr(&through_link));
+    }
+    assert!(!inside.exists(), "nothing may be created inside the store");
+    assert_eq!(scratch.log_bytes(), before);
+}
+
+#[test]
+fn show_reports_metadata_that_is_not_a_json_object_as_recorded() {
+    use magpie_log::{FileStore, LogWriter, Payload, Provenance, SigningKey};
+    let scratch = Scratch::new();
+    scratch.init();
+    // Another conforming writer may record any text as metadata; this one
+    // repeats a key, which the standing projection refuses to read.
+    let raw = r#"{"source_uri":"https://a.example","source_uri":"https://b.example"}"#;
+    let key_text = fs::read_to_string(scratch.store().join("signing.key")).unwrap();
+    let key: [u8; 32] = hex::decode(key_text.trim()).unwrap().try_into().unwrap();
+    let mut writer =
+        LogWriter::<FileStore>::open(FileStore::new(scratch.log()), SigningKey::from_bytes(&key))
+            .unwrap();
+    writer
+        .append(
+            Provenance::new("elsewhere", "test"),
+            Payload::EvidenceRegistered {
+                evidence_id: "ev-odd".into(),
+                evidence_kind: "ExternalSource".into(),
+                summary: "recorded by another writer".into(),
+                scope_ref: "scope:default".into(),
+                actor_class: "HumanRoot".into(),
+                content_hash: String::new(),
+                metadata_json: raw.into(),
+            },
+        )
+        .unwrap();
+    drop(writer);
+
+    let shown = scratch.json(&["show", "ev-odd", "--json"]);
+    assert_eq!(shown["metadata"], Value::Null);
+    assert_eq!(shown["metadata_json"], raw);
+    let human = scratch.ok(&["show", "ev-odd"]);
+    assert!(
+        human.contains("not a JSON object with unique keys"),
+        "{human}"
+    );
+    assert!(human.contains("https://b.example"), "{human}");
+}

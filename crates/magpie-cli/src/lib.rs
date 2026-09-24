@@ -40,7 +40,9 @@
 //! [`magpie_log::LogReader::evaluate_history_expectation_v0`], that the log
 //! still contains that checkpoint, so a store restored from an older copy or
 //! swapped for a fork is refused. Restoring the checkpoint directory together
-//! with the store defeats this, so keep them apart.
+//! with the store defeats this, so the tool refuses a state directory that
+//! resolves inside the store; a backup that separately captures both can still
+//! defeat it, so keep them apart.
 //!
 //! Checkpoints are keyed by verifying key, so every copy of a store shares
 //! one. A write holds a lock beside it from checking it until replacing it, so

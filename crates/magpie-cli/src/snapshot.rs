@@ -14,7 +14,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use magpie_log::{FileStore, LogReader, MemStore, VerifyingKey};
 
-use crate::store::scratch_dirs;
+use crate::store::Store;
 use crate::CliError;
 
 pub(crate) struct Snapshot {
@@ -22,24 +22,23 @@ pub(crate) struct Snapshot {
 }
 
 impl Snapshot {
-    /// Read the log for a command that only reads it.
-    pub(crate) fn read_checked(path: &Path, verifying_key: VerifyingKey) -> Result<Self, CliError> {
-        let snapshot = Self::read(path)?;
-        snapshot.require_events(path)?;
-        snapshot.require_portable(verifying_key)?;
+    /// Read a store's log for a command that only reads it.
+    pub(crate) fn read_checked(store: &Store) -> Result<Self, CliError> {
+        let path = store.log_path();
+        let snapshot = Self::read(&path)?;
+        snapshot.require_events(&path)?;
+        snapshot.require_portable(store)?;
         Ok(snapshot)
     }
 
-    /// Read the log for a command that appends to it or moves its checkpoint,
-    /// which must also refuse a torn final record.
-    pub(crate) fn read_for_write(
-        path: &Path,
-        verifying_key: VerifyingKey,
-    ) -> Result<Self, CliError> {
-        let snapshot = Self::read(path)?;
-        snapshot.require_events(path)?;
-        snapshot.ensure_terminated(path)?;
-        snapshot.require_portable(verifying_key)?;
+    /// Read a store's log for a command that appends to it or moves its
+    /// checkpoint, which must also refuse a torn final record.
+    pub(crate) fn read_for_write(store: &Store) -> Result<Self, CliError> {
+        let path = store.log_path();
+        let snapshot = Self::read(&path)?;
+        snapshot.require_events(&path)?;
+        snapshot.ensure_terminated(&path)?;
+        snapshot.require_portable(store)?;
         Ok(snapshot)
     }
 
@@ -109,12 +108,9 @@ impl Snapshot {
         }
     }
 
-    /// Run the exact-byte portable verifier over a private copy of these bytes.
-    pub(crate) fn portable_accepts(&self, verifying_key: VerifyingKey) -> Result<bool, CliError> {
-        self.portable_accepts_in(&scratch_dirs(), verifying_key)
-    }
-
-    fn portable_accepts_in(
+    /// Run the exact-byte portable verifier over a private copy of these
+    /// bytes, written in the first of `dirs` that takes it.
+    pub(crate) fn portable_accepts(
         &self,
         dirs: &[PathBuf],
         verifying_key: VerifyingKey,
@@ -130,8 +126,8 @@ impl Snapshot {
     /// The structural reader skips blank lines that the portable language
     /// rejects, so without this a write could extend a history that `magpie
     /// verify` would then fail.
-    fn require_portable(&self, verifying_key: VerifyingKey) -> Result<(), CliError> {
-        if self.portable_accepts(verifying_key)? {
+    fn require_portable(&self, store: &Store) -> Result<(), CliError> {
+        if self.portable_accepts(&store.scratch_dirs(), store.verifying_key())? {
             Ok(())
         } else {
             Err(CliError::Refused(
@@ -245,7 +241,7 @@ mod tests {
             .unwrap();
         assert_eq!(from_snapshot, from_file);
         assert!(snapshot
-            .portable_accepts_in(std::slice::from_ref(&dir), verifying_key)
+            .portable_accepts(std::slice::from_ref(&dir), verifying_key)
             .unwrap());
 
         let mut with_blank_line = snapshot.bytes().to_vec();
@@ -258,14 +254,14 @@ mod tests {
             from_file
         );
         assert!(!blank
-            .portable_accepts_in(std::slice::from_ref(&dir), verifying_key)
+            .portable_accepts(std::slice::from_ref(&dir), verifying_key)
             .unwrap());
 
         // A directory that refuses the copy falls through to the next one.
         let not_a_dir = dir.join("not-a-directory");
         fs::write(&not_a_dir, b"").unwrap();
         assert!(snapshot
-            .portable_accepts_in(&[not_a_dir.join("scratch"), dir.clone()], verifying_key)
+            .portable_accepts(&[not_a_dir.join("scratch"), dir.clone()], verifying_key)
             .unwrap());
         fs::remove_file(&not_a_dir).unwrap();
 
