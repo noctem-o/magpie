@@ -33,6 +33,16 @@ Magpie is a local-first research memory system for agentic R&D. Its core directi
 - Never report tests as passing unless they actually ran and passed.
 - Prefer small patches and explicit reviewer checks.
 
+## Prose budget
+
+- A PR description is 250 words or fewer. A decision request is 400 words or
+  fewer: the options, your recommendation, and the cost of waiting.
+- New docs are at most one page per feature. Don't add audits, reconciliations,
+  dispositions, or assurance profiles unless the owner asks for one.
+- State each limitation once, plainly. Don't write lists of what something is
+  not.
+- Adversarial review is for code. For prose, cut.
+
 ## Rust preferences
 
 - Prefer explicit types.
