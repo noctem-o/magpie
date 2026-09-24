@@ -914,25 +914,7 @@ fn show(
         if !evidence.content_hash.is_empty() {
             writeln!(out, "  sha256 {}", evidence.content_hash)?;
         }
-        match &metadata {
-            Some(metadata) => {
-                for (key, value) in metadata {
-                    writeln!(
-                        out,
-                        "  {key}: {}",
-                        value
-                            .as_str()
-                            .map(str::to_owned)
-                            .unwrap_or_else(|| value.to_string())
-                    )?;
-                }
-            }
-            None => writeln!(
-                out,
-                "  metadata, as recorded (not a JSON object with unique keys): {:?}",
-                evidence.metadata_json
-            )?,
-        }
+        write_metadata(out, &evidence.metadata_json)?;
         write_links(out, index, &incoming, &outgoing)?;
     } else if let Some(edge) = index.edges.get(id) {
         if json {
@@ -945,6 +927,8 @@ fn show(
                 "rationale": edge.rationale,
                 "scope": edge.scope,
                 "actor_class": edge.actor_class,
+                "metadata": metadata_object(&edge.metadata_json),
+                "metadata_json": edge.metadata_json,
                 "recorded": recorded_json(&edge.recorded),
             });
             writeln!(out, "{}", serde_json::to_string_pretty(&value)?)?;
@@ -960,8 +944,34 @@ fn show(
         writeln!(out, "  to:   {}", describe(index, &edge.target_id))?;
         writeln!(out, "  rationale: {}", edge.rationale)?;
         writeln!(out, "  scope {} · actor {}", edge.scope, edge.actor_class)?;
+        write_metadata(out, &edge.metadata_json)?;
     } else {
         return Err(usage(format!("no claim, evidence, or link has id `{id}`")));
+    }
+    Ok(())
+}
+
+/// Print recorded metadata: each key of a well-formed object, or the text as
+/// recorded when it isn't a JSON object with unique keys, so it never passes
+/// for empty.
+fn write_metadata(out: &mut dyn Write, raw: &str) -> Result<(), CliError> {
+    match metadata_object(raw) {
+        Some(metadata) => {
+            for (key, value) in &metadata {
+                writeln!(
+                    out,
+                    "  {key}: {}",
+                    value
+                        .as_str()
+                        .map(str::to_owned)
+                        .unwrap_or_else(|| value.to_string())
+                )?;
+            }
+        }
+        None => writeln!(
+            out,
+            "  metadata, as recorded (not a JSON object with unique keys): {raw:?}"
+        )?,
     }
     Ok(())
 }
@@ -1021,6 +1031,16 @@ fn search(
         .search(text)
         .map_err(|error| CliError::Io(format!("search failed: {error}")))?;
     let hits: Vec<_> = seqs.iter().filter_map(|seq| episodic.get(*seq)).collect();
+    // The search index records a claim id only for claim events, so take the
+    // id each hit records or concerns from the ledger index instead.
+    let entity_id = |seq: u64| -> Option<&str> {
+        let row = view.index.events.get(usize::try_from(seq).ok()?)?;
+        if row.recorded.seq == seq {
+            row.entity_id()
+        } else {
+            None
+        }
+    };
     if json {
         let value: Vec<Value> = hits
             .iter()
@@ -1028,6 +1048,7 @@ fn search(
                 json!({
                     "seq": hit.seq,
                     "kind": hit.kind,
+                    "id": entity_id(hit.seq),
                     "claim_id": hit.claim_id,
                     "body": hit.body,
                     "agent": hit.agent,
@@ -1042,13 +1063,11 @@ fn search(
         writeln!(out, "no matches")?;
     }
     for hit in hits {
-        writeln!(
-            out,
-            "{:>5}  {:<28}  {}",
-            hit.seq,
-            hit.kind,
-            preview(&hit.body, 80)
-        )?;
+        let text = match entity_id(hit.seq) {
+            Some(id) => format!("{id}: {}", preview(&hit.body, 70)),
+            None => preview(&hit.body, 80),
+        };
+        writeln!(out, "{:>5}  {:<28}  {text}", hit.seq, hit.kind)?;
     }
     Ok(())
 }

@@ -935,3 +935,131 @@ fn show_reports_metadata_that_is_not_a_json_object_as_recorded() {
     );
     assert!(human.contains("https://b.example"), "{human}");
 }
+
+#[cfg(unix)]
+#[test]
+fn a_state_directory_holding_the_real_log_is_refused() {
+    let scratch = Scratch::new();
+    small_ledger(&scratch);
+    let before = scratch.log_bytes();
+    // Move the signed log into the state directory and link it back: a
+    // restore of the state directory would roll back log and checkpoint alike.
+    let moved = scratch.state().join("moved").join("log.jsonl");
+    fs::create_dir_all(moved.parent().unwrap()).unwrap();
+    fs::rename(scratch.log(), &moved).unwrap();
+    std::os::unix::fs::symlink(&moved, scratch.log()).unwrap();
+    for args in [vec!["note", "must not be written"], vec!["log"]] {
+        let output = scratch.run(&args);
+        assert_eq!(code(&output), 2, "{args:?}: {}", stderr(&output));
+        assert!(
+            stderr(&output).contains("holds the log"),
+            "{args:?}: {}",
+            stderr(&output)
+        );
+    }
+    assert_eq!(fs::read(&moved).unwrap(), before);
+
+    // The same log in a sibling directory, with the state directory beside it.
+    let data = scratch.root.join("data");
+    fs::create_dir_all(&data).unwrap();
+    fs::remove_file(scratch.log()).unwrap();
+    fs::rename(&moved, data.join("log.jsonl")).unwrap();
+    std::os::unix::fs::symlink(data.join("log.jsonl"), scratch.log()).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_magpie"))
+        .args(["note", "must not be written"])
+        .env("MAGPIE_STORE", scratch.store())
+        .env("MAGPIE_STATE_DIR", data.join("state"))
+        .env_remove("XDG_STATE_HOME")
+        .output()
+        .expect("magpie binary runs");
+    assert_eq!(code(&output), 2, "{}", stderr(&output));
+    assert!(!data.join("state").exists());
+    assert_eq!(fs::read(data.join("log.jsonl")).unwrap(), before);
+}
+
+#[test]
+fn a_value_option_does_not_swallow_the_next_option() {
+    let scratch = Scratch::new();
+    let refused = scratch.run(&[
+        "init",
+        scratch.store().to_str().unwrap(),
+        "--agent",
+        "--json",
+    ]);
+    assert_eq!(code(&refused), 2, "{}", stderr(&refused));
+    assert!(stderr(&refused).contains("--agent needs a value"));
+    assert!(!scratch.log().exists());
+
+    scratch.init();
+    let before = scratch.log_bytes();
+    let refused = scratch.run(&["note", "sourced", "--source", "--json"]);
+    assert_eq!(code(&refused), 2, "{}", stderr(&refused));
+    assert_eq!(scratch.log_bytes(), before);
+
+    // A value that really starts with -- is still possible, written inline.
+    scratch.ok(&["note", "sourced", "--source=--json"]);
+    let events = scratch.json(&["log", "--json"]);
+    assert_eq!(events[1]["source"], "--json");
+}
+
+#[test]
+fn show_exposes_link_metadata() {
+    use magpie_log::{FileStore, LogWriter, Payload, Provenance, SigningKey};
+    let scratch = Scratch::new();
+    small_ledger(&scratch);
+    // Another conforming writer may attach metadata to a link; this CLI
+    // writes `{}`, but must not drop what others recorded.
+    let key_text = fs::read_to_string(scratch.store().join("signing.key")).unwrap();
+    let key: [u8; 32] = hex::decode(key_text.trim()).unwrap().try_into().unwrap();
+    let mut writer =
+        LogWriter::<FileStore>::open(FileStore::new(scratch.log()), SigningKey::from_bytes(&key))
+            .unwrap();
+    writer
+        .append(
+            Provenance::new("elsewhere", "test"),
+            Payload::JustificationEdgeRecorded {
+                edge_id: "edge-meta".into(),
+                edge_kind: "supports".into(),
+                source_id: "ev-2".into(),
+                target_id: "claim-1".into(),
+                scope_ref: "scope:default".into(),
+                actor_class: "HumanRoot".into(),
+                rationale: "recorded elsewhere".into(),
+                metadata_json: r#"{"reviewed_by":"a second reader"}"#.into(),
+            },
+        )
+        .unwrap();
+    drop(writer);
+
+    let shown = scratch.json(&["show", "edge-meta", "--json"]);
+    assert_eq!(shown["metadata"]["reviewed_by"], "a second reader");
+    assert_eq!(
+        shown["metadata_json"],
+        r#"{"reviewed_by":"a second reader"}"#
+    );
+    let human = scratch.ok(&["show", "edge-meta"]);
+    assert!(human.contains("reviewed_by: a second reader"), "{human}");
+}
+
+#[test]
+fn search_reports_the_record_each_hit_belongs_to() {
+    let scratch = Scratch::new();
+    small_ledger(&scratch);
+    let hits = scratch.json(&["search", "Theorem", "--json"]);
+    let ids: Vec<&Value> = hits
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|hit| &hit["id"])
+        .collect();
+    assert!(ids.contains(&&Value::from("claim-1")), "{hits}");
+    assert!(ids.contains(&&Value::from("ev-2")), "{hits}");
+    let note = scratch.json(&["search", "spectral", "--json"]);
+    assert_eq!(note[0]["kind"], "note");
+    assert_eq!(note[0]["id"], Value::Null);
+    let human = scratch.ok(&["search", "numerical"]);
+    assert!(
+        human.contains("ev-2: numerical check of Theorem 2"),
+        "{human}"
+    );
+}

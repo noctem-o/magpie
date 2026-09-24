@@ -138,11 +138,22 @@ fn tokenize(args: &[OsString]) -> Result<Raw, CliError> {
         if VALUE_OPTIONS.contains(&name) {
             let value = match inline {
                 Some(value) => value.to_owned(),
-                None => iter
-                    .next()
-                    .and_then(|value| value.to_str())
-                    .ok_or_else(|| usage(format!("--{name} needs a value")))?
-                    .to_owned(),
+                None => {
+                    let value = iter
+                        .next()
+                        .and_then(|value| value.to_str())
+                        .ok_or_else(|| usage(format!("--{name} needs a value")))?;
+                    // A following option is almost always a forgotten value,
+                    // and taking it as one would record it in the log for good.
+                    if value.starts_with("--") {
+                        return Err(usage(format!(
+                            "--{name} needs a value, but the next argument is the option \
+                             {value}; to give a value that starts with --, write \
+                             --{name}={value}"
+                        )));
+                    }
+                    value.to_owned()
+                }
             };
             if raw.values.insert(name.to_owned(), value).is_some() {
                 return Err(usage(format!("--{name} was given twice")));

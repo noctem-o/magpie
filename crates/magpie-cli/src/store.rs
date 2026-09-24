@@ -330,10 +330,11 @@ impl Store {
 
     /// The state directory for this store's checkpoint and scratch copies.
     ///
-    /// Refused when it resolves inside the store, symlinks included. A
-    /// checkpoint kept there is backed up and restored along with the log, so
-    /// a restored older log would still contain its equally old checkpoint and
-    /// the rollback would pass unnoticed.
+    /// Refused when it resolves inside the store or the directory holding the
+    /// real log, or when it holds the real log itself, symlinks included. A
+    /// checkpoint kept with the log is backed up and restored along with it,
+    /// so a restored older log would still contain its equally old checkpoint
+    /// and the rollback would pass unnoticed.
     fn state_dir(&self) -> Result<PathBuf, CliError> {
         let state = configured_state_dir()?;
         let unresolved = |error: std::io::Error| {
@@ -344,13 +345,28 @@ impl Store {
         };
         let resolved_state = resolve(&state).map_err(unresolved)?;
         let resolved_store = resolve(&self.dir).map_err(unresolved)?;
-        if resolved_state.starts_with(&resolved_store) {
+        // Where the log's bytes really live, which differs from the store
+        // directory when log.jsonl is a link.
+        let resolved_log = resolve(&self.log_path()).map_err(unresolved)?;
+        let log_dir = resolved_log.parent().unwrap_or(&resolved_log);
+        let reason = if resolved_state.starts_with(&resolved_store) {
+            Some(format!("is inside the store {}", self.dir.display()))
+        } else if resolved_state.starts_with(log_dir) {
+            Some(format!(
+                "is inside {}, which holds the log that log.jsonl links to",
+                log_dir.display()
+            ))
+        } else if resolved_log.starts_with(&resolved_state) {
+            Some("holds the log that log.jsonl links to".to_owned())
+        } else {
+            None
+        };
+        if let Some(reason) = reason {
             return Err(CliError::Usage(format!(
-                "the state directory {} is inside the store {}, so its checkpoints would be \
-                 backed up and restored with the log and could not reveal a rollback; set \
-                 MAGPIE_STATE_DIR to a directory outside the store",
-                state.display(),
-                self.dir.display()
+                "the state directory {} {reason}, so its checkpoints would be backed up and \
+                 restored with the log and could not reveal a rollback; set MAGPIE_STATE_DIR \
+                 to a directory apart from the log",
+                state.display()
             )));
         }
         Ok(state)

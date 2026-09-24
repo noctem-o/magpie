@@ -46,6 +46,22 @@ pub(crate) struct EventRow {
     pub subject: String,
 }
 
+impl EventRow {
+    /// The claim, evidence, or link id this event records or concerns, which
+    /// `show` accepts; `None` for notes, genesis, and anchors.
+    pub(crate) fn entity_id(&self) -> Option<&str> {
+        match self.kind {
+            "claim_asserted"
+            | "claim_asserted_v2"
+            | "evidence_recorded"
+            | "claim_status_changed"
+            | "evidence_registered"
+            | "justification_edge_recorded" => Some(&self.subject),
+            _ => None,
+        }
+    }
+}
+
 /// Typed fields from an ADR-0002 `ClaimAssertedV2` assertion.
 pub(crate) struct TypedClaim {
     pub scope: String,
@@ -80,6 +96,7 @@ pub(crate) struct EdgeRow {
     pub scope: String,
     pub actor_class: String,
     pub rationale: String,
+    pub metadata_json: String,
     pub recorded: Recorded,
 }
 
@@ -255,7 +272,7 @@ impl Projection for LedgerIndex {
                 scope_ref,
                 actor_class,
                 rationale,
-                metadata_json: _,
+                metadata_json,
             } => {
                 if self.reserve_id(edge_id) {
                     self.edges.insert(
@@ -267,6 +284,7 @@ impl Projection for LedgerIndex {
                             scope: scope_ref.clone(),
                             actor_class: actor_class.clone(),
                             rationale: rationale.clone(),
+                            metadata_json: metadata_json.clone(),
                             recorded: recorded.clone(),
                         },
                     );
