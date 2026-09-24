@@ -435,7 +435,7 @@ The Go commands above use a POSIX shell. The [Go guide](tools/go-verify-chain/RE
 
 Focused hostile and integration tests also cover provenance, origin admission, v3/v4 standing, raw-status quarantine, same-replay binding, failure ordering, non-amplification, and canonical audit vectors.
 
-Changes should remain small, typed, replayable, and explicit about what grants authority. [Read AGENTS.md →](AGENTS.md)
+Changes should remain small, typed, replayable, and explicit about what grants authority. [Contributing →](CONTRIBUTING.md) · [Reporting a vulnerability →](SECURITY.md)
 
 ## Release status
 

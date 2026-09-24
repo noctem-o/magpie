@@ -4,6 +4,10 @@ on:
   push:
   pull_request:
 
+# CI only reads the repository; it never needs a token that can write.
+permissions:
+  contents: read
+
 jobs:
   verify:
     runs-on: ubuntu-24.04
