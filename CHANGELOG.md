@@ -4,7 +4,14 @@ This file records repository release milestones. Crate semantic versions,
 canonical format identities, and governed policy identities are separate
 commitments; changing one does not silently rename or mutate the others.
 
-## Unreleased
+## 0.3.0 — 2026-09-25
+
+Magpie v0.3.0 is the first source release you can use from the shell. The
+`magpie` command keeps a signed log, verifies all of it on every read, and
+answers questions from it. The same log can also be checked by the Python
+and Go conformers, which are independent of the Rust code. Magpie is still
+experimental and is built from source. Crate versions stay `0.1.0`, which is
+what `magpie --version` prints.
 
 ### Added
 
@@ -18,8 +25,138 @@ commitments; changing one does not silently rename or mutate the others.
   a rolled-back or forked log is refused until explicitly accepted. The store
   is JSONL (`FileStore`) because SQLite L0 has no replay into projections yet;
   see the crate docs.
+- `FileStore::verify_portable_history` checks a log file's exact bytes
+  against a caller-supplied verifying key under the portable profile
+  `magpie-ed25519-canonical-prime-subgroup-v1` (ADR-0010).
+  `tools/verify_chain.py` is now a complete Python
+  conformer, and `tools/go-verify-chain` is a new Go one. All three pass the
+  frozen 432-case corpus in `fixtures/verifier-language-v1`, and CI compares
+  their results case by case.
+- `signature_profile::ProfiledSignatureVerifier`: explicit, fail-closed
+  selection of the Ed25519 verification profile.
+- `SqliteL0Store`: a SQLite backend for the log. It re-verifies the stored
+  history before each append and enforces explicit resource limits. It has
+  no replay into projections yet.
+- `LogReader::evaluate_history_expectation_v0` compares a verified history
+  with an expected event count and tip hash, under an explicitly chosen
+  relation (ADR-0009).
+- `SECURITY.md` and `CONTRIBUTING.md`.
 
-### Status history moved from CLAUDE.md
+### Changed
+
+- Stores can't be appended to directly any more. `LogWriter` is the only
+  way to add records, and the public store interface is read-only.
+- Projections take `VerifiedReplayEvent`, which only a complete verified
+  replay can produce.
+- `EpisodicView` records no status for `ClaimAssertedV2` claims instead of
+  inventing `Conjectured`. Its schema version is now 3, so older projection
+  files are discarded on open and must be rebuilt by replaying the log.
+- CI pins Rust 1.98.1, Python 3.12.14, and Go 1.27.0, and runs with a
+  read-only token.
+
+The first two change the public Rust API.
+
+### Decisions
+
+ADRs 0003–0010 were accepted: the definition of standing, claim lifecycle
+facets, withdrawal acts, currentness semantics, authority-bound origin
+corroboration, complete producing coordinates, checkpoint expectations, and
+the Ed25519 verification profile. Not all of them are implemented; the
+currentness resolver (ADR-0006) and the ADR-0007 authority runtime are
+still pending.
+
+### Boundaries
+
+This is a source milestone with no release contract document. It is not the
+public pre-alpha release described by the paused C3–C5 queue at the end of
+this file. The log format is still `magpie-core-v1`, unchanged since
+v0.1.0, and the standing policies are still v0–v4. On Windows, `magpie
+init` can't restrict `signing.key` to its owner and warns instead.
+
+## 0.2.0 — 2026-07-30
+
+Tagged at `c5aaf6e`, after PR #81, with no changelog entry at the time. It
+added standing policies v2 (direct deterministic support), v3
+(corroboration), and v4 (claim-inline direct refutation); the deterministic
+verifier context; the artifact-provenance and origin-binding verifiers; the
+origin-admission, admitted-contribution, and support-contribution audits;
+and claim-inline SHA-256 predicates with attestation binding. The
+[v0.2.0 release notes](https://github.com/noctem-o/magpie/releases/tag/v0.2.0)
+list every pull request.
+
+## 0.1.0 — 2026-07-12
+
+Magpie v0.1.0 establishes a local-first, provenance-first memory core whose
+signed append-only history is verified before deterministic replay. Typed
+evidence remains candidate-only under policy v0. One exact Deadbolt
+occurrence/inclusion proposition can earn `Settled` under explicit
+snapshot-only policy v1. All other general achieved-standing, admission,
+aggregation, writer, and production capabilities remain outside this release.
+
+### Added
+
+- `magpie-log`: a signed, hash-chained append-only L0 with automatic genesis,
+  an externally supplied trust root, frozen `magpie-core-v1` canonical bytes,
+  domain-separated `magpie-sig-v1` signatures, golden vectors, an independent
+  Python verifier, and complete verified-before-apply replay.
+- Deterministic derived projections: compatibility `ClaimsView`, typed
+  `StandingView`, same-replay `StandingReplaySnapshot`, exact
+  `DeadboltAnchorIndex`, and SQLite/FTS5 `EpisodicView`.
+- A portable, protocol-defined Deadbolt anchor seam that records exact
+  occurrence/inclusion evidence without making Deadbolt a core dependency or
+  interpretation authority.
+- Typed claims, evidence, and justification edges with closed support and
+  refutation ceilings, closed support-context requirements, and exact scope
+  matching.
+- Candidate-only `magpie-claims-standing-v0` and one explicit snapshot-only
+  `magpie-claims-standing-v1` rule for exact five-field Deadbolt occurrence
+  membership.
+- Deterministic closed contribution lanes with no counting or amplification,
+  plus the governed-standing executable tour and byte-identical drop-and-replay
+  regeneration.
+- The exhaustive v0.1.0 release contract, coordinated explicitly
+  non-publishable metadata, deterministic package inventories for all three
+  crates, and standalone package verification for `magpie-log` only.
+
+### Trust and verification
+
+- Complete event snapshots are parsed and verified before any projection is
+  mutated; chain, signature, genesis, sequence, link, hash, and malformed
+  payload failures are tamper-loud.
+- Frozen golden bytes and signatures are checked by Rust tests and an
+  independent Python implementation; the portable Deadbolt fixture is also
+  independently verified.
+- Standing and anchor context are co-derived from one verified replay. Policy
+  v1 requires exact agreement across all five Deadbolt identity fields.
+- Hostile mismatch, authority-confusion, interpretation, changing-store,
+  duplicate-anchor, and multiple-path controls exercise fail-closed behavior
+  and reject epistemic amplification.
+- CI executes formatting, strict Clippy, workspace tests, the governed tour,
+  metadata and inventory checks, standalone `magpie-log` packaging, and
+  independent frozen-chain verification.
+
+### Explicit boundaries
+
+Version 0.1.0 does not provide a general truth oracle; general achieved
+`Supported`, `Settled`, or `Refuted`; aggregation or independence
+amplification; contradiction debt; invalidation, supersession, or currentness
+semantics; `EpistemicGate`; ordinary writer or MCP write surfaces; foreign
+bundle-content verification; production key custody or operational security;
+model, lens, retrieval, graph, reranking, evaluator, librarian, or navigator
+infrastructure; stable Rust APIs; crates.io publication; or independently
+registry-resolvable dependent packages.
+
+The canonical format remains `magpie-core-v1`. The governed policies remain
+`magpie-claims-standing-v0` and `magpie-claims-standing-v1`. The crate version
+does not rename or mutate either identity.
+
+The exhaustive source, trust, policy, packaging, and absence boundaries are in
+[`docs/releases/v0.1.0-contract.md`](docs/releases/v0.1.0-contract.md) and
+[`docs/releases/v0.1.0-release-metadata.md`](docs/releases/v0.1.0-release-metadata.md).
+This entry prepares the source milestone; the `v0.1.0` tag remains a separate
+human-controlled action.
+
+## Status history moved from CLAUDE.md
 
 Until 2026-09-24, `CLAUDE.md` carried a running queue and status log that
 every agent session loaded. It moved here unchanged, below, so `CLAUDE.md` can
@@ -107,75 +244,3 @@ Landed: Deadbolt-side seam complete (deadbolt PRs #316–#320, 2026-07-03..05):
 seal points emit fail-open with `pending-anchor.json` debt markers; `cog anchor
 reconcile` re-verifies bundles then anchors idempotently via the `AnchorSet`
 projection — the first consumer of anchors.
-
-## 0.1.0 — 2026-07-12
-
-Magpie v0.1.0 establishes a local-first, provenance-first memory core whose
-signed append-only history is verified before deterministic replay. Typed
-evidence remains candidate-only under policy v0. One exact Deadbolt
-occurrence/inclusion proposition can earn `Settled` under explicit
-snapshot-only policy v1. All other general achieved-standing, admission,
-aggregation, writer, and production capabilities remain outside this release.
-
-### Added
-
-- `magpie-log`: a signed, hash-chained append-only L0 with automatic genesis,
-  an externally supplied trust root, frozen `magpie-core-v1` canonical bytes,
-  domain-separated `magpie-sig-v1` signatures, golden vectors, an independent
-  Python verifier, and complete verified-before-apply replay.
-- Deterministic derived projections: compatibility `ClaimsView`, typed
-  `StandingView`, same-replay `StandingReplaySnapshot`, exact
-  `DeadboltAnchorIndex`, and SQLite/FTS5 `EpisodicView`.
-- A portable, protocol-defined Deadbolt anchor seam that records exact
-  occurrence/inclusion evidence without making Deadbolt a core dependency or
-  interpretation authority.
-- Typed claims, evidence, and justification edges with closed support and
-  refutation ceilings, closed support-context requirements, and exact scope
-  matching.
-- Candidate-only `magpie-claims-standing-v0` and one explicit snapshot-only
-  `magpie-claims-standing-v1` rule for exact five-field Deadbolt occurrence
-  membership.
-- Deterministic closed contribution lanes with no counting or amplification,
-  plus the governed-standing executable tour and byte-identical drop-and-replay
-  regeneration.
-- The exhaustive v0.1.0 release contract, coordinated explicitly
-  non-publishable metadata, deterministic package inventories for all three
-  crates, and standalone package verification for `magpie-log` only.
-
-### Trust and verification
-
-- Complete event snapshots are parsed and verified before any projection is
-  mutated; chain, signature, genesis, sequence, link, hash, and malformed
-  payload failures are tamper-loud.
-- Frozen golden bytes and signatures are checked by Rust tests and an
-  independent Python implementation; the portable Deadbolt fixture is also
-  independently verified.
-- Standing and anchor context are co-derived from one verified replay. Policy
-  v1 requires exact agreement across all five Deadbolt identity fields.
-- Hostile mismatch, authority-confusion, interpretation, changing-store,
-  duplicate-anchor, and multiple-path controls exercise fail-closed behavior
-  and reject epistemic amplification.
-- CI executes formatting, strict Clippy, workspace tests, the governed tour,
-  metadata and inventory checks, standalone `magpie-log` packaging, and
-  independent frozen-chain verification.
-
-### Explicit boundaries
-
-Version 0.1.0 does not provide a general truth oracle; general achieved
-`Supported`, `Settled`, or `Refuted`; aggregation or independence
-amplification; contradiction debt; invalidation, supersession, or currentness
-semantics; `EpistemicGate`; ordinary writer or MCP write surfaces; foreign
-bundle-content verification; production key custody or operational security;
-model, lens, retrieval, graph, reranking, evaluator, librarian, or navigator
-infrastructure; stable Rust APIs; crates.io publication; or independently
-registry-resolvable dependent packages.
-
-The canonical format remains `magpie-core-v1`. The governed policies remain
-`magpie-claims-standing-v0` and `magpie-claims-standing-v1`. The crate version
-does not rename or mutate either identity.
-
-The exhaustive source, trust, policy, packaging, and absence boundaries are in
-[`docs/releases/v0.1.0-contract.md`](docs/releases/v0.1.0-contract.md) and
-[`docs/releases/v0.1.0-release-metadata.md`](docs/releases/v0.1.0-release-metadata.md).
-This entry prepares the source milestone; the `v0.1.0` tag remains a separate
-human-controlled action.

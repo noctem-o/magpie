@@ -5,8 +5,8 @@ supports, no stable release line, and no guaranteed response time.
 
 ## Supported versions
 
-Only the current `main` branch receives security fixes. The `v0.1.0` and
-`v0.2.0` source releases are historical and are not patched.
+Only the current `main` branch receives security fixes. Tagged source
+releases are snapshots and are not patched.
 
 ## Reporting a vulnerability
 
