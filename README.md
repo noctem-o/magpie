@@ -2,8 +2,6 @@
 
 <div align="center">
 
-<p><sub>LOCAL-FIRST &nbsp; / &nbsp; PROVENANCE-FIRST &nbsp; / &nbsp; REPLAYABLE</sub></p>
-
 <h1>Magpie</h1>
 
 <p><strong>Conserve the log. Derive the rest.</strong></p>
