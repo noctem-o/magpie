@@ -56,7 +56,7 @@ Explicit standing policies, immutable supplied content, provenance checks, and d
 </tr>
 </table>
 
-**Release coordinates:** latest GitHub source release [v0.2.0](https://github.com/noctem-o/magpie/releases/tag/v0.2.0) · tracked release contract **v0.1.0** · workspace packages **v0.1.0**. Development on `main` has moved beyond both release boundaries. [Details ↓](#release-status)
+**Release coordinates:** latest GitHub source release [v0.3.0](https://github.com/noctem-o/magpie/releases/tag/v0.3.0) · tracked release contract **v0.1.0** · workspace packages **v0.1.0**. `main` may be ahead of the latest release. [Details ↓](#release-status)
 
 ## Why Magpie exists
 
@@ -441,10 +441,10 @@ Changes should remain small, typed, replayable, and explicit about what grants a
 
 | Coordinate | Current boundary |
 | :--- | :--- |
-| **GitHub source release** | [v0.2.0](https://github.com/noctem-o/magpie/releases/tag/v0.2.0), tagged at `c5aaf6e`. |
-| **Tracked formal release contract** | [v0.1.0](docs/releases/v0.1.0-contract.md). The v0.2.0 source release has no equivalent tracked release-contract document. |
-| **Workspace package version** | `0.1.0`. No registry publication or package availability is claimed. |
-| **Development** | `main` has moved beyond both source-release boundaries. Experimental status remains. |
+| **GitHub source release** | [v0.3.0](https://github.com/noctem-o/magpie/releases/tag/v0.3.0). Earlier releases are listed in the [changelog](CHANGELOG.md). |
+| **Tracked formal release contract** | [v0.1.0](docs/releases/v0.1.0-contract.md). The v0.2.0 and v0.3.0 source releases have no equivalent tracked release-contract document. |
+| **Workspace package version** | `0.1.0`, which is what `magpie --version` prints. No registry publication or package availability is claimed. |
+| **Development** | `main` may be ahead of the latest source release. Experimental status remains. |
 
 ---
 
