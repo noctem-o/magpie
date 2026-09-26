@@ -73,6 +73,9 @@ jobs:
       - name: Verify governed compile-fail diagnostics
         run: python tools/check_a018_diagnostics.py
 
+      - name: Qualify SQLite L0 resource/crash/recovery evidence
+        run: python tools/check_sqlite_l0_qualification.py
+
       - name: Check Rust formatting
         run: cargo fmt --all --check
 
@@ -110,6 +113,7 @@ jobs:
           tools.test_verify_chain
           tools.test_portable_verifier_differential
           tools.test_check_a018_diagnostics
+          tools.test_check_sqlite_l0_qualification
           tools.test_emit_validation_environment
           -v
 

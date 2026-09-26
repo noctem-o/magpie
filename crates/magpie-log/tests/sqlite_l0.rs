@@ -77,6 +77,17 @@ fn raw_connection(path: &Path) -> Connection {
     .unwrap()
 }
 
+fn raw_connection_vfs(path: &Path) -> Connection {
+    Connection::open_with_flags_and_vfs(
+        path,
+        OpenFlags::SQLITE_OPEN_READ_WRITE
+            | OpenFlags::SQLITE_OPEN_NO_MUTEX
+            | OpenFlags::SQLITE_OPEN_PRIVATE_CACHE,
+        hot_journal_vfs::NAME,
+    )
+    .unwrap()
+}
+
 fn logical_bytes(path: &Path) -> u64 {
     let connection = raw_connection(path);
     let page_count: i64 = connection
@@ -959,10 +970,12 @@ fn p14_corruption_never_truncates_to_an_earlier_valid_prefix() {
             params![b"not-json".as_slice(), 0u64.to_be_bytes().as_slice()],
         )
         .unwrap();
+    let persisted_before = fs::read(malformed.path()).unwrap();
     assert!(matches!(
         LogWriter::<SqliteL0Store>::open_verified_prefix(malformed.path(), key(), broad_limits()),
         Err(LogError::Serde(_))
     ));
+    assert_eq!(fs::read(malformed.path()).unwrap(), persisted_before);
 
     let late = TestPath::new("late-signature");
     let mut writer = create(late.path());
@@ -984,10 +997,12 @@ fn p14_corruption_never_truncates_to_an_earlier_valid_prefix() {
         )
         .unwrap();
     all_records.clear();
+    let persisted_before = fs::read(late.path()).unwrap();
     assert!(matches!(
         LogWriter::<SqliteL0Store>::open_verified_prefix(late.path(), key(), broad_limits()),
         Err(LogError::BadSignature { seq: 2 })
     ));
+    assert_eq!(fs::read(late.path()).unwrap(), persisted_before);
 
     let wrong_position = TestPath::new("wrong-position");
     drop(create(wrong_position.path()));
@@ -997,6 +1012,7 @@ fn p14_corruption_never_truncates_to_an_earlier_valid_prefix() {
             params![1u64.to_be_bytes().as_slice(), 0u64.to_be_bytes().as_slice()],
         )
         .unwrap();
+    let persisted_before = fs::read(wrong_position.path()).unwrap();
     assert!(matches!(
         LogWriter::<SqliteL0Store>::open_verified_prefix(
             wrong_position.path(),
@@ -1005,6 +1021,7 @@ fn p14_corruption_never_truncates_to_an_earlier_valid_prefix() {
         ),
         Err(LogError::ChainBroken { .. })
     ));
+    assert_eq!(fs::read(wrong_position.path()).unwrap(), persisted_before);
 }
 
 #[test]
@@ -1297,9 +1314,17 @@ fn p19_record_count_wrong_key_empty_owned_and_wal_are_fail_closed() {
 }
 
 #[test]
-fn read_only_verification_establishes_and_preserves_delete_profile() {
+fn read_only_verification_preserves_established_delete_profile() {
     let path = TestPath::new("read-only-delete-profile");
     drop(create(path.path()));
+
+    let established: String = {
+        let connection = raw_connection(path.path());
+        connection
+            .query_row("PRAGMA journal_mode", [], |row| row.get(0))
+            .unwrap()
+    };
+    assert_eq!(established.to_ascii_lowercase(), "delete");
 
     let summary = LogReader::<SqliteL0Store>::verify_persisted_prefix(
         path.path(),
@@ -1560,4 +1585,410 @@ fn sqlite_rejected_append_does_not_consume_injected_clock() {
     let accepted = writer.append(provenance("clock"), note("clocked")).unwrap();
     assert_eq!(accepted.core.timestamp_nanos, baseline.core.timestamp_nanos);
     assert_eq!(accepted.hash, baseline.hash);
+}
+
+fn assert_hot_journal(journal: &[u8], committed_main: &[u8]) {
+    const ROLLBACK_JOURNAL_MAGIC: [u8; 8] = [0xd9, 0xd5, 0x05, 0xf9, 0x20, 0xa1, 0x63, 0xd7];
+    assert!(
+        journal.len() > 32,
+        "hot journal is too small to carry a header: {} bytes",
+        journal.len()
+    );
+    assert_eq!(
+        &journal[0..8],
+        &ROLLBACK_JOURNAL_MAGIC,
+        "hot journal must carry the live rollback-journal magic"
+    );
+    let n_rec = u32::from_be_bytes(journal[8..12].try_into().unwrap());
+    assert_eq!(
+        n_rec, 0xffff_ffff,
+        "an un-synced hot journal must mark an uncounted record stream"
+    );
+    let truncate_target = u32::from_be_bytes(journal[16..20].try_into().unwrap());
+    let sector_size = u32::from_be_bytes(journal[20..24].try_into().unwrap());
+    let page_size = u32::from_be_bytes(journal[24..28].try_into().unwrap());
+    assert!(
+        (512..=65536).contains(&page_size) && page_size.is_power_of_two(),
+        "journal page size {page_size} is not a valid SQLite page size"
+    );
+    let committed_page_size = u16::from_be_bytes(committed_main[16..18].try_into().unwrap());
+    let committed_page_size = if committed_page_size == 0 {
+        65536
+    } else {
+        u32::from(committed_page_size)
+    };
+    assert_eq!(
+        page_size, committed_page_size,
+        "journal page size must match the committed database page size"
+    );
+    let header_size = sector_size as usize;
+    assert!(
+        journal.len() >= header_size,
+        "hot journal is smaller than its {header_size}-byte header"
+    );
+    let record_size = usize::try_from(page_size).unwrap() + 8;
+    assert_eq!(
+        (journal.len() - header_size) % record_size,
+        0,
+        "hot journal size must be a header plus whole page records"
+    );
+    let record_count = (journal.len() - header_size) / record_size;
+    assert!(
+        record_count >= 1,
+        "hot journal must carry at least one page record"
+    );
+    let first_page = u32::from_be_bytes(journal[header_size..header_size + 4].try_into().unwrap());
+    assert_eq!(
+        first_page, 1,
+        "the interrupted writer's first journaled page must be the schema page"
+    );
+    assert_eq!(
+        truncate_target as usize * usize::try_from(page_size).unwrap(),
+        committed_main.len(),
+        "the rollback target must restore the committed database size"
+    );
+}
+
+// A thin VFS over the platform default that counts main-database writes and
+// aborts the process mid-commit, after the interrupted commit's new pages
+// have reached the main database but before its journal is finalized.
+mod hot_journal_vfs {
+    use std::collections::BTreeMap;
+    use std::ffi::CStr;
+    use std::os::raw::{c_char, c_int, c_void};
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::{Mutex, OnceLock};
+
+    use rusqlite::ffi;
+
+    pub const NAME: &str = "magpie_l0_hotjournal";
+
+    const KILL_AFTER_MAIN_WRITES: u32 = 2;
+
+    #[derive(Copy, Clone, PartialEq)]
+    enum Target {
+        Main,
+        Other,
+    }
+
+    struct Entry {
+        methods: Box<ffi::sqlite3_io_methods>,
+        base: Box<ffi::sqlite3_io_methods>,
+        target: Target,
+    }
+
+    static BASE: OnceLock<usize> = OnceLock::new();
+    static MAIN_PATH: OnceLock<Vec<u8>> = OnceLock::new();
+    static MAIN_WRITES: AtomicU32 = AtomicU32::new(0);
+    // SQLite compares VFS names with strcmp, so the name must be a
+    // NUL-terminated C string held alive for the whole process.
+    static NAME_C: OnceLock<std::ffi::CString> = OnceLock::new();
+    static TABLE: Mutex<BTreeMap<usize, Entry>> = Mutex::new(BTreeMap::new());
+
+    pub fn install(main_path: &str) {
+        MAIN_PATH.get_or_init(|| main_path.as_bytes().to_vec());
+        let name = NAME_C.get_or_init(|| {
+            std::ffi::CString::new(NAME).expect("the VFS name must not contain a NUL")
+        });
+        let base = unsafe { ffi::sqlite3_vfs_find(std::ptr::null()) };
+        assert!(!base.is_null(), "the default SQLite VFS must be available");
+        BASE.get_or_init(|| base as usize);
+        let mut vfs: ffi::sqlite3_vfs = unsafe { *base };
+        vfs.szOsFile = 4096;
+        vfs.zName = name.as_ptr();
+        vfs.xOpen = Some(xopen);
+        // sqlite3_vfs_register links this struct into the global VFS list
+        // without copying it, so it must stay alive for the whole process.
+        let vfs = Box::leak(Box::new(vfs));
+        assert_eq!(
+            unsafe {
+                ffi::sqlite3_vfs_register(
+                    vfs as *const ffi::sqlite3_vfs as *mut ffi::sqlite3_vfs,
+                    0,
+                )
+            },
+            ffi::SQLITE_OK,
+            "the hot-journal VFS must register"
+        );
+    }
+
+    unsafe extern "C" fn xopen(
+        _vfs: *mut ffi::sqlite3_vfs,
+        zname: *const c_char,
+        file: *mut ffi::sqlite3_file,
+        flags: c_int,
+        pout: *mut c_int,
+    ) -> c_int {
+        let base =
+            *BASE.get().expect("install() must run before any open") as *mut ffi::sqlite3_vfs;
+        let rc = (*base).xOpen.expect("the default VFS must implement xOpen")(
+            base, zname, file, flags, pout,
+        );
+        if rc != ffi::SQLITE_OK {
+            return rc;
+        }
+        let base_methods = (*file).pMethods;
+        assert!(
+            !base_methods.is_null(),
+            "the default VFS must install io methods"
+        );
+        let base: ffi::sqlite3_io_methods = *base_methods;
+        let mut methods = base;
+        methods.xWrite = Some(xwrite);
+        methods.xClose = Some(xclose);
+        let target = if CStr::from_ptr(zname).to_bytes()
+            == MAIN_PATH
+                .get()
+                .expect("install() must run before any open")
+                .as_slice()
+        {
+            Target::Main
+        } else {
+            Target::Other
+        };
+        let key = file as usize;
+        let methods_ptr = {
+            let mut table = TABLE.lock().unwrap();
+            table.insert(
+                key,
+                Entry {
+                    methods: Box::new(methods),
+                    base: Box::new(base),
+                    target,
+                },
+            );
+            table
+                .get_mut(&key)
+                .expect("the entry just inserted")
+                .methods
+                .as_ref() as *const ffi::sqlite3_io_methods
+        };
+        (*file).pMethods = methods_ptr;
+        rc
+    }
+
+    unsafe extern "C" fn xwrite(
+        file: *mut ffi::sqlite3_file,
+        data: *const c_void,
+        amount: c_int,
+        offset: ffi::sqlite3_int64,
+    ) -> c_int {
+        let (rc, is_main) = {
+            let table = TABLE.lock().unwrap();
+            let entry = table
+                .get(&(file as usize))
+                .expect("xWrite reached a file the VFS did not open");
+            let rc = entry
+                .base
+                .xWrite
+                .expect("the default VFS must implement xWrite")(
+                file, data, amount, offset
+            );
+            (rc, entry.target == Target::Main)
+        };
+        if is_main
+            && rc == ffi::SQLITE_OK
+            && MAIN_WRITES.fetch_add(1, Ordering::SeqCst) + 1 == KILL_AFTER_MAIN_WRITES
+        {
+            // Both new pages are on disk in the main database; the hot
+            // journal is still live; the commit never finalizes.
+            std::process::abort();
+        }
+        rc
+    }
+
+    unsafe extern "C" fn xclose(file: *mut ffi::sqlite3_file) -> c_int {
+        let rc = {
+            let table = TABLE.lock().unwrap();
+            let entry = table
+                .get(&(file as usize))
+                .expect("xClose reached a file the VFS did not open");
+            entry
+                .base
+                .xClose
+                .expect("the default VFS must implement xClose")(file)
+        };
+        TABLE.lock().unwrap().remove(&(file as usize));
+        rc
+    }
+}
+
+#[test]
+fn supported_reopen_recovers_owned_hot_journal_and_preserves_committed_prefix() {
+    const CHILD_ENV: &str = "MAGPIE_SQLITE_L0_HOTJOURNAL_CHILD";
+    const PATH_ENV: &str = "MAGPIE_SQLITE_L0_HOTJOURNAL_PATH";
+    const TEST_NAME: &str =
+        "supported_reopen_recovers_owned_hot_journal_and_preserves_committed_prefix";
+
+    if std::env::var_os(CHILD_ENV).is_some() {
+        let path = PathBuf::from(std::env::var_os(PATH_ENV).unwrap());
+        let ready = PathBuf::from(format!("{}-hotjournal-ready", path.display()));
+        let go = PathBuf::from(format!("{}-hotjournal-go", path.display()));
+        hot_journal_vfs::install(path.to_str().unwrap());
+        let connection = raw_connection_vfs(&path);
+        connection
+            .execute_batch(
+                "PRAGMA synchronous = OFF; \
+                  BEGIN IMMEDIATE; \
+                  CREATE TABLE scratch_interrupted(x INTEGER); \
+                  INSERT INTO scratch_interrupted VALUES (1);",
+            )
+            .unwrap();
+        fs::File::create(&ready).unwrap().sync_all().unwrap();
+        while !go.exists() {
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        // The commit writes the new scratch page past end-of-file and then
+        // rewrites the schema page; the VFS aborts this process immediately
+        // after that second main-database write, mid-commit, with the hot
+        // journal still live and unlinked from nothing.
+        connection.execute_batch("COMMIT;").unwrap();
+        panic!("the hot-journal VFS must abort the child inside COMMIT");
+    }
+
+    let path = TestPath::new("supported-hot-journal-owned");
+    let journal = PathBuf::from(format!("{}-journal", path.path().display()));
+    let ready = PathBuf::from(format!("{}-hotjournal-ready", path.path().display()));
+    let go = PathBuf::from(format!("{}-hotjournal-go", path.path().display()));
+
+    let genesis_tip = {
+        let writer = create(path.path());
+        let tip = writer.tip();
+        drop(writer);
+        tip
+    };
+    let committed_main = fs::read(path.path()).unwrap();
+
+    let mut child = Command::new(std::env::current_exe().unwrap())
+        .arg("--exact")
+        .arg(TEST_NAME)
+        .arg("--nocapture")
+        .env(CHILD_ENV, "1")
+        .env(PATH_ENV, path.path())
+        .spawn()
+        .unwrap();
+
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        if ready.exists() {
+            break;
+        }
+        if let Some(status) = child.try_wait().unwrap() {
+            let _ = fs::remove_file(&ready);
+            let _ = fs::remove_file(&go);
+            panic!("the child writer exited before reaching the hot-journal state: {status:?}");
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            let _ = fs::remove_file(&ready);
+            let _ = fs::remove_file(&go);
+            panic!("the child writer never reached the hot-journal state");
+        }
+        std::thread::sleep(Duration::from_millis(1));
+    }
+
+    // The child holds a live write transaction and a genuine hot rollback
+    // journal on disk; verify the journal while the writer is still alive.
+    let live_journal = fs::read(&journal).unwrap();
+    assert_hot_journal(&live_journal, &committed_main);
+    assert_eq!(
+        fs::read(path.path()).unwrap(),
+        committed_main,
+        "the database file must stay untouched until the interrupted writer commits"
+    );
+
+    // Release the writer into its commit; the VFS aborts it mid-commit,
+    // after the new pages have reached the main database but before the
+    // hot journal is finalized or unlinked.
+    fs::File::create(&go).unwrap().sync_all().unwrap();
+    let status = child.wait().unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::ExitStatusExt;
+        assert_eq!(
+            status.signal(),
+            Some(6),
+            "the child writer must die from SIGABRT, not a clean exit path"
+        );
+    }
+    #[cfg(not(unix))]
+    {
+        assert!(!status.success(), "the child writer must not exit cleanly");
+    }
+
+    // The crash must leave exactly what a mid-commit writer leaves behind:
+    // the hot journal intact, the database grown by the one new page with
+    // its schema page rewritten, and every committed page untouched. Only a
+    // recovery that actually replays the journal can restore the committed
+    // database from this state; one that discards the journal cannot.
+    let page_size = u32::from_be_bytes(live_journal[24..28].try_into().unwrap());
+    let crashed_main = fs::read(path.path()).unwrap();
+    assert_eq!(
+        fs::read(&journal).unwrap(),
+        live_journal,
+        "the hot journal must survive the crash byte-for-byte"
+    );
+    assert_eq!(
+        crashed_main.len(),
+        committed_main.len() + page_size as usize,
+        "the interrupted commit must grow the database by exactly the one new page"
+    );
+    assert_ne!(
+        &crashed_main[..page_size as usize],
+        &committed_main[..page_size as usize],
+        "the interrupted commit must have rewritten the schema page before dying"
+    );
+    assert_eq!(
+        &crashed_main[page_size as usize..committed_main.len()],
+        &committed_main[page_size as usize..committed_main.len()],
+        "the interrupted commit must leave every committed page untouched"
+    );
+
+    // Supported reopen: the ownership gate passes for the owned database and
+    // the hot journal is recovered, preserving the committed prefix exactly.
+    let reopened =
+        LogWriter::<SqliteL0Store>::open_verified_prefix(path.path(), key(), broad_limits())
+            .unwrap();
+    assert_eq!(reopened.len(), 1);
+    assert_eq!(reopened.tip(), genesis_tip);
+    drop(reopened);
+
+    assert!(
+        !journal.exists(),
+        "recovery must consume the hot rollback journal"
+    );
+    assert_eq!(
+        records(path.path()).len(),
+        1,
+        "recovery must preserve the committed prefix exactly"
+    );
+    assert_eq!(
+        fs::read(path.path()).unwrap(),
+        committed_main,
+        "recovery must restore the committed database file exactly"
+    );
+
+    let connection = raw_connection(path.path());
+    let mut statement = connection
+        .prepare(
+            "SELECT name FROM sqlite_master \
+             WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+        )
+        .unwrap();
+    let tables: Vec<String> = statement
+        .query_map([], |row| row.get(0))
+        .unwrap()
+        .map(Result::unwrap)
+        .collect();
+    assert_eq!(
+        tables,
+        vec!["magpie_l0_records"],
+        "the interrupted scratch table must not survive recovery"
+    );
+    drop(statement);
+    drop(connection);
+
+    fs::remove_file(&ready).unwrap();
+    fs::remove_file(&go).unwrap();
 }
