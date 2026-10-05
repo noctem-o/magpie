@@ -1,6 +1,6 @@
 //! What each command does.
 //!
-//! Every command reads the log once into a [`Snapshot`] and runs all of its
+//! Ledger commands read the log once into a [`Snapshot`] and run all of their
 //! checks and projections against that one image. Writes hold the store lock
 //! and the checkpoint lock, refuse a torn or portable-invalid log, check the
 //! saved checkpoint, validate the new event against the replay, confirm the
@@ -12,7 +12,10 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
 use magpie_claims::policy::{ClaimDomain, EvidenceKind};
-use magpie_claims::{replay_origin_admission_context_v0, OriginAdmissionReplayContextV0};
+use magpie_claims::{
+    replay_origin_admission_context_v0, OriginAdmissionReplayContextV0, MAGPIE_CLAIMS_POLICY_V2_ID,
+    STANDING_RECEIPT_HISTORY_PROFILE_V0,
+};
 use magpie_episodic::EpisodicView;
 use magpie_log::{
     FileStore, LogError, LogReader, LogWriter, MemStore, Payload, Provenance, SignedEvent,
@@ -64,6 +67,10 @@ pub(crate) fn execute(
             Ok(())
         }
         Command::Init { dir, agent } => init(&dir, agent, json, out, err),
+        Command::StandingReceipt(input) => crate::receipt::execute(input, None, out),
+        Command::CheckStandingReceipt { input, receipt } => {
+            crate::receipt::execute(input, Some(receipt), out)
+        }
         Command::Verify { verifying_key } => {
             let dir = store_dir(invocation.store)?;
             let store = match &verifying_key {
@@ -148,6 +155,8 @@ pub(crate) fn execute(
                 Command::Help
                 | Command::Version
                 | Command::Init { .. }
+                | Command::StandingReceipt(_)
+                | Command::CheckStandingReceipt { .. }
                 | Command::Verify { .. } => {
                     unreachable!("handled before the store is opened")
                 }
@@ -196,6 +205,18 @@ Read (each read verifies the whole log first):
 
 The store is --store <dir>, or $MAGPIE_STORE. Checkpoints live in
 $MAGPIE_STATE_DIR, else $XDG_STATE_HOME/magpie, else ~/.local/state/magpie.
+
+Read-only native policy-v2 receipts (no --store, config or saved checkpoint):
+  standing-receipt <claim-id> --history <path> --verifying-key <64-lowercase-hex>
+    --profile {STANDING_RECEIPT_HISTORY_PROFILE_V0} --policy {MAGPIE_CLAIMS_POLICY_V2_ID}
+    --expectation <none|exact|contains-checkpoint>
+  check-standing-receipt <claim-id> [same explicit options] --receipt <path>
+  exact/contains-checkpoint also require --checkpoint-event-count <u64>
+    --checkpoint-sha256 <64-lowercase-hex>; none forbids both checkpoint flags.
+  Expectation is mandatory. Check rederives and exact-matches detached bytes.
+  Both emit exact canonical receipt JSON without a newline; --json changes nothing.
+  No current/latest/saved checkpoint participates. A receipt records one historical
+  derivation, not truth, currentness or permission.
 
 Domains:        {}
 Evidence kinds: {}

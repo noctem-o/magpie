@@ -1,5 +1,11 @@
 //! # magpie-cli — the `magpie` command
 //!
+//! `standing-receipt` and `check-standing-receipt` are explicit-history,
+//! read-only transport over the receipt library. They bypass store/config,
+//! scratch copies and saved checkpoints; their output is the library's exact
+//! canonical bytes, without a newline. The storage rules below concern the
+//! ordinary ledger commands.
+//!
 //! A thin shell over the kernel crates so a person can keep a real claim
 //! ledger. Every write goes through [`magpie_log::LogWriter`]. Every read is a
 //! complete verified replay into projections that are rebuilt on each
@@ -71,6 +77,7 @@ mod display;
 mod export;
 mod index;
 mod policy;
+mod receipt;
 mod snapshot;
 mod store;
 mod trace;
