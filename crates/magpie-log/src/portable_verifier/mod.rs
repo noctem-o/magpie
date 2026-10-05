@@ -14,6 +14,12 @@ mod lexical;
 mod preflight;
 mod schema;
 
+pub use conformer::{
+    prepare_portable_history_v0, PortableHistoryOperationalErrorV0,
+    PortableHistoryVerificationErrorV0, PortableRejection, PortableRejectionClass,
+    PreparedPortableHistoryV0, VerifiedPortableHistoryV0,
+};
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum FrontendRejectionClass {
     ExternalKey,

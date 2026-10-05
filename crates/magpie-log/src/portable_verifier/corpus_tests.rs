@@ -479,6 +479,80 @@ fn frozen_complete_conformer_corpus_matches_all_432_cases() {
     );
 }
 
+#[test]
+fn frozen_portable_capability_matches_all_432_cases_and_replays_same_vector() {
+    use crate::{
+        prepare_portable_history_v0, PortableHistoryVerificationErrorV0, Projection,
+        VerifiedReplayEvent,
+    };
+    #[derive(Default)]
+    struct Observed(Vec<ContentHash>);
+    impl Projection for Observed {
+        fn apply(&mut self, event: &VerifiedReplayEvent<'_>) {
+            assert_eq!(event.event().core.hash(), event.event().hash);
+            self.0.push(event.event().hash);
+        }
+    }
+    let root = repository_root();
+    let manifest: Value = serde_json::from_slice(
+        &std::fs::read(root.join("fixtures/verifier-language-v1/manifest.json")).unwrap(),
+    )
+    .unwrap();
+    let cases = manifest["cases"].as_array().unwrap();
+    let mut accepted = 0;
+    let mut rejected = 0;
+    for case in cases {
+        let id = required_str(case, "id");
+        let bytes = read_case_input(&root, case);
+        let key = required_str(case, "external_verifying_key_hex");
+        let actual = prepare_portable_history_v0(V_SIG_PROFILE_ID, key)
+            .and_then(|prepared| prepared.verify(&bytes));
+        let expected = &case["expected"];
+        match (required_str(expected, "verdict"), actual) {
+            ("ACCEPT", Ok(history)) => {
+                accepted += 1;
+                assert_eq!(
+                    history.event_count(),
+                    expected["event_count"].as_u64().unwrap(),
+                    "{id}"
+                );
+                assert_eq!(
+                    history.tip().to_hex(),
+                    required_str(expected, "tip"),
+                    "{id}"
+                );
+                assert_eq!(hex::encode(history.verification_key_bytes()), key, "{id}");
+                let mut observed = Observed::default();
+                let summary = history.replay_into(&mut observed);
+                assert_eq!(summary.event_count(), history.event_count());
+                assert_eq!(summary.tip(), history.tip());
+                let hashes: Vec<String> = observed.0.iter().map(ContentHash::to_hex).collect();
+                let expected_hashes: Vec<&str> = expected["ordered_recomputed_hashes"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|v| v.as_str().unwrap())
+                    .collect();
+                assert_eq!(hashes, expected_hashes, "{id}: retained vector");
+                let evaluation = history.evaluate_expectation(
+                    crate::HistoryCheckpointV0::new(history.event_count(), history.tip()),
+                    crate::HistoryExpectationRelationV0::Exact,
+                );
+                assert_eq!(
+                    evaluation.outcome(),
+                    crate::HistoryExpectationOutcomeV0::Satisfied
+                );
+            }
+            ("REJECT", Err(PortableHistoryVerificationErrorV0::Rejected(reason))) => {
+                rejected += 1;
+                assert_complete_rejection(id, reason, expected);
+            }
+            (_, other) => panic!("{id}: capability differed from frozen corpus: {other:?}"),
+        }
+    }
+    assert_eq!((cases.len(), accepted, rejected), (432, 19, 413));
+}
+
 /// Export actual production-conformer results for the external differential
 /// harness without adding a public portable-result type to `magpie-log`.
 ///

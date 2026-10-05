@@ -69,8 +69,9 @@ enum VerifiedRecords {
 ///
 /// A value of this type means only that [`SignedEvent`] is currently being
 /// presented by Magpie's replay path from a retained record snapshot whose
-/// complete replay verification has already succeeded under this
-/// [`LogReader`]'s supplied verifying key. Trust in that key remains external.
+/// complete verification has already succeeded under an externally supplied
+/// key, through [`LogReader`] or [`crate::VerifiedPortableHistoryV0`]. Trust in
+/// that key remains external.
 /// It does not establish trust, authorization, admission, identity, truth,
 /// currentness, standing, confidence, permission, or scientific correctness.
 ///
@@ -129,6 +130,17 @@ pub struct VerifiedReplayEvent<'event> {
 impl<'event> VerifiedReplayEvent<'event> {
     fn from_verified_snapshot(event: &'event SignedEvent) -> Self {
         Self { event }
+    }
+
+    // This continuation requires the opaque complete portable capability;
+    // it cannot wrap a caller-supplied SignedEvent.
+    pub(crate) fn from_portable_history(
+        history: &'event crate::VerifiedPortableHistoryV0,
+        index: usize,
+    ) -> Self {
+        Self {
+            event: &history.events()[index],
+        }
     }
 
     /// Observe the raw historical event presented by this replay callback.

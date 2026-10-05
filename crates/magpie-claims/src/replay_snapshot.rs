@@ -71,6 +71,19 @@ struct StandingContextProjection {
     anchors: DeadboltAnchorIndex,
 }
 
+/// Receipt-only continuation from the complete portable conformer's retained vector.
+pub(crate) fn replay_portable_standing_context(
+    history: &magpie_log::VerifiedPortableHistoryV0,
+) -> StandingReplaySnapshot {
+    let mut projection = StandingContextProjection::default();
+    let summary = history.replay_into(&mut projection);
+    StandingReplaySnapshot {
+        standing: projection.standing,
+        anchors: projection.anchors,
+        event_count: summary.event_count(),
+    }
+}
+
 impl Projection for StandingContextProjection {
     fn apply(&mut self, event: &VerifiedReplayEvent<'_>) {
         // Fixed order: standing first, then anchor occurrence context. Both

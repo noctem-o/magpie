@@ -1,5 +1,5 @@
 use crate::signature_profile::UnsupportedSignatureVerificationProfile;
-use crate::{ContentHash, Payload, CANONICALIZATION_PROFILE};
+use crate::{ContentHash, Payload, SignedEvent, CANONICALIZATION_PROFILE};
 
 use super::frontend::{FrontendOperationalError, FrontendSession, FrontendStep, PendingRecord};
 use super::lexical::decode_lower_hex;
@@ -8,7 +8,7 @@ use super::{FrontendRejection, FrontendRejectionClass};
 
 /// The ten governed portable-verifier rejection classes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum PortableRejectionClass {
+pub enum PortableRejectionClass {
     ExternalKey,
     Framing,
     JsonSyntax,
@@ -23,7 +23,7 @@ pub(crate) enum PortableRejectionClass {
 
 /// One governed portable-verifier rejection with its frozen coordinates.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct PortableRejection {
+pub struct PortableRejection {
     class: PortableRejectionClass,
     line: Option<usize>,
     record_index: Option<usize>,
@@ -47,15 +47,15 @@ impl PortableRejection {
         }
     }
 
-    pub(crate) fn class(&self) -> PortableRejectionClass {
+    pub fn class(&self) -> PortableRejectionClass {
         self.class
     }
 
-    pub(crate) fn line(&self) -> Option<usize> {
+    pub fn line(&self) -> Option<usize> {
         self.line
     }
 
-    pub(crate) fn record_index(&self) -> Option<usize> {
+    pub fn record_index(&self) -> Option<usize> {
         self.record_index
     }
 }
@@ -106,6 +106,7 @@ pub(crate) enum CompleteHistoryError {
     UnsupportedProfile(UnsupportedSignatureVerificationProfile),
     Frontend(FrontendOperationalError),
     EventCountExhausted,
+    EventRetentionAllocation,
 }
 
 impl From<FrontendOperationalError> for CompleteHistoryError {
@@ -160,21 +161,42 @@ pub(super) struct PreparedCompleteHistory {
     frontend: PreparedVerifier,
 }
 
-trait AcceptedHashObserver {
-    fn observe(&mut self, hash: ContentHash);
+trait AcceptedRecordObserver {
+    fn observe(&mut self, event: SignedEvent) -> Result<(), CompleteHistoryError>;
 }
 
 struct IgnoreAcceptedHashes;
 
-impl AcceptedHashObserver for IgnoreAcceptedHashes {
-    fn observe(&mut self, _hash: ContentHash) {}
+impl AcceptedRecordObserver for IgnoreAcceptedHashes {
+    fn observe(&mut self, _event: SignedEvent) -> Result<(), CompleteHistoryError> {
+        Ok(())
+    }
 }
 
 struct CollectAcceptedHashes<'trace>(&'trace mut Vec<ContentHash>);
 
-impl AcceptedHashObserver for CollectAcceptedHashes<'_> {
-    fn observe(&mut self, hash: ContentHash) {
-        self.0.push(hash);
+impl AcceptedRecordObserver for CollectAcceptedHashes<'_> {
+    fn observe(&mut self, event: SignedEvent) -> Result<(), CompleteHistoryError> {
+        self.0.push(event.hash);
+        Ok(())
+    }
+}
+
+struct CollectAcceptedEvents(Vec<SignedEvent>);
+
+impl CollectAcceptedEvents {
+    fn reserve(&mut self, additional: usize) -> Result<(), CompleteHistoryError> {
+        self.0
+            .try_reserve(additional)
+            .map_err(|_| CompleteHistoryError::EventRetentionAllocation)
+    }
+}
+
+impl AcceptedRecordObserver for CollectAcceptedEvents {
+    fn observe(&mut self, event: SignedEvent) -> Result<(), CompleteHistoryError> {
+        self.reserve(1)?;
+        self.0.push(event);
+        Ok(())
     }
 }
 
@@ -199,7 +221,7 @@ impl<'input> CompleteHistoryConformer<'input> {
 
     fn run<O>(mut self, observer: &mut O) -> Result<CompleteHistoryOutcome, CompleteHistoryError>
     where
-        O: AcceptedHashObserver,
+        O: AcceptedRecordObserver,
     {
         loop {
             match self.session.next()? {
@@ -224,10 +246,10 @@ impl<'input> CompleteHistoryConformer<'input> {
                     // The checked candidate state exists before success is
                     // minted or the sole continuation is released.
                     let success = SemanticSuccess::after_all_stages();
-                    let continuation = pending.release_after_semantic_success(success);
+                    let (continuation, event) = pending.release_after_semantic_success(success);
                     self.session = continuation;
                     self.state = candidate_state;
-                    observer.observe(candidate_state.tip);
+                    observer.observe(event)?;
                 }
             }
         }
@@ -348,6 +370,175 @@ pub(super) fn prepare_complete_history(
     }
 }
 
+/// Operational/configuration failures, outside the frozen portable rejection law.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PortableHistoryOperationalErrorV0 {
+    UnsupportedProfile(UnsupportedSignatureVerificationProfile),
+    SchemaDecoderInconsistency,
+    EventCountExhausted,
+    EventRetentionAllocation,
+}
+
+/// A governed rejection is distinct from inability to complete verification.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PortableHistoryVerificationErrorV0 {
+    Rejected(PortableRejection),
+    Operational(PortableHistoryOperationalErrorV0),
+}
+
+impl From<CompleteHistoryError> for PortableHistoryVerificationErrorV0 {
+    fn from(error: CompleteHistoryError) -> Self {
+        Self::Operational(match error {
+            CompleteHistoryError::UnsupportedProfile(error) => {
+                PortableHistoryOperationalErrorV0::UnsupportedProfile(error)
+            }
+            CompleteHistoryError::Frontend(
+                FrontendOperationalError::SchemaDecoderInconsistency,
+            ) => PortableHistoryOperationalErrorV0::SchemaDecoderInconsistency,
+            CompleteHistoryError::EventCountExhausted => {
+                PortableHistoryOperationalErrorV0::EventCountExhausted
+            }
+            CompleteHistoryError::EventRetentionAllocation => {
+                PortableHistoryOperationalErrorV0::EventRetentionAllocation
+            }
+        })
+    }
+}
+
+impl std::fmt::Display for PortableHistoryVerificationErrorV0 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "portable history verification: {self:?}")
+    }
+}
+
+impl std::error::Error for PortableHistoryVerificationErrorV0 {}
+
+/// Profile/key preflight, with no bound or inspected history yet.
+/// No public constructor or deserializer can skip the external-key gate.
+pub struct PreparedPortableHistoryV0 {
+    verifier: PreparedCompleteHistory,
+    verification_key_bytes: [u8; 32],
+}
+
+/// Explicit portable profile/key preflight before history acquisition or hashing.
+/// Key admissibility does not establish trust in the caller-selected root.
+pub fn prepare_portable_history_v0(
+    profile_identity: &str,
+    external_key_text: &str,
+) -> Result<PreparedPortableHistoryV0, PortableHistoryVerificationErrorV0> {
+    let verifier = prepare_complete_history(profile_identity, external_key_text)?
+        .map_err(PortableHistoryVerificationErrorV0::Rejected)?;
+    let verification_key_bytes = verifier.frontend.external_key_bytes();
+    Ok(PreparedPortableHistoryV0 {
+        verifier,
+        verification_key_bytes,
+    })
+}
+
+impl PreparedPortableHistoryV0 {
+    /// Verify this exact immutable byte image through the complete conformer.
+    /// No reparsing, compatibility verifier, or projection runs on a rejected prefix.
+    pub fn verify(
+        self,
+        history: &[u8],
+    ) -> Result<VerifiedPortableHistoryV0, PortableHistoryVerificationErrorV0> {
+        let mut collector = CollectAcceptedEvents(Vec::new());
+        let outcome = self.verifier.bind(history).run(&mut collector)?;
+        match outcome {
+            CompleteHistoryOutcome::Accept(summary) => Ok(VerifiedPortableHistoryV0 {
+                events: collector.0,
+                summary,
+                verification_key_bytes: self.verification_key_bytes,
+            }),
+            CompleteHistoryOutcome::Reject(rejection) => {
+                Err(PortableHistoryVerificationErrorV0::Rejected(rejection))
+            }
+        }
+    }
+}
+
+/// Complete portable verification of one retained event vector, read-only.
+/// Only this conformer mints it, after the entire input reaches ACCEPT.
+/// It grants replay, not key trust, truth, standing, or write authority.
+///
+/// Raw events cannot mint the capability:
+/// ```compile_fail
+/// use magpie_log::{SignedEvent, VerifiedPortableHistoryV0};
+/// fn forge(events: Vec<SignedEvent>) -> VerifiedPortableHistoryV0 {
+///     VerifiedPortableHistoryV0 { events }
+/// }
+/// ```
+/// ```compile_fail
+/// use magpie_log::{SignedEvent, VerifiedPortableHistoryV0};
+/// fn forge(events: Vec<SignedEvent>) -> VerifiedPortableHistoryV0 { events.into() }
+/// ```
+/// ```compile_fail
+/// let _: magpie_log::VerifiedPortableHistoryV0 = serde_json::from_str("{}").unwrap();
+/// ```
+/// ```compile_fail
+/// fn write(history: &mut magpie_log::VerifiedPortableHistoryV0) {
+///     history.append_record(b"raw");
+/// }
+/// ```
+#[derive(Debug)]
+pub struct VerifiedPortableHistoryV0 {
+    events: Vec<SignedEvent>,
+    summary: AcceptedHistory,
+    verification_key_bytes: [u8; 32],
+}
+
+impl VerifiedPortableHistoryV0 {
+    pub fn event_count(&self) -> u64 {
+        self.summary.event_count()
+    }
+    pub fn tip(&self) -> ContentHash {
+        self.summary.tip()
+    }
+    pub fn verification_key_bytes(&self) -> &[u8; 32] {
+        &self.verification_key_bytes
+    }
+
+    // Raw observation cannot mint another capability or replay wrapper.
+    pub(crate) fn events(&self) -> &[SignedEvent] {
+        &self.events
+    }
+
+    /// Present only this completely verified vector through the existing projection boundary.
+    pub fn replay_into<P: crate::Projection>(
+        &self,
+        projection: &mut P,
+    ) -> crate::VerifiedReplaySummary {
+        for index in 0..self.events.len() {
+            let event = crate::VerifiedReplayEvent::from_portable_history(self, index);
+            projection.apply(&event);
+        }
+        crate::VerifiedReplaySummary::from_verified_parts(self.event_count(), self.tip())
+    }
+
+    /// Apply the existing checkpoint law to this vector, including any verified suffix.
+    pub fn evaluate_expectation(
+        &self,
+        checkpoint: crate::HistoryCheckpointV0,
+        relation: crate::HistoryExpectationRelationV0,
+    ) -> crate::HistoryExpectationEvaluationV0 {
+        let observed = if checkpoint.event_count() == 0 {
+            Some(ContentHash::ZERO)
+        } else {
+            usize::try_from(checkpoint.event_count() - 1)
+                .ok()
+                .and_then(|index| self.events.get(index))
+                .map(|event| event.hash)
+        };
+        crate::history_expectation::evaluate_verified_history_expectation_v0(
+            self.verification_key_bytes,
+            crate::VerifiedReplaySummary::from_verified_parts(self.event_count(), self.tip()),
+            checkpoint,
+            relation,
+            observed,
+        )
+    }
+}
+
 /// Verify one exact immutable portable history through all ten frozen stages.
 pub(crate) fn verify_complete_history(
     profile_identity: &str,
@@ -377,6 +568,36 @@ mod tests {
     use super::*;
 
     const GOLDEN_KEY: &str = "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c";
+
+    #[test]
+    fn retention_inability_is_operational_and_never_accepts_a_prefix() {
+        let mut collector = CollectAcceptedEvents(Vec::new());
+        let error = collector.reserve(usize::MAX).unwrap_err();
+        assert_eq!(error, CompleteHistoryError::EventRetentionAllocation);
+        assert!(collector.0.is_empty());
+        assert_eq!(
+            PortableHistoryVerificationErrorV0::from(error),
+            PortableHistoryVerificationErrorV0::Operational(
+                PortableHistoryOperationalErrorV0::EventRetentionAllocation
+            )
+        );
+        struct Fails;
+        impl AcceptedRecordObserver for Fails {
+            fn observe(&mut self, _: SignedEvent) -> Result<(), CompleteHistoryError> {
+                Err(CompleteHistoryError::EventRetentionAllocation)
+            }
+        }
+        let mut bytes = include_bytes!("../../testdata/golden-v1.jsonl").to_vec();
+        bytes.extend_from_slice(b"{malformed later record");
+        let prepared =
+            prepare_complete_history(crate::signature_profile::V_SIG_PROFILE_ID, GOLDEN_KEY)
+                .unwrap()
+                .unwrap();
+        assert_eq!(
+            prepared.bind(&bytes).run(&mut Fails),
+            Err(CompleteHistoryError::EventRetentionAllocation)
+        );
+    }
 
     #[test]
     fn checked_count_exhaustion_precedes_success_authority() {
