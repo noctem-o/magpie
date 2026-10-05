@@ -13,7 +13,6 @@ I'm bootstrapping a fresh conversation to **build Magpie**. This document is the
 ## 1. Me & context
 
 - **George** (GitHub: `noctem-o`). Self-taught Rust + systems developer, UK, working independently.
-- **Mathematical physicist.** I have a manuscript on semiclassical exponents in bosonic models (targeting SciPost). Theorem 2 verified numerically to ~1e-15; the C4 reproduction holds over N=64–192; the F5 spectral lower bound is left **genuinely open** (honest about that). The manuscript's proven/conjectured/open/refuted tracking is where Magpie's epistemic-status idea came from — and it's my first real dogfooding content.
 - **Hardware.** Primary workstation: **NixOS / Hyprland**, Ryzen 5800X3D / **RTX 4090** / 32 GB DDR4 (dual-boots Windows for gaming only). Planned: a **Ryzen AI Max+ 395** (120 GB unified memory) always-on hub; a possible 192 GB box later.
 - **Values (these break every close call):** local-first, provenance, longevity (regenerate from the log rather than hoard), honest assessment over hype, and understanding what I build rather than pasting it.
 - **How I like to work:** direct and technical, no flattery, tell me when I'm wrong and why, follow the evidence, humour welcome. Don't over-explain basics. Minimal formatting/bullet-spam in normal prose; structure is fine in reference docs like this one.
