@@ -10,6 +10,11 @@ use std::process::{Command, Output};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use magpie_claims::{
+    produce_standing_receipt_v0, StandingReceiptCheckpointV0, StandingReceiptContextV0,
+    StandingReceiptExpectationV0, StandingReceiptHistoryIdentityV0, StandingReceiptRequestV0,
+    MAGPIE_CLAIMS_POLICY_V2_ID, STANDING_RECEIPT_HISTORY_PROFILE_V0,
+};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
@@ -1062,4 +1067,569 @@ fn search_reports_the_record_each_hit_belongs_to() {
         human.contains("ev-2: numerical check of Theorem 2"),
         "{human}"
     );
+}
+
+/// Independent explicit request, never selected from the detached receipt.
+fn receipt_request(
+    scratch: &Scratch,
+    expectation: StandingReceiptExpectationV0,
+) -> StandingReceiptRequestV0 {
+    StandingReceiptRequestV0 {
+        context: StandingReceiptContextV0 {
+            profile: STANDING_RECEIPT_HISTORY_PROFILE_V0.into(),
+            history: StandingReceiptHistoryIdentityV0::of(&scratch.log_bytes()).unwrap(),
+            verifying_key: scratch.verifying_key(),
+            expectation,
+            claim_id: "claim-1".into(),
+        },
+        policy_id: MAGPIE_CLAIMS_POLICY_V2_ID.into(),
+    }
+}
+
+fn receipt_args(
+    scratch: &Scratch,
+    request: &StandingReceiptRequestV0,
+    detached: Option<&Path>,
+) -> Vec<String> {
+    let context = &request.context;
+    let mut args: Vec<String> = [
+        if detached.is_some() {
+            "check-standing-receipt"
+        } else {
+            "standing-receipt"
+        },
+        &context.claim_id,
+        "--history",
+        scratch.log().to_str().unwrap(),
+        "--verifying-key",
+        &context.verifying_key,
+        "--profile",
+        &context.profile,
+        "--policy",
+        &request.policy_id,
+        "--expectation",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect();
+    let (relation, checkpoint) = match &context.expectation {
+        StandingReceiptExpectationV0::None => ("none", None),
+        StandingReceiptExpectationV0::Exact { checkpoint } => ("exact", Some(checkpoint)),
+        StandingReceiptExpectationV0::ContainsCheckpoint { checkpoint } => {
+            ("contains-checkpoint", Some(checkpoint))
+        }
+    };
+    args.push(relation.into());
+    if let Some(checkpoint) = checkpoint {
+        args.extend([
+            "--checkpoint-event-count".into(),
+            checkpoint.event_count.to_string(),
+            "--checkpoint-sha256".into(),
+            checkpoint.commitment_sha256.to_hex(),
+        ]);
+    }
+    if let Some(path) = detached {
+        args.extend(["--receipt".into(), path.to_str().unwrap().into()]);
+    }
+    args
+}
+
+/// No ambient store/state by default, and no process-global environment mutation.
+fn receipt_command(args: &[String]) -> Command {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_magpie"));
+    command
+        .args(args)
+        .env_remove("MAGPIE_STORE")
+        .env_remove("MAGPIE_STATE_DIR")
+        .env_remove("XDG_STATE_HOME");
+    command
+}
+
+fn receipt_run(args: &[String]) -> Output {
+    receipt_command(args).output().unwrap()
+}
+
+fn assert_receipt_failure(output: &Output, expected_code: i32) {
+    assert_eq!(code(output), expected_code, "{}", stderr(output));
+    assert!(output.stdout.is_empty(), "failure must emit no receipt");
+    assert!(stderr(output).starts_with("magpie: "));
+}
+
+fn set_option(args: &mut [String], name: &str, value: &str) {
+    let index = args.iter().position(|arg| arg == name).unwrap();
+    args[index + 1] = value.into();
+}
+
+#[test]
+fn receipt_cli_is_byte_identical_to_library_and_check_has_no_newline() {
+    let scratch = Scratch::new();
+    small_ledger(&scratch);
+    let request = receipt_request(&scratch, StandingReceiptExpectationV0::None);
+    let bytes = scratch.log_bytes();
+    let library = produce_standing_receipt_v0(&request, &bytes).unwrap();
+    let mut args = receipt_args(&scratch, &request, None);
+    let output = receipt_run(&args);
+    assert_eq!(code(&output), 0, "{}", stderr(&output));
+    assert!(output.stderr.is_empty());
+    assert_eq!(output.stdout, library.canonical_bytes());
+    assert_eq!(output.stdout.last(), Some(&b'}'));
+    args.push("--json".into());
+    let json = receipt_run(&args);
+    assert_eq!(code(&json), 0);
+    assert!(json.stderr.is_empty());
+    assert_eq!(json.stdout, output.stdout);
+    let detached = scratch.root.join("receipt.json");
+    fs::write(&detached, &output.stdout).unwrap();
+    let mut check_args = receipt_args(&scratch, &request, Some(&detached));
+    for json in [false, true] {
+        if json {
+            check_args.push("--json".into());
+        }
+        let checked = receipt_run(&check_args);
+        assert_eq!(code(&checked), 0, "{}", stderr(&checked));
+        assert!(checked.stderr.is_empty());
+        assert_eq!(checked.stdout, output.stdout);
+    }
+    // Both an added newline and another changed byte must fail raw matching.
+    let mut altered = output.stdout.clone();
+    altered.push(b'\n');
+    fs::write(&detached, &altered).unwrap();
+    assert_receipt_failure(&receipt_run(&check_args), 1);
+    altered = output.stdout.clone();
+    altered[0] = b'[';
+    fs::write(&detached, &altered).unwrap();
+    assert_receipt_failure(&receipt_run(&check_args), 1);
+    // Checking coordinates come from arguments, not the otherwise valid receipt.
+    fs::write(&detached, &output.stdout).unwrap();
+    set_option(&mut check_args, "--expectation", "exact");
+    let checkpoint = &library.wire().verified_prefix;
+    check_args.extend([
+        "--checkpoint-event-count".into(),
+        checkpoint.event_count.to_string(),
+        "--checkpoint-sha256".into(),
+        checkpoint.tip_sha256.to_hex(),
+    ]);
+    assert_receipt_failure(&receipt_run(&check_args), 1);
+}
+
+#[test]
+fn receipt_cli_explicit_expectations_delegate_and_bind_entire_suffix() {
+    let scratch = Scratch::new();
+    small_ledger(&scratch);
+    let base = receipt_request(&scratch, StandingReceiptExpectationV0::None);
+    let library = produce_standing_receipt_v0(&base, &scratch.log_bytes()).unwrap();
+    let checkpoint = StandingReceiptCheckpointV0 {
+        event_count: library.wire().verified_prefix.event_count,
+        commitment_sha256: library.wire().verified_prefix.tip_sha256,
+    };
+    for expectation in [
+        StandingReceiptExpectationV0::Exact {
+            checkpoint: checkpoint.clone(),
+        },
+        StandingReceiptExpectationV0::ContainsCheckpoint {
+            checkpoint: checkpoint.clone(),
+        },
+    ] {
+        let request = receipt_request(&scratch, expectation);
+        let expected = produce_standing_receipt_v0(&request, &scratch.log_bytes()).unwrap();
+        let output = receipt_run(&receipt_args(&scratch, &request, None));
+        assert_eq!(code(&output), 0, "{}", stderr(&output));
+        assert!(output.stderr.is_empty());
+        assert_eq!(output.stdout, expected.canonical_bytes());
+    }
+    let original = scratch.log_bytes();
+    scratch.ok(&["note", "verified suffix"]);
+    let request = receipt_request(
+        &scratch,
+        StandingReceiptExpectationV0::ContainsCheckpoint {
+            checkpoint: checkpoint.clone(),
+        },
+    );
+    let expected = produce_standing_receipt_v0(&request, &scratch.log_bytes()).unwrap();
+    let output = receipt_run(&receipt_args(&scratch, &request, None));
+    assert_eq!(code(&output), 0);
+    assert!(output.stderr.is_empty());
+    assert_eq!(output.stdout, expected.canonical_bytes());
+    assert_eq!(
+        expected.wire().verified_prefix.event_count,
+        checkpoint.event_count + 1
+    );
+    let exact = receipt_request(
+        &scratch,
+        StandingReceiptExpectationV0::Exact {
+            checkpoint: checkpoint.clone(),
+        },
+    );
+    assert_receipt_failure(&receipt_run(&receipt_args(&scratch, &exact, None)), 1);
+    // A valid truncated image is not allowed to meet the later checkpoint.
+    fs::write(scratch.log(), original).unwrap();
+    let later = StandingReceiptCheckpointV0 {
+        event_count: expected.wire().verified_prefix.event_count,
+        commitment_sha256: expected.wire().verified_prefix.tip_sha256,
+    };
+    let request = receipt_request(
+        &scratch,
+        StandingReceiptExpectationV0::ContainsCheckpoint { checkpoint: later },
+    );
+    assert_receipt_failure(&receipt_run(&receipt_args(&scratch, &request, None)), 1);
+}
+
+#[test]
+fn receipt_cli_wrong_key_malformed_history_and_missing_selector_emit_nothing() {
+    use magpie_log::SigningKey;
+    let scratch = Scratch::new();
+    small_ledger(&scratch);
+    let request = receipt_request(&scratch, StandingReceiptExpectationV0::None);
+    let args = receipt_args(&scratch, &request, None);
+    let mut wrong_key = args.clone();
+    set_option(
+        &mut wrong_key,
+        "--verifying-key",
+        &hex::encode(SigningKey::from_bytes(&[73; 32]).verifying_key().as_bytes()),
+    );
+    assert_receipt_failure(&receipt_run(&wrong_key), 1);
+    let mut missing = args.clone();
+    missing[1] = "claim-missing".into();
+    assert_receipt_failure(&receipt_run(&missing), 1);
+    let original = scratch.log_bytes();
+    for invalid in [
+        b"{not json}\n".to_vec(),
+        b"\n".to_vec(),
+        String::from_utf8(original.clone())
+            .unwrap()
+            .replace("Theorem 2 holds", "tampered statement")
+            .into_bytes(),
+    ] {
+        fs::write(scratch.log(), &invalid).unwrap();
+        assert_receipt_failure(&receipt_run(&args), 1);
+        assert_eq!(scratch.log_bytes(), invalid);
+    }
+}
+
+#[test]
+fn receipt_cli_ambiguous_typed_selector_refuses_without_store_uniqueness_rule() {
+    use magpie_log::{FileStore, LogWriter, Payload, Provenance, SigningKey};
+    let scratch = Scratch::new();
+    // Supported writer construction, not a forged history or receipt.
+    fs::create_dir_all(scratch.store()).unwrap();
+    let key = SigningKey::from_bytes(&[66; 32]);
+    let verifying_key = hex::encode(key.verifying_key().as_bytes());
+    let mut writer = LogWriter::<FileStore>::open(FileStore::new(scratch.log()), key).unwrap();
+    for _ in 0..2 {
+        writer
+            .append(
+                Provenance::new("test", "receipt-cli"),
+                Payload::ClaimAssertedV2 {
+                    claim_id: "claim-1".into(),
+                    statement: "observation".into(),
+                    scope_ref: "scope:test".into(),
+                    actor_class: "HumanRoot".into(),
+                    content_hash: String::new(),
+                    metadata_json: r#"{"claim_domain":"OperationalObservation"}"#.into(),
+                },
+            )
+            .unwrap();
+    }
+    drop(writer);
+    let request = StandingReceiptRequestV0 {
+        context: StandingReceiptContextV0 {
+            profile: STANDING_RECEIPT_HISTORY_PROFILE_V0.into(),
+            history: StandingReceiptHistoryIdentityV0::of(&scratch.log_bytes()).unwrap(),
+            verifying_key,
+            expectation: StandingReceiptExpectationV0::None,
+            claim_id: "claim-1".into(),
+        },
+        policy_id: MAGPIE_CLAIMS_POLICY_V2_ID.into(),
+    };
+    let output = receipt_run(&receipt_args(&scratch, &request, None));
+    assert_receipt_failure(&output, 1);
+    assert!(stderr(&output).contains("AmbiguousTypedClaim"));
+}
+
+/// Inventory both bytes and directory names to detect scratch/state creation too.
+fn file_inventory(root: &Path) -> std::collections::BTreeMap<PathBuf, Option<Vec<u8>>> {
+    fn visit(
+        root: &Path,
+        dir: &Path,
+        result: &mut std::collections::BTreeMap<PathBuf, Option<Vec<u8>>>,
+    ) {
+        for entry in fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            let directory = path.is_dir();
+            result.insert(
+                path.strip_prefix(root).unwrap().to_owned(),
+                if directory {
+                    None
+                } else {
+                    Some(fs::read(&path).unwrap())
+                },
+            );
+            if directory {
+                visit(root, &path, result);
+            }
+        }
+    }
+    let mut result = std::collections::BTreeMap::new();
+    visit(root, root, &mut result);
+    result
+}
+
+#[test]
+fn receipt_cli_ignores_ambient_store_config_and_saved_state_and_writes_no_files() {
+    let scratch = Scratch::new();
+    small_ledger(&scratch);
+    let other = Scratch::new();
+    small_ledger(&other);
+    let request = receipt_request(&scratch, StandingReceiptExpectationV0::None);
+    let args = receipt_args(&scratch, &request, None);
+    let expected = receipt_run(&args);
+    assert_eq!(code(&expected), 0);
+    let detached = scratch.root.join("receipt.json");
+    fs::write(&detached, &expected.stdout).unwrap();
+    let check_args = receipt_args(&scratch, &request, Some(&detached));
+    // A saved checkpoint ahead of explicit history A must have no effect.
+    scratch.ok(&["note", "new checkpoint"]);
+    let older: Vec<u8> = scratch
+        .log_bytes()
+        .split_inclusive(|b| *b == b'\n')
+        .take(5)
+        .flatten()
+        .copied()
+        .collect();
+    fs::write(scratch.log(), older).unwrap();
+    for command_args in [&args, &check_args] {
+        for (store, state) in [
+            (other.store(), other.state()),
+            (scratch.store(), scratch.state()),
+            (
+                other.root.join("absent-store"),
+                other.root.join("absent-state"),
+            ),
+        ] {
+            let before_a = file_inventory(&scratch.root);
+            let before_b = file_inventory(&other.root);
+            let output = receipt_command(command_args)
+                .env("MAGPIE_STORE", store)
+                .env("MAGPIE_STATE_DIR", state)
+                .env("XDG_STATE_HOME", other.root.join("absent-xdg"))
+                .output()
+                .unwrap();
+            assert_eq!(code(&output), 0, "{}", stderr(&output));
+            assert!(output.stderr.is_empty());
+            assert_eq!(output.stdout, expected.stdout);
+            assert_eq!(file_inventory(&scratch.root), before_a);
+            assert_eq!(file_inventory(&other.root), before_b);
+        }
+    }
+    // Explicit history needs neither its own config nor its signing key.
+    fs::remove_file(scratch.store().join("config.json")).unwrap();
+    fs::remove_file(scratch.store().join("signing.key")).unwrap();
+    let no_config = receipt_run(&args);
+    assert_eq!(code(&no_config), 0, "{}", stderr(&no_config));
+    assert!(no_config.stderr.is_empty());
+    assert_eq!(no_config.stdout, expected.stdout);
+}
+
+#[test]
+fn receipt_cli_usage_shapes_and_explicit_full_identities_are_closed() {
+    let scratch = Scratch::new();
+    small_ledger(&scratch);
+    let request = receipt_request(&scratch, StandingReceiptExpectationV0::None);
+    let args = receipt_args(&scratch, &request, None);
+    for name in [
+        "--history",
+        "--verifying-key",
+        "--profile",
+        "--policy",
+        "--expectation",
+    ] {
+        let mut missing = args.clone();
+        let index = missing.iter().position(|arg| arg == name).unwrap();
+        missing.drain(index..index + 2);
+        assert_receipt_failure(&receipt_run(&missing), 2);
+    }
+    for (name, value) in [
+        ("--expectation", "latest"),
+        ("--expectation", "contains_checkpoint"),
+        ("--profile", "latest"),
+        ("--policy", "v2"),
+        ("--policy", "current"),
+        ("--verifying-key", "ABC"),
+        ("--verifying-key", &"A".repeat(64)),
+    ] {
+        let mut invalid = args.clone();
+        set_option(&mut invalid, name, value);
+        assert_receipt_failure(&receipt_run(&invalid), 2);
+    }
+    for flags in [
+        vec!["--store", "unrelated"],
+        vec!["--checkpoint-event-count", "0"],
+        vec!["--checkpoint-sha256", &"0".repeat(64)],
+    ] {
+        let mut invalid = args.clone();
+        invalid.extend(flags.into_iter().map(str::to_owned));
+        assert_receipt_failure(&receipt_run(&invalid), 2);
+    }
+    for relation in ["exact", "contains-checkpoint"] {
+        let mut checkpoint_args = args.clone();
+        set_option(&mut checkpoint_args, "--expectation", relation);
+        assert_receipt_failure(&receipt_run(&checkpoint_args), 2);
+        for single in [
+            vec!["--checkpoint-event-count", "0"],
+            vec!["--checkpoint-sha256", &"0".repeat(64)],
+        ] {
+            let mut incomplete = checkpoint_args.clone();
+            incomplete.extend(single.into_iter().map(str::to_owned));
+            assert_receipt_failure(&receipt_run(&incomplete), 2);
+        }
+        checkpoint_args.extend([
+            "--checkpoint-event-count".into(),
+            "0".into(),
+            "--checkpoint-sha256".into(),
+            "0".repeat(64),
+        ]);
+        for count in ["-1", "+1", "1.0", "18446744073709551616", ""] {
+            let mut invalid = checkpoint_args.clone();
+            set_option(&mut invalid, "--checkpoint-event-count", count);
+            assert_receipt_failure(&receipt_run(&invalid), 2);
+        }
+        for hash in ["xyz".into(), "A".repeat(64), "0".repeat(63)] {
+            let mut invalid = checkpoint_args.clone();
+            set_option(&mut invalid, "--checkpoint-sha256", &hash);
+            assert_receipt_failure(&receipt_run(&invalid), 2);
+        }
+    }
+    let mut missing_receipt = args.clone();
+    missing_receipt[0] = "check-standing-receipt".into();
+    assert_receipt_failure(&receipt_run(&missing_receipt), 2);
+    let mut empty_claim = args.clone();
+    empty_claim[1].clear();
+    assert_receipt_failure(&receipt_run(&empty_claim), 2);
+}
+
+#[test]
+fn receipt_cli_missing_files_are_operational_and_help_is_explicit() {
+    let scratch = Scratch::new();
+    small_ledger(&scratch);
+    let request = receipt_request(&scratch, StandingReceiptExpectationV0::None);
+    let mut args = receipt_args(&scratch, &request, None);
+    set_option(
+        &mut args,
+        "--history",
+        scratch.root.join("missing-history").to_str().unwrap(),
+    );
+    assert_receipt_failure(&receipt_run(&args), 3);
+    let missing = scratch.root.join("missing-receipt");
+    assert_receipt_failure(
+        &receipt_run(&receipt_args(&scratch, &request, Some(&missing))),
+        3,
+    );
+    let help = scratch.ok(&["standing-receipt", "--help"]);
+    for text in [
+        "Read-only native policy-v2",
+        "check-standing-receipt",
+        "Expectation is mandatory",
+        "without a newline",
+        "No current/latest/saved checkpoint",
+    ] {
+        assert!(help.contains(text), "{help}");
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn receipt_cli_output_device_failure_is_exit_three_without_state_changes() {
+    let scratch = Scratch::new();
+    small_ledger(&scratch);
+    let request = receipt_request(&scratch, StandingReceiptExpectationV0::None);
+    let before = file_inventory(&scratch.root);
+    let full = fs::OpenOptions::new()
+        .write(true)
+        .open("/dev/full")
+        .unwrap();
+    let output = receipt_command(&receipt_args(&scratch, &request, None))
+        .stdout(full)
+        .output()
+        .unwrap();
+    assert_receipt_failure(&output, 3);
+    assert_eq!(file_inventory(&scratch.root), before);
+}
+
+#[test]
+fn receipt_cli_retains_exact_crlf_and_unterminated_history_bytes() {
+    let scratch = Scratch::new();
+    small_ledger(&scratch);
+    let original = scratch.log_bytes();
+    let base = receipt_request(&scratch, StandingReceiptExpectationV0::None);
+    let first = produce_standing_receipt_v0(&base, &original).unwrap();
+    let crlf = String::from_utf8(original.clone())
+        .unwrap()
+        .replace('\n', "\r\n")
+        .into_bytes();
+    let mut unterminated = original.clone();
+    unterminated.pop();
+    for bytes in [crlf, unterminated] {
+        fs::write(scratch.log(), &bytes).unwrap();
+        let request = receipt_request(&scratch, StandingReceiptExpectationV0::None);
+        let expected = produce_standing_receipt_v0(&request, &bytes).unwrap();
+        let output = receipt_run(&receipt_args(&scratch, &request, None));
+        assert_eq!(code(&output), 0, "{}", stderr(&output));
+        assert!(output.stderr.is_empty());
+        assert_eq!(output.stdout, expected.canonical_bytes());
+        assert_eq!(
+            expected.wire().context.history.byte_count,
+            bytes.len() as u64
+        );
+        assert_ne!(expected.context_sha256(), first.context_sha256());
+        assert_eq!(expected.wire().outcome, first.wire().outcome);
+        assert_eq!(scratch.log_bytes(), bytes);
+    }
+}
+
+#[test]
+fn receipt_cli_complete_external_key_preflight_precedes_all_file_acquisition() {
+    let scratch = Scratch::new();
+    small_ledger(&scratch);
+    let request = receipt_request(&scratch, StandingReceiptExpectationV0::None);
+    let missing_receipt = scratch.root.join("missing-receipt");
+    let malformed = scratch.root.join("malformed-history");
+    fs::write(&malformed, b"\n").unwrap();
+    let before = file_inventory(&scratch.root);
+    // These are lexically valid but structurally inadmissible external roots.
+    for key in [
+        format!("02{}", "00".repeat(31)),
+        "00".repeat(32),
+        format!("01{}", "00".repeat(31)),
+    ] {
+        for detached in [None, Some(missing_receipt.as_path())] {
+            for path in [
+                scratch.root.join("missing-history"),
+                scratch.root.clone(),
+                malformed.clone(),
+                scratch.log(),
+            ] {
+                let mut args = receipt_args(&scratch, &request, detached);
+                set_option(&mut args, "--verifying-key", &key);
+                set_option(&mut args, "--history", path.to_str().unwrap());
+                let output = receipt_run(&args);
+                assert_receipt_failure(&output, 1);
+                assert!(
+                    stderr(&output).contains("ExternalKey"),
+                    "{}",
+                    stderr(&output)
+                );
+            }
+        }
+    }
+    assert_eq!(file_inventory(&scratch.root), before);
+    // An admissible external key still permits acquisition to report its own failure.
+    for detached in [None, Some(missing_receipt.as_path())] {
+        let mut args = receipt_args(&scratch, &request, detached);
+        set_option(
+            &mut args,
+            "--history",
+            scratch.root.join("missing-history").to_str().unwrap(),
+        );
+        assert_receipt_failure(&receipt_run(&args), 3);
+    }
 }

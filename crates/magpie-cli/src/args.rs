@@ -9,19 +9,32 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
 use std::path::PathBuf;
 
+use magpie_claims::{
+    StandingReceiptCheckpointV0, StandingReceiptExpectationV0, MAGPIE_CLAIMS_POLICY_V2_ID,
+    STANDING_RECEIPT_HISTORY_PROFILE_V0,
+};
+use magpie_log::ContentHash;
+use serde::Deserialize;
+
 use crate::policy::POLICY_HINT;
 use crate::CliError;
 
 const VALUE_OPTIONS: &[&str] = &[
     "agent",
+    "checkpoint-event-count",
+    "checkpoint-sha256",
     "domain",
+    "expectation",
     "file",
     "format",
+    "history",
     "id",
     "kind",
     "locator",
     "policy",
+    "profile",
     "rationale",
+    "receipt",
     "scope",
     "source",
     "source-uri",
@@ -86,6 +99,11 @@ pub(crate) enum Command {
         claim: String,
         policy: String,
     },
+    StandingReceipt(ReceiptInput),
+    CheckStandingReceipt {
+        input: ReceiptInput,
+        receipt: PathBuf,
+    },
     Why {
         claim: String,
         policy: String,
@@ -101,6 +119,115 @@ pub(crate) enum Command {
     Checkpoint {
         accept_current: bool,
     },
+}
+
+/// Explicit transport coordinates only; no store or detached data selects them.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct ReceiptInput {
+    pub claim_id: String,
+    pub history: PathBuf,
+    pub verifying_key: String,
+    pub profile: String,
+    pub policy: String,
+    pub expectation: StandingReceiptExpectationV0,
+}
+
+fn lower_hex(text: &str, option: &str) -> Result<(), CliError> {
+    if text.len() == 64
+        && text
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    {
+        Ok(())
+    } else {
+        Err(usage(format!(
+            "--{option} needs exactly 64 lowercase hex characters"
+        )))
+    }
+}
+
+fn receipt_input(
+    options: &mut Options,
+    words: &[String],
+    name: &str,
+) -> Result<ReceiptInput, CliError> {
+    let claim_id = one(
+        words,
+        &format!("{name} <claim-id> [explicit receipt options]"),
+    )?;
+    if claim_id.is_empty() {
+        return Err(usage("the claim ID must not be empty"));
+    }
+    let history =
+        PathBuf::from(options.require("history", "receipt commands need --history <path>")?);
+    let verifying_key = options.require(
+        "verifying-key",
+        "receipt commands need --verifying-key <hex>",
+    )?;
+    lower_hex(&verifying_key, "verifying-key")?;
+    let profile = options.require("profile", "receipt commands need --profile <full identity>")?;
+    if profile != STANDING_RECEIPT_HISTORY_PROFILE_V0 {
+        return Err(usage(format!(
+            "--profile must be {STANDING_RECEIPT_HISTORY_PROFILE_V0}"
+        )));
+    }
+    let policy = options.require("policy", "receipt commands need --policy <full identity>")?;
+    if policy != MAGPIE_CLAIMS_POLICY_V2_ID {
+        return Err(usage(format!(
+            "--policy must be {MAGPIE_CLAIMS_POLICY_V2_ID}"
+        )));
+    }
+    let relation = options.require(
+        "expectation",
+        "receipt commands need --expectation none|exact|contains-checkpoint",
+    )?;
+    let expectation = match relation.as_str() {
+        // Unconsumed checkpoint flags are refused by Options::finish.
+        "none" => StandingReceiptExpectationV0::None,
+        "exact" | "contains-checkpoint" => {
+            let count = options.require(
+                "checkpoint-event-count",
+                "this expectation needs --checkpoint-event-count <u64>",
+            )?;
+            if count.is_empty() || !count.bytes().all(|b| b.is_ascii_digit()) {
+                return Err(usage("--checkpoint-event-count needs a decimal u64"));
+            }
+            let event_count = count
+                .parse::<u64>()
+                .map_err(|_| usage("--checkpoint-event-count needs a decimal u64"))?;
+            let hash = options.require(
+                "checkpoint-sha256",
+                "this expectation needs --checkpoint-sha256 <hex>",
+            )?;
+            lower_hex(&hash, "checkpoint-sha256")?;
+            let commitment_sha256 = ContentHash::deserialize(serde::de::value::StrDeserializer::<
+                serde::de::value::Error,
+            >::new(&hash))
+            .map_err(|error| usage(format!("invalid --checkpoint-sha256: {error}")))?;
+            let checkpoint = StandingReceiptCheckpointV0 {
+                event_count,
+                commitment_sha256,
+            };
+            if relation == "exact" {
+                StandingReceiptExpectationV0::Exact { checkpoint }
+            } else {
+                StandingReceiptExpectationV0::ContainsCheckpoint { checkpoint }
+            }
+        }
+        _ => {
+            return Err(usage(
+                "--expectation must be none, exact, or contains-checkpoint",
+            ))
+        }
+    };
+    Ok(ReceiptInput {
+        claim_id,
+        history,
+        verifying_key,
+        profile,
+        policy,
+        expectation,
+    })
 }
 
 #[derive(Default)]
@@ -323,6 +450,24 @@ pub(crate) fn parse(args: &[OsString]) -> Result<Invocation, CliError> {
             claim: one(&rest, "standing <claim-id> --policy <v0..v4>")?,
             policy: options.require("policy", POLICY_HINT)?,
         },
+        "standing-receipt" | "check-standing-receipt" => {
+            if store.is_some() {
+                return Err(usage(
+                    "--store does not apply to explicit-history receipt commands",
+                ));
+            }
+            let input = receipt_input(&mut options, &rest, &name)?;
+            if name == "standing-receipt" {
+                Command::StandingReceipt(input)
+            } else {
+                Command::CheckStandingReceipt {
+                    input,
+                    receipt: PathBuf::from(
+                        options.require("receipt", "checking needs --receipt <path>")?,
+                    ),
+                }
+            }
+        }
         "why" => Command::Why {
             claim: one(&rest, "why <claim-id> --policy <v0..v4>")?,
             policy: options.require("policy", POLICY_HINT)?,
