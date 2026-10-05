@@ -49,7 +49,7 @@ Complete supplied-history verification before replay. Search and claim projectio
 <td width="33%" valign="top">
 <sub>03 / RESOLVE</sub><br><br>
 <strong>Conclusions with boundaries</strong><br><br>
-Explicit standing policies, immutable supplied content, provenance checks, and deterministic audit explanations.
+Explicit standing policies, immutable supplied content, provenance checks, deterministic audit explanations, and detached native-v2 standing receipts.
 </td>
 </tr>
 </table>
@@ -112,6 +112,29 @@ magpie verify                            # signatures, portable profile, checkpo
 
 Every read verifies the whole log first. There is no default policy. The log is JSONL, so `tools/verify_chain.py` can check it independently. The crate docs explain why it doesn't use the SQLite L0 yet, and how its rollback checkpoint works.
 
+The same CLI can produce and independently re-check the coordinate-complete detached standing receipt implemented for native policy v2:
+
+```sh
+magpie standing-receipt claim-1 \
+  --history ~/ledger/log.jsonl \
+  --verifying-key "$MAGPIE_VERIFYING_KEY" \
+  --profile magpie-standing-receipt-history-v2-v0 \
+  --policy magpie-claims-standing-v2 \
+  --expectation none > receipt.json
+
+magpie check-standing-receipt claim-1 \
+  --history ~/ledger/log.jsonl \
+  --receipt receipt.json \
+  --verifying-key "$MAGPIE_VERIFYING_KEY" \
+  --profile magpie-standing-receipt-history-v2-v0 \
+  --policy magpie-claims-standing-v2 \
+  --expectation none > checked.json
+
+cmp receipt.json checked.json
+```
+
+These receipt commands use explicit history bytes and coordinates rather than ambient store/config/checkpoint state. Successful output is the exact canonical receipt byte sequence, with no trailing newline.
+
 </details>
 
 <details>
@@ -140,6 +163,7 @@ flowchart TB
     C --> S["Selected standing policy"]
     I["Exact supplied artifacts and bundles"] --> S
     S --> G["Governed standing and audit explanation"]
+    G --> D["Detached native-v2 standing receipt"]
 ```
 
 The replay path verifies one complete supplied record snapshot before publishing its authoritative replay result. The same retained events then feed the derived projections.
@@ -154,9 +178,9 @@ Policies that need external artifacts or foreign bundles receive those exact byt
 | Crate | Owns | Produces |
 | :--- | :--- | :--- |
 | [`magpie-log`](crates/magpie-log) | Canonical encoding, signatures, hash chain, readers/writers, SQLite L0, complete verification, checkpoints, and replay. | The historical record and verification of supplied histories. |
-| [`magpie-claims`](crates/magpie-claims) | Typed claims and evidence, immutable supplied content, provenance and origin checks, policies v0–v4. | Governed standing and one-way audit explanations. |
+| [`magpie-claims`](crates/magpie-claims) | Typed claims and evidence, immutable supplied content, provenance and origin checks, policies v0–v4, detached standing receipt v0. | Governed standing, one-way audit explanations, and a privately constructed coordinate-complete native-v2 receipt. |
 | [`magpie-episodic`](crates/magpie-episodic) | Rebuildable SQLite projection, FTS5, deterministic log-order search. | Searchable derived state with no write-back path to history. |
-| [`magpie-cli`](crates/magpie-cli) | The `magpie` command: store setup, signed writes, verified reads, rollback checkpoints. | A claim ledger you can keep from the shell, exportable as `magpie-desk-export-v0`. |
+| [`magpie-cli`](crates/magpie-cli) | The `magpie` command: store setup, signed writes, verified reads, rollback checkpoints, explicit detached-receipt production and checking. | A claim ledger from the shell, `magpie-desk-export-v0`, and exact canonical standing-receipt bytes. |
 
 ## What works today
 
@@ -184,6 +208,16 @@ The selected [ADR 0010 signature profile](docs/adr/0010-ed25519-verification-pro
 The [differential runner](tools/check_portable_verifier_differential.py) checks the frozen manifest and exact case bytes before comparing `verdict`, `class`, `line`, `record_index`, `event_count`, `tip`, and `ordered_recomputed_hashes`. Bounded, non-normative Rust fuzz/metamorphic assurance additionally exercises the production conformer path.
 
 **This is finite conformance evidence for one exact corpus and profile.** It is not a proof of verifier correctness, universal input equivalence, key trust, currentness, or release-environment portability. The [frozen corpus](docs/design/portable-verifier-corpus-v1.md) is an oracle, not a verifier.
+
+### Detached standing receipts
+
+Magpie now implements one concrete coordinate-complete detached result boundary: **native policy-v2 standing over an explicitly supplied portable history**. The frozen [detached standing receipt v0 contract](docs/design/detached-standing-receipt-v0.md) is implemented in `magpie-claims` and exposed by the read-only `standing-receipt` and `check-standing-receipt` CLI paths.
+
+The producing context binds the exact supplied-history identity, independently supplied external verifying key, explicit history expectation, claim selector, receipt profile, and policy selection. Complete portable verification releases one opaque verified history vector; expectation, selector, replay, and native v2 resolution all derive from that same vector. The receipt then binds that context and the complete outcome through domain-separated `context_sha256` and `result_sha256` identities.
+
+Detached bytes do not become authority by parsing successfully. Checking receives the retained inputs independently, re-verifies and rederives the result, reconstructs the canonical receipt, and requires exact byte-for-byte equality. Whitespace changes, field reordering, a trailing newline, altered coordinates, or a fabricated stronger outcome therefore fail acceptance rather than being normalized away.
+
+The CLI preserves that boundary: it preflights the complete external key before acquiring history, reads the selected history exactly once, rejects `--store`, ignores ambient Magpie store/config/checkpoint state, and writes only the library-owned canonical receipt bytes on success. This receipt establishes only the named historical derivation; it does **not** establish truth, currentness, latest history, permission to act, source authenticity beyond the selected verification boundary, or global completeness.
 
 ### Persistence
 
@@ -260,7 +294,7 @@ A verified prefix establishes the validity of the **exact supplied history**, un
 
 [ADR 0008](docs/adr/0008-complete-producing-coordinates.md) requires governed detached results to identify their complete producing inputs: history, policy, exact supplied artifacts, subjects, inherited results, and applicable authority inputs. Equal-looking outputs can have different derivations.
 
-**That doctrine does not retrofit every existing API.** Legacy public results remain coordinate-poor; coordinate-complete detached verification/replay results are not advertised as implemented. See the [current boundary](#current-boundary).
+**That doctrine does not retrofit every existing API.** Legacy public results remain coordinate-poor. One deliberately narrow boundary now satisfies it: detached native-v2 standing receipts over explicit supplied history. Other public result families are not thereby upgraded, generalized, or made current. See the [detached receipt contract](docs/design/detached-standing-receipt-v0.md) and [current boundary](#current-boundary).
 
 ## Deadbolt integration
 
@@ -287,6 +321,7 @@ Magpie verifies inclusion of the anchor event and its exact fields in the signed
 - **Portability:** complete Rust, Python, and Go conformers; frozen 432-case corpus; exact seven-field differential and bounded Rust assurance.
 - **Derived state:** rebuildable search and claims; typed evidence and edges; immutable supplied content; provenance, origin-admission, and contribution audits.
 - **Resolution:** explicit policies v0–v4; deterministic support; compatibility corroboration; subject-bound direct refutation; one-way audit explanations.
+- **Portable output:** coordinate-complete detached native-v2 standing receipts with explicit history identity, external key, expectation, selector, profile and policy; trusted rederivation plus exact-byte detached checking; read-only CLI transport with no ambient store semantics.
 - **Integration:** optional Deadbolt bundle anchoring.
 
 ### Explicitly not implemented
@@ -294,7 +329,7 @@ Magpie verifies inclusion of the anchor event and its exact fields in the signed
 | Area | Remaining scope |
 | :--- | :--- |
 | **Trust and retention** | Secure retained checkpoints, stronger rollback resistance, production key custody and rotation. |
-| **Portable outputs** | Coordinate-complete detached verification/replay results for an advertised governed detachable-result boundary. |
+| **Broader portable outputs** | Detached result profiles beyond the implemented native-v2 standing receipt, including other policy/result families and any future generalized portable-output framework. |
 | **Admission** | Authority-bound origin-group admission under ADR 0007; an ordinary governed claim/evidence writer; `EpistemicGate`. |
 | **Acquisition** | Acquisition loading, content-addressed storage, filesystem and network ingestion. |
 | **Knowledge lifecycle** | Broader contradiction policy and contradiction debt; runtime currentness, invalidation, and supersession under ADR 0006; broader propagation of source standing. |
@@ -319,6 +354,7 @@ Choose a starting point; expand a reference shelf when you need the exact rules.
 | Run the deterministic example | [Standing tour](docs/design/governed-standing-tour-v1.md) |
 | Understand storage and checkpoints | [L0 persistence](docs/design/l0-persistence-and-checkpoint-open-v0.md) |
 | Inspect the portable verifier contract | [Input language](docs/design/portable-verifier-input-language-contract.md) · [Frozen corpus](docs/design/portable-verifier-corpus-v1.md) |
+| Produce or check a detached v2 standing result | [Detached standing receipt v0](docs/design/detached-standing-receipt-v0.md) |
 | Understand evidence and policy | [Standing ceilings](docs/design/standing-view-evidence-ceilings.md) · [Provenance and origin admission](docs/design/artifact-provenance-origin-admission.md) |
 | Review development history | [Tickets](tickets/) · [Working rules](AGENTS.md) |
 
@@ -353,6 +389,7 @@ Accepted decisions describe doctrine. Their individual runtime and evidence stat
 - [Provenance and origin admission](docs/design/artifact-provenance-origin-admission.md)
 - [Policy v3: external-report corroboration](docs/design/standing-policy-v3-external-report-corroboration-v0.md)
 - [Policy v4: claim-inline direct refutation](docs/design/standing-policy-v4-claim-inline-direct-refutation-v0.md)
+- [Detached standing receipt v0](docs/design/detached-standing-receipt-v0.md)
 
 The corpus is owner-approved, merged, exact-byte, frozen oracle material. Finite agreement does not itself prove verifier correctness or close a finding; consult the separate owner-reviewed [disposition record](docs/audits/audit-disposition-2026-08.md).
 
@@ -365,7 +402,6 @@ The corpus is owner-approved, merged, exact-byte, frozen oracle material. Finite
 - [MCP librarian](docs/design/mcp-librarian-contract.md)
 - [Verified librarian query](docs/design/verified-librarian-query-contract.md)
 - [Provenance response](docs/design/provenance-response-contract.md)
-- [Detached standing receipt v0 (proposed)](docs/design/detached-standing-receipt-v0.md)
 - [MCP capability boundary](docs/design/mcp-capability-boundary-contract.md)
 - [AgentProposer boundary](docs/design/agent-proposer-boundary-contract.md)
 
