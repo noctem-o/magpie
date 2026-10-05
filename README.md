@@ -365,6 +365,7 @@ The corpus is owner-approved, merged, exact-byte, frozen oracle material. Finite
 - [MCP librarian](docs/design/mcp-librarian-contract.md)
 - [Verified librarian query](docs/design/verified-librarian-query-contract.md)
 - [Provenance response](docs/design/provenance-response-contract.md)
+- [Detached standing receipt v0 (proposed)](docs/design/detached-standing-receipt-v0.md)
 - [MCP capability boundary](docs/design/mcp-capability-boundary-contract.md)
 - [AgentProposer boundary](docs/design/agent-proposer-boundary-contract.md)
 
