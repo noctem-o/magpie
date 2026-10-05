@@ -7,6 +7,7 @@ use magpie_claims::{
     check_standing_receipt_v0, produce_standing_receipt_v0, StandingReceiptContextV0,
     StandingReceiptErrorV0, StandingReceiptHistoryIdentityV0, StandingReceiptRequestV0,
 };
+use magpie_log::{prepare_portable_history_v0, signature_profile::V_SIG_PROFILE_ID};
 
 use crate::args::ReceiptInput;
 use crate::CliError;
@@ -23,6 +24,11 @@ pub(crate) fn execute(
     detached_path: Option<PathBuf>,
     out: &mut dyn Write,
 ) -> Result<(), CliError> {
+    // The parser has selected the frozen receipt profile/policy. Complete key
+    // preflight must precede acquisition; this reviewed library gate consumes
+    // no history. The receipt API repeats it before its full same-vector derivation.
+    prepare_portable_history_v0(V_SIG_PROFILE_ID, &input.verifying_key)
+        .map_err(|error| failure(error.into()))?;
     // One retained byte image, with no Snapshot, store, scratch copy or normalization.
     let history_bytes = std::fs::read(&input.history)?;
     let history = StandingReceiptHistoryIdentityV0::of(&history_bytes)

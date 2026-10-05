@@ -1585,3 +1585,51 @@ fn receipt_cli_retains_exact_crlf_and_unterminated_history_bytes() {
         assert_eq!(scratch.log_bytes(), bytes);
     }
 }
+
+#[test]
+fn receipt_cli_complete_external_key_preflight_precedes_all_file_acquisition() {
+    let scratch = Scratch::new();
+    small_ledger(&scratch);
+    let request = receipt_request(&scratch, StandingReceiptExpectationV0::None);
+    let missing_receipt = scratch.root.join("missing-receipt");
+    let malformed = scratch.root.join("malformed-history");
+    fs::write(&malformed, b"\n").unwrap();
+    let before = file_inventory(&scratch.root);
+    // These are lexically valid but structurally inadmissible external roots.
+    for key in [
+        format!("02{}", "00".repeat(31)),
+        "00".repeat(32),
+        format!("01{}", "00".repeat(31)),
+    ] {
+        for detached in [None, Some(missing_receipt.as_path())] {
+            for path in [
+                scratch.root.join("missing-history"),
+                scratch.root.clone(),
+                malformed.clone(),
+                scratch.log(),
+            ] {
+                let mut args = receipt_args(&scratch, &request, detached);
+                set_option(&mut args, "--verifying-key", &key);
+                set_option(&mut args, "--history", path.to_str().unwrap());
+                let output = receipt_run(&args);
+                assert_receipt_failure(&output, 1);
+                assert!(
+                    stderr(&output).contains("ExternalKey"),
+                    "{}",
+                    stderr(&output)
+                );
+            }
+        }
+    }
+    assert_eq!(file_inventory(&scratch.root), before);
+    // An admissible external key still permits acquisition to report its own failure.
+    for detached in [None, Some(missing_receipt.as_path())] {
+        let mut args = receipt_args(&scratch, &request, detached);
+        set_option(
+            &mut args,
+            "--history",
+            scratch.root.join("missing-history").to_str().unwrap(),
+        );
+        assert_receipt_failure(&receipt_run(&args), 3);
+    }
+}
