@@ -1,5 +1,5 @@
 use crate::signature_profile::ProfiledSignatureVerifier;
-use crate::EventCore;
+use crate::{ContentHash, EventCore, Sig, SignedEvent};
 
 use super::conformer::SemanticSuccess;
 use super::framing::{FrameCursor, FrameStep};
@@ -130,11 +130,19 @@ impl<'input> PendingRecord<'input> {
     pub(super) fn release_after_semantic_success(
         self: Box<Self>,
         _success: SemanticSuccess,
-    ) -> FrontendSession<'input> {
-        FrontendSession {
-            verifier: self.verifier,
-            cursor: self.continuation,
-        }
+    ) -> (FrontendSession<'input>, SignedEvent) {
+        let event = SignedEvent {
+            core: self.record.core,
+            hash: ContentHash::from_bytes(self.record.stored_hash),
+            signature: Sig::new(self.record.signature),
+        };
+        (
+            FrontendSession {
+                verifier: self.verifier,
+                cursor: self.continuation,
+            },
+            event,
+        )
     }
 
     /// Release isolated frontend tests without creating a production bypass.

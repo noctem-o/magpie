@@ -100,9 +100,9 @@ mod event;
 mod hashing;
 mod history_expectation;
 mod logimpl;
-// The authoritative portable conformer and its governed detail types remain
-// crate-internal. A narrow public FileStore method maps that exact-byte path to
-// a boolean verdict without exposing a portable result type or second grammar.
+// Parsing and continuation authority remain private. Public byte-oriented
+// verification can now retain the same verified vector for read-only replay;
+// the compatibility FileStore boolean facade stays unchanged.
 // Keep the suppression limited to non-test reachability analysis; test builds
 // must account for the complete detailed file path.
 #[cfg_attr(not(test), allow(dead_code))]
@@ -122,6 +122,11 @@ pub use history_expectation::{
 };
 pub use logimpl::{
     Clock, LogReader, LogWriter, Projection, VerifiedReplayEvent, VerifiedReplaySummary,
+};
+pub use portable_verifier::{
+    prepare_portable_history_v0, PortableHistoryOperationalErrorV0,
+    PortableHistoryVerificationErrorV0, PortableRejection, PortableRejectionClass,
+    PreparedPortableHistoryV0, VerifiedPortableHistoryV0,
 };
 pub use sqlite_l0::{
     CheckpointQualifiedWriterOpenV0, L0ResourceLimitsV0, SqliteCheckpointOpenError, SqliteL0Store,

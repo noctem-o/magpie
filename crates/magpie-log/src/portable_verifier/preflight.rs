@@ -23,6 +23,10 @@ pub(super) struct PreparedFrontend<'input> {
 }
 
 impl PreparedVerifier {
+    pub(super) fn external_key_bytes(&self) -> [u8; 32] {
+        *self.verifier.external_key_bytes()
+    }
+
     pub(super) fn new(
         profile_identity: &str,
         external_key_text: &str,

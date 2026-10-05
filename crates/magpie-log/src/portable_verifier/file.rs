@@ -59,6 +59,9 @@ impl FileVerificationError {
             Self::Verification(CompleteHistoryError::EventCountExhausted) => {
                 std::io::Error::other("portable verification event count is exhausted")
             }
+            Self::Verification(CompleteHistoryError::EventRetentionAllocation) => {
+                std::io::Error::other("portable event retention allocation failed")
+            }
             Self::Verification(CompleteHistoryError::UnsupportedProfile(_)) => {
                 std::io::Error::other("selected portable verification profile is unavailable")
             }

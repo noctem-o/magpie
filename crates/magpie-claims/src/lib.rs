@@ -20,6 +20,7 @@ mod origin_binding_verifier;
 mod replay_snapshot;
 mod resolution_content_closure;
 mod standing;
+mod standing_receipt;
 mod standing_v1;
 mod standing_v2;
 mod standing_v3;
@@ -129,6 +130,16 @@ pub use standing_v2::{
     StandingPolicyApplicationV2, StandingPolicyContextV2, StandingPolicyRuleV2,
     StandingResolutionFailureV2, StandingResolutionV2, StandingTraceEntryV2,
     MAGPIE_CLAIMS_POLICY_V2_ID,
+};
+
+pub use standing_receipt::{
+    check_standing_receipt_v0, produce_standing_receipt_v0, ProducedStandingReceiptV0,
+    StandingReceiptCheckpointV0, StandingReceiptContextV0, StandingReceiptErrorV0,
+    StandingReceiptExpectationV0, StandingReceiptHistoryIdentityV0,
+    StandingReceiptOperationalErrorV0, StandingReceiptRequestV0, StandingReceiptVerifiedPrefixV0,
+    StandingReceiptWireV0, STANDING_RECEIPT_CONTEXT_DOMAIN_V0,
+    STANDING_RECEIPT_ENCODING_PROFILE_V0, STANDING_RECEIPT_HISTORY_PROFILE_V0,
+    STANDING_RECEIPT_RESULT_DOMAIN_V0, STANDING_RECEIPT_SCHEMA_V0,
 };
 
 pub use standing_v3::{
