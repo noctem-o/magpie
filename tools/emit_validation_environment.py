@@ -24,6 +24,10 @@ ROOT = Path(__file__).resolve().parents[1]
 FROZEN_CORPUS_MANIFEST_SHA256 = (
     "7d758d3f2dac1161fe15dd064b130ccbfcdaf0437ea8ab8d7772492194801a81"
 )
+DEPENDENCY_NATIVE_INVENTORY_PATH = "tools/dependency_native_inventory.json"
+DEPENDENCY_NATIVE_INVENTORY_SHA256 = (
+    "d8c023c60bbf2863ad27534c7b0a44ad9ed0fb9dd920b2af7db574698564a4cc"
+)
 TREE_IDENTITY_PROFILE = "magpie-validation-tree-sha256-v1"
 GITHUB_ACTIONS_REQUIRED_COORDINATES = (
     "GITHUB_EVENT_NAME",
@@ -131,6 +135,24 @@ def _input_identity(relative_path: str) -> dict[str, str]:
     return {"path": relative_path, "sha256": _sha256_file(path)}
 
 
+def _dependency_native_qualification() -> dict[str, object]:
+    inventory_identity = _input_identity(DEPENDENCY_NATIVE_INVENTORY_PATH)
+    if inventory_identity["sha256"] != DEPENDENCY_NATIVE_INVENTORY_SHA256:
+        raise RuntimeError(
+            "dependency-native inventory digest changed: "
+            f"expected {DEPENDENCY_NATIVE_INVENTORY_SHA256}, "
+            f"got {inventory_identity['sha256']}"
+        )
+    document = json.loads((ROOT / DEPENDENCY_NATIVE_INVENTORY_PATH).read_bytes())
+    return {
+        "checker": _input_identity("tools/check_dependency_native_qualification.py"),
+        "inventory": inventory_identity,
+        "native": document["native_states"],
+        "non_claims": document["non_claims"],
+        "python_artifacts": document["python"]["artifacts"],
+    }
+
+
 def _validate_github_actions_environment(environment: Mapping[str, str]) -> str | None:
     if environment.get("GITHUB_ACTIONS") != "true":
         return None
@@ -176,7 +198,10 @@ def collect_environment(
     vendor_identity = _tree_identity(ROOT / "tools/go-verify-chain/vendor")
     vendor_identity["path"] = "tools/go-verify-chain/vendor"
 
+    dependency_native_qualification = _dependency_native_qualification()
+
     return {
+        "dependency_native_qualification": dependency_native_qualification,
         "governed_inputs": {
             "cargo_lock": _input_identity("Cargo.lock"),
             "ci_workflow": _input_identity(".github/workflows/ci.yml"),

@@ -225,6 +225,44 @@ class ValidationEnvironmentTests(unittest.TestCase):
         )
         json.loads(provenance.canonical_record(record))
 
+    def test_dependency_native_qualification_is_bound_to_governed_inventory(
+        self,
+    ) -> None:
+        environment = self._github_environment("pull_request")
+        record = provenance.collect_environment(environment, self._command_output)
+        qualification = record["dependency_native_qualification"]
+        self.assertEqual(
+            qualification["inventory"]["path"],
+            provenance.DEPENDENCY_NATIVE_INVENTORY_PATH,
+        )
+        self.assertEqual(
+            qualification["inventory"]["sha256"],
+            provenance.DEPENDENCY_NATIVE_INVENTORY_SHA256,
+        )
+        self.assertEqual(
+            qualification["checker"]["path"],
+            "tools/check_dependency_native_qualification.py",
+        )
+        native = qualification["native"]
+        self.assertEqual(native["bundled_sqlite"]["state"], "OBSERVED")
+        self.assertEqual(native["bundled_sqlite"]["version"], "3.50.2")
+        self.assertEqual(native["libsodium"]["state"], "UNAVAILABLE")
+        self.assertIsNone(native["libsodium"]["version"])
+        self.assertEqual(len(qualification["python_artifacts"]), 4)
+        self.assertEqual(len(qualification["non_claims"]), 6)
+        json.loads(provenance.canonical_record(record))
+
+    def test_dependency_native_inventory_digest_drift_fails_closed(self) -> None:
+        environment = self._github_environment("pull_request")
+        with mock.patch.object(
+            provenance, "DEPENDENCY_NATIVE_INVENTORY_SHA256", "0" * 64
+        ):
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "dependency-native inventory digest changed",
+            ):
+                provenance.collect_environment(environment, self._command_output)
+
     def test_command_output_dispatch_is_exact(self) -> None:
         self.assertEqual(
             self._command_output([sys.executable, "--version"]),
