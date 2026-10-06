@@ -1,0 +1,659 @@
+{
+  "schema_version": 1,
+  "profile": "magpie-public-prealpha-assurance-v1",
+  "lane": "sqlite-l0-resource-crash-recovery-v0",
+  "governed_sources": {
+    "crates/magpie-log/src/sqlite_l0.rs": "744c480546c77925e69ad84aae3aeb69a9e5c18fad755da9e15dcae7f144c01a",
+    "crates/magpie-log/tests/sqlite_l0.rs": "2efcdb2ec76727ba4076b8be832dc7666ea03891434e762020918c90b81e5c07"
+  },
+  "source_file_counts": {
+    "crates/magpie-log/tests/sqlite_l0.rs": 32,
+    "crates/magpie-log/src/sqlite_l0.rs": 8
+  },
+  "classification_counts": {
+    "EXACT": 36,
+    "PARTIAL": 4
+  },
+  "witnesses": [
+    {
+      "witness_id": "integration/p1_creation_is_atomic_bounded_and_initializes_exact_writer_coordinates",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 1,
+      "test_kind": "integration",
+      "test_name": "p1_creation_is_atomic_bounded_and_initializes_exact_writer_coordinates",
+      "cargo_test_name": "p1_creation_is_atomic_bounded_and_initializes_exact_writer_coordinates",
+      "source_line": 132,
+      "classification": "EXACT",
+      "families": [
+        "creation-atomicity",
+        "finite-resource-limits",
+        "rollback-journal-profile"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: create is atomic, bounded, initializes exact genesis coordinates and the delete journal profile. NOT: power-loss durability or external retention."
+    },
+    {
+      "witness_id": "integration/p19_creation_rejects_oversized_journal_before_any_sqlite_open",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 2,
+      "test_kind": "integration",
+      "test_name": "p19_creation_rejects_oversized_journal_before_any_sqlite_open",
+      "cargo_test_name": "p19_creation_rejects_oversized_journal_before_any_sqlite_open",
+      "source_line": 260,
+      "classification": "EXACT",
+      "families": [
+        "finite-resource-limits",
+        "rollback-journal-profile"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: an oversized rollback journal is rejected before any SQLite open. NOT: power-loss, commit durability, or recovery from a created journal."
+    },
+    {
+      "witness_id": "integration/p2_p3_p17_ownership_and_schema_refusals_do_not_adopt_or_repair",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 3,
+      "test_kind": "integration",
+      "test_name": "p2_p3_p17_ownership_and_schema_refusals_do_not_adopt_or_repair",
+      "cargo_test_name": "p2_p3_p17_ownership_and_schema_refusals_do_not_adopt_or_repair",
+      "source_line": 308,
+      "classification": "EXACT",
+      "families": [
+        "schema-ownership",
+        "tamper-resistance"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: foreign, non-SQLite, future-version, and extra-schema states are refused without adoption or repair. NOT: authentication or external integrity."
+    },
+    {
+      "witness_id": "integration/p3_exact_schema_refuses_extra_index_trigger_and_view",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 4,
+      "test_kind": "integration",
+      "test_name": "p3_exact_schema_refuses_extra_index_trigger_and_view",
+      "cargo_test_name": "p3_exact_schema_refuses_extra_index_trigger_and_view",
+      "source_line": 375,
+      "classification": "EXACT",
+      "families": [
+        "schema-ownership"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: the exact governed schema accepts only the two indexes and refuses an extra index, trigger, or view. NOT: general schema evolution."
+    },
+    {
+      "witness_id": "integration/p4_p5_p6_p7_checkpoint_open_preserves_verification_and_mismatch_distinctions",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 5,
+      "test_kind": "integration",
+      "test_name": "p4_p5_p6_p7_checkpoint_open_preserves_verification_and_mismatch_distinctions",
+      "cargo_test_name": "p4_p5_p6_p7_checkpoint_open_preserves_verification_and_mismatch_distinctions",
+      "source_line": 401,
+      "classification": "EXACT",
+      "families": [
+        "checkpoint-qualified-open",
+        "stable-snapshot"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: checkpoint-qualified open distinguishes checkpoint satisfied from not satisfied and never creates a writer when not satisfied. NOT: rollback resistance or fresh authority."
+    },
+    {
+      "witness_id": "integration/checkpoint_qualified_opens_retain_distinct_genuine_producing_contexts",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 6,
+      "test_kind": "integration",
+      "test_name": "checkpoint_qualified_opens_retain_distinct_genuine_producing_contexts",
+      "cargo_test_name": "checkpoint_qualified_opens_retain_distinct_genuine_producing_contexts",
+      "source_line": 455,
+      "classification": "EXACT",
+      "families": [
+        "checkpoint-qualified-open",
+        "stable-snapshot"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: repeated checkpoint-qualified opens preserve distinct genuine producing contexts and evaluations. NOT: external freshness or rollback resistance."
+    },
+    {
+      "witness_id": "integration/checkpoint_qualified_append_preserves_binding_and_writer_state_machine",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 7,
+      "test_kind": "integration",
+      "test_name": "checkpoint_qualified_append_preserves_binding_and_writer_state_machine",
+      "cargo_test_name": "checkpoint_qualified_append_preserves_binding_and_writer_state_machine",
+      "source_line": 490,
+      "classification": "EXACT",
+      "families": [
+        "checkpoint-qualified-append",
+        "stale-writer-atomicity"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: checkpoint-qualified append preserves the exact evaluation and writer state machine; stale or poisoned writers do not rebase. NOT: universal crash recovery."
+    },
+    {
+      "witness_id": "integration/p8_wrong_branch_length_never_substitutes_for_checkpoint_ancestry",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 8,
+      "test_kind": "integration",
+      "test_name": "p8_wrong_branch_length_never_substitutes_for_checkpoint_ancestry",
+      "cargo_test_name": "p8_wrong_branch_length_never_substitutes_for_checkpoint_ancestry",
+      "source_line": 531,
+      "classification": "EXACT",
+      "families": [
+        "checkpoint-qualified-open"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: branch length alone is never substituted for checkpoint ancestry. NOT: external ancestry validation."
+    },
+    {
+      "witness_id": "integration/p1_missing_persisted_terminal_is_stale_and_cannot_advance_writer",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 9,
+      "test_kind": "integration",
+      "test_name": "p1_missing_persisted_terminal_is_stale_and_cannot_advance_writer",
+      "cargo_test_name": "p1_missing_persisted_terminal_is_stale_and_cannot_advance_writer",
+      "source_line": 561,
+      "classification": "EXACT",
+      "families": [
+        "stale-writer-atomicity",
+        "tamper-resistance"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: a missing persisted terminal is stale and cannot advance the writer. NOT: recovery by truncation."
+    },
+    {
+      "witness_id": "integration/p19_append_terminal_blob_is_bounded_before_parsing",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 10,
+      "test_kind": "integration",
+      "test_name": "p19_append_terminal_blob_is_bounded_before_parsing",
+      "cargo_test_name": "p19_append_terminal_blob_is_bounded_before_parsing",
+      "source_line": 590,
+      "classification": "EXACT",
+      "families": [
+        "finite-resource-limits"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: an oversized append terminal blob is bounded before parsing and poisons the writer. NOT: semantic validation after parsing."
+    },
+    {
+      "witness_id": "integration/p2_append_revalidates_cumulative_bytes_after_terminal_rewrite",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 11,
+      "test_kind": "integration",
+      "test_name": "p2_append_revalidates_cumulative_bytes_after_terminal_rewrite",
+      "cargo_test_name": "p2_append_revalidates_cumulative_bytes_after_terminal_rewrite",
+      "source_line": 634,
+      "classification": "EXACT",
+      "families": [
+        "finite-resource-limits",
+        "stale-writer-atomicity"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: terminal cumulative-byte revalidation detects same-hash rewrites and poisons the writer. NOT: semantic content authenticity beyond the governed chain."
+    },
+    {
+      "witness_id": "integration/p2_append_revalidates_cumulative_bytes_after_nonterminal_rewrite",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 12,
+      "test_kind": "integration",
+      "test_name": "p2_append_revalidates_cumulative_bytes_after_nonterminal_rewrite",
+      "cargo_test_name": "p2_append_revalidates_cumulative_bytes_after_nonterminal_rewrite",
+      "source_line": 693,
+      "classification": "EXACT",
+      "families": [
+        "finite-resource-limits",
+        "stale-writer-atomicity"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: nonterminal cumulative-byte revalidation detects limit violations and reopen fails closed. NOT: semantic content validation."
+    },
+    {
+      "witness_id": "integration/p9_stale_writers_cannot_commit_sibling_successors",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 13,
+      "test_kind": "integration",
+      "test_name": "p9_stale_writers_cannot_commit_sibling_successors",
+      "cargo_test_name": "p9_stale_writers_cannot_commit_sibling_successors",
+      "source_line": 764,
+      "classification": "EXACT",
+      "families": [
+        "stale-writer-atomicity"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: stale writers cannot commit sibling successors after a branch mismatch. NOT: consensus or external coordination."
+    },
+    {
+      "witness_id": "integration/p1_append_rechecks_delete_journal_mode_after_begin",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 14,
+      "test_kind": "integration",
+      "test_name": "p1_append_rechecks_delete_journal_mode_after_begin",
+      "cargo_test_name": "p1_append_rechecks_delete_journal_mode_after_begin",
+      "source_line": 790,
+      "classification": "EXACT",
+      "families": [
+        "rollback-journal-profile",
+        "transaction-failure"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: WAL substitution after BEGIN IMMEDIATE is refused before commit and poisons the writer. NOT: rollback-journal recovery or durability."
+    },
+    {
+      "witness_id": "integration/p10_stable_reader_forces_commit_busy_cleanup_without_hidden_retry",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 15,
+      "test_kind": "integration",
+      "test_name": "p10_stable_reader_forces_commit_busy_cleanup_without_hidden_retry",
+      "cargo_test_name": "p10_stable_reader_forces_commit_busy_cleanup_without_hidden_retry",
+      "source_line": 820,
+      "classification": "EXACT",
+      "families": [
+        "busy-contention",
+        "stable-snapshot",
+        "transaction-failure"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: stable-reader commit busy returns typed StorageBusy, rolls back without hidden retry, poisons the writer, and deliberate reopen succeeds. NOT: power loss or universal crash recovery."
+    },
+    {
+      "witness_id": "integration/begin_immediate_busy_is_not_retried_and_poisons_without_committing",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 16,
+      "test_kind": "integration",
+      "test_name": "begin_immediate_busy_is_not_retried_and_poisons_without_committing",
+      "cargo_test_name": "begin_immediate_busy_is_not_retried_and_poisons_without_committing",
+      "source_line": 874,
+      "classification": "EXACT",
+      "families": [
+        "busy-contention",
+        "transaction-failure"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: BEGIN IMMEDIATE busy does not retry, does not commit, and poisons the writer. NOT: recovery of a possibly committed transaction."
+    },
+    {
+      "witness_id": "integration/p11_post_insert_resource_failure_rolls_back_and_poisons",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 17,
+      "test_kind": "integration",
+      "test_name": "p11_post_insert_resource_failure_rolls_back_and_poisons",
+      "cargo_test_name": "p11_post_insert_resource_failure_rolls_back_and_poisons",
+      "source_line": 902,
+      "classification": "EXACT",
+      "families": [
+        "finite-resource-limits",
+        "transaction-failure"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: post-insert resource failure rolls back and poisons the writer. NOT: power loss or durability of a successful commit."
+    },
+    {
+      "witness_id": "integration/p12_lost_process_acknowledgement_requires_reopen_instead_of_blind_retry",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 18,
+      "test_kind": "integration",
+      "test_name": "p12_lost_process_acknowledgement_requires_reopen_instead_of_blind_retry",
+      "cargo_test_name": "p12_lost_process_acknowledgement_requires_reopen_instead_of_blind_retry",
+      "source_line": 929,
+      "classification": "PARTIAL",
+      "families": [
+        "crash-recovery-boundary",
+        "lost-acknowledgement"
+      ],
+      "overclaim_risk": "power-loss or universal crash-recovery misreading",
+      "claim_fence": "WITNESSES: a durable append acknowledged only by a child process survives simulated child exit 86 and is observed after reopen. NOT: power loss, kernel crash, unknown commit state, or universal crash recovery."
+    },
+    {
+      "witness_id": "integration/p14_corruption_never_truncates_to_an_earlier_valid_prefix",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 19,
+      "test_kind": "integration",
+      "test_name": "p14_corruption_never_truncates_to_an_earlier_valid_prefix",
+      "cargo_test_name": "p14_corruption_never_truncates_to_an_earlier_valid_prefix",
+      "source_line": 964,
+      "classification": "EXACT",
+      "families": [
+        "stable-snapshot",
+        "tamper-resistance"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: corrupt records, signatures, and positions fail closed and the persisted database bytes are unchanged after each failed open; no truncation to an earlier valid prefix occurs. NOT: recovery from corruption."
+    },
+    {
+      "witness_id": "integration/p15_p16_checkpoint_comparison_detects_only_the_explicit_retained_coordinate",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 20,
+      "test_kind": "integration",
+      "test_name": "p15_p16_checkpoint_comparison_detects_only_the_explicit_retained_coordinate",
+      "cargo_test_name": "p15_p16_checkpoint_comparison_detects_only_the_explicit_retained_coordinate",
+      "source_line": 1028,
+      "classification": "EXACT",
+      "families": [
+        "checkpoint-qualified-open"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: checkpoint comparison detects only the explicit retained coordinate. NOT: general history traversal or rollback resistance."
+    },
+    {
+      "witness_id": "integration/p19_physical_logical_and_blob_limits_fail_before_semantic_publication",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 21,
+      "test_kind": "integration",
+      "test_name": "p19_physical_logical_and_blob_limits_fail_before_semantic_publication",
+      "cargo_test_name": "p19_physical_logical_and_blob_limits_fail_before_semantic_publication",
+      "source_line": 1076,
+      "classification": "EXACT",
+      "families": [
+        "finite-resource-limits"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: physical main-database, physical rollback-journal, and individual record-byte limits each fail closed before any semantic publication. NOT: an independent logical gate or semantic payload validation."
+    },
+    {
+      "witness_id": "integration/sqlite_record_bytes_match_filestore_bytes_without_jsonl_framing",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 22,
+      "test_kind": "integration",
+      "test_name": "sqlite_record_bytes_match_filestore_bytes_without_jsonl_framing",
+      "cargo_test_name": "sqlite_record_bytes_match_filestore_bytes_without_jsonl_framing",
+      "source_line": 1160,
+      "classification": "PARTIAL",
+      "families": [
+        "compatibility-byte-parity"
+      ],
+      "overclaim_risk": "full-corpus or portable-format misreading",
+      "claim_fence": "WITNESSES: the tested SQLite record bytes match exact FileStore/SignedEvent bytes without JSONL framing. NOT: full verifier corpus or portable format guarantee."
+    },
+    {
+      "witness_id": "integration/p19_sequential_append_uses_updated_total_and_failed_append_advances_nothing",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 23,
+      "test_kind": "integration",
+      "test_name": "p19_sequential_append_uses_updated_total_and_failed_append_advances_nothing",
+      "cargo_test_name": "p19_sequential_append_uses_updated_total_and_failed_append_advances_nothing",
+      "source_line": 1193,
+      "classification": "EXACT",
+      "families": [
+        "finite-resource-limits",
+        "stale-writer-atomicity"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: sequential append uses the updated cumulative total and a failed resource-limited append advances nothing. NOT: post-commit durability or crash recovery."
+    },
+    {
+      "witness_id": "integration/p19_record_count_wrong_key_empty_owned_and_wal_are_fail_closed",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 24,
+      "test_kind": "integration",
+      "test_name": "p19_record_count_wrong_key_empty_owned_and_wal_are_fail_closed",
+      "cargo_test_name": "p19_record_count_wrong_key_empty_owned_and_wal_are_fail_closed",
+      "source_line": 1248,
+      "classification": "EXACT",
+      "families": [
+        "finite-resource-limits",
+        "rollback-journal-profile",
+        "schema-ownership",
+        "tamper-resistance"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: a record-count limit, a wrong key, an owned database with its records deleted (empty owned history), and WAL mode each fail closed. NOT: external ownership, authentication, or a separate empty-file case."
+    },
+    {
+      "witness_id": "integration/read_only_verification_preserves_established_delete_profile",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 25,
+      "test_kind": "integration",
+      "test_name": "read_only_verification_preserves_established_delete_profile",
+      "cargo_test_name": "read_only_verification_preserves_established_delete_profile",
+      "source_line": 1317,
+      "classification": "EXACT",
+      "families": [
+        "rollback-journal-profile",
+        "stable-snapshot"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: read-only verification of a governed database with an already-established delete journal profile preserves that profile. NOT: establishment of the profile, write durability, or recovery."
+    },
+    {
+      "witness_id": "integration/p20_schema_has_no_ambient_checkpoint_or_mutable_head_state",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 26,
+      "test_kind": "integration",
+      "test_name": "p20_schema_has_no_ambient_checkpoint_or_mutable_head_state",
+      "cargo_test_name": "p20_schema_has_no_ambient_checkpoint_or_mutable_head_state",
+      "source_line": 1345,
+      "classification": "EXACT",
+      "families": [
+        "no-ambient-head",
+        "schema-ownership"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: the schema has no ambient checkpoint or mutable head state. NOT: external synchronization or freshness."
+    },
+    {
+      "witness_id": "integration/p1_append_fails_on_same_length_interior_semantic_rewrite",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 27,
+      "test_kind": "integration",
+      "test_name": "p1_append_fails_on_same_length_interior_semantic_rewrite",
+      "cargo_test_name": "p1_append_fails_on_same_length_interior_semantic_rewrite",
+      "source_line": 1382,
+      "classification": "EXACT",
+      "families": [
+        "stable-snapshot",
+        "tamper-resistance"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: a same-length interior semantic rewrite is detected by signature and position revalidation. NOT: authenticated origin."
+    },
+    {
+      "witness_id": "integration/p1_append_fails_on_interior_position_swap",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 28,
+      "test_kind": "integration",
+      "test_name": "p1_append_fails_on_interior_position_swap",
+      "cargo_test_name": "p1_append_fails_on_interior_position_swap",
+      "source_line": 1446,
+      "classification": "EXACT",
+      "families": [
+        "stale-writer-atomicity",
+        "tamper-resistance"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: an interior position swap is detected and poisons the writer. NOT: external ordering or authentication."
+    },
+    {
+      "witness_id": "integration/p1_append_fails_on_schema_mutation_after_writer_open",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 29,
+      "test_kind": "integration",
+      "test_name": "p1_append_fails_on_schema_mutation_after_writer_open",
+      "cargo_test_name": "p1_append_fails_on_schema_mutation_after_writer_open",
+      "source_line": 1498,
+      "classification": "EXACT",
+      "families": [
+        "schema-ownership",
+        "tamper-resistance"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: schema mutation after writer open is refused and poisons the writer. NOT: schema evolution."
+    },
+    {
+      "witness_id": "integration/p1_append_fails_on_identity_mutation_after_writer_open",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 30,
+      "test_kind": "integration",
+      "test_name": "p1_append_fails_on_identity_mutation_after_writer_open",
+      "cargo_test_name": "p1_append_fails_on_identity_mutation_after_writer_open",
+      "source_line": 1535,
+      "classification": "EXACT",
+      "families": [
+        "schema-ownership",
+        "tamper-resistance"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: identity or version mutation after writer open is refused and poisons the writer. NOT: schema evolution."
+    },
+    {
+      "witness_id": "integration/sqlite_rejected_append_does_not_consume_injected_clock",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 31,
+      "test_kind": "integration",
+      "test_name": "sqlite_rejected_append_does_not_consume_injected_clock",
+      "cargo_test_name": "sqlite_rejected_append_does_not_consume_injected_clock",
+      "source_line": 1568,
+      "classification": "EXACT",
+      "families": [
+        "deterministic-clock",
+        "stale-writer-atomicity"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: a pre-transaction rejected append does not consume the injected clock or persist state. NOT: wall-clock semantics."
+    },
+    {
+      "witness_id": "integration/supported_reopen_recovers_owned_hot_journal_and_preserves_committed_prefix",
+      "source": "crates/magpie-log/tests/sqlite_l0.rs",
+      "ordinal": 32,
+      "test_kind": "integration",
+      "test_name": "supported_reopen_recovers_owned_hot_journal_and_preserves_committed_prefix",
+      "cargo_test_name": "supported_reopen_recovers_owned_hot_journal_and_preserves_committed_prefix",
+      "source_line": 1817,
+      "classification": "EXACT",
+      "families": [
+        "hot-journal-recovery-boundary",
+        "ownership-gate"
+      ],
+      "overclaim_risk": "real power-loss or universal crash-recovery misreading",
+      "claim_fence": "WITNESSES: a supported reopen of an owned database left with a hot DELETE rollback journal recovers the journal and preserves the committed prefix exactly. NOT: real power loss, kernel crash, or universal crash recovery."
+    },
+    {
+      "witness_id": "lib/create_revalidates_empty_unowned_state_inside_transaction",
+      "source": "crates/magpie-log/src/sqlite_l0.rs",
+      "ordinal": 1,
+      "test_kind": "lib",
+      "test_name": "create_revalidates_empty_unowned_state_inside_transaction",
+      "cargo_test_name": "sqlite_l0::tests::create_revalidates_empty_unowned_state_inside_transaction",
+      "source_line": 1653,
+      "classification": "EXACT",
+      "families": [
+        "creation-atomicity",
+        "schema-ownership"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: a foreign table added to an empty unowned destination in the create window is detected by the in-transaction revalidation and rejected with ForeignDatabase and no initialized MPL0 state. NOT: ownership by an external identity."
+    },
+    {
+      "witness_id": "lib/create_revalidates_the_database_opened_after_path_preflight",
+      "source": "crates/magpie-log/src/sqlite_l0.rs",
+      "ordinal": 2,
+      "test_kind": "lib",
+      "test_name": "create_revalidates_the_database_opened_after_path_preflight",
+      "cargo_test_name": "sqlite_l0::tests::create_revalidates_the_database_opened_after_path_preflight",
+      "source_line": 1700,
+      "classification": "EXACT",
+      "families": [
+        "creation-atomicity",
+        "path-substitution",
+        "schema-ownership"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: path substitution after preflight is detected by the opened database revalidation. NOT: filesystem atomicity under adversarial concurrency."
+    },
+    {
+      "witness_id": "lib/create_rejects_journal_mode_changed_after_begin",
+      "source": "crates/magpie-log/src/sqlite_l0.rs",
+      "ordinal": 3,
+      "test_kind": "lib",
+      "test_name": "create_rejects_journal_mode_changed_after_begin",
+      "cargo_test_name": "sqlite_l0::tests::create_rejects_journal_mode_changed_after_begin",
+      "source_line": 1756,
+      "classification": "EXACT",
+      "families": [
+        "creation-atomicity",
+        "rollback-journal-profile"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: journal-mode change after BEGIN inside create is refused and leaves no initialized L0. NOT: recovery from WAL."
+    },
+    {
+      "witness_id": "lib/opened_connection_physical_size_check_follows_path_substitution",
+      "source": "crates/magpie-log/src/sqlite_l0.rs",
+      "ordinal": 4,
+      "test_kind": "lib",
+      "test_name": "opened_connection_physical_size_check_follows_path_substitution",
+      "cargo_test_name": "sqlite_l0::tests::opened_connection_physical_size_check_follows_path_substitution",
+      "source_line": 1796,
+      "classification": "EXACT",
+      "families": [
+        "finite-resource-limits",
+        "path-substitution"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: path substitution is detected during open before recovery or read. NOT: universal TOCTOU elimination."
+    },
+    {
+      "witness_id": "lib/creation_physical_size_check_follows_path_substitution",
+      "source": "crates/magpie-log/src/sqlite_l0.rs",
+      "ordinal": 5,
+      "test_kind": "lib",
+      "test_name": "creation_physical_size_check_follows_path_substitution",
+      "cargo_test_name": "sqlite_l0::tests::creation_physical_size_check_follows_path_substitution",
+      "source_line": 1874,
+      "classification": "EXACT",
+      "families": [
+        "finite-resource-limits",
+        "path-substitution"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: path substitution is detected before creation completes even when physical size changes. NOT: universal TOCTOU elimination."
+    },
+    {
+      "witness_id": "lib/unknown_commit_fault_abandons_connection_and_poison_writer",
+      "source": "crates/magpie-log/src/sqlite_l0.rs",
+      "ordinal": 6,
+      "test_kind": "lib",
+      "test_name": "unknown_commit_fault_abandons_connection_and_poison_writer",
+      "cargo_test_name": "sqlite_l0::tests::unknown_commit_fault_abandons_connection_and_poison_writer",
+      "source_line": 1952,
+      "classification": "PARTIAL",
+      "families": [
+        "transaction-failure",
+        "unknown-commit-poisoning"
+      ],
+      "overclaim_risk": "universal commit-state or power-loss misreading",
+      "claim_fence": "WITNESSES: an injected unknown commit fault returns CommitStateUnknown, abandons the connection, poisons the writer, and reopen observes the durable record. NOT: universal commit-state detection, power loss, or crash recovery."
+    },
+    {
+      "witness_id": "lib/opened_handle_ownership_gate_rejects_substituted_foreign_database",
+      "source": "crates/magpie-log/src/sqlite_l0.rs",
+      "ordinal": 7,
+      "test_kind": "lib",
+      "test_name": "opened_handle_ownership_gate_rejects_substituted_foreign_database",
+      "cargo_test_name": "sqlite_l0::tests::opened_handle_ownership_gate_rejects_substituted_foreign_database",
+      "source_line": 1988,
+      "classification": "EXACT",
+      "families": [
+        "ownership-gate",
+        "path-substitution",
+        "schema-ownership"
+      ],
+      "overclaim_risk": "none",
+      "claim_fence": "WITNESSES: a substituted foreign database is rejected by the opened-handle ownership gate. NOT: authentication or external integrity."
+    },
+    {
+      "witness_id": "lib/opened_handle_ownership_gate_precedes_hot_journal_recovery",
+      "source": "crates/magpie-log/src/sqlite_l0.rs",
+      "ordinal": 8,
+      "test_kind": "lib",
+      "test_name": "opened_handle_ownership_gate_precedes_hot_journal_recovery",
+      "cargo_test_name": "sqlite_l0::tests::opened_handle_ownership_gate_precedes_hot_journal_recovery",
+      "source_line": 2058,
+      "classification": "PARTIAL",
+      "families": [
+        "hot-journal-recovery-boundary",
+        "ownership-gate",
+        "schema-ownership"
+      ],
+      "overclaim_risk": "real power-loss or supported L0 hot-journal recovery misreading",
+      "claim_fence": "WITNESSES: the ownership gate rejects a substituted foreign hot journal before raw SQLite hot-journal recovery runs. NOT: supported L0 hot-journal recovery after real power loss."
+    }
+  ]
+}
