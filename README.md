@@ -20,6 +20,7 @@
   <a href="#how-magpie-works">Architecture</a> &nbsp; · &nbsp;
   <a href="#standing">Standing</a> &nbsp; · &nbsp;
   <a href="#current-boundary">Limits</a> &nbsp; · &nbsp;
+  <a href="#roadmap-and-research-horizon">Roadmap</a> &nbsp; · &nbsp;
   <a href="#documentation">Documentation</a>
 </p>
 
@@ -69,6 +70,8 @@ An agent recalls a claim from last week. The text survived—but did its qualifi
 | Yesterday's policy conclusion | Which inputs and policy produced it, and whether it answers today's question. |
 
 Magpie keeps these distinctions explicit. The signed log is historical authority **relative to the verifying key supplied by the caller**. Derived views explain the record and its policy consequences; they cannot rewrite it.
+
+This is an infrastructure problem shared by scientific evidence synthesis, machine reasoning, and information integrity: preserve the distinctions between an assertion, its provenance, evidence bearing on it, and the conclusions an explicitly selected method permits.
 
 <details>
 <summary><strong>The vocabulary: seven distinct questions</strong></summary>
@@ -343,6 +346,25 @@ These are capability boundaries, not an automatically authorized roadmap. Accept
 Magpie is not a chatbot, autonomous research agent, vector database, mutable knowledge graph, general truth engine, statistical-independence oracle, automatic contradiction resolver, crawler, public ingestion service, or production key-management system. It does not silently choose the newest policy.
 
 [Audit disposition](docs/audits/audit-disposition-2026-08.md) · [Pre-alpha convergence](docs/audits/public-pre-alpha-convergence-reassessment-2026-08-22.md) · [Preserved audits](docs/audits/README.md)
+
+## Roadmap and research horizon
+
+**Direction:** qualify the existing kernel before expanding the conclusions it may produce. The stages below are dependency-oriented **candidate work**, not a release schedule or permission to implement. Some investigation can proceed in parallel, but any new authority-bearing mechanism requires its own governing decision, reviewed contract, hostile tests, and owner approval. An accepted ADR, proposed design, passing CI, or open PR is not evidence that a runtime capability or release is complete.
+
+| Horizon | Candidate work | Required boundary or gate |
+| :--- | :--- | :--- |
+| **1 · Public pre-alpha assurance** | Complete the selected C4 evidence programme—including the SQLite L0 qualification in [#158](https://github.com/noctem-o/magpie/pull/158) and dependency/native qualification in [#159](https://github.com/noctem-o/magpie/pull/159)—then consider the C5 falsification and release decision. | Follow the [frozen assurance profile](docs/design/public-prealpha-assurance-profile-v1.md); independently review exact candidate evidence. Neither PR nor green CI grants release authority. |
+| **2 · Corroboration authority** | Explore an additive authority-bound successor to claimant-label origin grouping under [ADR 0007](docs/adr/0007-authority-bound-origin-corroboration.md). | Authenticate the right to assign an exact origin group under externally selected trust coordinates. Preserve existing v3 compatibility semantics. Even authorized grouping does **not** prove causal or statistical independence. |
+| **3 · Governed admission and access** | Resolve the [admission readiness questions](docs/design/admission-design-readiness-checklist.md) before considering an ordinary governed claim/evidence writer or \`EpistemicGate\`. Separately explore the proposed [read-only librarian](docs/design/mcp-librarian-contract.md). | No unreviewed proposal, retrieved material, or query output may gain history-writing authority, evidence eligibility, or standing by crossing an interface. |
+| **4 · Knowledge lifecycle** | Investigate derived currentness, targeted withdrawal, supersession, and explicit contradiction handling, consistent with [ADR 0006](docs/adr/0006-claim-currency-and-currentness-semantics.md) and other accepted lifecycle decisions. | Resolve at a specified verified snapshot and selected policy; retain previous results reproducibly. A newer, withdrawn, or conflicting assertion does not rewrite history or automatically establish falsity. |
+| **5 · Artifacts and interoperability** | Consider bounded acquisition, content-addressed artifacts, and loss-aware provenance export, potentially using [W3C PROV-O](https://www.w3.org/TR/prov-o/) or [Workflow Run RO-Crate](https://www.researchobject.org/workflow-run-crate/) at an adapter boundary. | Imported and exported metadata preserves scope and qualifications. External formats and systems may carry information, never silently confer Magpie authority. |
+| **6 · Experimental epistemics** | Study dependent evidence, missing observations, source-selection bias, contextual relevance, and calibrated uncertainty through isolated evaluations. [Cochrane's GRADE guidance](https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-14) is one methodological reference for transparent, question-specific assessment. | Use explicit ground truth where available, adversarial controls, and negative-result criteria. Research findings do not automatically become general standing policies or source-reputation scores. |
+
+### Research boundary
+
+A useful initial test is whether copied or strategically coordinated reports are mistakenly treated as independent corroboration. Other test cases include a validly signed but false assertion, missing or retracted scientific evidence, and a later contradiction against a previously supported claim. Measure **correct boundary enforcement, abstention, replayability, and explanation fidelity**, not merely the number of claims promoted. Learning-based assessments, probabilistic estimates, and domain-specific evidence grades remain attributed inputs to research until their semantics and failure cases justify any narrower governed use.
+
+The [epistemic invariant ledger](docs/design/epistemic-invariant-ledger.md) is an orientation aid, not a source of new doctrine. The underlying separations remain: **history is not evidence; evidence is not standing; standing is not truth; provenance is not trust**. This roadmap amends no ADR or frozen profile, closes no audit finding, selects no implementation, and authorizes no release.
 
 ## Documentation
 
