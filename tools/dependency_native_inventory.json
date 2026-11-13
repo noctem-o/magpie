@@ -1,0 +1,201 @@
+{
+  "schema": "magpie-dependency-native-inventory-v1",
+  "profile": {
+    "id": "magpie-public-prealpha-assurance-v1",
+    "document": {
+      "path": "docs/design/public-prealpha-assurance-profile-v1.md",
+      "sha256": "d45460903e0d7f0549e090ff34faad724d4330dcb86e26891ad4e9c2d6ca7b56"
+    }
+  },
+  "toolchains": {
+    "go": "1.27.0",
+    "python": "3.12.14",
+    "rust": "1.98.1",
+    "runner": "ubuntu-24.04"
+  },
+  "rust": {
+    "workspace_manifest": {
+      "path": "Cargo.toml",
+      "sha256": "43bfcc087497e3b3bfda35d7eebf60ce6f21895708d71881034b7f4bb67afe66"
+    },
+    "cargo_lock": {
+      "path": "Cargo.lock",
+      "sha256": "544860e77ab32d0cc72a53cc03db9e903c06d5a9e46dcb5e0ae2fa5ed78fc2a6"
+    },
+    "crate_manifests": [
+      {
+        "path": "crates/magpie-claims/Cargo.toml",
+        "sha256": "ef3aa84c0cc993d0a434889e88fde0dea409d75e8084a5e6620a0fd70720dfda"
+      },
+      {
+        "path": "crates/magpie-episodic/Cargo.toml",
+        "sha256": "a4611e948962699729937443a57807c416133bc5b8ed2f2aee1608d01c71738a"
+      },
+      {
+        "path": "crates/magpie-log/Cargo.toml",
+        "sha256": "941bdfd092a7ec4f370678ad3c58928e9df0b79c3a2d552f0f656fda7b3b92b3"
+      }
+    ],
+    "rusqlite": {
+      "version": "0.37.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "checksum": "165ca6e57b20e1351573e3729b958bc62f0e48025386970b6e4d29e7a7e71f3f",
+      "features": [
+        "bundled"
+      ],
+      "declared_in": "Cargo.toml",
+      "used_by": [
+        "crates/magpie-episodic",
+        "crates/magpie-log"
+      ],
+      "state": "BOUND"
+    },
+    "libsqlite3_sys": {
+      "version": "0.35.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "checksum": "133c182a6a2c87864fe97778797e46c7e999672690dc9fa3ee8e241aa4a9c13f",
+      "selected_by": "rusqlite/bundled",
+      "state": "BOUND"
+    }
+  },
+  "python": {
+    "requirements": {
+      "path": "tools/requirements-portable-verifier.txt",
+      "sha256": "ebe4cfa24dff3fef747b121ccde2bf065e17c652a8ff082b44570c23c0252dbc"
+    },
+    "lane": {
+      "python": "3.12.14",
+      "implementation": "CPython",
+      "os": "linux",
+      "arch": "x86_64",
+      "selected_in": ".github/workflows/ci.yml"
+    },
+    "artifacts": [
+      {
+        "distribution": "cffi",
+        "version": "2.0.0",
+        "wheel": {
+          "filename": "cffi-2.0.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+          "sha256": "3e17ed538242334bf70832644a32a7aae3d83b57567f9fd60a26257e992b79ba",
+          "size_bytes": 219572,
+          "url": "https://files.pythonhosted.org/packages/78/2d/7fa73dfa841b5ac06c7b8855cfc18622132e365f5b81d02230333ff26e9e/cffi-2.0.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl"
+        }
+      },
+      {
+        "distribution": "cryptography",
+        "version": "50.0.0",
+        "wheel": {
+          "filename": "cryptography-50.0.0-cp311-abi3-manylinux_2_34_x86_64.whl",
+          "sha256": "82148ec5bddac30b51a5b3c1945075f896fa022cb93f8e4a01e9f6ee95292c5f",
+          "size_bytes": 4734462,
+          "url": "https://files.pythonhosted.org/packages/da/3a/f05e32c99d440c9bb891ea0e36c9091891e36be5a9a87ab2ee6ea20729f6/cryptography-50.0.0-cp311-abi3-manylinux_2_34_x86_64.whl"
+        }
+      },
+      {
+        "distribution": "pycparser",
+        "version": "3.0",
+        "wheel": {
+          "filename": "pycparser-3.0-py3-none-any.whl",
+          "sha256": "b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992",
+          "size_bytes": 48172,
+          "url": "https://files.pythonhosted.org/packages/0c/c3/44f3fbbfa403ea2a7c779186dc20772604442dde72947e7d01069cbe98e3/pycparser-3.0-py3-none-any.whl"
+        }
+      },
+      {
+        "distribution": "PyNaCl",
+        "version": "1.6.2",
+        "wheel": {
+          "filename": "pynacl-1.6.2-cp38-abi3-manylinux_2_34_x86_64.whl",
+          "sha256": "c8a231e36ec2cab018c4ad4358c386e36eede0319a0c41fed24f840b1dac59f6",
+          "size_bytes": 1402859,
+          "url": "https://files.pythonhosted.org/packages/c9/a8/b917096b1accc9acd878819a49d3d84875731a41eb665f6ebc826b1af99e/pynacl-1.6.2-cp38-abi3-manylinux_2_34_x86_64.whl"
+        }
+      }
+    ],
+    "acquisition": {
+      "method": "PyPI JSON API file digests and sizes, verified byte-for-byte locally",
+      "scope": "lane-scoped: exact wheel files for CPython 3.12 on linux x86_64",
+      "state": "OBSERVED",
+      "note": "Identity and digest only. No vulnerability review, no secure-acquisition or provenance attestation, no sdist or cross-platform claim."
+    }
+  },
+  "go": {
+    "module": "example.com/magpie/go-verify-chain",
+    "go_directive": "1.27",
+    "go_mod": {
+      "path": "tools/go-verify-chain/go.mod",
+      "sha256": "3b6b688dad25f9fdfb4e4e896a9a33fcf839e7ba64fb05a9b62eedc1d2635af3"
+    },
+    "go_sum": {
+      "path": "tools/go-verify-chain/go.sum",
+      "sha256": "00f3fff3178a65b76dc10367ad1bcad7d4873cedd2eb7c883aeee668294e248f"
+    },
+    "vendor_manifest": {
+      "path": "tools/go-verify-chain/vendor/modules.txt",
+      "sha256": "f0351163b3099e504f85f743fdad9da5e5e2dbcda7faa767a3fce06121d14e20"
+    },
+    "dependencies": [
+      {
+        "module": "filippo.io/edwards25519",
+        "version": "v1.2.0",
+        "go_sum_hash": "h1:crnVqOiS4jqYleHd9vaKZ+HKtHfllngJIiOpNpoJsjo=",
+        "go_sum_mod_hash": "h1:xzAOLCNug/yB62zG1bQ8uziwrIqIuxhctzJT18Q77mc=",
+        "state": "BOUND"
+      }
+    ],
+    "exception": "Owner-approved dependency per AGENTS.md. The module path, version, and vendored location are frozen inputs; this tranche makes no new selection."
+  },
+  "github_actions": {
+    "workflow": {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "a7c6d2bfc4d99a344e02562b6592036fb2327823f073303d7d1edfe097e604bf"
+    },
+    "pins": [
+      "actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830",
+      "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+      "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97"
+    ],
+    "state": "BOUND",
+    "note": "Full-SHA action pinning is a repository convention. Pins establish workflow input identity, not action provenance or assurance."
+  },
+  "native_states": {
+    "bundled_sqlite": {
+      "state": "OBSERVED",
+      "version": "3.50.2",
+      "sql_number": "3050002",
+      "source_id": "2025-06-28 14:00:48 2af157d77fb1304a74176eaee7fbc7c7e932d946bf25325e9c26c91db19e3079",
+      "via": "libsqlite3-sys 0.35.0 bundled source tree, selected by rusqlite 0.37.0 features=[\"bundled\"]",
+      "evidence": {
+        "crate": {
+          "file": "libsqlite3-sys-0.35.0.crate",
+          "sha256": "133c182a6a2c87864fe97778797e46c7e999672690dc9fa3ee8e241aa4a9c13f",
+          "note": "The crate archive checksum equals the Cargo.lock checksum for libsqlite3-sys 0.35.0."
+        },
+        "header": "sqlite3/sqlite3.h:149",
+        "compiled_source": "sqlite3/sqlite3.c:468",
+        "note": "The crate's sqlcipher/ source tree (SQLite 3.46.1) is not compiled under the bundled feature and is not part of this observation."
+      }
+    },
+    "libsodium": {
+      "state": "UNAVAILABLE",
+      "version": null,
+      "via": "PyNaCl 1.6.2 lane wheel",
+      "evidence": {
+        "wheel": {
+          "filename": "pynacl-1.6.2-cp38-abi3-manylinux_2_34_x86_64.whl",
+          "sha256": "c8a231e36ec2cab018c4ad4358c386e36eede0319a0c41fed24f840b1dac59f6"
+        },
+        "finding": "The byte-verified wheel's nacl runtime API exposes no sodium_version_string, version_string, or crypto_version hook; no libsodium version is inferred."
+      }
+    }
+  },
+  "non_claims": [
+    "No dependency vulnerability review and no vulnerability-freedom claim.",
+    "No secure-acquisition, SLSA, or build-provenance attestation.",
+    "No hermetic-build or reproducibility claim.",
+    "No license determination.",
+    "No C4.4 or C4.5 assurance establishment.",
+    "No release-readiness or C5 selection."
+  ]
+}
