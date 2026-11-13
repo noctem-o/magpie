@@ -448,6 +448,75 @@ fn exact_public_happy_path_supports_but_never_settles() {
 }
 
 #[test]
+fn corroboration_is_the_same_under_every_actor_class() {
+    // A-022 characterization. The corroborated fixture with only `actor_class`
+    // replaced on every claim, evidence, and edge event. Origin separation
+    // comes from the verified binding bundles, not from who is named as author.
+    let materials = [
+        CompleteSpec::external("fixture-alpha", "origin-group-alpha"),
+        CompleteSpec::external("fixture-beta", "origin-group-beta"),
+    ]
+    .iter()
+    .map(material)
+    .collect::<Vec<_>>();
+    let anchors = materials
+        .iter()
+        .flat_map(|material| {
+            [
+                material.binding.selector.clone(),
+                material.acquisition.selector.clone(),
+            ]
+        })
+        .collect::<Vec<_>>();
+    let closure = construct_closure(&materials);
+
+    for actor in [
+        "AgentProposer",
+        "AutomatedVerifier",
+        "HumanRoot",
+        "SourceImporter",
+    ] {
+        let payloads = materials
+            .iter()
+            .flat_map(|material| graph_payloads(&material.graph))
+            .map(|mut payload| {
+                match &mut payload {
+                    Payload::ClaimAssertedV2 { actor_class, .. }
+                    | Payload::EvidenceRegistered { actor_class, .. }
+                    | Payload::JustificationEdgeRecorded { actor_class, .. } => {
+                        *actor_class = actor.to_owned();
+                    }
+                    _ => unreachable!("graph payloads are typed claim, evidence, and edge"),
+                }
+                payload
+            })
+            .collect::<Vec<_>>();
+        let context = replay_context(payloads, &anchors, "standing v3 actor class");
+        let resolution = context.resolved_standing_with_trace_v3(CLAIM_ID, &closure);
+
+        assert_eq!(
+            resolution.governed_standing(),
+            Some(Status::Supported),
+            "{actor}"
+        );
+        assert_eq!(
+            resolution.application().unwrap().context(),
+            &StandingPolicyContextV3::Corroborated {
+                distinct_group_count: 2,
+            },
+            "{actor}"
+        );
+        assert_eq!(
+            group_names(resolution.lane().unwrap()),
+            ["origin-group-alpha", "origin-group-beta"],
+            "{actor}"
+        );
+        assert!(resolution.blockers().is_empty(), "{actor}");
+        assert!(resolution.resolution_failure().is_none(), "{actor}");
+    }
+}
+
+#[test]
 fn more_than_two_groups_are_all_retained_and_repeated_resolution_is_identical() {
     let case = complete_case(
         &[

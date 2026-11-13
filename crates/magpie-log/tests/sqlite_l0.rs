@@ -776,6 +776,60 @@ fn p9_stale_writers_cannot_commit_sibling_successors() {
 }
 
 #[test]
+fn position_and_content_match_does_not_identify_which_writer_appended() {
+    // A-022 characterization. Two holders of the same key open the same prefix
+    // and submit identical provenance and payload. One commits; the other is
+    // told, definitely, that it did not. The persisted record still matches
+    // everything the losing writer knew about its own attempt.
+    let path = TestPath::new("position-content-identity");
+    drop(create(path.path()));
+    let clock_from = |start: u64| -> magpie_log::Clock {
+        let mut timestamp = start;
+        Box::new(move || {
+            timestamp += 1;
+            timestamp
+        })
+    };
+    let mut writer_a = LogWriter::<SqliteL0Store>::open_verified_prefix_with_clock(
+        path.path(),
+        key(),
+        broad_limits(),
+        clock_from(2000),
+    )
+    .unwrap();
+    let mut writer_b = LogWriter::<SqliteL0Store>::open_verified_prefix_with_clock(
+        path.path(),
+        key(),
+        broad_limits(),
+        clock_from(3000),
+    )
+    .unwrap();
+    let (attempted_seq, attempted_prev_hash) = (writer_a.len(), writer_a.tip());
+    assert_eq!((writer_b.len(), writer_b.tip()), (1, attempted_prev_hash));
+
+    let committed_by_b = writer_b
+        .append(provenance("same-label"), note("identical material"))
+        .unwrap();
+    let attempt_by_a = writer_a.append(provenance("same-label"), note("identical material"));
+    assert!(matches!(attempt_by_a, Err(LogError::WriterStale)));
+    drop(writer_a);
+    drop(writer_b);
+
+    let persisted = records(path.path());
+    assert_eq!(persisted.len(), 2);
+    let found: SignedEvent = serde_json::from_slice(&persisted[1]).unwrap();
+    assert_eq!(found.core.seq, attempted_seq);
+    assert_eq!(found.core.prev_hash, attempted_prev_hash);
+    assert_eq!(found.core.provenance, provenance("same-label"));
+    assert_eq!(found.core.payload, note("identical material"));
+
+    // It is B's event. Only the timestamp, and so the hash, could tell the
+    // two attempts apart, and A's error returned neither.
+    assert_eq!(found, committed_by_b);
+    assert_eq!(found.core.timestamp_nanos, 3001);
+}
+
+#[test]
 fn p1_append_rechecks_delete_journal_mode_after_begin() {
     let path = TestPath::new("append-journal-mode-race");
     let mut writer = create(path.path());
